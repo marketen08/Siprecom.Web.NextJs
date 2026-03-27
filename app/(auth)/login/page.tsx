@@ -4,8 +4,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation } from "@tanstack/react-query"
-import { useRouter } from "next/navigation"
-
 import { useAuthStore } from "@/store/auth-store"
 import type { LoginRequest, LoginApiResponse } from "@/types/auth"
 
@@ -41,7 +39,6 @@ async function loginRequest(data: LoginRequest): Promise<LoginApiResponse> {
 }
 
 export default function LoginPage() {
-  const router = useRouter()
   const setUser = useAuthStore((s) => s.setUser)
 
   const form = useForm<FormValues>({
@@ -54,7 +51,7 @@ export default function LoginPage() {
     mutationFn: loginRequest,
     onSuccess: (data) => {
       setUser(data.user)
-      router.push("/dashboard")
+      window.location.href = "/dashboard"
     },
     onError: (error: Error) => {
       form.setError("root.serverError", {

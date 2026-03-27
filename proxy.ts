@@ -9,7 +9,7 @@ export function proxy(request: NextRequest) {
 
   const isProtected = protectedRoutes.some((r) => pathname.startsWith(r))
   const isPublic = publicRoutes.some(
-    (r) => pathname === r || pathname.startsWith(r)
+    (r) => pathname === r || (r !== "/" && pathname.startsWith(r))
   )
 
   const token = request.cookies.get("accessToken")?.value
