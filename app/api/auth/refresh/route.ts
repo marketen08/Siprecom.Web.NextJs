@@ -1,0 +1,62 @@
+import { NextRequest, NextResponse } from "next/server"
+import { decodeJWT } from "@/lib/utils"
+import type { BackendAuthResponse } from "@/types/auth"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
+export async function POST(request: NextRequest) {
+  const accessToken = request.cookies.get("accessToken")?.value
+  const refreshToken = request.cookies.get("refreshToken")?.value
+
+  if (!refreshToken) {
+    return NextResponse.json({ message: "Sin sesión" }, { status: 401 })
+  }
+
+  const backendRes = await fetch(`${API_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken, refreshToken }),
+  })
+
+  if (!backendRes.ok) {
+    const response = NextResponse.json(
+      { message: "Sesión expirada" },
+      { status: 401 }
+    )
+    response.cookies.delete("accessToken")
+    response.cookies.delete("refreshToken")
+    return response
+  }
+
+  const data: BackendAuthResponse = await backendRes.json()
+  const jwt = decodeJWT(data.accessToken)
+  const email = jwt["email"] as string
+  const roles = jwt[
+    "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+  ] as string | string[]
+
+  const response = NextResponse.json({
+    user: {
+      email,
+      roles: Array.isArray(roles) ? roles : roles ? [roles] : [],
+    },
+  })
+
+  const cookieOpts = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+  }
+
+  response.cookies.set("accessToken", data.accessToken, {
+    ...cookieOpts,
+    maxAge: 60 * 60,
+  })
+  response.cookies.set("refreshToken", data.refreshToken, {
+    ...cookieOpts,
+    maxAge: 60 * 60 * 24 * 15,
+  })
+
+  return response
+}
