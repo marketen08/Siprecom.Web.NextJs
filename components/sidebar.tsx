@@ -17,9 +17,9 @@ const menu: MenuItem[] = [
     label: "Gestión de proyecto",
     children: [
       { label: "Dashboard", href: "/dashboard" },
-      { label: "Sistemas", href: "/dashboard/sistemas" },
-      { label: "Subsistemas", href: "/dashboard/subsistemas" },
-      { label: "Elementos", href: "/dashboard/elementos" },
+      { label: "Avance por sistemas", href: "/dashboard/sistemas" },
+      { label: "Avance por subsistemas", href: "/dashboard/subsistemas" },
+      { label: "Avance por elementos", href: "/dashboard/elementos" },
       { label: "Registros", href: "/dashboard/registros" },
       { label: "Pendientes", href: "/dashboard/pendientes" },
     ],
@@ -45,11 +45,20 @@ const menu: MenuItem[] = [
     ],
   },
   {
+    label: "Alcance",
+    children: [
+      { label: "Sistemas", href: "/alcance/sistemas" },
+      { label: "Subsistemas", href: "/alcance/subsistemas" },
+      { label: "Elementos", href: "/alcance/elementos" },
+      { label: "Planillas", href: "/alcance/planillas" },
+    ],
+  },
+  {
     label: "Configuración de usuarios",
     children: [
-      { label: "Usuarios", href: "/dashboard/usuarios" },
-      { label: "Acceso a proyectos", href: "/dashboard/acceso-proyectos" },
-      { label: "Empresas", href: "/dashboard/empresas" },
+      { label: "Usuarios", href: "/configuracion/usuarios" },
+      { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
+      { label: "Empresas", href: "/configuracion/empresas" },
     ],
   },
 ]
