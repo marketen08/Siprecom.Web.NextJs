@@ -13,6 +13,7 @@ import { useNewCliente } from "@/features/clientes/hooks/use-new-cliente"
 import { NewClienteSheet } from "@/features/clientes/components/new-cliente-sheet"
 import { EditClienteSheet } from "@/features/clientes/components/edit-cliente-sheet"
 import { columns } from "./columns"
+import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,7 +31,7 @@ export default function ClientesPage() {
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const { data, isLoading } = useGetClientes({ page, pageSize, nombre: search || undefined })
+  const { data, isLoading, isFetching } = useGetClientes({ page, pageSize, nombre: search || undefined })
   const { open } = useNewCliente()
 
   const table = useReactTable({
@@ -75,7 +76,7 @@ export default function ClientesPage() {
         </div>
 
         {/* Tabla */}
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <DataTableWrapper isFetching={isFetching && !isLoading}>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -116,7 +117,7 @@ export default function ClientesPage() {
               )}
             </TableBody>
           </Table>
-        </div>
+        </DataTableWrapper>
 
         {/* Paginación */}
         {totalPages > 1 && (

@@ -13,6 +13,7 @@ import { useNewSistema } from "@/features/sistemas/hooks/use-new-sistema"
 import { NewSistemaSheet } from "@/features/sistemas/components/new-sistema-sheet"
 import { EditSistemaSheet } from "@/features/sistemas/components/edit-sistema-sheet"
 import { columns } from "./columns"
+import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,7 +31,7 @@ export default function SistemasPage() {
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const { data, isLoading } = useGetSistemas({ page, pageSize, nombre: search || undefined })
+  const { data, isLoading, isFetching } = useGetSistemas({ page, pageSize, nombre: search || undefined })
   const { open } = useNewSistema()
 
   const table = useReactTable({
@@ -75,7 +76,7 @@ export default function SistemasPage() {
         </div>
 
         {/* Tabla */}
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <DataTableWrapper isFetching={isFetching && !isLoading}>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -116,7 +117,7 @@ export default function SistemasPage() {
               )}
             </TableBody>
           </Table>
-        </div>
+        </DataTableWrapper>
 
         {/* Paginación */}
         {totalPages > 1 && (

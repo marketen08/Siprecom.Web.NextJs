@@ -8,8 +8,8 @@ export function useCambiarProyectoActivo() {
     mutationFn: (proyectoId: string) =>
       apiClient.patch("/api/auth/me/proyecto-activo", { proyectoId }),
     onSuccess: () => {
-      // Invalida todo — todas las páginas refetchen con el nuevo proyecto activo
-      queryClient.invalidateQueries()
+      // Refetch inmediato de todas las queries activas con el nuevo proyecto activo
+      queryClient.refetchQueries({ type: "active" })
     },
   })
 }

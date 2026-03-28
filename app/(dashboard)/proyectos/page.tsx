@@ -13,6 +13,7 @@ import { useNewProyecto } from "@/features/proyectos/hooks/use-new-proyecto"
 import { NewProyectoSheet } from "@/features/proyectos/components/new-proyecto-sheet"
 import { EditProyectoSheet } from "@/features/proyectos/components/edit-proyecto-sheet"
 import { columns } from "./columns"
+import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,7 +31,7 @@ export default function ProyectosPage() {
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const { data, isLoading } = useGetProyectos({ page, pageSize, nombre: search || undefined })
+  const { data, isLoading, isFetching } = useGetProyectos({ page, pageSize, nombre: search || undefined })
   const { open } = useNewProyecto()
 
   const table = useReactTable({
@@ -75,7 +76,7 @@ export default function ProyectosPage() {
         </div>
 
         {/* Tabla */}
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <DataTableWrapper isFetching={isFetching && !isLoading}>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -116,7 +117,7 @@ export default function ProyectosPage() {
               )}
             </TableBody>
           </Table>
-        </div>
+        </DataTableWrapper>
 
         {/* Paginación */}
         {totalPages > 1 && (
