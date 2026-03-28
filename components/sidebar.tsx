@@ -61,6 +61,7 @@ const menu: MenuItem[] = [
       { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
       { label: "Empresas", href: "/configuracion/empresas" },
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
+      { label: "Procedimientos", href: "/configuracion/procedimientos" },
     ],
   },
 ]
