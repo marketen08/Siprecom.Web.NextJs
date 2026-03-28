@@ -37,6 +37,14 @@ export const apiClient = {
     }).then(handleResponse<T>)
   },
 
+  patch<T>(path: string, body: unknown): Promise<T> {
+    return fetch(path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(handleResponse<T>)
+  },
+
   delete<T>(path: string): Promise<T> {
     return fetch(path, { method: "DELETE" }).then(handleResponse<T>)
   },

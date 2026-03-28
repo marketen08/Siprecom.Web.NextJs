@@ -1,4 +1,5 @@
 import { UserMenu } from "@/components/user-menu"
+import { ProyectoSwitcher } from "@/components/proyecto-switcher"
 
 export function Navbar() {
   return (
@@ -13,8 +14,11 @@ export function Navbar() {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* User menu */}
-      <UserMenu />
+      {/* Project switcher + User menu */}
+      <div className="flex items-center gap-3">
+        <ProyectoSwitcher />
+        <UserMenu />
+      </div>
     </header>
   )
 }
