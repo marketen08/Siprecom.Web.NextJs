@@ -47,6 +47,7 @@ const menu: MenuItem[] = [
   {
     label: "Alcance",
     children: [
+      { label: "Proyectos", href: "/alcance/proyectos" },
       { label: "Sistemas", href: "/alcance/sistemas" },
       { label: "Subsistemas", href: "/alcance/subsistemas" },
       { label: "Elementos", href: "/alcance/elementos" },

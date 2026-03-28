@@ -77,13 +77,6 @@ export const columns: ColumnDef<Sistema>[] = [
     ),
   },
   {
-    accessorKey: "proyecto",
-    header: "Proyecto",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.proyecto?.nombre}</span>
-    ),
-  },
-  {
     accessorKey: "createdByNombre",
     header: "Creado por",
     cell: ({ row }) => (
