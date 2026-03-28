@@ -41,7 +41,7 @@ export function EditClienteSheet() {
             Modificá los datos del cliente o contratista.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-6">
+        <div className="mt-6 px-4 pb-6">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : cliente ? (

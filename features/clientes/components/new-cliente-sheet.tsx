@@ -37,7 +37,7 @@ export function NewClienteSheet() {
             Completá los datos para crear un nuevo cliente o contratista.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-6">
+        <div className="mt-6 px-4 pb-6">
           <ClienteForm
             onSubmit={onSubmit}
             isPending={mutation.isPending}

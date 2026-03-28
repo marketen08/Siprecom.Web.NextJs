@@ -43,7 +43,7 @@ export function EditProyectoSheet() {
             Modificá los datos del proyecto.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-6">
+        <div className="mt-6 px-4 pb-6">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : proyecto ? (
