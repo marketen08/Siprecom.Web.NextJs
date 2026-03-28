@@ -88,7 +88,9 @@ export function ClienteForm({
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccioná un tipo" />
+                      <SelectValue placeholder="Seleccioná un tipo">
+                        {field.value ? "Contratista" : "Cliente"}
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>

@@ -95,7 +95,9 @@ export function ProyectoForm({
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccioná un estado" />
+                      <SelectValue placeholder="Seleccioná un estado">
+                        {ESTADO_PROYECTO[field.value as keyof typeof ESTADO_PROYECTO] ?? "Seleccioná un estado"}
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -153,11 +155,10 @@ export function ProyectoForm({
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          loadingClientes ? "Cargando clientes..." : "Seleccioná un cliente"
-                        }
-                      />
+                      <SelectValue placeholder={loadingClientes ? "Cargando clientes..." : "Seleccioná un cliente"}>
+                        {clientesData?.clientes.find((c) => c.id === field.value)?.nombre
+                          ?? (loadingClientes ? "Cargando clientes..." : "Seleccioná un cliente")}
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -186,11 +187,10 @@ export function ProyectoForm({
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          loadingClientes ? "Cargando contratistas..." : "Seleccioná un contratista"
-                        }
-                      />
+                      <SelectValue placeholder={loadingClientes ? "Cargando contratistas..." : "Seleccioná un contratista"}>
+                        {clientesData?.contratistas.find((c) => c.id === field.value)?.nombre
+                          ?? (loadingClientes ? "Cargando contratistas..." : "Seleccioná un contratista")}
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
