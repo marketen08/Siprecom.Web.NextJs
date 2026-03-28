@@ -5,10 +5,12 @@ import { zodResolver } from "@hookform/resolvers/zod"
 
 import { proyectoSchema, type ProyectoFormValues } from "../schema"
 import { ESTADO_PROYECTO, type Proyecto } from "../types"
+import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
 import {
   Form,
   FormControl,
@@ -38,6 +40,8 @@ export function ProyectoForm({
   isPending,
   onCancel,
 }: ProyectoFormProps) {
+  const { data: clientesData, isLoading: loadingClientes } = useGetClientesSelect()
+
   const form = useForm<ProyectoFormValues>({
     resolver: zodResolver(proyectoSchema),
     defaultValues: {
@@ -46,111 +50,179 @@ export function ProyectoForm({
       contratistaId: defaultValues?.contratistaId ?? "",
       estado: defaultValues?.estado ?? 1,
       observaciones: defaultValues?.observaciones ?? "",
-      proyectoPlantillaId: defaultValues?.id ? undefined : "",
+      proyectoPlantillaId: "",
     },
   })
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="nombre"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nombre</FormLabel>
-              <FormControl>
-                <Input placeholder="Nombre del proyecto" disabled={isPending} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
 
-        <FormField
-          control={form.control}
-          name="estado"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Estado</FormLabel>
-              <Select
-                disabled={isPending}
-                onValueChange={(v) => v && field.onChange(parseInt(v, 10))}
-                value={String(field.value)}
-              >
+        {/* Sección: Información general */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Información general
+          </p>
+
+          <FormField
+            control={form.control}
+            name="nombre"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre del proyecto</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccioná un estado" />
-                  </SelectTrigger>
+                  <Input
+                    placeholder="Ej: Proyecto Sur 2025"
+                    disabled={isPending}
+                    {...field}
+                  />
                 </FormControl>
-                <SelectContent>
-                  {Object.entries(ESTADO_PROYECTO).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="clienteId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>ID Cliente</FormLabel>
-              <FormControl>
-                <Input placeholder="ID del cliente" disabled={isPending} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="contratistaId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>ID Contratista</FormLabel>
-              <FormControl>
-                <Input placeholder="ID del contratista" disabled={isPending} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="observaciones"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Observaciones</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Observaciones del proyecto"
+          <FormField
+            control={form.control}
+            name="estado"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Estado</FormLabel>
+                <Select
                   disabled={isPending}
-                  rows={3}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                  onValueChange={(v) => v && field.onChange(parseInt(v, 10))}
+                  value={String(field.value)}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccioná un estado" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {Object.entries(ESTADO_PROYECTO).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <div className="flex gap-2 pt-2">
-          <Button type="submit" disabled={isPending} className="flex-1">
+          <FormField
+            control={form.control}
+            name="observaciones"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Observaciones</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Notas o comentarios del proyecto..."
+                    disabled={isPending}
+                    rows={3}
+                    className="resize-none"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <Separator />
+
+        {/* Sección: Partes involucradas */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Partes involucradas
+          </p>
+
+          <FormField
+            control={form.control}
+            name="clienteId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cliente</FormLabel>
+                <Select
+                  disabled={isPending || loadingClientes}
+                  onValueChange={(v) => v && field.onChange(v)}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          loadingClientes ? "Cargando clientes..." : "Seleccioná un cliente"
+                        }
+                      />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {clientesData?.clientes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="contratistaId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contratista</FormLabel>
+                <Select
+                  disabled={isPending || loadingClientes}
+                  onValueChange={(v) => v && field.onChange(v)}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          loadingClientes ? "Cargando contratistas..." : "Seleccioná un contratista"
+                        }
+                      />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {clientesData?.contratistas.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Botones */}
+        <div className="flex gap-3 pt-2">
+          <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">
             {isPending ? "Guardando..." : "Guardar"}
           </Button>
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isPending}
+            className="flex-1"
+          >
             Cancelar
           </Button>
         </div>
+
       </form>
     </Form>
   )
