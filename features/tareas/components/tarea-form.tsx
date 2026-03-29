@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 
 interface TareaFormProps {
   defaultValues?: Partial<Tarea>
@@ -37,18 +38,18 @@ interface TareaFormProps {
   onCancel: () => void
 }
 
-const EMPTY = "__none__"
+const NONE = "__none__"
 
 export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: TareaFormProps) {
-  const { data: tiposResult } = useGetElementosTiposSelect()
-  const { data: nivelesResult } = useGetNivelesSelect()
-  const { data: planillasResult } = useGetPlanillasSelect()
-  const { data: procedimientosResult } = useGetProcedimientosSelect()
+  const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
+  const { data: nivelesData, isLoading: loadingNiveles } = useGetNivelesSelect()
+  const { data: planillasData, isLoading: loadingPlanillas } = useGetPlanillasSelect()
+  const { data: procedimientosData, isLoading: loadingProcedimientos } = useGetProcedimientosSelect()
 
-  const tipos = (tiposResult as any)?.data ?? []
-  const niveles = (nivelesResult as any)?.data ?? nivelesResult ?? []
-  const planillas = (planillasResult as any)?.data ?? []
-  const procedimientos = (procedimientosResult as any)?.data ?? []
+  const tipos = (tiposData as any)?.data ?? []
+  const niveles = (nivelesData as any)?.data ?? (Array.isArray(nivelesData) ? nivelesData : [])
+  const planillas = (planillasData as any)?.data ?? []
+  const procedimientos = (procedimientosData as any)?.data ?? []
 
   const form = useForm<TareaFormValues>({
     resolver: zodResolver(tareaSchema),
@@ -68,10 +69,10 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   const handleSubmit = (values: TareaFormValues) => {
     onSubmit({
       ...values,
-      elementoTipoId: values.elementoTipoId === EMPTY ? undefined : values.elementoTipoId,
-      nivelId: values.nivelId === EMPTY ? undefined : values.nivelId,
-      planillaId: values.planillaId === EMPTY ? undefined : values.planillaId,
-      procedimientoId: values.procedimientoId === EMPTY ? undefined : values.procedimientoId,
+      elementoTipoId: values.elementoTipoId === NONE ? undefined : values.elementoTipoId || undefined,
+      nivelId: values.nivelId === NONE ? undefined : values.nivelId || undefined,
+      planillaId: values.planillaId === NONE ? undefined : values.planillaId || undefined,
+      procedimientoId: values.procedimientoId === NONE ? undefined : values.procedimientoId || undefined,
     })
   }
 
@@ -79,6 +80,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-6">
 
+        {/* General */}
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Información general
@@ -105,13 +107,15 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Prioridad</FormLabel>
                   <Select
-                    value={String(field.value)}
-                    onValueChange={(v) => field.onChange(Number(v))}
                     disabled={isPending}
+                    value={String(field.value)}
+                    onValueChange={(v) => v && field.onChange(parseInt(v, 10))}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Seleccioná una prioridad">
+                          {PRIORIDAD[field.value as keyof typeof PRIORIDAD] ?? "Seleccioná una prioridad"}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -141,6 +145,9 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
           />
         </div>
 
+        <Separator />
+
+        {/* Asociaciones */}
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Asociaciones
@@ -154,17 +161,19 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Tipo de elemento</FormLabel>
                   <Select
-                    value={field.value || EMPTY}
-                    onValueChange={(v) => field.onChange(v === EMPTY ? "" : v)}
-                    disabled={isPending}
+                    disabled={isPending || loadingTipos}
+                    value={field.value || NONE}
+                    onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Ninguno" />
+                        <SelectValue placeholder="Ninguno">
+                          {tipos.find((t: any) => t.id === field.value)?.nombre ?? "Ninguno"}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={EMPTY}>Ninguno</SelectItem>
+                      <SelectItem value={NONE}>Ninguno</SelectItem>
                       {tipos.map((t: any) => (
                         <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
                       ))}
@@ -174,6 +183,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="nivelId"
@@ -181,18 +191,20 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Nivel</FormLabel>
                   <Select
-                    value={field.value || EMPTY}
-                    onValueChange={(v) => field.onChange(v === EMPTY ? "" : v)}
-                    disabled={isPending}
+                    disabled={isPending || loadingNiveles}
+                    value={field.value || NONE}
+                    onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Ninguno" />
+                        <SelectValue placeholder="Ninguno">
+                          {niveles.find((n: any) => n.id === field.value)?.nombre ?? "Ninguno"}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={EMPTY}>Ninguno</SelectItem>
-                      {(Array.isArray(niveles) ? niveles : []).map((n: any) => (
+                      <SelectItem value={NONE}>Ninguno</SelectItem>
+                      {niveles.map((n: any) => (
                         <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
                       ))}
                     </SelectContent>
@@ -211,17 +223,19 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Planilla</FormLabel>
                   <Select
-                    value={field.value || EMPTY}
-                    onValueChange={(v) => field.onChange(v === EMPTY ? "" : v)}
-                    disabled={isPending}
+                    disabled={isPending || loadingPlanillas}
+                    value={field.value || NONE}
+                    onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Ninguna" />
+                        <SelectValue placeholder="Ninguna">
+                          {planillas.find((p: any) => p.id === field.value)?.nombre ?? "Ninguna"}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={EMPTY}>Ninguna</SelectItem>
+                      <SelectItem value={NONE}>Ninguna</SelectItem>
                       {planillas.map((p: any) => (
                         <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
                       ))}
@@ -231,6 +245,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="procedimientoId"
@@ -238,17 +253,19 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Procedimiento</FormLabel>
                   <Select
-                    value={field.value || EMPTY}
-                    onValueChange={(v) => field.onChange(v === EMPTY ? "" : v)}
-                    disabled={isPending}
+                    disabled={isPending || loadingProcedimientos}
+                    value={field.value || NONE}
+                    onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Ninguno" />
+                        <SelectValue placeholder="Ninguno">
+                          {procedimientos.find((p: any) => p.id === field.value)?.nombre ?? "Ninguno"}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={EMPTY}>Ninguno</SelectItem>
+                      <SelectItem value={NONE}>Ninguno</SelectItem>
                       {procedimientos.map((p: any) => (
                         <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
                       ))}
@@ -261,6 +278,9 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
           </div>
         </div>
 
+        <Separator />
+
+        {/* Valores base */}
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Valores base
@@ -273,7 +293,14 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Horas base</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.01" placeholder="0" disabled={isPending} {...field} />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0"
+                      disabled={isPending}
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -286,7 +313,14 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Impacto base</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.01" placeholder="0" disabled={isPending} {...field} />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0"
+                      disabled={isPending}
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -303,6 +337,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
             Cancelar
           </Button>
         </div>
+
       </form>
     </Form>
   )
