@@ -69,9 +69,6 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   const handleSubmit = (values: TareaFormValues) => {
     onSubmit({
       ...values,
-      elementoTipoId: values.elementoTipoId === NONE ? undefined : values.elementoTipoId || undefined,
-      nivelId: values.nivelId === NONE ? undefined : values.nivelId || undefined,
-      planillaId: values.planillaId === NONE ? undefined : values.planillaId || undefined,
       procedimientoId: values.procedimientoId === NONE ? undefined : values.procedimientoId || undefined,
     })
   }
@@ -94,7 +91,13 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 <FormItem>
                   <FormLabel>Código</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="100" disabled={isPending} {...field} />
+                    <Input
+                      type="number"
+                      placeholder="100"
+                      disabled={isPending}
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
