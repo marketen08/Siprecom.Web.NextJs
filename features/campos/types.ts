@@ -1,0 +1,50 @@
+import type { CampoOpcion, CampoTipoDato } from "@/features/planillas/types"
+
+export interface Campo {
+  id: string
+  codigo: string
+  nombre: string
+  etiqueta?: string
+  tipoDato: CampoTipoDato
+  tipoDatoNombre?: string
+  unidad?: string
+  descripcion?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CampoCreateInput {
+  codigo: string
+  nombre: string
+  etiqueta?: string
+  tipoDato: CampoTipoDato
+  unidad?: string
+  descripcion?: string
+}
+
+export interface CampoUpdateInput {
+  id: string
+  codigo: string
+  nombre: string
+  etiqueta?: string
+  tipoDato: CampoTipoDato
+  unidad?: string
+  descripcion?: string
+}
+
+export interface CampoOpcionCreateInput {
+  campoId: string
+  valor: string
+  etiqueta: string
+  orden: number
+}
+
+export interface CampoOpcionUpdateInput {
+  id: string
+  campoId: string
+  valor: string
+  etiqueta: string
+  orden: number
+}
+
+export type { CampoOpcion }

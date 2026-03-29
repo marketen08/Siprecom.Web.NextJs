@@ -1,0 +1,250 @@
+"use client"
+
+import { useState } from "react"
+import { Plus, Pencil, Trash2, Check, X } from "lucide-react"
+
+import type { PlanillaSeccion } from "@/features/planillas/types"
+import { useCreateSeccion } from "@/features/planillas/api/use-create-seccion"
+import { useUpdateSeccion } from "@/features/planillas/api/use-update-seccion"
+import { useDeleteSeccion } from "@/features/planillas/api/use-delete-seccion"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { cn } from "@/lib/utils"
+
+interface SeccionPanelProps {
+  planillaId: string
+  secciones: PlanillaSeccion[]
+  selectedSeccionId: string | null
+  onSelect: (id: string | null) => void
+}
+
+export function SeccionPanel({
+  planillaId,
+  secciones,
+  selectedSeccionId,
+  onSelect,
+}: SeccionPanelProps) {
+  const [newNombre, setNewNombre] = useState("")
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingNombre, setEditingNombre] = useState("")
+  const [isAdding, setIsAdding] = useState(false)
+
+  const createMutation = useCreateSeccion()
+  const updateMutation = useUpdateSeccion()
+  const deleteMutation = useDeleteSeccion()
+
+  const handleAdd = () => {
+    if (!newNombre.trim()) return
+    createMutation.mutate(
+      {
+        planillaId,
+        nombre: newNombre.trim(),
+        orden: secciones.length + 1,
+      },
+      {
+        onSuccess: () => {
+          setNewNombre("")
+          setIsAdding(false)
+        },
+      }
+    )
+  }
+
+  const handleEdit = (seccion: PlanillaSeccion) => {
+    setEditingId(seccion.id)
+    setEditingNombre(seccion.nombre)
+  }
+
+  const handleSaveEdit = (seccion: PlanillaSeccion) => {
+    if (!editingNombre.trim()) return
+    updateMutation.mutate(
+      {
+        id: seccion.id,
+        planillaId,
+        nombre: editingNombre.trim(),
+        descripcion: seccion.descripcion,
+        orden: seccion.orden,
+      },
+      {
+        onSuccess: () => {
+          setEditingId(null)
+        },
+      }
+    )
+  }
+
+  const handleDelete = (seccion: PlanillaSeccion) => {
+    deleteMutation.mutate(
+      { planillaId, seccionId: seccion.id },
+      {
+        onSuccess: () => {
+          if (selectedSeccionId === seccion.id) onSelect(null)
+        },
+      }
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700">Secciones</h3>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setIsAdding(true)}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-1 flex-1 overflow-y-auto">
+        {/* Sin sección option */}
+        <button
+          onClick={() => onSelect(null)}
+          className={cn(
+            "text-left px-3 py-2 rounded-md text-sm transition-colors",
+            selectedSeccionId === null
+              ? "bg-blue-50 text-blue-900 font-medium"
+              : "hover:bg-gray-100 text-muted-foreground"
+          )}
+        >
+          Sin sección
+        </button>
+
+        {secciones.map((s) => (
+          <div key={s.id} className="group flex items-center gap-1">
+            {editingId === s.id ? (
+              <div className="flex items-center gap-1 flex-1">
+                <Input
+                  value={editingNombre}
+                  onChange={(e) => setEditingNombre(e.target.value)}
+                  className="h-7 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveEdit(s)
+                    if (e.key === "Escape") setEditingId(null)
+                  }}
+                  autoFocus
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => handleSaveEdit(s)}
+                  disabled={updateMutation.isPending}
+                >
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setEditingId(null)}
+                >
+                  <X className="h-3.5 w-3.5 text-gray-400" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => onSelect(s.id)}
+                  className={cn(
+                    "flex-1 text-left px-3 py-2 rounded-md text-sm transition-colors truncate",
+                    selectedSeccionId === s.id
+                      ? "bg-blue-50 text-blue-900 font-medium"
+                      : "hover:bg-gray-100"
+                  )}
+                >
+                  {s.nombre}
+                </button>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => handleEdit(s)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar sección?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Los campos de esta sección quedarán sin sección asignada.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/90"
+                          onClick={() => handleDelete(s)}
+                        >
+                          Eliminar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+
+        {isAdding && (
+          <div className="flex items-center gap-1 mt-1">
+            <Input
+              value={newNombre}
+              onChange={(e) => setNewNombre(e.target.value)}
+              placeholder="Nombre de sección..."
+              className="h-7 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd()
+                if (e.key === "Escape") { setIsAdding(false); setNewNombre("") }
+              }}
+              autoFocus
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={handleAdd}
+              disabled={createMutation.isPending}
+            >
+              <Check className="h-3.5 w-3.5 text-green-600" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => { setIsAdding(false); setNewNombre("") }}
+            >
+              <X className="h-3.5 w-3.5 text-gray-400" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

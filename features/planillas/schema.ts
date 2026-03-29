@@ -1,0 +1,14 @@
+import { z } from "zod"
+
+export const planillaSchema = z.object({
+  codigo: z.string().optional(),
+  nombre: z.string().min(1, "El nombre es requerido"),
+  descripcion: z.string().optional(),
+  observaciones: z.string().optional(),
+  version: z.string().optional(),
+  requiereFirma: z.boolean().optional(),
+  permiteAdjuntos: z.boolean().optional(),
+  generaPdfFinal: z.boolean().optional(),
+})
+
+export type PlanillaFormValues = z.infer<typeof planillaSchema>
