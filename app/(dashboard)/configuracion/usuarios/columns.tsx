@@ -1,7 +1,8 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Pencil } from "lucide-react"
+import { Pencil, FolderOpen } from "lucide-react"
+import Link from "next/link"
 
 import type { Usuario } from "@/features/usuarios/types"
 import { useOpenUsuario } from "@/features/usuarios/hooks/use-open-usuario"
@@ -17,6 +18,18 @@ function RowActions({ usuario }: { usuario: Usuario }) {
         variant="ghost"
         size="icon"
         className="h-8 w-8"
+        title="Gestionar proyectos"
+        asChild
+      >
+        <Link href={`/configuracion/usuarios/${usuario.id}/proyectos`}>
+          <FolderOpen className="h-4 w-4" />
+        </Link>
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title="Editar usuario"
         onClick={() => open(usuario.id)}
       >
         <Pencil className="h-4 w-4" />

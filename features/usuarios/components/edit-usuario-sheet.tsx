@@ -1,10 +1,12 @@
 "use client"
 
+import Link from "next/link"
+import { FolderOpen } from "lucide-react"
+
 import { useOpenUsuario } from "../hooks/use-open-usuario"
 import { useGetUsuario } from "../api/use-get-usuario"
 import { useUpdateUsuario } from "../api/use-update-usuario"
 import { UsuarioForm } from "./usuario-form"
-import { UsuarioProyectosPanel } from "./usuario-proyectos-panel"
 import type { UsuarioFormValues } from "../schema"
 
 import {
@@ -14,6 +16,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 
 export function EditUsuarioSheet() {
@@ -36,7 +39,7 @@ export function EditUsuarioSheet() {
         <SheetHeader>
           <SheetTitle>Editar usuario</SheetTitle>
           <SheetDescription>
-            Modificá los datos y los proyectos del usuario.
+            Modificá los datos del usuario.
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 px-4 pb-6 flex flex-col gap-6">
@@ -51,7 +54,17 @@ export function EditUsuarioSheet() {
                 onCancel={close}
               />
               <Separator />
-              <UsuarioProyectosPanel usuarioId={id!} />
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Acceso a proyectos
+                </p>
+                <Button variant="outline" className="justify-start gap-2" asChild>
+                  <Link href={`/configuracion/usuarios/${id}/proyectos`} onClick={close}>
+                    <FolderOpen className="h-4 w-4" />
+                    Gestionar proyectos del usuario
+                  </Link>
+                </Button>
+              </div>
             </>
           ) : (
             <p className="text-sm text-destructive">No se pudo cargar el usuario.</p>
