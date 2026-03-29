@@ -4,6 +4,7 @@ import { useOpenUsuario } from "../hooks/use-open-usuario"
 import { useGetUsuario } from "../api/use-get-usuario"
 import { useUpdateUsuario } from "../api/use-update-usuario"
 import { UsuarioForm } from "./usuario-form"
+import { UsuarioProyectosPanel } from "./usuario-proyectos-panel"
 import type { UsuarioFormValues } from "../schema"
 
 import {
@@ -13,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Separator } from "@/components/ui/separator"
 
 export function EditUsuarioSheet() {
   const { id, isOpen, close } = useOpenUsuario()
@@ -34,19 +36,23 @@ export function EditUsuarioSheet() {
         <SheetHeader>
           <SheetTitle>Editar usuario</SheetTitle>
           <SheetDescription>
-            Modificá los datos del usuario.
+            Modificá los datos y los proyectos del usuario.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-6 px-4 pb-6">
+        <div className="mt-6 px-4 pb-6 flex flex-col gap-6">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : usuario ? (
-            <UsuarioForm
-              defaultValues={usuario}
-              onSubmit={onSubmit}
-              isPending={mutation.isPending}
-              onCancel={close}
-            />
+            <>
+              <UsuarioForm
+                defaultValues={usuario}
+                onSubmit={onSubmit}
+                isPending={mutation.isPending}
+                onCancel={close}
+              />
+              <Separator />
+              <UsuarioProyectosPanel usuarioId={id!} />
+            </>
           ) : (
             <p className="text-sm text-destructive">No se pudo cargar el usuario.</p>
           )}
