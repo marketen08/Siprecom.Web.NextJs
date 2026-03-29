@@ -51,6 +51,7 @@ const menu: MenuItem[] = [
       { label: "Sistemas", href: "/alcance/sistemas" },
       { label: "Subsistemas", href: "/alcance/subsistemas" },
       { label: "Elementos", href: "/alcance/elementos" },
+      { label: "Tareas", href: "/alcance/tareas" },
       { label: "Planillas", href: "/alcance/planillas" },
     ],
   },
