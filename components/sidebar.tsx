@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useSidebar } from "@/components/sidebar-context"
 
 type MenuItem = {
   label: string
@@ -70,13 +71,14 @@ const menu: MenuItem[] = [
   },
 ]
 
-function NavLink({ href, label, depth }: { href: string; label: string; depth: number }) {
+function NavLink({ href, label, depth, onNavigate }: { href: string; label: string; depth: number; onNavigate: () => void }) {
   const pathname = usePathname()
   const isActive = pathname === href
 
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       style={{ paddingLeft: 16 + depth * 12 }}
       className={cn(
         "block py-1.5 pr-4 text-sm rounded-md transition-colors duration-150",
@@ -90,11 +92,11 @@ function NavLink({ href, label, depth }: { href: string; label: string; depth: n
   )
 }
 
-function SidebarItem({ item, depth = 0 }: { item: MenuItem; depth?: number }) {
+function SidebarItem({ item, depth = 0, onNavigate }: { item: MenuItem; depth?: number; onNavigate: () => void }) {
   const [open, setOpen] = useState(true)
 
   if (item.href && !item.children) {
-    return <NavLink href={item.href} label={item.label} depth={depth} />
+    return <NavLink href={item.href} label={item.label} depth={depth} onNavigate={onNavigate} />
   }
 
   return (
@@ -119,7 +121,6 @@ function SidebarItem({ item, depth = 0 }: { item: MenuItem; depth?: number }) {
         />
       </button>
 
-      {/* Animación suave con grid-template-rows */}
       <div
         className="overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out"
         style={{ display: "grid", gridTemplateRows: open ? "1fr" : "0fr" }}
@@ -127,7 +128,7 @@ function SidebarItem({ item, depth = 0 }: { item: MenuItem; depth?: number }) {
         <div className="overflow-hidden">
           <div className="mt-0.5 space-y-0.5 pb-1">
             {item.children?.map((child) => (
-              <SidebarItem key={child.label} item={child} depth={depth + 1} />
+              <SidebarItem key={child.label} item={child} depth={depth + 1} onNavigate={onNavigate} />
             ))}
           </div>
         </div>
@@ -137,13 +138,35 @@ function SidebarItem({ item, depth = 0 }: { item: MenuItem; depth?: number }) {
 }
 
 export function Sidebar() {
+  const { open, close } = useSidebar()
+
   return (
-    <aside className="fixed left-0 top-16 bottom-0 w-64 bg-[#0f2d52] overflow-y-auto z-40">
-      <nav className="py-4 space-y-1">
-        {menu.map((section) => (
-          <SidebarItem key={section.label} item={section} depth={0} />
-        ))}
-      </nav>
-    </aside>
+    <>
+      {/* Overlay mobile */}
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={close}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed left-0 top-16 bottom-0 w-64 bg-[#0f2d52] overflow-y-auto z-40",
+          "transition-transform duration-300 ease-in-out",
+          // Mobile: oculto por defecto, visible cuando open
+          open ? "translate-x-0" : "-translate-x-full",
+          // Desktop: siempre visible
+          "md:translate-x-0"
+        )}
+      >
+        <nav className="py-4 space-y-1">
+          {menu.map((section) => (
+            <SidebarItem key={section.label} item={section} depth={0} onNavigate={close} />
+          ))}
+        </nav>
+      </aside>
+    </>
   )
 }

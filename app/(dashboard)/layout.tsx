@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/navbar"
 import { Sidebar } from "@/components/sidebar"
+import { SidebarProvider } from "@/components/sidebar-context"
 import { FetchingBar } from "@/components/fetching-bar"
 
 export default function DashboardLayout({
@@ -8,13 +9,15 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <FetchingBar />
-      <Navbar />
-      <Sidebar />
-      <main className="ml-64 pt-16 min-h-screen">
-        <div className="p-6">{children}</div>
-      </main>
-    </div>
+    <SidebarProvider>
+      <div className="min-h-screen bg-gray-50">
+        <FetchingBar />
+        <Navbar />
+        <Sidebar />
+        <main className="pt-16 min-h-screen md:ml-64">
+          <div className="p-4 md:p-6">{children}</div>
+        </main>
+      </div>
+    </SidebarProvider>
   )
 }
