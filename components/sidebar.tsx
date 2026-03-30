@@ -17,11 +17,14 @@ const menu: MenuItem[] = [
     label: "Gestión de proyecto",
     children: [
       { label: "Dashboard", href: "/dashboard" },
-      { label: "Avance por sistemas", href: "/dashboard/sistemas" },
-      { label: "Avance por subsistemas", href: "/dashboard/subsistemas" },
-      { label: "Avance por elementos", href: "/dashboard/elementos" },
-      { label: "Registros", href: "/dashboard/registros" },
-      { label: "Pendientes", href: "/dashboard/pendientes" },
+    ],
+  },
+  {
+    label: "Ejecución",
+    children: [
+      { label: "Avance por sistemas", href: "/ejecucion/sistemas" },
+      { label: "Avance por subsistemas", href: "/ejecucion/subsistemas" },
+      { label: "Avance por elementos", href: "/ejecucion/elementos" },
     ],
   },
   {
