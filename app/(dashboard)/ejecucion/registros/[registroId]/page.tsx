@@ -2,13 +2,16 @@
 
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, Upload, CheckCircle2, Loader2, FileUp } from "lucide-react"
+import { ArrowLeft, Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check } from "lucide-react"
 
 import { useGetRegistroDetalle } from "@/features/registros/api/use-get-registro-detalle"
 import { useCompletarDigital } from "@/features/registros/api/use-completar-digital"
 import { useCompletarFisico } from "@/features/registros/api/use-completar-fisico"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
+import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
+import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
+import { ESTADO_REGISTRO } from "@/features/registros/types"
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
 
@@ -75,7 +78,7 @@ export default function RegistroFormPage({ params }: PageProps) {
   const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
 
   const isLoading = loadingDetalle || loadingEstructura
-  const isReadOnly = registro?.estado === "COMPLETADO" || registro?.estado === "FIRMADO" || registro?.estado === "APROBADO"
+  const isReadOnly = registro?.estado === 3 || registro?.estado === 4 || registro?.estado === 5
 
   if (isLoading) {
     return (
@@ -192,9 +195,21 @@ export default function RegistroFormPage({ params }: PageProps) {
           </p>
         </div>
         {isReadOnly && (
-          <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-green-100 text-green-700">
-            <CheckCircle2 className="h-3.5 w-3.5" /> {registro.estado}
-          </span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <a
+              href={`/api/registros/${registroId}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button variant="outline" size="sm" className="gap-1.5 h-8">
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Descargar PDF</span>
+              </Button>
+            </a>
+            <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-green-100 text-green-700">
+              <CheckCircle2 className="h-3.5 w-3.5" /> {ESTADO_REGISTRO[registro.estado] ?? registro.estado}
+            </span>
+          </div>
         )}
       </div>
 
@@ -332,6 +347,199 @@ export default function RegistroFormPage({ params }: PageProps) {
           )}
         </div>
       )}
+
+      {/* ── Firmas ── */}
+      {(registro.estado === 3 || registro.estado === 4) && (
+        <FirmasSection registroId={registroId} />
+      )}
+    </div>
+  )
+}
+
+// ─── Sección de firmas ────────────────────────────────────────────────────────
+
+function FirmasSection({ registroId }: { registroId: string }) {
+  const { data: raw, isLoading } = useGetFirmasStatus(registroId)
+  const firmar = useFirmarRegistro(registroId)
+  const status = (raw as any)?.data ?? raw
+
+  const [slotFirmando, setSlotFirmando] = useState<string | null>(null)
+  const [rolLibre, setRolLibre] = useState("")
+  const [observacionFirma, setObservacionFirma] = useState("")
+
+  async function handleFirmar(rolNombre: string) {
+    await firmar.mutateAsync({ rolFirmante: rolNombre, observaciones: observacionFirma || null })
+    setSlotFirmando(null)
+    setObservacionFirma("")
+    setRolLibre("")
+  }
+
+  if (isLoading) return null
+
+  const slots: any[] = status?.slots ?? []
+  const sinSlots = slots.length === 0
+  const yaFirmadoLibre = status?.todasLasFirmasCompletadas && sinSlots
+
+  // Sin slots configurados: formulario libre
+  if (sinSlots) {
+    return (
+      <div className="rounded-xl border bg-white overflow-hidden">
+        <div className="px-5 py-3 bg-gray-50 border-b">
+          <h2 className="font-semibold text-gray-800">Firma del registro</h2>
+        </div>
+        <div className="p-5">
+          {yaFirmadoLibre ? (
+            <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+              <Check className="h-4 w-4" /> Registro firmado
+            </div>
+          ) : slotFirmando === "__libre__" ? (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Tu rol <span className="text-red-500">*</span></label>
+                <Input
+                  placeholder="Ej: Inspector, Supervisor..."
+                  value={rolLibre}
+                  onChange={(e) => setRolLibre(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Observaciones (opcional)</label>
+                <Textarea
+                  placeholder="Notas sobre esta firma..."
+                  value={observacionFirma}
+                  onChange={(e) => setObservacionFirma(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => handleFirmar(rolLibre)}
+                  disabled={firmar.isPending || !rolLibre.trim()}
+                >
+                  {firmar.isPending
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <PenLine className="h-3.5 w-3.5" />
+                  }
+                  Confirmar firma
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSlotFirmando(null)} disabled={firmar.isPending}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => { setSlotFirmando("__libre__"); setObservacionFirma("") }}
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Firmar registro
+            </Button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border bg-white overflow-hidden">
+      <div className="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
+        <h2 className="font-semibold text-gray-800">Firmas</h2>
+        <span className="text-xs text-muted-foreground">
+          {status.firmasCompletadas} / {status.totalFirmas} completadas
+        </span>
+      </div>
+      <div className="divide-y">
+        {slots.map((slot: any) => {
+          const firmado = !!slot.firmaId
+          const esActivo = slotFirmando === slot.id
+
+          return (
+            <div key={slot.id} className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  {firmado ? (
+                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-green-100">
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-gray-100">
+                      <Clock className="h-3.5 w-3.5 text-gray-400" />
+                    </span>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{slot.rolNombre}</p>
+                    {slot.descripcion && (
+                      <p className="text-xs text-muted-foreground">{slot.descripcion}</p>
+                    )}
+                  </div>
+                </div>
+
+                {firmado ? (
+                  <div className="text-right text-xs text-muted-foreground">
+                    <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
+                    <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                ) : (
+                  !esActivo && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-8 shrink-0"
+                      onClick={() => { setSlotFirmando(slot.id); setObservacionFirma("") }}
+                    >
+                      <PenLine className="h-3.5 w-3.5" />
+                      Firmar
+                    </Button>
+                  )
+                )}
+              </div>
+
+              {esActivo && (
+                <div className="pl-8 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-1">
+                      Observaciones (opcional)
+                    </label>
+                    <Textarea
+                      placeholder="Notas sobre esta firma..."
+                      value={observacionFirma}
+                      onChange={(e) => setObservacionFirma(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => handleFirmar(slot.rolNombre)}
+                      disabled={firmar.isPending}
+                    >
+                      {firmar.isPending
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <PenLine className="h-3.5 w-3.5" />
+                      }
+                      Confirmar firma
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSlotFirmando(null)}
+                      disabled={firmar.isPending}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

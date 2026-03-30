@@ -256,6 +256,40 @@ function TareaAcciones({
     )
   }
 
+  // 3 = COMPLETADO — ver registro y firmar
+  if (tarea.estado === 3 && tarea.registroId) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 h-8"
+          onClick={() => onAbrirFormulario(tarea)}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Ver y firmar
+        </Button>
+      </div>
+    )
+  }
+
+  // 4 = APROBADO — solo lectura
+  if (tarea.estado === 4 && tarea.registroId) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 h-8"
+          onClick={() => onAbrirFormulario(tarea)}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Ver registro
+        </Button>
+      </div>
+    )
+  }
+
   // 5 = RECHAZADO — permite volver a completar
   if (tarea.estado === 5 && tarea.registroId) {
     return (
