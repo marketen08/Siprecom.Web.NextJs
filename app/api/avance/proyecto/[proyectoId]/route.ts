@@ -8,6 +8,8 @@ export async function GET(
 ) {
   const { proyectoId } = await context.params
   const res = await backendFetch(request, `/avance/proyecto/${proyectoId}`)
-  const data = await res.json()
+  const text = await res.text()
+  let data: unknown
+  try { data = JSON.parse(text) } catch { data = { message: text } }
   return Response.json(data, { status: res.status })
 }

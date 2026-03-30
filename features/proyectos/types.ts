@@ -19,9 +19,9 @@ export interface Proyecto {
   estadoTexto: string
   observaciones: string
   permitirAvanceSinRegistro: boolean
-  permitirPlanillas: boolean
-  permitirProcedimientos: boolean
-  permitirRegistros: boolean
+  permitirDescargarPlanillas: boolean
+  permitirDescargarProcedimientos: boolean
+  permitirDescargarRegistros: boolean
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean
   createdAt: string
