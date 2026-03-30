@@ -1,9 +1,13 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
+import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
 import type { AvanceDTO } from "@/features/avance/types"
+import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import { BarraAvance } from "@/components/barra-avance"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
@@ -11,8 +15,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet"
-import { Badge } from "@/components/ui/badge"
-import { AlertCircle, Clock, CheckCircle2, XCircle, Ban, Loader2 } from "lucide-react"
+import {
+  AlertCircle, Clock, CheckCircle2, XCircle, Ban,
+  Loader2, Play, FileText, Upload,
+} from "lucide-react"
 
 interface Props {
   elementoId: string | null
@@ -22,15 +28,33 @@ interface Props {
 }
 
 export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Props) {
+  const router = useRouter()
   const { data: elementoRaw, isLoading: loadingElemento } = useGetElemento(elementoId)
   const { data: tareasRaw, isLoading: loadingTareas } = useGetElementosTareasPorElemento(elementoId)
+  const iniciarMutation = useIniciarTarea()
 
   const elemento = elementoRaw?.data
   const tareas = tareasRaw?.data ?? []
 
+  async function handleIniciar(tarea: ElementoTarea) {
+    const result = await iniciarMutation.mutateAsync(tarea.id) as any
+    // El backend devuelve la ET actualizada con registroId — navegamos al form
+    const registroId = result?.data?.registroId ?? result?.registroId
+    if (registroId) {
+      onClose()
+      router.push(`/ejecucion/registros/${registroId}`)
+    }
+  }
+
+  function handleAbrirFormulario(tarea: ElementoTarea) {
+    if (!tarea.registroId) return
+    onClose()
+    router.push(`/ejecucion/registros/${tarea.registroId}`)
+  }
+
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto" side="right">
+      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto" side="right">
         <SheetHeader className="pb-2">
           {loadingElemento ? (
             <SheetTitle className="text-gray-400">Cargando...</SheetTitle>
@@ -75,9 +99,9 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                 Datos del elemento
               </h3>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <DataItem label="Prioridad"   value={elemento.prioridadTexto} />
-                {elemento.pid       && <DataItem label="PID"       value={elemento.pid} />}
-                {elemento.testpack  && <DataItem label="Testpack"  value={elemento.testpack} />}
+                <DataItem label="Prioridad" value={elemento.prioridadTexto} />
+                {elemento.pid      && <DataItem label="PID"      value={elemento.pid} />}
+                {elemento.testpack && <DataItem label="Testpack" value={elemento.testpack} />}
                 {elemento.horasAdicionales > 0 && (
                   <DataItem label="Hs. adicionales" value={String(elemento.horasAdicionales)} />
                 )}
@@ -108,10 +132,8 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
             ) : (
               <div className="space-y-2">
                 {tareas.map((t) => (
-                  <div
-                    key={t.id}
-                    className="rounded-lg border bg-white p-3 space-y-2"
-                  >
+                  <div key={t.id} className="rounded-lg border bg-white p-3 space-y-2">
+                    {/* Encabezado */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
@@ -127,6 +149,7 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                       <EstadoBadge estado={t.estado} estadoTexto={t.estadoTexto} />
                     </div>
 
+                    {/* Meta */}
                     <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
                       {t.asignadoNombre && (
                         <span>Asignado: <span className="font-medium text-gray-700">{t.asignadoNombre}</span></span>
@@ -151,9 +174,17 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
 
                     {t.motivoRechazo && (
                       <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
-                        Motivo: {t.motivoRechazo}
+                        Motivo rechazo: {t.motivoRechazo}
                       </p>
                     )}
+
+                    {/* Acciones */}
+                    <TareaAcciones
+                      tarea={t}
+                      onIniciar={handleIniciar}
+                      onAbrirFormulario={handleAbrirFormulario}
+                      isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
+                    />
                   </div>
                 ))}
               </div>
@@ -165,7 +196,87 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
   )
 }
 
-// ─── helpers ───────────────────────────────────────────────────────────────
+// ─── Acciones por estado ────────────────────────────────────────────────────
+
+function TareaAcciones({
+  tarea,
+  onIniciar,
+  onAbrirFormulario,
+  isIniciando,
+}: {
+  tarea: ElementoTarea
+  onIniciar: (t: ElementoTarea) => void
+  onAbrirFormulario: (t: ElementoTarea) => void
+  isIniciando: boolean
+}) {
+  // 0 = PENDIENTE
+  if (tarea.estado === 0) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          className="gap-1.5 h-8"
+          onClick={() => onIniciar(tarea)}
+          disabled={isIniciando}
+        >
+          {isIniciando ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Play className="h-3.5 w-3.5" />
+          )}
+          Iniciar tarea
+        </Button>
+      </div>
+    )
+  }
+
+  // 1 = EN_PROCESO
+  if (tarea.estado === 1 && tarea.registroId) {
+    return (
+      <div className="flex gap-2 pt-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 h-8"
+          onClick={() => onAbrirFormulario(tarea)}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Completar formulario
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 h-8"
+          onClick={() => onAbrirFormulario(tarea)}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          Cargar PDF
+        </Button>
+      </div>
+    )
+  }
+
+  // 4 = RECHAZADO — permite volver a completar
+  if (tarea.estado === 4 && tarea.registroId) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 h-8 border-red-200 text-red-700 hover:bg-red-50"
+          onClick={() => onAbrirFormulario(tarea)}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Revisar y re-completar
+        </Button>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ─── helpers ────────────────────────────────────────────────────────────────
 
 function DataItem({ label, value }: { label: string; value: string }) {
   return (
