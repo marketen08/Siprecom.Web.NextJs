@@ -168,7 +168,7 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                       )}
                     </div>
 
-                    {t.porcentajeAvance > 0 && t.estado !== 3 && (
+                    {t.porcentajeAvance > 0 && t.estado !== 4 && (
                       <BarraAvance porcentaje={t.porcentajeAvance} />
                     )}
 
@@ -209,8 +209,8 @@ function TareaAcciones({
   onAbrirFormulario: (t: ElementoTarea) => void
   isIniciando: boolean
 }) {
-  // 0 = PENDIENTE
-  if (tarea.estado === 0) {
+  // 1 = PENDIENTE
+  if (tarea.estado === 1) {
     return (
       <div className="pt-1">
         <Button
@@ -230,8 +230,8 @@ function TareaAcciones({
     )
   }
 
-  // 1 = EN_PROCESO
-  if (tarea.estado === 1 && tarea.registroId) {
+  // 2 = EN_PROCESO
+  if (tarea.estado === 2 && tarea.registroId) {
     return (
       <div className="flex gap-2 pt-1">
         <Button
@@ -256,8 +256,8 @@ function TareaAcciones({
     )
   }
 
-  // 4 = RECHAZADO — permite volver a completar
-  if (tarea.estado === 4 && tarea.registroId) {
+  // 5 = RECHAZADO — permite volver a completar
+  if (tarea.estado === 5 && tarea.registroId) {
     return (
       <div className="pt-1">
         <Button
@@ -309,21 +309,21 @@ function EstadoChip({
 }
 
 const ESTADO_ICONS: Record<number, React.ReactNode> = {
-  0: <Clock className="h-3.5 w-3.5" />,
-  1: <Loader2 className="h-3.5 w-3.5" />,
-  2: <CheckCircle2 className="h-3.5 w-3.5" />,
+  1: <Clock className="h-3.5 w-3.5" />,
+  2: <Loader2 className="h-3.5 w-3.5" />,
   3: <CheckCircle2 className="h-3.5 w-3.5" />,
-  4: <XCircle className="h-3.5 w-3.5" />,
-  5: <Ban className="h-3.5 w-3.5" />,
+  4: <CheckCircle2 className="h-3.5 w-3.5" />,
+  5: <XCircle className="h-3.5 w-3.5" />,
+  6: <Ban className="h-3.5 w-3.5" />,
 }
 
 const ESTADO_STYLES: Record<number, string> = {
-  0: "bg-gray-100 text-gray-700",
-  1: "bg-blue-100 text-blue-700",
-  2: "bg-yellow-100 text-yellow-700",
-  3: "bg-green-100 text-green-700",
-  4: "bg-red-100 text-red-700",
-  5: "bg-gray-50 text-gray-400",
+  1: "bg-gray-100 text-gray-700",
+  2: "bg-blue-100 text-blue-700",
+  3: "bg-yellow-100 text-yellow-700",
+  4: "bg-green-100 text-green-700",
+  5: "bg-red-100 text-red-700",
+  6: "bg-gray-50 text-gray-400",
 }
 
 function EstadoBadge({ estado, estadoTexto }: { estado: number; estadoTexto: string }) {

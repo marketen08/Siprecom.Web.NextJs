@@ -1,10 +1,10 @@
 export const ESTADO_ELEMENTO_TAREA = {
-  0: "Pendiente",
-  1: "En proceso",
-  2: "Completado",
-  3: "Aprobado",
-  4: "Rechazado",
-  5: "Cancelado",
+  1: "Pendiente",
+  2: "En proceso",
+  3: "Completado",
+  4: "Aprobado",
+  5: "Rechazado",
+  6: "Cancelado",
 } as const
 
 export interface ElementoTarea {
