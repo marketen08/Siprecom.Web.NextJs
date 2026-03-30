@@ -11,7 +11,7 @@ import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-plani
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
-import { ESTADO_REGISTRO_LABEL } from "@/features/registros/types"
+
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
 
@@ -206,9 +206,21 @@ export default function RegistroFormPage({ params }: PageProps) {
                 <span className="hidden sm:inline">Descargar PDF</span>
               </Button>
             </a>
-            <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-green-100 text-green-700">
-              <CheckCircle2 className="h-3.5 w-3.5" /> {ESTADO_REGISTRO_LABEL[registro.estado] ?? registro.estado}
-            </span>
+            {registro.estado === "COMPLETADO" && (
+              <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-amber-100 text-amber-700">
+                <Clock className="h-3.5 w-3.5" /> Pendiente de firma
+              </span>
+            )}
+            {registro.estado === "FIRMADO" && (
+              <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Firmado
+              </span>
+            )}
+            {registro.estado === "APROBADO" && (
+              <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-green-100 text-green-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Aprobado
+              </span>
+            )}
           </div>
         )}
       </div>

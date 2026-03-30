@@ -273,6 +273,23 @@ function TareaAcciones({
     )
   }
 
+  // 7 = FIRMADO — ver registro (pendiente de aprobación)
+  if (tarea.estado === 7 && tarea.registroId) {
+    return (
+      <div className="pt-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 h-8"
+          onClick={() => onAbrirFormulario(tarea)}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Ver registro
+        </Button>
+      </div>
+    )
+  }
+
   // 4 = APROBADO — solo lectura
   if (tarea.estado === 4 && tarea.registroId) {
     return (
@@ -349,6 +366,7 @@ const ESTADO_ICONS: Record<number, React.ReactNode> = {
   4: <CheckCircle2 className="h-3.5 w-3.5" />,
   5: <XCircle className="h-3.5 w-3.5" />,
   6: <Ban className="h-3.5 w-3.5" />,
+  7: <CheckCircle2 className="h-3.5 w-3.5" />,
 }
 
 const ESTADO_STYLES: Record<number, string> = {
@@ -358,6 +376,7 @@ const ESTADO_STYLES: Record<number, string> = {
   4: "bg-green-100 text-green-700",
   5: "bg-red-100 text-red-700",
   6: "bg-gray-50 text-gray-400",
+  7: "bg-blue-100 text-blue-700",
 }
 
 function EstadoBadge({ estado, estadoTexto }: { estado: number; estadoTexto: string }) {

@@ -5,6 +5,7 @@ export const ESTADO_ELEMENTO_TAREA = {
   4: "Aprobado",
   5: "Rechazado",
   6: "Cancelado",
+  7: "Firmado",
 } as const
 
 export interface ElementoTarea {
