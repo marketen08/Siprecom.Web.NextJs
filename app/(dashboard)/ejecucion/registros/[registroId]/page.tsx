@@ -11,7 +11,7 @@ import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-plani
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
-import { ESTADO_REGISTRO } from "@/features/registros/types"
+import { ESTADO_REGISTRO_LABEL } from "@/features/registros/types"
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
 
@@ -78,7 +78,7 @@ export default function RegistroFormPage({ params }: PageProps) {
   const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
 
   const isLoading = loadingDetalle || loadingEstructura
-  const isReadOnly = registro?.estado === 3 || registro?.estado === 4 || registro?.estado === 5
+  const isReadOnly = registro?.estado === "COMPLETADO" || registro?.estado === "FIRMADO" || registro?.estado === "APROBADO"
 
   if (isLoading) {
     return (
@@ -207,7 +207,7 @@ export default function RegistroFormPage({ params }: PageProps) {
               </Button>
             </a>
             <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-green-100 text-green-700">
-              <CheckCircle2 className="h-3.5 w-3.5" /> {ESTADO_REGISTRO[registro.estado] ?? registro.estado}
+              <CheckCircle2 className="h-3.5 w-3.5" /> {ESTADO_REGISTRO_LABEL[registro.estado] ?? registro.estado}
             </span>
           </div>
         )}
@@ -349,7 +349,7 @@ export default function RegistroFormPage({ params }: PageProps) {
       )}
 
       {/* ── Firmas ── */}
-      {(registro.estado === 3 || registro.estado === 4) && (
+      {(registro.estado === "COMPLETADO" || registro.estado === "FIRMADO") && (
         <FirmasSection registroId={registroId} />
       )}
     </div>

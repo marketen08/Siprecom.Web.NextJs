@@ -26,13 +26,13 @@ export interface RegistroArchivo {
   urlExpiraEn: string | null
 }
 
-export const ESTADO_REGISTRO: Record<number, string> = {
-  1: "BORRADOR",
-  2: "EN PROCESO",
-  3: "COMPLETADO",
-  4: "FIRMADO",
-  5: "APROBADO",
-  6: "RECHAZADO",
+export const ESTADO_REGISTRO_LABEL: Record<string, string> = {
+  BORRADOR: "Borrador",
+  EN_PROCESO: "En proceso",
+  COMPLETADO: "Completado",
+  FIRMADO: "Firmado",
+  APROBADO: "Aprobado",
+  RECHAZADO: "Rechazado",
 }
 
 export interface RegistroDetalle {
@@ -41,7 +41,7 @@ export interface RegistroDetalle {
   planillaId: string
   proyectoId: string
   terminalId: string
-  estado: number
+  estado: string
   esFisico: boolean
   fechaInicio: string
   fechaTerminado: string | null
