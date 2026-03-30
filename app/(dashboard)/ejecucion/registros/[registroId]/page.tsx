@@ -53,6 +53,7 @@ export default function RegistroFormPage({ params }: PageProps) {
   const [valores, setValores] = useState<Record<string, string>>({})
   const [observaciones, setObservaciones] = useState("")
   const [observacionesCampo, setObservacionesCampo] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, boolean>>({})
 
   // Pre-rellenar con valores existentes cuando cargan
   const prefilledRef = useRef(false)
@@ -110,6 +111,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function setValue(planillaCampoId: string, val: string) {
     setValores((prev) => ({ ...prev, [planillaCampoId]: val }))
+    if (errors[planillaCampoId]) setErrors((prev) => ({ ...prev, [planillaCampoId]: false }))
   }
 
   function setObsCampo(planillaCampoId: string, val: string) {
@@ -135,7 +137,25 @@ export default function RegistroFormPage({ params }: PageProps) {
       })
   }
 
+  function validate(): boolean {
+    const camposObligatorios = campos.filter(
+      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 6 && c.campoTipoDato !== 7
+    )
+    const newErrors: Record<string, boolean> = {}
+    for (const c of camposObligatorios) {
+      const val = valores[c.id] ?? c.valorDefault ?? ""
+      if (val === "" || val == null) newErrors[c.id] = true
+    }
+    setErrors(newErrors)
+    const firstErrorId = Object.keys(newErrors)[0]
+    if (firstErrorId) {
+      document.getElementById(`campo-${firstErrorId}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    }
+    return Object.keys(newErrors).length === 0
+  }
+
   async function handleSubmitDigital() {
+    if (!validate()) return
     await completarDigital.mutateAsync({
       observaciones: observaciones || null,
       valores: buildValores(),
@@ -272,6 +292,7 @@ export default function RegistroFormPage({ params }: PageProps) {
                       onChange={(v) => setValue(campo.id, v)}
                       onObservacionChange={(v) => setObsCampo(campo.id, v)}
                       readOnly={isReadOnly || campo.soloLectura}
+                      hasError={!!errors[campo.id]}
                     />
                   ))}
                 </div>
@@ -294,7 +315,12 @@ export default function RegistroFormPage({ params }: PageProps) {
           </div>
 
           {!isReadOnly && (
-            <div className="flex justify-end pb-4">
+            <div className="flex flex-col items-end gap-2 pb-4">
+              {Object.values(errors).some(Boolean) && (
+                <p className="text-sm text-red-600">
+                  Completá los campos obligatorios marcados en rojo antes de guardar.
+                </p>
+              )}
               <Button onClick={handleSubmitDigital} disabled={isSaving} className="gap-2 px-6">
                 {isSaving
                   ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -313,7 +339,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 // ─── Campo dinámico ──────────────────────────────────────────────────────────
 
 function CampoInput({
-  campo, value, observacion, onChange, onObservacionChange, readOnly,
+  campo, value, observacion, onChange, onObservacionChange, readOnly, hasError,
 }: {
   campo: PlanillaCampoDetalle
   value: string
@@ -321,6 +347,7 @@ function CampoInput({
   onChange: (v: string) => void
   onObservacionChange: (v: string) => void
   readOnly: boolean
+  hasError?: boolean
 }) {
   const label = (
     <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
@@ -416,9 +443,14 @@ function CampoInput({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div id={`campo-${campo.id}`} className="space-y-1.5">
       {label}
-      {input}
+      <div className={hasError ? "ring-2 ring-red-400 rounded-md" : undefined}>
+        {input}
+      </div>
+      {hasError && (
+        <p className="text-xs text-red-500">Este campo es obligatorio.</p>
+      )}
     </div>
   )
 }
