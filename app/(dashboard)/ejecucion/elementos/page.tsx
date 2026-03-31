@@ -8,7 +8,7 @@ import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-s
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
 import { BarraAvance } from "@/components/barra-avance"
-import type { AvanceDTO } from "@/features/avance/types"
+import type { AvanceElementoDTO } from "@/features/avance/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -26,6 +26,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 function AvanceElementosContent() {
   const router = useRouter()
@@ -35,9 +40,8 @@ function AvanceElementosContent() {
   const [sistemaId, setSistemaId] = useState<string>("")
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam ?? "")
   const [search, setSearch] = useState("")
-  const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceDTO } | null>(null)
+  const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceElementoDTO } | null>(null)
 
-  // Sync subSistemaId from URL param on first load
   useEffect(() => {
     if (subSistemaIdParam && subSistemaId !== subSistemaIdParam) {
       setSubSistemaId(subSistemaIdParam)
@@ -90,6 +94,9 @@ function AvanceElementosContent() {
 
   const hayFiltros = !!sistemaId || !!subSistemaId || !!search
 
+  const sistemaSeleccionado = sistemas.find((s) => s.id === sistemaId)
+  const subSistemaSeleccionado = todosSubSistemas.find((ss) => ss.id === subSistemaId)
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
@@ -129,7 +136,11 @@ function AvanceElementosContent() {
       <div className="flex flex-wrap gap-3 items-center">
         <Select value={sistemaId || "__all__"} onValueChange={handleSistemaChange}>
           <SelectTrigger className="w-56">
-            <SelectValue placeholder="Todos los sistemas" />
+            <SelectValue>
+              {sistemaSeleccionado
+                ? `${sistemaSeleccionado.codigo} — ${sistemaSeleccionado.nombre}`
+                : "Todos los sistemas"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todos los sistemas</SelectItem>
@@ -143,7 +154,11 @@ function AvanceElementosContent() {
 
         <Select value={subSistemaId || "__all__"} onValueChange={handleSubSistemaChange}>
           <SelectTrigger className="w-64">
-            <SelectValue placeholder="Seleccioná un subsistema" />
+            <SelectValue>
+              {subSistemaSeleccionado
+                ? `${subSistemaSeleccionado.codigo} — ${subSistemaSeleccionado.nombre}`
+                : "Seleccioná un subsistema"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todos los subsistemas</SelectItem>
@@ -187,26 +202,25 @@ function AvanceElementosContent() {
               <TableRow className="bg-gray-50">
                 <TableHead className="font-semibold text-gray-700 w-28">TAG</TableHead>
                 <TableHead className="font-semibold text-gray-700">Elemento</TableHead>
-                <TableHead className="font-semibold text-gray-700 w-56">Avance</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-20">Total</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-24">Pendiente</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-24">En proceso</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-24">Completado</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-24">Firmado</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-24">Aprobado</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-24">Rechazado</TableHead>
+                <TableHead className="font-semibold text-gray-700 w-36">Tipo</TableHead>
+                <TableHead className="font-semibold text-gray-700 w-32">Especialidad</TableHead>
+                <TableHead className="font-semibold text-gray-700 w-24">Prioridad</TableHead>
+                <TableHead className="font-semibold text-gray-700 w-28">PID</TableHead>
+                <TableHead className="font-semibold text-gray-700 w-28">Testpack</TableHead>
+                <TableHead className="font-semibold text-gray-700 w-52">Avance</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-center w-24">Estados</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     Cargando...
                   </TableCell>
                 </TableRow>
               ) : elementos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     {search ? "No hay elementos que coincidan con la búsqueda." : "No hay elementos con datos de avance en este subsistema."}
                   </TableCell>
                 </TableRow>
@@ -219,27 +233,18 @@ function AvanceElementosContent() {
                   >
                     <TableCell className="font-mono text-sm text-gray-600">{e.codigo}</TableCell>
                     <TableCell className="font-medium">{e.nombre}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{e.elementoTipoNombre ?? "—"}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{e.elementoTipoEspecialidad ?? "—"}</TableCell>
+                    <TableCell>
+                      <PrioridadBadge prioridad={e.prioridadTexto} />
+                    </TableCell>
+                    <TableCell className="font-mono text-sm text-gray-500">{e.pid ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-sm text-gray-500">{e.testpack ?? "—"}</TableCell>
                     <TableCell>
                       <BarraAvance porcentaje={e.porcentajeAvance} />
                     </TableCell>
-                    <TableCell className="text-center text-sm">{e.totalTareas}</TableCell>
-                    <TableCell className="text-center">
-                      <EstadoBadge value={e.pendiente} variant="pendiente" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <EstadoBadge value={e.enProceso} variant="enProceso" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <EstadoBadge value={e.completado} variant="completado" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <EstadoBadge value={e.firmado} variant="firmado" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <EstadoBadge value={e.aprobado} variant="aprobado" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <EstadoBadge value={e.rechazado} variant="rechazado" />
+                    <TableCell className="text-center" onClick={(ev) => ev.stopPropagation()}>
+                      <EstadosPopover elemento={e} />
                     </TableCell>
                   </TableRow>
                 ))
@@ -267,23 +272,60 @@ export default function AvanceElementosPage() {
   )
 }
 
-type EstadoVariant = "pendiente" | "enProceso" | "completado" | "firmado" | "aprobado" | "rechazado"
+// ── EstadosPopover ─────────────────────────────────────────────────────────────
 
-function EstadoBadge({ value, variant }: { value: number; variant: EstadoVariant }) {
-  if (value === 0) return <span className="text-sm text-gray-400">—</span>
-
-  const styles: Record<EstadoVariant, string> = {
-    pendiente:  "bg-gray-100 text-gray-700",
-    enProceso:  "bg-blue-100 text-blue-700",
-    completado: "bg-yellow-100 text-yellow-700",
-    firmado:    "bg-blue-100 text-blue-700",
-    aprobado:   "bg-green-100 text-green-700",
-    rechazado:  "bg-red-100 text-red-700",
-  }
+function EstadosPopover({ elemento }: { elemento: AvanceElementoDTO }) {
+  const filas = [
+    { label: "Pendiente",   value: elemento.pendiente,   color: "bg-gray-100 text-gray-700" },
+    { label: "En proceso",  value: elemento.enProceso,   color: "bg-blue-100 text-blue-700" },
+    { label: "Completado",  value: elemento.completado,  color: "bg-yellow-100 text-yellow-700" },
+    { label: "Firmado",     value: elemento.firmado,     color: "bg-indigo-100 text-indigo-700" },
+    { label: "Aprobado",    value: elemento.aprobado,    color: "bg-green-100 text-green-700" },
+    { label: "Rechazado",   value: elemento.rechazado,   color: "bg-red-100 text-red-700" },
+    { label: "Cancelado",   value: elemento.cancelado,   color: "bg-gray-50 text-gray-400" },
+  ].filter((f) => f.value > 0)
 
   return (
-    <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[variant]}`}>
-      {value}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 cursor-default tabIndex={0}">
+          {elemento.totalTareas}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="left" className="p-0">
+        <div className="min-w-40 py-2 px-1">
+          <p className="text-xs font-semibold text-gray-500 px-2 pb-1">Desglose de estados</p>
+          {filas.length === 0 ? (
+            <p className="text-xs text-gray-400 px-2">Sin tareas</p>
+          ) : (
+            filas.map((f) => (
+              <div key={f.label} className="flex items-center justify-between gap-3 px-2 py-0.5">
+                <span className="text-xs text-gray-600">{f.label}</span>
+                <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium ${f.color}`}>
+                  {f.value}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+// ── PrioridadBadge ─────────────────────────────────────────────────────────────
+
+function PrioridadBadge({ prioridad }: { prioridad: string }) {
+  const styles: Record<string, string> = {
+    Baja:    "bg-gray-100 text-gray-500",
+    Media:   "bg-blue-50 text-blue-600",
+    Alta:    "bg-orange-100 text-orange-700",
+    Urgente: "bg-red-100 text-red-700",
+  }
+  const style = styles[prioridad] ?? "bg-gray-100 text-gray-500"
+  return (
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${style}`}>
+      {prioridad}
     </span>
   )
 }
