@@ -48,6 +48,7 @@ export default function AvanceSistemasPage() {
               <TableHead className="font-semibold text-gray-700 text-center w-24">Pendiente</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center w-24">En proceso</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center w-24">Completado</TableHead>
+              <TableHead className="font-semibold text-gray-700 text-center w-24">Firmado</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center w-24">Aprobado</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center w-24">Rechazado</TableHead>
             </TableRow>
@@ -55,13 +56,13 @@ export default function AvanceSistemasPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                   Cargando...
                 </TableCell>
               </TableRow>
             ) : sistemas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                   No hay sistemas con datos de avance.
                 </TableCell>
               </TableRow>
@@ -88,6 +89,9 @@ export default function AvanceSistemasPage() {
                     <EstadoBadge value={s.completado} variant="completado" />
                   </TableCell>
                   <TableCell className="text-center">
+                    <EstadoBadge value={s.firmado} variant="firmado" />
+                  </TableCell>
+                  <TableCell className="text-center">
                     <EstadoBadge value={s.aprobado} variant="aprobado" />
                   </TableCell>
                   <TableCell className="text-center">
@@ -103,7 +107,7 @@ export default function AvanceSistemasPage() {
   )
 }
 
-type EstadoVariant = "pendiente" | "enProceso" | "completado" | "aprobado" | "rechazado"
+type EstadoVariant = "pendiente" | "enProceso" | "completado" | "firmado" | "aprobado" | "rechazado"
 
 function EstadoBadge({ value, variant }: { value: number; variant: EstadoVariant }) {
   if (value === 0) return <span className="text-sm text-gray-400">—</span>
@@ -112,6 +116,7 @@ function EstadoBadge({ value, variant }: { value: number; variant: EstadoVariant
     pendiente:  "bg-gray-100 text-gray-700",
     enProceso:  "bg-blue-100 text-blue-700",
     completado: "bg-yellow-100 text-yellow-700",
+    firmado:    "bg-blue-100 text-blue-700",
     aprobado:   "bg-green-100 text-green-700",
     rechazado:  "bg-red-100 text-red-700",
   }

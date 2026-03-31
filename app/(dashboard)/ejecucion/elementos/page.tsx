@@ -192,6 +192,7 @@ function AvanceElementosContent() {
                 <TableHead className="font-semibold text-gray-700 text-center w-24">Pendiente</TableHead>
                 <TableHead className="font-semibold text-gray-700 text-center w-24">En proceso</TableHead>
                 <TableHead className="font-semibold text-gray-700 text-center w-24">Completado</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-center w-24">Firmado</TableHead>
                 <TableHead className="font-semibold text-gray-700 text-center w-24">Aprobado</TableHead>
                 <TableHead className="font-semibold text-gray-700 text-center w-24">Rechazado</TableHead>
               </TableRow>
@@ -199,13 +200,13 @@ function AvanceElementosContent() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                     Cargando...
                   </TableCell>
                 </TableRow>
               ) : elementos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                     {search ? "No hay elementos que coincidan con la búsqueda." : "No hay elementos con datos de avance en este subsistema."}
                   </TableCell>
                 </TableRow>
@@ -230,6 +231,9 @@ function AvanceElementosContent() {
                     </TableCell>
                     <TableCell className="text-center">
                       <EstadoBadge value={e.completado} variant="completado" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <EstadoBadge value={e.firmado} variant="firmado" />
                     </TableCell>
                     <TableCell className="text-center">
                       <EstadoBadge value={e.aprobado} variant="aprobado" />
@@ -263,7 +267,7 @@ export default function AvanceElementosPage() {
   )
 }
 
-type EstadoVariant = "pendiente" | "enProceso" | "completado" | "aprobado" | "rechazado"
+type EstadoVariant = "pendiente" | "enProceso" | "completado" | "firmado" | "aprobado" | "rechazado"
 
 function EstadoBadge({ value, variant }: { value: number; variant: EstadoVariant }) {
   if (value === 0) return <span className="text-sm text-gray-400">—</span>
@@ -272,6 +276,7 @@ function EstadoBadge({ value, variant }: { value: number; variant: EstadoVariant
     pendiente:  "bg-gray-100 text-gray-700",
     enProceso:  "bg-blue-100 text-blue-700",
     completado: "bg-yellow-100 text-yellow-700",
+    firmado:    "bg-blue-100 text-blue-700",
     aprobado:   "bg-green-100 text-green-700",
     rechazado:  "bg-red-100 text-red-700",
   }

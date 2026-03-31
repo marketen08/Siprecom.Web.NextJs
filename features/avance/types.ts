@@ -7,6 +7,7 @@ export interface AvanceDTO {
   pendiente: number
   enProceso: number
   completado: number
+  firmado: number
   aprobado: number
   rechazado: number
   cancelado: number
