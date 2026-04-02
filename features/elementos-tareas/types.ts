@@ -46,6 +46,10 @@ export interface ElementoTarea {
   // Registro
   registroId: string | null
 
+  // Planilla asociada a la Tarea
+  planillaId: string | null
+  planillaNombre: string | null
+
   // Control
   requiereInspeccion: boolean
   esCritica: boolean

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/sheet"
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban,
-  Loader2, Play, FileText, Upload,
+  Loader2, Play, FileText, Upload, Download, Eye,
 } from "lucide-react"
 
 interface Props {
@@ -185,6 +185,7 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                       onAbrirFormulario={handleAbrirFormulario}
                       isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
                     />
+                    <BotonPlanillaPdf tarea={t} />
                   </div>
                 ))}
               </div>
@@ -193,6 +194,32 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+// ─── Botón descarga / preview planilla en blanco ─────────────────────────────
+
+function BotonPlanillaPdf({ tarea }: { tarea: ElementoTarea }) {
+  if (!tarea.planillaId) return null
+
+  const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}`
+  const urlPreview  = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}/preview`
+
+  return (
+    <div className="flex gap-2 pt-1 flex-wrap">
+      <a href={urlDescarga} download target="_blank" rel="noreferrer">
+        <Button size="sm" variant="outline" className="gap-1.5 h-8" type="button">
+          <Download className="h-3.5 w-3.5" />
+          Descargar planilla
+        </Button>
+      </a>
+      <a href={urlPreview} target="_blank" rel="noreferrer">
+        <Button size="sm" variant="outline" className="gap-1.5 h-8" type="button">
+          <Eye className="h-3.5 w-3.5" />
+          Vista previa
+        </Button>
+      </a>
+    </div>
   )
 }
 
