@@ -2,11 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState, useEffect } from "react"
-import { ArrowLeft, Search, X } from "lucide-react"
+import { ArrowLeft, Search, X, FileDown } from "lucide-react"
 import { useGetAvanceElementosSubSistema } from "@/features/avance/api/use-get-avance-elementos-subsistema"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
+import { ObtenerPlanillasDialog } from "@/features/planillas/components/obtener-planillas-dialog"
 import { BarraAvance } from "@/components/barra-avance"
 import type { AvanceElementoDTO } from "@/features/avance/types"
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,7 @@ function AvanceElementosContent() {
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam ?? "")
   const [search, setSearch] = useState("")
   const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceElementoDTO } | null>(null)
+  const [planillasDialogOpen, setPlanillasDialogOpen] = useState(false)
 
   useEffect(() => {
     if (subSistemaIdParam && subSistemaId !== subSistemaIdParam) {
@@ -124,12 +126,18 @@ function AvanceElementosContent() {
           </p>
         </div>
 
-        {hayFiltros && (
-          <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={handleClearFiltros}>
-            <X className="h-3.5 w-3.5" />
-            Limpiar filtros
+        <div className="flex items-center gap-2">
+          {hayFiltros && (
+            <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={handleClearFiltros}>
+              <X className="h-3.5 w-3.5" />
+              Limpiar filtros
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPlanillasDialogOpen(true)}>
+            <FileDown className="h-4 w-4" />
+            Obtener planillas
           </Button>
-        )}
+        </div>
       </div>
 
       {/* Filtros */}
@@ -259,6 +267,11 @@ function AvanceElementosContent() {
         avance={selectedElemento?.avance ?? null}
         open={!!selectedElemento}
         onClose={() => setSelectedElemento(null)}
+      />
+
+      <ObtenerPlanillasDialog
+        open={planillasDialogOpen}
+        onClose={() => setPlanillasDialogOpen(false)}
       />
     </div>
   )
