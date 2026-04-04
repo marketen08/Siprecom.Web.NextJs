@@ -52,6 +52,12 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
     router.push(`/ejecucion/registros/${tarea.registroId}`)
   }
 
+  function handleCargarPdf(tarea: ElementoTarea) {
+    if (!tarea.planillaId) return
+    onClose()
+    router.push(`/checklist/${tarea.planillaId}/${tarea.id}`)
+  }
+
   return (
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto" side="right">
@@ -183,6 +189,7 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                       tarea={t}
                       onIniciar={handleIniciar}
                       onAbrirFormulario={handleAbrirFormulario}
+                      onCargarPdf={handleCargarPdf}
                       isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
                     />
                     <BotonPlanillaPdf tarea={t} />
@@ -229,17 +236,19 @@ function TareaAcciones({
   tarea,
   onIniciar,
   onAbrirFormulario,
+  onCargarPdf,
   isIniciando,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
   onAbrirFormulario: (t: ElementoTarea) => void
+  onCargarPdf: (t: ElementoTarea) => void
   isIniciando: boolean
 }) {
   // 1 = PENDIENTE
   if (tarea.estado === 1) {
     return (
-      <div className="pt-1">
+      <div className="flex gap-2 pt-1 flex-wrap">
         <Button
           size="sm"
           className="gap-1.5 h-8"
@@ -253,6 +262,18 @@ function TareaAcciones({
           )}
           Iniciar tarea
         </Button>
+        {tarea.planillaId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8"
+            onClick={() => onCargarPdf(tarea)}
+            disabled={isIniciando}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Cargar PDF
+          </Button>
+        )}
       </div>
     )
   }
@@ -260,7 +281,7 @@ function TareaAcciones({
   // 2 = EN_PROCESO
   if (tarea.estado === 2 && tarea.registroId) {
     return (
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 pt-1 flex-wrap">
         <Button
           size="sm"
           variant="outline"
@@ -270,15 +291,17 @@ function TareaAcciones({
           <FileText className="h-3.5 w-3.5" />
           Completar formulario
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 h-8"
-          onClick={() => onAbrirFormulario(tarea)}
-        >
-          <Upload className="h-3.5 w-3.5" />
-          Cargar PDF
-        </Button>
+        {tarea.planillaId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8"
+            onClick={() => onCargarPdf(tarea)}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Cargar PDF
+          </Button>
+        )}
       </div>
     )
   }
@@ -337,7 +360,7 @@ function TareaAcciones({
   // 5 = RECHAZADO — permite volver a completar
   if (tarea.estado === 5 && tarea.registroId) {
     return (
-      <div className="pt-1">
+      <div className="flex gap-2 pt-1 flex-wrap">
         <Button
           size="sm"
           variant="outline"
@@ -347,6 +370,17 @@ function TareaAcciones({
           <FileText className="h-3.5 w-3.5" />
           Revisar y re-completar
         </Button>
+        {tarea.planillaId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8 border-red-200 text-red-700 hover:bg-red-50"
+            onClick={() => onCargarPdf(tarea)}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Cargar PDF
+          </Button>
+        )}
       </div>
     )
   }
