@@ -6,6 +6,7 @@ import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
 import { apiClient } from "@/lib/api-client"
+import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import type { AvanceDTO } from "@/features/avance/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import { BarraAvance } from "@/components/barra-avance"
@@ -206,6 +207,11 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                       isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
                     />
                     <BotonPlanillaPdf tarea={t} />
+
+                    {/* Firmas digitales para registros físicos */}
+                    {t.esFisico && t.registroId && (
+                      <FirmaPanel registroId={t.registroId} />
+                    )}
                   </div>
                 ))}
               </div>

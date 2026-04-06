@@ -12,6 +12,7 @@ export function useFirmarRegistro(registroId: string) {
       queryClient.invalidateQueries({ queryKey: ["registros", registroId] })
       queryClient.invalidateQueries({ queryKey: ["registros", registroId, "firmas"] })
       queryClient.invalidateQueries({ queryKey: ["elementos-tareas"] })
+      queryClient.invalidateQueries({ queryKey: ["avance"] })
     },
   })
 }

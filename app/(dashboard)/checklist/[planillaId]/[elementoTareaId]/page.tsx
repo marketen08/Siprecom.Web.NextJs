@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
+import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import { Button } from "@/components/ui/button"
 import {
   Upload, CheckCircle2, Loader2, ArrowLeft, FileUp, X, FileText,
@@ -165,25 +166,32 @@ function CargarPdfContent() {
   // Éxito
   if (subiendo === "ok") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
-        <CheckCircle2 className="h-14 w-14 text-green-500" />
-        <h2 className="text-xl font-bold text-gray-900">Planilla cargada correctamente</h2>
-        <p className="text-sm text-muted-foreground">
-          El archivo fue subido y la tarea quedó marcada como completada.
-        </p>
-        <div className="flex gap-3 flex-wrap justify-center">
-          {urlArchivo && (
-            <a href={urlArchivo} target="_blank" rel="noreferrer">
-              <Button className="gap-2">
-                <FileUp className="h-4 w-4" />
-                Ver archivo subido
-              </Button>
-            </a>
-          )}
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Volver
-          </Button>
+      <div className="max-w-lg mx-auto px-4 py-10 space-y-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <CheckCircle2 className="h-14 w-14 text-green-500" />
+          <h2 className="text-xl font-bold text-gray-900">Planilla cargada correctamente</h2>
+          <p className="text-sm text-muted-foreground">
+            El archivo fue subido y la tarea quedó marcada como completada.
+          </p>
+          <div className="flex gap-3 flex-wrap justify-center">
+            {urlArchivo && (
+              <a href={urlArchivo} target="_blank" rel="noreferrer">
+                <Button variant="outline" className="gap-2">
+                  <FileUp className="h-4 w-4" />
+                  Ver archivo subido
+                </Button>
+              </a>
+            )}
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+            </Button>
+          </div>
         </div>
+
+        {/* Firmas digitales — aparecen si el proyecto tiene slots configurados */}
+        {registroIdFinal && (
+          <FirmaPanel registroId={registroIdFinal} />
+        )}
       </div>
     )
   }
