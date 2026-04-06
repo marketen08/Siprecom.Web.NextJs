@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
-  ArrowLeft, Save, Plus, Trash2, GripVertical,
+  ArrowLeft, Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine,
 } from "lucide-react"
 
@@ -323,19 +323,19 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
                 type="button"
                 onClick={() => moveUp(i)}
                 disabled={i === 0}
-                className="text-gray-300 hover:text-gray-500 disabled:opacity-0 transition-colors"
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-0 transition-colors"
                 aria-label="Subir"
               >
-                <GripVertical className="h-3.5 w-3.5 rotate-90 scale-y-[-1]" />
+                <ChevronUp className="h-4 w-4" />
               </button>
               <button
                 type="button"
                 onClick={() => moveDown(i)}
                 disabled={i === slots.length - 1}
-                className="text-gray-300 hover:text-gray-500 disabled:opacity-0 transition-colors"
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-0 transition-colors"
                 aria-label="Bajar"
               >
-                <GripVertical className="h-3.5 w-3.5 rotate-90" />
+                <ChevronDown className="h-4 w-4" />
               </button>
             </div>
 
