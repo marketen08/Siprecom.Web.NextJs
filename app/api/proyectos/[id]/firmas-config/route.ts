@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const { id } = await context.params
   const res = await backendFetch(request, `/proyectos/${id}/firmas-config`)
-  const data = await res.json()
+  const data = await res.json().catch(() => ({ message: res.statusText }))
   return Response.json(data, { status: res.status })
 }
 
@@ -23,6 +23,6 @@ export async function POST(
     method: "POST",
     body: JSON.stringify(body),
   })
-  const data = await res.json()
+  const data = await res.json().catch(() => ({ message: res.statusText }))
   return Response.json(data, { status: res.status })
 }
