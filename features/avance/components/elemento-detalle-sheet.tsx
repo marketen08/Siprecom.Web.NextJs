@@ -1,9 +1,11 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
+import { apiClient } from "@/lib/api-client"
 import type { AvanceDTO } from "@/features/avance/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import { BarraAvance } from "@/components/barra-avance"
@@ -17,8 +19,19 @@ import {
 } from "@/components/ui/sheet"
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban,
-  Loader2, Play, FileText, Upload, Download, Eye,
+  Loader2, Play, FileText, Upload, Download, Eye, FileDown,
 } from "lucide-react"
+
+// ─── Tipo archivo ─────────────────────────────────────────────────────────────
+
+interface RegistroArchivo {
+  id: string
+  nombreArchivo: string
+  contentType: string
+  tamanioBytes: number
+  url: string
+  urlExpiraEn: string
+}
 
 interface Props {
   elementoId: string | null
@@ -230,6 +243,43 @@ function BotonPlanillaPdf({ tarea }: { tarea: ElementoTarea }) {
   )
 }
 
+// ─── Botón ver archivo físico subido ─────────────────────────────────────────
+
+function BotonArchivoFisico({ registroId }: { registroId: string }) {
+  const { data, isLoading, refetch, isFetched } = useQuery({
+    queryKey: ["registro-archivos", registroId],
+    queryFn: () => apiClient.get<{ data: RegistroArchivo[] }>(`/api/registros/${registroId}/archivos`),
+    enabled: false, // carga on-demand
+    staleTime: 1000 * 50, // un poco menos que los 60 min de la SAS
+  })
+
+  const archivos = data?.data ?? []
+
+  async function handleVer() {
+    const result = await refetch()
+    const lista = (result.data as any)?.data as RegistroArchivo[] | undefined
+    const primero = lista?.[0]
+    if (primero?.url) window.open(primero.url, "_blank", "noreferrer")
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="gap-1.5 h-8"
+      onClick={handleVer}
+      disabled={isLoading}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <FileDown className="h-3.5 w-3.5" />
+      )}
+      Ver archivo subido
+    </Button>
+  )
+}
+
 // ─── Acciones por estado ────────────────────────────────────────────────────
 
 function TareaAcciones({
@@ -282,15 +332,18 @@ function TareaAcciones({
   if (tarea.estado === 2 && tarea.registroId) {
     return (
       <div className="flex gap-2 pt-1 flex-wrap">
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 h-8"
-          onClick={() => onAbrirFormulario(tarea)}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Completar formulario
-        </Button>
+        {!tarea.esFisico && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8"
+            onClick={() => onAbrirFormulario(tarea)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Completar formulario
+          </Button>
+        )}
+        {tarea.esFisico && <BotonArchivoFisico registroId={tarea.registroId} />}
         {tarea.planillaId && (
           <Button
             size="sm"
@@ -309,16 +362,20 @@ function TareaAcciones({
   // 3 = COMPLETADO — ver registro y firmar
   if (tarea.estado === 3 && tarea.registroId) {
     return (
-      <div className="pt-1">
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 h-8"
-          onClick={() => onAbrirFormulario(tarea)}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Ver y firmar
-        </Button>
+      <div className="flex gap-2 pt-1 flex-wrap">
+        {tarea.esFisico ? (
+          <BotonArchivoFisico registroId={tarea.registroId} />
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8"
+            onClick={() => onAbrirFormulario(tarea)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Ver y firmar
+          </Button>
+        )}
       </div>
     )
   }
@@ -326,16 +383,20 @@ function TareaAcciones({
   // 7 = FIRMADO — ver registro (pendiente de aprobación)
   if (tarea.estado === 7 && tarea.registroId) {
     return (
-      <div className="pt-1">
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 h-8"
-          onClick={() => onAbrirFormulario(tarea)}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Ver registro
-        </Button>
+      <div className="flex gap-2 pt-1 flex-wrap">
+        {tarea.esFisico ? (
+          <BotonArchivoFisico registroId={tarea.registroId} />
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8"
+            onClick={() => onAbrirFormulario(tarea)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Ver registro
+          </Button>
+        )}
       </div>
     )
   }
@@ -343,16 +404,20 @@ function TareaAcciones({
   // 4 = APROBADO — solo lectura
   if (tarea.estado === 4 && tarea.registroId) {
     return (
-      <div className="pt-1">
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 h-8"
-          onClick={() => onAbrirFormulario(tarea)}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Ver registro
-        </Button>
+      <div className="flex gap-2 pt-1 flex-wrap">
+        {tarea.esFisico ? (
+          <BotonArchivoFisico registroId={tarea.registroId} />
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8"
+            onClick={() => onAbrirFormulario(tarea)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Ver registro
+          </Button>
+        )}
       </div>
     )
   }
@@ -361,15 +426,19 @@ function TareaAcciones({
   if (tarea.estado === 5 && tarea.registroId) {
     return (
       <div className="flex gap-2 pt-1 flex-wrap">
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 h-8 border-red-200 text-red-700 hover:bg-red-50"
-          onClick={() => onAbrirFormulario(tarea)}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Revisar y re-completar
-        </Button>
+        {tarea.esFisico ? (
+          <BotonArchivoFisico registroId={tarea.registroId} />
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8 border-red-200 text-red-700 hover:bg-red-50"
+            onClick={() => onAbrirFormulario(tarea)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Revisar y re-completar
+          </Button>
+        )}
         {tarea.planillaId && (
           <Button
             size="sm"

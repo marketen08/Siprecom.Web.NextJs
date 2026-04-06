@@ -36,6 +36,8 @@ function CargarPdfContent() {
   const [observaciones, setObs]     = useState("")
   const [subiendo, setSubiendo]     = useState<"idle" | "iniciando" | "subiendo" | "ok" | "error">("idle")
   const [mensajeError, setError]    = useState("")
+  const [registroIdFinal, setRegistroIdFinal] = useState<string | null>(null)
+  const [urlArchivo, setUrlArchivo] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // ── Iniciar tarea si está PENDIENTE, luego subir ──────────────────────────
@@ -81,6 +83,16 @@ function CargarPdfContent() {
     })
 
     if (res.ok) {
+      setRegistroIdFinal(registroId)
+      // Obtener SAS URL del archivo recién subido
+      try {
+        const archRes = await fetch(`/api/registros/${registroId}/archivos`)
+        if (archRes.ok) {
+          const archJson = await archRes.json()
+          const primero = archJson?.data?.[0]
+          if (primero?.url) setUrlArchivo(primero.url)
+        }
+      } catch { /* no crítico */ }
       setSubiendo("ok")
     } else {
       const json = await res.json().catch(() => ({}))
@@ -154,9 +166,19 @@ function CargarPdfContent() {
         <p className="text-sm text-muted-foreground">
           El archivo fue subido y la tarea quedó marcada como completada.
         </p>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Volver
-        </Button>
+        <div className="flex gap-3 flex-wrap justify-center">
+          {urlArchivo && (
+            <a href={urlArchivo} target="_blank" rel="noreferrer">
+              <Button className="gap-2">
+                <FileUp className="h-4 w-4" />
+                Ver archivo subido
+              </Button>
+            </a>
+          )}
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+          </Button>
+        </div>
       </div>
     )
   }

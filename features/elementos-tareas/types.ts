@@ -45,6 +45,7 @@ export interface ElementoTarea {
 
   // Registro
   registroId: string | null
+  esFisico: boolean
 
   // Planilla asociada a la Tarea
   planillaId: string | null
