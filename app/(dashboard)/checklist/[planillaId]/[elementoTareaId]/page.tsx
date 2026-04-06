@@ -2,7 +2,7 @@
 
 import { useState, useRef, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,8 @@ function CargarPdfContent() {
   const router  = useRouter()
   const planillaId      = params.planillaId as string
   const elementoTareaId = params.elementoTareaId as string
+
+  const queryClient = useQueryClient()
 
   const { data: raw, isLoading, isError } = useGetElementoTarea(elementoTareaId)
   const tarea = raw?.data
@@ -84,6 +86,9 @@ function CargarPdfContent() {
 
     if (res.ok) {
       setRegistroIdFinal(registroId)
+      // Invalidar cache de avance y tareas para que la lista se actualice
+      queryClient.invalidateQueries({ queryKey: ["avance"] })
+      queryClient.invalidateQueries({ queryKey: ["elementos-tareas"] })
       // Obtener SAS URL del archivo recién subido
       try {
         const archRes = await fetch(`/api/registros/${registroId}/archivos`)
