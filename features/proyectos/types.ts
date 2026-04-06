@@ -61,3 +61,16 @@ export interface ApiResponse<T> {
   message: string
   success: boolean
 }
+
+export interface ProyectoBoolUpdateInput {
+  campo: string
+  valor: boolean
+}
+
+export interface FirmaConfigItem {
+  id?: string
+  orden: number
+  rolNombre: string
+  descripcion: string
+  esObligatorio: boolean
+}

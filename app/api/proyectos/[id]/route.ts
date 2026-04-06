@@ -27,6 +27,21 @@ export async function PUT(
   return Response.json(data, { status: res.status })
 }
 
+// PATCH /api/proyectos/[id]/flags
+export async function PATCH(
+  request: NextRequest,
+  context: RouteContext<"/api/proyectos/[id]">
+) {
+  const { id } = await context.params
+  const body = await request.json()
+  const res = await backendFetch(request, `/proyectos/${id}/flags`, {
+    method: "PATCH",
+    body: JSON.stringify({ id, ...body }),
+  })
+  const data = await res.json()
+  return Response.json(data, { status: res.status })
+}
+
 // DELETE /api/proyectos/[id]
 export async function DELETE(
   request: NextRequest,

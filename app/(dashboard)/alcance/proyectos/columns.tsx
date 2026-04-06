@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { ColumnDef } from "@tanstack/react-table"
 import { Pencil, Trash2 } from "lucide-react"
 
@@ -78,7 +79,12 @@ export const columns: ColumnDef<Proyecto>[] = [
     accessorKey: "nombre",
     header: "Nombre",
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.nombre}</span>
+      <Link
+        href={`/alcance/proyectos/${row.original.id}`}
+        className="font-medium text-blue-700 hover:underline"
+      >
+        {row.original.nombre}
+      </Link>
     ),
   },
   {
