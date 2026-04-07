@@ -99,6 +99,7 @@ export const segmentLabels: Record<string, string> = {
   planillas:     "Planillas",
   proyectos:     "Proyectos",
   usuarios:      "Usuarios",
+  perfil:        "Mi perfil",
   empresas:      "Empresas",
   reporte:       "Reporte",
   avance:        "Avance",

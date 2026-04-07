@@ -1,15 +1,9 @@
 import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
-export async function GET(request: NextRequest) {
-  const res = await backendFetch(request, "/auth/profile")
-  const data = await res.json().catch(() => ({ message: res.statusText }))
-  return Response.json(data, { status: res.status })
-}
-
 export async function PUT(request: NextRequest) {
   const body = await request.json()
-  const res = await backendFetch(request, "/auth/profile", {
+  const res = await backendFetch(request, "/auth/profile/password", {
     method: "PUT",
     body: JSON.stringify(body),
   })

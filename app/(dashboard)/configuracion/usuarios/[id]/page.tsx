@@ -4,7 +4,7 @@ import { use, useState, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Save, Check, X, Search, FolderOpen,
-  Loader2, CheckCircle2, Shield, User, Briefcase,
+  Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound,
 } from "lucide-react"
 import { useRef, useEffect } from "react"
 
@@ -15,6 +15,7 @@ import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-pro
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
+import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
 
 import { Button } from "@/components/ui/button"
@@ -106,9 +107,13 @@ function UsuarioDetailContent({ id }: { id: string }) {
 
 function TabDatos({ usuario }: { usuario: any }) {
   const update = useUpdateUsuarioAdmin(usuario.id)
+  const resetPassword = useResetPasswordAdmin(usuario.id)
   const [nombre, setNombre]   = useState(usuario.nombre ?? "")
   const [apellido, setApellido] = useState(usuario.apellido ?? "")
   const [saved, setSaved] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordSaved, setPasswordSaved] = useState(false)
 
   async function handleSave() {
     await update.mutateAsync({ nombre, apellido })
@@ -116,15 +121,24 @@ function TabDatos({ usuario }: { usuario: any }) {
     setTimeout(() => setSaved(false), 2500)
   }
 
-  return (
-    <div className="space-y-5 max-w-sm">
-      {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-          <CheckCircle2 className="h-4 w-4" /> Cambios guardados
-        </div>
-      )}
+  async function handleResetPassword() {
+    if (!newPassword) return
+    await resetPassword.mutateAsync(newPassword)
+    setNewPassword("")
+    setPasswordSaved(true)
+    setTimeout(() => setPasswordSaved(false), 2500)
+  }
 
+  return (
+    <div className="space-y-6 max-w-sm">
+      {/* Datos básicos */}
       <div className="space-y-4">
+        {saved && (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+            <CheckCircle2 className="h-4 w-4" /> Cambios guardados
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-700">Email</label>
           <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border">
@@ -161,21 +175,72 @@ function TabDatos({ usuario }: { usuario: any }) {
             />
           </div>
         </div>
+
+        <Button
+          onClick={handleSave}
+          disabled={update.isPending}
+          size="sm"
+          className="gap-1.5"
+        >
+          {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {update.isPending ? "Guardando..." : "Guardar"}
+        </Button>
+
+        {update.isError && (
+          <p className="text-sm text-red-600">{(update.error as Error)?.message ?? "Error al guardar"}</p>
+        )}
       </div>
 
-      <Button
-        onClick={handleSave}
-        disabled={update.isPending}
-        size="sm"
-        className="gap-1.5"
-      >
-        {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-        {update.isPending ? "Guardando..." : "Guardar"}
-      </Button>
+      {/* Restablecer contraseña */}
+      <div className="space-y-3">
+        <Separator />
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-gray-700">Restablecer contraseña</h3>
+        </div>
 
-      {update.isError && (
-        <p className="text-sm text-red-600">{(update.error as Error)?.message ?? "Error al guardar"}</p>
-      )}
+        {passwordSaved && (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+            <CheckCircle2 className="h-4 w-4" /> Contraseña restablecida
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
+          <div className="relative">
+            <Input
+              type={showPassword ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              className="pr-10"
+              disabled={resetPassword.isPending}
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+              onClick={() => setShowPassword(v => !v)}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={handleResetPassword}
+          disabled={resetPassword.isPending || newPassword.length < 6}
+        >
+          {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
+        </Button>
+
+        {resetPassword.isError && (
+          <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
+        )}
+      </div>
     </div>
   )
 }
