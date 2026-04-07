@@ -6,10 +6,11 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Search } from "lucide-react"
+import { Search, UserPlus } from "lucide-react"
 
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { EditUsuarioSheet } from "@/features/usuarios/components/edit-usuario-sheet"
+import { NewUsuarioSheet } from "@/features/usuarios/components/new-usuario-sheet"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -27,6 +28,7 @@ import {
 export default function UsuariosPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const [newOpen, setNewOpen] = useState(false)
   const pageSize = 10
 
   const { data, isLoading, isFetching } = useGetUsuarios({ page, pageSize, nombre: search || undefined })
@@ -44,6 +46,7 @@ export default function UsuariosPage() {
   return (
     <>
       <EditUsuarioSheet />
+      <NewUsuarioSheet open={newOpen} onClose={() => setNewOpen(false)} />
 
       <div className="space-y-4">
         {/* Header */}
@@ -54,6 +57,10 @@ export default function UsuariosPage() {
               {(data as any)?.total ?? 0} usuarios en total
             </p>
           </div>
+          <Button onClick={() => setNewOpen(true)} className="gap-1.5">
+            <UserPlus className="h-4 w-4" />
+            Nuevo usuario
+          </Button>
         </div>
 
         {/* Buscador */}

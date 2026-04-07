@@ -4,13 +4,14 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { KeyRound, User, FolderKey, Eye, EyeOff, Badge } from "lucide-react"
+import { KeyRound, User, FolderKey, Eye, EyeOff, CheckCircle2, Loader2, Save } from "lucide-react"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
 
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useUpdatePerfil } from "@/features/auth/api/use-update-perfil"
@@ -37,6 +38,16 @@ const passwordSchema = z.object({
 type DatosForm = z.infer<typeof datosSchema>
 type PasswordForm = z.infer<typeof passwordSchema>
 
+// ─── Tabs config ─────────────────────────────────────────────────────────────
+
+type Tab = "datos" | "seguridad" | "accesos"
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: "datos",     label: "Datos personales", icon: <User      className="h-4 w-4" /> },
+  { id: "seguridad", label: "Seguridad",         icon: <KeyRound  className="h-4 w-4" /> },
+  { id: "accesos",   label: "Mis accesos",       icon: <FolderKey className="h-4 w-4" /> },
+]
+
 // ─── Tab Datos ────────────────────────────────────────────────────────────────
 
 function TabDatos() {
@@ -61,6 +72,11 @@ function TabDatos() {
         <CardTitle className="text-base">Datos personales</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {guardado && (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+            <CheckCircle2 className="h-4 w-4" /> Guardado correctamente
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Email</Label>
@@ -71,6 +87,7 @@ function TabDatos() {
             <Input value={perfil?.userName ?? ""} disabled />
           </div>
         </div>
+        <Separator />
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -83,10 +100,10 @@ function TabDatos() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={update.isPending}>
+            <Button type="submit" size="sm" disabled={update.isPending} className="gap-1.5">
+              {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {update.isPending ? "Guardando..." : "Guardar cambios"}
             </Button>
-            {guardado && <span className="text-sm text-green-600">Guardado correctamente</span>}
             {update.isError && <span className="text-sm text-destructive">Error al guardar</span>}
           </div>
         </form>
@@ -126,77 +143,46 @@ function TabSeguridad() {
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-w-sm">
-          <div className="space-y-1.5">
-            <Label htmlFor="currentPassword">Contraseña actual</Label>
-            <div className="relative">
-              <Input
-                id="currentPassword"
-                type={showCurrent ? "text" : "password"}
-                {...form.register("currentPassword")}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-                onClick={() => setShowCurrent(v => !v)}
-              >
-                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+          {guardado && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-4 w-4" /> Contraseña actualizada
             </div>
-            {form.formState.errors.currentPassword && (
-              <p className="text-xs text-destructive">{form.formState.errors.currentPassword.message}</p>
-            )}
-          </div>
+          )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="newPassword">Nueva contraseña</Label>
-            <div className="relative">
-              <Input
-                id="newPassword"
-                type={showNew ? "text" : "password"}
-                {...form.register("newPassword")}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-                onClick={() => setShowNew(v => !v)}
-              >
-                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {form.formState.errors.newPassword && (
-              <p className="text-xs text-destructive">{form.formState.errors.newPassword.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
-            <div className="relative">
-              <Input
-                id="confirmPassword"
-                type={showConfirm ? "text" : "password"}
-                {...form.register("confirmPassword")}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-                onClick={() => setShowConfirm(v => !v)}
-              >
-                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {form.formState.errors.confirmPassword && (
-              <p className="text-xs text-destructive">{form.formState.errors.confirmPassword.message}</p>
-            )}
-          </div>
+          {(["currentPassword", "newPassword", "confirmPassword"] as const).map((field) => {
+            const labels = { currentPassword: "Contraseña actual", newPassword: "Nueva contraseña", confirmPassword: "Confirmar contraseña" }
+            const shows = { currentPassword: showCurrent, newPassword: showNew, confirmPassword: showConfirm }
+            const toggles = { currentPassword: () => setShowCurrent(v => !v), newPassword: () => setShowNew(v => !v), confirmPassword: () => setShowConfirm(v => !v) }
+            return (
+              <div key={field} className="space-y-1.5">
+                <Label htmlFor={field}>{labels[field]}</Label>
+                <div className="relative">
+                  <Input
+                    id={field}
+                    type={shows[field] ? "text" : "password"}
+                    {...form.register(field)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                    onClick={toggles[field]}
+                  >
+                    {shows[field] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {form.formState.errors[field] && (
+                  <p className="text-xs text-destructive">{form.formState.errors[field]?.message}</p>
+                )}
+              </div>
+            )
+          })}
 
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={changePassword.isPending}>
+            <Button type="submit" size="sm" disabled={changePassword.isPending} className="gap-1.5">
+              {changePassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
               {changePassword.isPending ? "Cambiando..." : "Cambiar contraseña"}
             </Button>
-            {guardado && <span className="text-sm text-green-600">Contraseña actualizada</span>}
             {changePassword.isError && (
               <span className="text-sm text-destructive">Contraseña actual incorrecta</span>
             )}
@@ -215,14 +201,15 @@ function TabAccesos() {
 
   return (
     <div className="space-y-4">
-      {/* Proyectos asignados */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Proyectos asignados</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingProyectos ? (
-            <p className="text-sm text-muted-foreground">Cargando...</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+            </div>
           ) : !proyectos?.length ? (
             <p className="text-sm text-muted-foreground">No tenés proyectos asignados.</p>
           ) : (
@@ -231,9 +218,9 @@ function TabAccesos() {
                 <li key={p.id} className="flex items-center gap-2 text-sm">
                   <span className="font-medium">{p.nombre}</span>
                   {p.esActivo && (
-                    <span className="text-xs bg-blue-100 text-blue-700 rounded px-1.5 py-0.5">
+                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-100">
                       Activo
-                    </span>
+                    </Badge>
                   )}
                 </li>
               ))}
@@ -242,30 +229,27 @@ function TabAccesos() {
         </CardContent>
       </Card>
 
-      {/* Roles de firma */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Roles de firma asignados</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingFirmas ? (
-            <p className="text-sm text-muted-foreground">Cargando...</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+            </div>
           ) : !firmaRoles?.length ? (
             <p className="text-sm text-muted-foreground">No tenés roles de firma asignados en ningún proyecto.</p>
           ) : (
             <ul className="space-y-3">
               {firmaRoles.map(item => (
                 <li key={item.proyectoId}>
-                  <p className="text-sm font-medium mb-1">{item.proyectoNombre}</p>
+                  <p className="text-sm font-medium mb-1.5">{item.proyectoNombre}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {item.roles.map(rol => (
-                      <span
-                        key={rol}
-                        className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 rounded px-2 py-0.5"
-                      >
-                        <Badge className="h-3 w-3" />
+                      <Badge key={rol} variant="secondary" className="text-xs bg-purple-100 text-purple-700 hover:bg-purple-100">
                         {rol}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </li>
@@ -281,39 +265,40 @@ function TabAccesos() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PerfilPage() {
+  const [tab, setTab] = useState<Tab>("datos")
+
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Mi perfil</h1>
         <p className="text-sm text-muted-foreground">Gestioná tus datos personales y configuración de cuenta</p>
       </div>
 
-      <Tabs defaultValue="datos">
-        <TabsList>
-          <TabsTrigger value="datos" className="flex items-center gap-1.5">
-            <User className="h-4 w-4" />
-            Datos personales
-          </TabsTrigger>
-          <TabsTrigger value="seguridad" className="flex items-center gap-1.5">
-            <KeyRound className="h-4 w-4" />
-            Seguridad
-          </TabsTrigger>
-          <TabsTrigger value="accesos" className="flex items-center gap-1.5">
-            <FolderKey className="h-4 w-4" />
-            Mis accesos
-          </TabsTrigger>
-        </TabsList>
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-0">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                tab === t.id
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-        <TabsContent value="datos" className="mt-4">
-          <TabDatos />
-        </TabsContent>
-        <TabsContent value="seguridad" className="mt-4">
-          <TabSeguridad />
-        </TabsContent>
-        <TabsContent value="accesos" className="mt-4">
-          <TabAccesos />
-        </TabsContent>
-      </Tabs>
+      <div>
+        {tab === "datos"     && <TabDatos />}
+        {tab === "seguridad" && <TabSeguridad />}
+        {tab === "accesos"   && <TabAccesos />}
+      </div>
     </div>
   )
 }
