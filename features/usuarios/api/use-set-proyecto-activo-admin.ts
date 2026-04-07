@@ -1,17 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 
-export interface CreateUsuarioInput {
-  email: string
-  password: string
-}
-
-export function useCreateUsuario() {
+export function useSetProyectoActivoAdmin(usuarioId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: CreateUsuarioInput) =>
-      apiClient.post<{ userId: string }>("/api/usuarios", data),
+    mutationFn: (proyectoId: string) =>
+      apiClient.put(`/api/usuarios/${usuarioId}/proyecto`, { proyectoId }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["usuario-proyectos", usuarioId] })
       queryClient.invalidateQueries({ queryKey: ["usuarios"] })
     },
   })

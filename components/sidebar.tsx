@@ -29,8 +29,14 @@ function NavLink({ href, label, depth, onNavigate }: { href: string; label: stri
   )
 }
 
+function hasActiveChild(item: MenuItem, pathname: string): boolean {
+  if (item.href && pathname.startsWith(item.href)) return true
+  return item.children?.some((child) => hasActiveChild(child, pathname)) ?? false
+}
+
 function SidebarItem({ item, depth = 0, onNavigate }: { item: MenuItem; depth?: number; onNavigate: () => void }) {
-  const [open, setOpen] = useState(true)
+  const pathname = usePathname()
+  const [open, setOpen] = useState(() => hasActiveChild(item, pathname))
 
   if (item.href && !item.children) {
     return <NavLink href={item.href} label={item.label} depth={depth} onNavigate={onNavigate} />

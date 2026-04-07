@@ -31,12 +31,16 @@ export const menu: MenuItem[] = [
           { label: "Listado de pendientes",  href: "/dashboard/reporte/pendientes" },
         ],
       },
-      { label: "Estadísticas",              href: "/dashboard/estadisticas" },
-      { label: "Avance por subsistemas",    href: "/dashboard/avance-subsistemas" },
-      { label: "Cuantitativo por subsistemas", href: "/dashboard/cuantitativo-subsistemas" },
-      { label: "Avance programado",         href: "/dashboard/avance-programado" },
-      { label: "Avance sugerido",           href: "/dashboard/avance-sugerido" },
-      { label: "Estado de pendientes",      href: "/dashboard/estado-pendientes" },
+      {
+        label: "Estadísticas",
+        children: [
+          { label: "Avance por subsistemas",    href: "/dashboard/avance-subsistemas" },
+          { label: "Cuantitativo por subsistemas", href: "/dashboard/cuantitativo-subsistemas" },
+          { label: "Avance programado",         href: "/dashboard/avance-programado" },
+          { label: "Avance sugerido",           href: "/dashboard/avance-sugerido" },
+          { label: "Estado de pendientes",      href: "/dashboard/estado-pendientes" },
+        ],
+      },
     ],
   },
   {

@@ -4,7 +4,7 @@ import { use, useState, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Save, Check, X, Search, FolderOpen,
-  Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound,
+  Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
 } from "lucide-react"
 import { useRef, useEffect } from "react"
 
@@ -16,6 +16,7 @@ import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
+import { useSetProyectoActivoAdmin } from "@/features/usuarios/api/use-set-proyecto-activo-admin"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
 
 import { Button } from "@/components/ui/button"
@@ -251,6 +252,7 @@ function TabProyectos({ usuarioId }: { usuarioId: string }) {
   const { data: asignadosData, isLoading } = useGetUsuarioProyectos(usuarioId)
   const addMutation    = useAddProyectoUsuario(usuarioId)
   const removeMutation = useRemoveProyectoUsuario(usuarioId)
+  const setActivoMutation = useSetProyectoActivoAdmin(usuarioId)
 
   const asignados = Array.isArray(asignadosData) ? asignadosData : []
   const asignadosIds = new Set(asignados.map((p) => p.proyectoId))
@@ -293,15 +295,28 @@ function TabProyectos({ usuarioId }: { usuarioId: string }) {
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => removeMutation.mutate(p.proyectoId)}
-                disabled={removeMutation.isPending}
-                className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
-                aria-label="Quitar"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                {!p.esActivo && (
+                  <button
+                    type="button"
+                    onClick={() => setActivoMutation.mutate(p.proyectoId)}
+                    disabled={setActivoMutation.isPending}
+                    className="text-gray-400 hover:text-blue-500 transition-colors"
+                    title="Establecer como proyecto activo"
+                  >
+                    <Star className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeMutation.mutate(p.proyectoId)}
+                  disabled={removeMutation.isPending}
+                  className="text-gray-400 hover:text-red-500 transition-colors"
+                  aria-label="Quitar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
