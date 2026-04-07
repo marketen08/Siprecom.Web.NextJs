@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation } from "@tanstack/react-query"
-import { LogOut, UserCircle } from "lucide-react"
+import { LogOut, UserCircle, PenLine } from "lucide-react"
 import Link from "next/link"
 
 import { useAuthStore } from "@/store/auth-store"
@@ -53,6 +53,12 @@ export function UserMenu() {
           <Link href="/perfil">
             <UserCircle className="h-4 w-4 mr-2" />
             Mi perfil
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/mis-firmas">
+            <PenLine className="h-4 w-4 mr-2" />
+            Mis firmas
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

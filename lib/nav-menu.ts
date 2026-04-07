@@ -17,6 +17,7 @@ export const menu: MenuItem[] = [
       { label: "Avance por sistemas",     href: "/ejecucion/sistemas" },
       { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
       { label: "Avance por elementos",    href: "/ejecucion/elementos" },
+      { label: "Mis firmas",              href: "/mis-firmas" },
     ],
   },
   {
@@ -104,6 +105,7 @@ export const segmentLabels: Record<string, string> = {
   proyectos:     "Proyectos",
   usuarios:      "Usuarios",
   perfil:        "Mi perfil",
+  "mis-firmas":  "Mis firmas",
   empresas:      "Empresas",
   reporte:       "Reporte",
   avance:        "Avance",
