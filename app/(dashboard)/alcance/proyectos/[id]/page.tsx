@@ -4,7 +4,7 @@ import { useState, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft, Save, Plus, Trash2, ChevronUp, ChevronDown,
-  Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X,
+  Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
 } from "lucide-react"
 
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
@@ -12,6 +12,8 @@ import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
 import { useGetFirmasConfig } from "@/features/proyectos/api/use-get-firmas-config"
 import { useSaveFirmasConfig } from "@/features/proyectos/api/use-save-firmas-config"
+import { useGetFirmasPendientes } from "@/features/proyectos/api/use-get-firmas-pendientes"
+import { useSincronizarFirmasProyecto } from "@/features/proyectos/api/use-sincronizar-firmas-proyecto"
 import { useGetUsuariosRoles } from "@/features/proyectos/api/use-get-usuarios-roles"
 import { useAsignarUsuarioRol } from "@/features/proyectos/api/use-asignar-usuario-rol"
 import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario-rol"
@@ -20,6 +22,17 @@ import type { FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -237,6 +250,8 @@ function TabPermisos({ proyecto }: { proyecto: Proyecto }) {
 function TabFirmas({ proyectoId }: { proyectoId: string }) {
   const { data: raw, isLoading } = useGetFirmasConfig(proyectoId)
   const save = useSaveFirmasConfig(proyectoId)
+  const { data: pendientesRaw, refetch: refetchPendientes } = useGetFirmasPendientes(proyectoId)
+  const sincronizar = useSincronizarFirmasProyecto(proyectoId)
   const { data: asignacionesRaw } = useGetUsuariosRoles(proyectoId)
   const asignar = useAsignarUsuarioRol(proyectoId)
   const eliminarRol = useDeleteUsuarioRol(proyectoId)
@@ -244,10 +259,12 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
 
   const asignaciones = asignacionesRaw?.data ?? []
   const usuarios = usuariosRaw?.data ?? []
+  const registrosPendientes = pendientesRaw?.data ?? 0
 
   const [slots, setSlots] = useState<FirmaConfigItem[]>([])
   const [initialized, setInitialized] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [sincronizado, setSincronizado] = useState<{ procesados: number; slots: number } | null>(null)
 
   // Inicializar desde la respuesta del servidor
   if (!initialized && raw) {
@@ -293,7 +310,16 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
     const validos = slots.filter(s => s.rolNombre.trim())
     await save.mutateAsync(validos.map((s, i) => ({ ...s, orden: i + 1 })))
     setSaved(true)
+    setSincronizado(null)
     setTimeout(() => setSaved(false), 2500)
+    refetchPendientes()
+  }
+
+  async function handleSincronizar() {
+    const result = await sincronizar.mutateAsync()
+    const data = (result as any)?.data
+    setSincronizado({ procesados: data?.registrosProcesados ?? 0, slots: data?.slotsSincronizados ?? 0 })
+    refetchPendientes()
   }
 
   if (isLoading) {
@@ -314,6 +340,48 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
       {saved && (
         <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
           <CheckCircle2 className="h-4 w-4" /> Configuración de firmas guardada
+        </div>
+      )}
+
+      {sincronizado && (
+        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+          <CheckCircle2 className="h-4 w-4" />
+          Sincronización completada: {sincronizado.procesados} registro(s) actualizados, {sincronizado.slots} slot(s) creados
+        </div>
+      )}
+
+      {/* Advertencia: registros completados con firmas no sincronizadas */}
+      {registrosPendientes > 0 && !sincronizado && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-yellow-800">
+              Hay <strong>{registrosPendientes}</strong> registro{registrosPendientes !== 1 ? "s" : ""} completado{registrosPendientes !== 1 ? "s" : ""} con slots de firma desactualizados.
+              La nueva configuración no se aplicará a esos registros hasta que los sincronices.
+            </p>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-yellow-400 bg-white px-3 py-1.5 text-sm font-medium text-yellow-800 hover:bg-yellow-100 transition-colors">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Aplicar a registros
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Sincronizar firmas en registros existentes?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esto actualizará los slots de firma de <strong>{registrosPendientes} registro{registrosPendientes !== 1 ? "s" : ""}</strong> en estado Completado,
+                  aplicando la configuración actual. Las firmas ya registradas no se modificarán.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSincronizar} disabled={sincronizar.isPending}>
+                  {sincronizar.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Sincronizar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
 
