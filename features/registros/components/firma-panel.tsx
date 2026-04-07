@@ -25,7 +25,8 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
   const status = data?.data
   const slots = status?.slots ?? []
   const pendientes = slots.filter((s) => !s.firmaId)
-  const completadas = slots.filter((s) => s.firmaId)
+  // Solo los slots que el usuario actual puede firmar
+  const pendientesPropios = pendientes.filter((s) => s.puedeFirearUsuarioActual)
 
   if (isLoading) {
     return (
@@ -70,17 +71,17 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
         ))}
       </div>
 
-      {/* Formulario de firma — solo si hay pendientes y no es solo lectura */}
-      {!soloLectura && pendientes.length > 0 && !firmado && (
+      {/* Formulario de firma — solo si el usuario tiene slots asignados y no es solo lectura */}
+      {!soloLectura && pendientesPropios.length > 0 && !firmado && (
         <>
           <Separator className="border-blue-100" />
 
           <div className="space-y-2.5">
-            <p className="text-xs font-medium text-gray-700">¿Cuál es tu rol?</p>
+            <p className="text-xs font-medium text-gray-700">Firmar como:</p>
 
-            {/* Chips de slots pendientes */}
+            {/* Chips de slots pendientes del usuario */}
             <div className="flex flex-wrap gap-1.5">
-              {pendientes.map((slot) => (
+              {pendientesPropios.map((slot) => (
                 <button
                   key={slot.id}
                   type="button"

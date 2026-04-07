@@ -74,6 +74,7 @@ export interface RegistroFirmaSlot {
   rolNombre: string
   descripcion: string | null
   esObligatorio: boolean
+  puedeFirearUsuarioActual: boolean
   firmaId: string | null
   firmadoPor: string | null
   nombreFirmante: string | null

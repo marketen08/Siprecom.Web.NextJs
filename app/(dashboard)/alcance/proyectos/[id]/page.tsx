@@ -4,7 +4,7 @@ import { useState, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft, Save, Plus, Trash2, ChevronUp, ChevronDown,
-  Loader2, CheckCircle2, Settings, ShieldCheck, PenLine,
+  Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X,
 } from "lucide-react"
 
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
@@ -12,10 +12,14 @@ import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
 import { useGetFirmasConfig } from "@/features/proyectos/api/use-get-firmas-config"
 import { useSaveFirmasConfig } from "@/features/proyectos/api/use-save-firmas-config"
+import { useGetUsuariosRoles } from "@/features/proyectos/api/use-get-usuarios-roles"
+import { useAsignarUsuarioRol } from "@/features/proyectos/api/use-asignar-usuario-rol"
+import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario-rol"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import type { FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
+import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -233,6 +237,13 @@ function TabPermisos({ proyecto }: { proyecto: Proyecto }) {
 function TabFirmas({ proyectoId }: { proyectoId: string }) {
   const { data: raw, isLoading } = useGetFirmasConfig(proyectoId)
   const save = useSaveFirmasConfig(proyectoId)
+  const { data: asignacionesRaw } = useGetUsuariosRoles(proyectoId)
+  const asignar = useAsignarUsuarioRol(proyectoId)
+  const eliminarRol = useDeleteUsuarioRol(proyectoId)
+  const { data: usuariosRaw } = useGetUsuarios({ pageSize: 200 })
+
+  const asignaciones = asignacionesRaw?.data ?? []
+  const usuarios = usuariosRaw?.data ?? []
 
   const [slots, setSlots] = useState<FirmaConfigItem[]>([])
   const [initialized, setInitialized] = useState(false)
@@ -413,6 +424,140 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
           {(save.error as Error)?.message ?? "Error al guardar"}
         </p>
       )}
+
+      {/* Asignación de usuarios por rol */}
+      {slots.length > 0 && (
+        <>
+          <Separator />
+          <UsuariosRolesSection
+            slots={slots}
+            asignaciones={asignaciones}
+            usuarios={usuarios}
+            onAsignar={(userId, rolNombre) => asignar.mutate({ userId, rolNombre })}
+            onEliminar={(id) => eliminarRol.mutate(id)}
+            isAsignando={asignar.isPending}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Sección usuarios por rol ─────────────────────────────────────────────────
+
+import type { ProyectoUsuarioRol } from "@/features/proyectos/types"
+import type { Usuario } from "@/features/usuarios/types"
+import type { FirmaConfigItem as SlotItem } from "@/features/proyectos/types"
+
+function UsuariosRolesSection({
+  slots,
+  asignaciones,
+  usuarios,
+  onAsignar,
+  onEliminar,
+  isAsignando,
+}: {
+  slots: SlotItem[]
+  asignaciones: ProyectoUsuarioRol[]
+  usuarios: Usuario[]
+  onAsignar: (userId: string, rolNombre: string) => void
+  onEliminar: (id: string) => void
+  isAsignando: boolean
+}) {
+  const [rolSeleccionado, setRolSeleccionado] = useState<string>("")
+  const [userSeleccionado, setUserSeleccionado] = useState<string>("")
+
+  const roles = slots.map((s) => s.rolNombre).filter(Boolean)
+
+  function handleAsignar() {
+    if (!rolSeleccionado || !userSeleccionado) return
+    onAsignar(userSeleccionado, rolSeleccionado)
+    setUserSeleccionado("")
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800">Usuarios por rol</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Asigná qué usuarios pueden firmar como cada rol. Solo los usuarios asignados podrán firmar ese rol.
+        </p>
+      </div>
+
+      {/* Asignaciones existentes agrupadas por rol */}
+      <div className="space-y-2">
+        {roles.map((rol) => {
+          const asigs = asignaciones.filter((a) => a.rolNombre === rol)
+          return (
+            <div key={rol} className="rounded-lg border bg-white p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-700">{rol}</p>
+              {asigs.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Sin usuarios asignados — cualquier usuario puede firmar</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {asigs.map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium"
+                    >
+                      {a.userName}
+                      <button
+                        type="button"
+                        onClick={() => onEliminar(a.id)}
+                        className="hover:text-red-500 transition-colors"
+                        aria-label="Quitar"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Formulario para agregar asignación */}
+      <div className="flex items-end gap-2 flex-wrap">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600">Rol</label>
+          <select
+            value={rolSeleccionado}
+            onChange={(e) => setRolSeleccionado(e.target.value)}
+            className="h-8 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Seleccionar rol...</option>
+            {roles.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600">Usuario</label>
+          <select
+            value={userSeleccionado}
+            onChange={(e) => setUserSeleccionado(e.target.value)}
+            className="h-8 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Seleccionar usuario...</option>
+            {usuarios.map((u) => (
+              <option key={u.id} value={u.id}>{u.userName}</option>
+            ))}
+          </select>
+        </div>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="gap-1.5 self-end"
+          onClick={handleAsignar}
+          disabled={!rolSeleccionado || !userSeleccionado || isAsignando}
+        >
+          {isAsignando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          Asignar
+        </Button>
+      </div>
     </div>
   )
 }

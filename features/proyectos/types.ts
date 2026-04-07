@@ -74,3 +74,16 @@ export interface FirmaConfigItem {
   descripcion: string
   esObligatorio: boolean
 }
+
+export interface ProyectoUsuarioRol {
+  id: string
+  userId: string
+  userName: string
+  email: string
+  rolNombre: string
+}
+
+export interface AsignarUsuarioRolInput {
+  userId: string
+  rolNombre: string
+}
