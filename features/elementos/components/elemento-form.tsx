@@ -253,7 +253,7 @@ export function ElementoForm({
             name="pid"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>PID</FormLabel>
+                <FormLabel>PID <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                 <FormControl>
                   <Input placeholder="Ej: P&ID-001" disabled={isPending} {...field} />
                 </FormControl>
@@ -267,7 +267,7 @@ export function ElementoForm({
             name="testpack"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Testpack</FormLabel>
+                <FormLabel>Testpack <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                 <FormControl>
                   <Input placeholder="Ej: TP-001" disabled={isPending} {...field} />
                 </FormControl>

@@ -9,8 +9,8 @@ export const elementoSchema = z.object({
   subSistemaId: z.string().min(1, "El subsistema es requerido"),
   horasAdicionales: z.number().min(0),
   impactoFactor: z.number().min(0),
-  pid: z.string().min(1, "El PID es requerido"),
-  testpack: z.string().min(1, "El testpack es requerido"),
+  pid: z.string().optional().default(""),
+  testpack: z.string().optional().default(""),
   observaciones: z.string(),
 })
 

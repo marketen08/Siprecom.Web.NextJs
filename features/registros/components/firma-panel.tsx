@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CheckCircle2, Clock, Loader2, PenLine } from "lucide-react"
+import { CheckCircle2, Clock, Loader2, PenLine, Lock } from "lucide-react"
 import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 import type { RegistroFirmaSlot } from "@/features/registros/types"
@@ -27,6 +27,8 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
   const pendientes = slots.filter((s) => !s.firmaId)
   // Solo los slots que el usuario actual puede firmar
   const pendientesPropios = pendientes.filter((s) => s.puedeFirearUsuarioActual)
+  // Hay restricción activa si algún slot pendiente tiene puedeFirearUsuarioActual=false
+  const hayRestriccion = pendientes.some((s) => !s.puedeFirearUsuarioActual)
 
   if (isLoading) {
     return (
@@ -70,6 +72,14 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
           <SlotRow key={slot.id} slot={slot} />
         ))}
       </div>
+
+      {/* Mensaje cuando el usuario no tiene ningún rol asignado y hay restricción activa */}
+      {!soloLectura && pendientes.length > 0 && pendientesPropios.length === 0 && hayRestriccion && !firmado && (
+        <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2 border border-gray-200">
+          <Lock className="h-3.5 w-3.5 shrink-0" />
+          No tenés un rol de firma asignado para este proyecto. Contactá al administrador.
+        </div>
+      )}
 
       {/* Formulario de firma — solo si el usuario tiene slots asignados y no es solo lectura */}
       {!soloLectura && pendientesPropios.length > 0 && !firmado && (
