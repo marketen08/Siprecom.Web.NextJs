@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { PenLine, Loader2, CheckCircle2, ChevronLeft, ChevronRight, Tag, Layers } from "lucide-react"
+import { PenLine, Loader2, CheckCircle2, ChevronLeft, ChevronRight, Tag, Layers, FileImage } from "lucide-react"
 
 import { useGetMisFirmas } from "@/features/registros/api/use-get-mis-firmas"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
@@ -117,6 +117,12 @@ export default function MisFirmasPage() {
                       <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                         <Tag className="h-3 w-3" />{item.elementoTag}
                       </span>
+                      {item.esFisico && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-orange-50 text-orange-600 border border-orange-200 rounded px-1.5 py-0.5 font-medium">
+                          <FileImage className="h-3 w-3" />
+                          Físico
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">{item.tareaNombre}</p>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

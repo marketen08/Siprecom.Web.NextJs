@@ -2,7 +2,7 @@
 
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check } from "lucide-react"
+import { ArrowLeft, Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, FileImage, Lock } from "lucide-react"
 
 import { useGetRegistroDetalle } from "@/features/registros/api/use-get-registro-detalle"
 import { useCompletarDigital } from "@/features/registros/api/use-completar-digital"
@@ -293,8 +293,25 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* ── Registro físico (solo lectura) ── */}
+      {registro.esFisico && isReadOnly && (
+        <div className="rounded-xl border bg-orange-50 border-orange-200 p-5 flex items-center gap-4">
+          <FileImage className="h-8 w-8 text-orange-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-orange-800">Registro cargado como planilla física</p>
+            <p className="text-xs text-orange-600 mt-0.5">Este registro fue completado con un documento escaneado.</p>
+          </div>
+          <a href={`/api/registros/${registroId}/pdf`} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0 border-orange-300 text-orange-700 hover:bg-orange-100">
+              <Download className="h-3.5 w-3.5" />
+              Ver archivo
+            </Button>
+          </a>
+        </div>
+      )}
+
       {/* ── Modo formulario digital ── */}
-      {(modo === "digital" || isReadOnly) && (
+      {(modo === "digital" || isReadOnly) && !registro.esFisico && (
         <div className="space-y-6">
           {ordenSecciones.map((seccionId) => {
             const seccion = secciones.find((s) => s.id === seccionId)
@@ -496,7 +513,7 @@ function FirmasSection({ registroId }: { registroId: string }) {
                     <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
                     <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
-                ) : (
+                ) : slot.puedeFirearUsuarioActual ? (
                   !esActivo && (
                     <Button
                       size="sm"
@@ -508,6 +525,11 @@ function FirmasSection({ registroId }: { registroId: string }) {
                       Firmar
                     </Button>
                   )
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-gray-400 shrink-0">
+                    <Lock className="h-3 w-3" />
+                    Sin permiso
+                  </span>
                 )}
               </div>
 

@@ -10,6 +10,7 @@ export interface MiFirmaPendiente {
   subsistemaNombre: string
   estado: string
   fechaTerminado: string | null
+  esFisico: boolean
   slotsParaFirmar: string[]
 }
 
