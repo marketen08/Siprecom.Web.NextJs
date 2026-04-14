@@ -6,12 +6,13 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import { Plus, Search, FileSpreadsheet } from "lucide-react"
 
 import { useGetPlanillas } from "@/features/planillas/api/use-get-planillas"
 import { useNewPlanilla } from "@/features/planillas/hooks/use-new-planilla"
 import { NewPlanillaSheet } from "@/features/planillas/components/new-planilla-sheet"
 import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla-sheet"
+import { ImportExcelSheet } from "@/features/planillas/components/import-excel-sheet"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -33,6 +34,7 @@ export default function PlanillasPage() {
 
   const { data, isLoading, isFetching } = useGetPlanillas({ page, pageSize, nombre: search || undefined })
   const { open } = useNewPlanilla()
+  const [importOpen, setImportOpen] = useState(false)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -48,6 +50,7 @@ export default function PlanillasPage() {
     <>
       <NewPlanillaSheet />
       <EditPlanillaSheet />
+      <ImportExcelSheet open={importOpen} onClose={() => setImportOpen(false)} />
 
       <div className="space-y-4">
         {/* Header */}
@@ -58,10 +61,16 @@ export default function PlanillasPage() {
               {data?.total ?? 0} planillas en total
             </p>
           </div>
-          <Button onClick={open} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nueva planilla
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setImportOpen(true)} variant="outline" className="gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              Importar desde Excel
+            </Button>
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nueva planilla
+            </Button>
+          </div>
         </div>
 
         {/* Buscador */}
