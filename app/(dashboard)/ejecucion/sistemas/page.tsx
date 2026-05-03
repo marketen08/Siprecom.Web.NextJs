@@ -73,28 +73,28 @@ export default function AvanceSistemasPage() {
                   className="cursor-pointer hover:bg-blue-50 transition-colors"
                   onClick={() => router.push(`/ejecucion/subsistemas?sistemaId=${s.id}`)}
                 >
-                  <TableCell className="font-mono text-sm text-gray-600">{s.codigo}</TableCell>
-                  <TableCell className="font-medium">{s.nombre}</TableCell>
-                  <TableCell>
+                  <TableCell className="py-3 font-mono text-sm text-gray-600">{s.codigo}</TableCell>
+                  <TableCell className="py-3 font-medium">{s.nombre}</TableCell>
+                  <TableCell className="py-3">
                     <BarraAvance porcentaje={s.porcentajeAvance} />
                   </TableCell>
-                  <TableCell className="text-center text-sm">{s.totalTareas}</TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center text-sm">{s.totalTareas}</TableCell>
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={s.pendiente} variant="pendiente" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={s.enProceso} variant="enProceso" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={s.completado} variant="completado" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={s.firmado} variant="firmado" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={s.aprobado} variant="aprobado" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={s.rechazado} variant="rechazado" />
                   </TableCell>
                 </TableRow>

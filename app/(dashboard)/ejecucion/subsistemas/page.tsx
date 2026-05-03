@@ -68,14 +68,17 @@ function AvanceSubsistemasContent() {
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isLoading ? "Cargando..." : `${subsistemas.length} subsistemas`}
-            {sistemaId && avanceSistema && (
-              <span className="ml-2 font-medium text-blue-700">
-                — Avance: {avanceSistema.porcentajeAvance.toFixed(1)}%
-              </span>
-            )}
           </p>
         </div>
       </div>
+
+      {sistemaId && avanceSistema && (
+        <AvanceSistemaCard
+          codigo={avanceSistema.codigo}
+          nombre={avanceSistema.nombre}
+          porcentaje={avanceSistema.porcentajeAvance}
+        />
+      )}
 
       <div className="rounded-lg border bg-white overflow-hidden">
         <Table>
@@ -116,31 +119,31 @@ function AvanceSubsistemasContent() {
                   className="cursor-pointer hover:bg-blue-50 transition-colors"
                   onClick={() => router.push(`/ejecucion/elementos?subSistemaId=${ss.id}`)}
                 >
-                  <TableCell className="font-mono text-sm text-gray-600">{ss.codigo}</TableCell>
-                  <TableCell className="font-medium">{ss.nombre}</TableCell>
+                  <TableCell className="py-3 font-mono text-sm text-gray-600">{ss.codigo}</TableCell>
+                  <TableCell className="py-3 font-medium">{ss.nombre}</TableCell>
                   {!sistemaId && (
-                    <TableCell className="text-sm text-gray-500">{(ss as any).sistemaNombre}</TableCell>
+                    <TableCell className="py-3 text-sm text-gray-500">{(ss as any).sistemaNombre}</TableCell>
                   )}
-                  <TableCell>
+                  <TableCell className="py-3">
                     <BarraAvance porcentaje={ss.porcentajeAvance} />
                   </TableCell>
-                  <TableCell className="text-center text-sm">{ss.totalTareas}</TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center text-sm">{ss.totalTareas}</TableCell>
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={ss.pendiente} variant="pendiente" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={ss.enProceso} variant="enProceso" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={ss.completado} variant="completado" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={ss.firmado} variant="firmado" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={ss.aprobado} variant="aprobado" />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <EstadoBadge value={ss.rechazado} variant="rechazado" />
                   </TableCell>
                 </TableRow>
@@ -158,6 +161,25 @@ export default function AvanceSubsistemasPage() {
     <Suspense>
       <AvanceSubsistemasContent />
     </Suspense>
+  )
+}
+
+function AvanceSistemaCard({
+  codigo,
+  nombre,
+  porcentaje,
+}: {
+  codigo: string
+  nombre: string
+  porcentaje: number
+}) {
+  return (
+    <div className="rounded-lg border bg-white p-4 space-y-3">
+      <div className="text-center text-sm font-semibold text-gray-700">
+        SISTEMA: {codigo} {nombre}
+      </div>
+      <BarraAvance porcentaje={porcentaje} size="lg" />
+    </div>
   )
 }
 
