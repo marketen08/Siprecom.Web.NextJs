@@ -7,6 +7,7 @@ import { useGetAvanceElementosSubSistema } from "@/features/avance/api/use-get-a
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
+import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { ObtenerPlanillasDialog } from "@/features/planillas/components/obtener-planillas-dialog"
 import { BarraAvance } from "@/components/barra-avance"
 import type { AvanceElementoDTO } from "@/features/avance/types"
@@ -27,11 +28,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 
 function AvanceElementosContent() {
   const router = useRouter()
@@ -252,7 +248,7 @@ function AvanceElementosContent() {
                       <BarraAvance porcentaje={e.porcentajeAvance} />
                     </TableCell>
                     <TableCell className="text-center" onClick={(ev) => ev.stopPropagation()}>
-                      <EstadosPopover elemento={e} />
+                      <EstadosPopover avance={e} />
                     </TableCell>
                   </TableRow>
                 ))
@@ -282,47 +278,6 @@ export default function AvanceElementosPage() {
     <Suspense>
       <AvanceElementosContent />
     </Suspense>
-  )
-}
-
-// ── EstadosPopover ─────────────────────────────────────────────────────────────
-
-function EstadosPopover({ elemento }: { elemento: AvanceElementoDTO }) {
-  const filas = [
-    { label: "Pendiente",   value: elemento.pendiente,   color: "bg-gray-100 text-gray-700" },
-    { label: "En proceso",  value: elemento.enProceso,   color: "bg-blue-100 text-blue-700" },
-    { label: "Completado",  value: elemento.completado,  color: "bg-yellow-100 text-yellow-700" },
-    { label: "Firmado",     value: elemento.firmado,     color: "bg-indigo-100 text-indigo-700" },
-    { label: "Aprobado",    value: elemento.aprobado,    color: "bg-green-100 text-green-700" },
-    { label: "Rechazado",   value: elemento.rechazado,   color: "bg-red-100 text-red-700" },
-    { label: "Cancelado",   value: elemento.cancelado,   color: "bg-gray-50 text-gray-400" },
-  ].filter((f) => f.value > 0)
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 cursor-default tabIndex={0}">
-          {elemento.totalTareas}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="left" className="p-0">
-        <div className="min-w-40 py-2 px-1">
-          <p className="text-xs font-semibold text-gray-500 px-2 pb-1">Desglose de estados</p>
-          {filas.length === 0 ? (
-            <p className="text-xs text-gray-400 px-2">Sin tareas</p>
-          ) : (
-            filas.map((f) => (
-              <div key={f.label} className="flex items-center justify-between gap-3 px-2 py-0.5">
-                <span className="text-xs text-gray-600">{f.label}</span>
-                <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium ${f.color}`}>
-                  {f.value}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </TooltipContent>
-    </Tooltip>
   )
 }
 

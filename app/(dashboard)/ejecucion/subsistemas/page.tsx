@@ -8,6 +8,7 @@ import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proye
 import { useGetAvanceSistema } from "@/features/avance/api/use-get-avance-sistema"
 import type { AvanceDTO } from "@/features/avance/types"
 import { BarraAvance } from "@/components/barra-avance"
+import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -90,25 +91,19 @@ function AvanceSubsistemasContent() {
                 <TableHead className="font-semibold text-gray-700">Sistema</TableHead>
               )}
               <TableHead className="font-semibold text-gray-700 w-56">Avance</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-20">Total</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-24">Pendiente</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-24">En proceso</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-24">Completado</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-24">Firmado</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-24">Aprobado</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-24">Rechazado</TableHead>
+              <TableHead className="font-semibold text-gray-700 text-center w-24">Estados</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={!sistemaId ? 11 : 10} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={!sistemaId ? 5 : 4} className="text-center py-10 text-muted-foreground">
                   Cargando...
                 </TableCell>
               </TableRow>
             ) : subsistemas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={!sistemaId ? 11 : 10} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={!sistemaId ? 5 : 4} className="text-center py-10 text-muted-foreground">
                   No hay subsistemas con datos de avance.
                 </TableCell>
               </TableRow>
@@ -127,24 +122,8 @@ function AvanceSubsistemasContent() {
                   <TableCell className="py-3">
                     <BarraAvance porcentaje={ss.porcentajeAvance} />
                   </TableCell>
-                  <TableCell className="py-3 text-center text-sm">{ss.totalTareas}</TableCell>
-                  <TableCell className="py-3 text-center">
-                    <EstadoBadge value={ss.pendiente} variant="pendiente" />
-                  </TableCell>
-                  <TableCell className="py-3 text-center">
-                    <EstadoBadge value={ss.enProceso} variant="enProceso" />
-                  </TableCell>
-                  <TableCell className="py-3 text-center">
-                    <EstadoBadge value={ss.completado} variant="completado" />
-                  </TableCell>
-                  <TableCell className="py-3 text-center">
-                    <EstadoBadge value={ss.firmado} variant="firmado" />
-                  </TableCell>
-                  <TableCell className="py-3 text-center">
-                    <EstadoBadge value={ss.aprobado} variant="aprobado" />
-                  </TableCell>
-                  <TableCell className="py-3 text-center">
-                    <EstadoBadge value={ss.rechazado} variant="rechazado" />
+                  <TableCell className="py-3 text-center" onClick={(ev) => ev.stopPropagation()}>
+                    <EstadosPopover avance={ss} />
                   </TableCell>
                 </TableRow>
               ))
@@ -180,26 +159,5 @@ function AvanceSistemaCard({
       </div>
       <BarraAvance porcentaje={porcentaje} size="lg" />
     </div>
-  )
-}
-
-type EstadoVariant = "pendiente" | "enProceso" | "completado" | "firmado" | "aprobado" | "rechazado"
-
-function EstadoBadge({ value, variant }: { value: number; variant: EstadoVariant }) {
-  if (value === 0) return <span className="text-sm text-gray-400">—</span>
-
-  const styles: Record<EstadoVariant, string> = {
-    pendiente:  "bg-gray-100 text-gray-700",
-    enProceso:  "bg-blue-100 text-blue-700",
-    completado: "bg-yellow-100 text-yellow-700",
-    firmado:    "bg-blue-100 text-blue-700",
-    aprobado:   "bg-green-100 text-green-700",
-    rechazado:  "bg-red-100 text-red-700",
-  }
-
-  return (
-    <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[variant]}`}>
-      {value}
-    </span>
   )
 }
