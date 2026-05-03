@@ -207,7 +207,7 @@ function AvanceElementosContent() {
         <div className="rounded-lg border bg-white overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-gray-50">
+              <TableRow>
                 <TableHead className="font-semibold text-gray-700 w-28">TAG</TableHead>
                 <TableHead className="font-semibold text-gray-700">Elemento</TableHead>
                 <TableHead className="font-semibold text-gray-700 w-36">Tipo</TableHead>

@@ -83,7 +83,7 @@ function AvanceSubsistemasContent() {
       <div className="rounded-lg border bg-white overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
+            <TableRow>
               <TableHead className="font-semibold text-gray-700 w-24">Código</TableHead>
               <TableHead className="font-semibold text-gray-700">Subsistema</TableHead>
               {!sistemaId && (
