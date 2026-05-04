@@ -150,22 +150,8 @@ export default function ElementosPage() {
       <EditElementoSheet />
 
       <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Elementos</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {data?.total ?? 0} elementos en total
-            </p>
-          </div>
-          <Button onClick={open} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nuevo elemento
-          </Button>
-        </div>
-
-        {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Buscador + Nuevo elemento */}
+        <div className="flex items-center justify-between gap-3">
           <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -175,7 +161,14 @@ export default function ElementosPage() {
               className="pl-9"
             />
           </div>
+          <Button onClick={open} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Nuevo elemento
+          </Button>
+        </div>
 
+        {/* Filtros */}
+        <div className="flex flex-wrap items-center gap-3">
           <Select value={sistemaId} onValueChange={handleSistemaChange}>
             <SelectTrigger className="w-52">
               <SelectValue>
@@ -306,32 +299,33 @@ export default function ElementosPage() {
           </Table>
         </DataTableWrapper>
 
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Página {page} de {totalPages}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page === 1}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages}
-              >
-                Siguiente
-              </Button>
+        {/* Total + Paginación */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{data?.total ?? 0} elementos en total</span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-3">
+              <span>Página {page} de {totalPages}</span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={page === 1}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Siguiente
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
   )

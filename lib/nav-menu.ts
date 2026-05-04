@@ -79,9 +79,12 @@ function flatten(items: MenuItem[], trail: BreadcrumbItem[]): Map<string, Breadc
       map.set(item.href, [...trail, { label: item.label, href: item.href }])
     }
     if (item.children) {
-      const nested = flatten(item.children, item.href
-        ? [...trail, { label: item.label, href: item.href }]
-        : trail)
+      // Items padre sin href igual aparecen en el trail con href vacío;
+      // el componente Breadcrumb los renderiza como texto (no link).
+      const nested = flatten(item.children, [
+        ...trail,
+        { label: item.label, href: item.href ?? "" },
+      ])
       nested.forEach((v, k) => map.set(k, v))
     }
   }

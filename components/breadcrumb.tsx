@@ -43,18 +43,21 @@ export function Breadcrumb() {
 
       {items.map((item, i) => {
         const isLast = i === items.length - 1
+        const isClickable = !isLast && !!item.href
         return (
-          <span key={item.href} className="flex items-center gap-1 min-w-0">
+          <span key={`${item.href}-${i}`} className="flex items-center gap-1 min-w-0">
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            {isLast ? (
-              <span className="font-medium text-gray-800 truncate">{item.label}</span>
-            ) : (
+            {isClickable ? (
               <Link
                 href={item.href}
                 className="hover:text-gray-700 transition-colors truncate"
               >
                 {item.label}
               </Link>
+            ) : (
+              <span className={isLast ? "font-medium text-gray-800 truncate" : "text-gray-500 truncate"}>
+                {item.label}
+              </span>
             )}
           </span>
         )
