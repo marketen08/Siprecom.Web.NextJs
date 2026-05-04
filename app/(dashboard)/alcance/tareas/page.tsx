@@ -14,6 +14,8 @@ import { NewTareaSheet } from "@/features/tareas/components/new-tarea-sheet"
 import { EditTareaSheet } from "@/features/tareas/components/edit-tarea-sheet"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
+import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
+import { PRIORIDAD } from "@/features/tareas/types"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -41,6 +43,8 @@ export default function TareasPage() {
   const [search, setSearch] = useState("")
   const [elementoTipoId, setElementoTipoId] = useState<string>(ALL)
   const [nivelId, setNivelId] = useState<string>(ALL)
+  const [planillaId, setPlanillaId] = useState<string>(ALL)
+  const [prioridad, setPrioridad] = useState<string>(ALL)
   const [page, setPage] = useState(1)
   const pageSize = 10
 
@@ -50,20 +54,27 @@ export default function TareasPage() {
     nombre: search || undefined,
     elementoTipoId: elementoTipoId !== ALL ? elementoTipoId : undefined,
     nivelId: nivelId !== ALL ? nivelId : undefined,
+    planillaId: planillaId !== ALL ? planillaId : undefined,
+    prioridad: prioridad !== ALL ? Number(prioridad) : undefined,
   })
   const { open } = useNewTarea()
 
   const { data: tiposRaw } = useGetElementosTiposSelect()
   const { data: nivelesRaw } = useGetNivelesSelect()
+  const { data: planillasRaw } = useGetPlanillasSelect()
   const tipos = (tiposRaw as any)?.data ?? []
   const niveles = (nivelesRaw as any)?.data ?? (Array.isArray(nivelesRaw) ? nivelesRaw : [])
+  const planillas = (planillasRaw as any)?.data ?? []
 
-  const hayFiltros = search !== "" || elementoTipoId !== ALL || nivelId !== ALL
+  const hayFiltros =
+    search !== "" || elementoTipoId !== ALL || nivelId !== ALL || planillaId !== ALL || prioridad !== ALL
 
   function clearFiltros() {
     setSearch("")
     setElementoTipoId(ALL)
     setNivelId(ALL)
+    setPlanillaId(ALL)
+    setPrioridad(ALL)
     setPage(1)
   }
 
@@ -143,6 +154,42 @@ export default function TareasPage() {
               <SelectItem value={ALL}>Todos los niveles</SelectItem>
               {niveles.map((n: any) => (
                 <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={planillaId}
+            onValueChange={(v) => { setPlanillaId(v); setPage(1) }}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Planilla">
+                {planillaId === ALL
+                  ? "Todas las planillas"
+                  : planillas.find((p: any) => p.id === planillaId)?.nombre ?? "Planilla"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas las planillas</SelectItem>
+              {planillas.map((p: any) => (
+                <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={prioridad}
+            onValueChange={(v) => { setPrioridad(v); setPage(1) }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Prioridad">
+                {prioridad === ALL ? "Todas las prioridades" : PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "Prioridad"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas las prioridades</SelectItem>
+              {Object.entries(PRIORIDAD).map(([id, nombre]) => (
+                <SelectItem key={id} value={id}>{nombre}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -9,12 +9,14 @@ interface Params {
   nombre?: string
   elementoTipoId?: string
   nivelId?: string
+  planillaId?: string
+  prioridad?: number
 }
 
 export function useGetTareas(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, elementoTipoId, nivelId } = params
+  const { page = 1, pageSize = 10, nombre, elementoTipoId, nivelId, planillaId, prioridad } = params
   return useQuery({
-    queryKey: ["tareas", { page, pageSize, nombre, elementoTipoId, nivelId }],
+    queryKey: ["tareas", { page, pageSize, nombre, elementoTipoId, nivelId, planillaId, prioridad }],
     queryFn: () =>
       apiClient.get<PagedResponse<Tarea>>("/api/tareas", {
         page,
@@ -22,6 +24,8 @@ export function useGetTareas(params: Params = {}) {
         ...(nombre ? { nombre } : {}),
         ...(elementoTipoId ? { elementoTipoId } : {}),
         ...(nivelId ? { nivelId } : {}),
+        ...(planillaId ? { planillaId } : {}),
+        ...(prioridad !== undefined ? { prioridad } : {}),
       }),
   })
 }
