@@ -13,7 +13,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-export function NewClienteSheet() {
+interface NewClienteSheetProps {
+  /** Fija el tipo (cliente o contratista) ocultando el selector. */
+  esContratista?: boolean
+}
+
+export function NewClienteSheet({ esContratista }: NewClienteSheetProps = {}) {
   const { isOpen, close } = useNewCliente()
   const mutation = useCreateCliente()
 
@@ -28,13 +33,15 @@ export function NewClienteSheet() {
     )
   }
 
+  const tipoLabel = esContratista === true ? "contratista" : esContratista === false ? "cliente" : "cliente o contratista"
+
   return (
     <Sheet open={isOpen} onOpenChange={close}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Nuevo cliente</SheetTitle>
+          <SheetTitle>Nuevo {tipoLabel}</SheetTitle>
           <SheetDescription>
-            Completá los datos para crear un nuevo cliente o contratista.
+            Completá los datos para crear un nuevo {tipoLabel}.
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 px-4 pb-6">
@@ -42,6 +49,7 @@ export function NewClienteSheet() {
             onSubmit={onSubmit}
             isPending={mutation.isPending}
             onCancel={close}
+            fixedEsContratista={esContratista}
           />
         </div>
       </SheetContent>

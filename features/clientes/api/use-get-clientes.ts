@@ -7,18 +7,20 @@ interface Params {
   page?: number
   pageSize?: number
   nombre?: string
+  esContratista?: boolean
 }
 
 export function useGetClientes(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre } = params
+  const { page = 1, pageSize = 10, nombre, esContratista } = params
 
   return useQuery({
-    queryKey: ["clientes", { page, pageSize, nombre }],
+    queryKey: ["clientes", { page, pageSize, nombre, esContratista }],
     queryFn: () =>
       apiClient.get<PagedResponse<Cliente>>("/api/clientes", {
         page,
         pageSize,
         ...(nombre ? { nombre } : {}),
+        ...(esContratista !== undefined ? { esContratista } : {}),
       }),
   })
 }

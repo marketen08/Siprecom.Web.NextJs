@@ -30,6 +30,16 @@ interface ClienteFormProps {
   onSubmit: (values: ClienteFormValues) => void
   isPending: boolean
   onCancel: () => void
+  /**
+   * Si se pasa, fija el campo "esContratista" y oculta el selector.
+   * Útil cuando se crea desde la página específica (Clientes vs Contratistas).
+   */
+  fixedEsContratista?: boolean
+  /**
+   * Si es true, el campo "Tipo" se muestra pero deshabilitado.
+   * Pensado para edición: no se permite mover entre listas.
+   */
+  readOnlyTipo?: boolean
 }
 
 export function ClienteForm({
@@ -37,13 +47,15 @@ export function ClienteForm({
   onSubmit,
   isPending,
   onCancel,
+  fixedEsContratista,
+  readOnlyTipo,
 }: ClienteFormProps) {
   const form = useForm<ClienteFormValues>({
     resolver: zodResolver(clienteSchema),
     defaultValues: {
       nombre: defaultValues?.nombre ?? "",
       urlLogo: defaultValues?.urlLogo ?? "",
-      esContratista: defaultValues?.esContratista ?? false,
+      esContratista: fixedEsContratista ?? defaultValues?.esContratista ?? false,
     },
   })
 
@@ -75,33 +87,35 @@ export function ClienteForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="esContratista"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tipo</FormLabel>
-                <Select
-                  disabled={isPending}
-                  onValueChange={(v) => v && field.onChange(v === "true")}
-                  value={String(field.value)}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccioná un tipo">
-                        {field.value ? "Contratista" : "Cliente"}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="false">Cliente</SelectItem>
-                    <SelectItem value="true">Contratista</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {fixedEsContratista === undefined && (
+            <FormField
+              control={form.control}
+              name="esContratista"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo</FormLabel>
+                  <Select
+                    disabled={isPending || readOnlyTipo}
+                    onValueChange={(v) => v && field.onChange(v === "true")}
+                    value={String(field.value)}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccioná un tipo">
+                          {field.value ? "Contratista" : "Cliente"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="false">Cliente</SelectItem>
+                      <SelectItem value="true">Contratista</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <Separator />

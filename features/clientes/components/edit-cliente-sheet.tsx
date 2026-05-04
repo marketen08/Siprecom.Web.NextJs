@@ -22,23 +22,27 @@ export function EditClienteSheet() {
   const cliente = data?.data
 
   const onSubmit = (values: ClienteFormValues) => {
+    if (!cliente) return
     mutation.mutate(
       {
         nombre: values.nombre,
         urlLogo: values.urlLogo || undefined,
-        esContratista: values.esContratista,
+        // Tipo es read-only en edición: forzamos el valor original del backend
+        esContratista: cliente.esContratista,
       },
       { onSuccess: close }
     )
   }
 
+  const tipoLabel = cliente?.esContratista ? "contratista" : "cliente"
+
   return (
     <Sheet open={isOpen} onOpenChange={close}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Editar cliente</SheetTitle>
+          <SheetTitle>Editar {tipoLabel}</SheetTitle>
           <SheetDescription>
-            Modificá los datos del cliente o contratista.
+            Modificá los datos del {tipoLabel}.
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 px-4 pb-6">
@@ -50,9 +54,10 @@ export function EditClienteSheet() {
               onSubmit={onSubmit}
               isPending={mutation.isPending}
               onCancel={close}
+              readOnlyTipo
             />
           ) : (
-            <p className="text-sm text-destructive">No se pudo cargar el cliente.</p>
+            <p className="text-sm text-destructive">No se pudo cargar.</p>
           )}
         </div>
       </SheetContent>

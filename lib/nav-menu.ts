@@ -60,7 +60,8 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios" },
       { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
-      { label: "Empresas",          href: "/configuracion/empresas" },
+      { label: "Clientes",          href: "/configuracion/clientes" },
+      { label: "Contratistas",      href: "/configuracion/contratistas" },
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
       { label: "Procedimientos",    href: "/configuracion/procedimientos" },
     ],
@@ -106,7 +107,8 @@ export const segmentLabels: Record<string, string> = {
   usuarios:      "Usuarios",
   perfil:        "Mi perfil",
   "mis-firmas":  "Mis firmas",
-  empresas:      "Empresas",
+  clientes:      "Clientes",
+  contratistas:  "Contratistas",
   reporte:       "Reporte",
   avance:        "Avance",
 }
