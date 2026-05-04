@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, type ComponentType } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
@@ -7,9 +8,10 @@ import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/ap
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
 import { apiClient } from "@/lib/api-client"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
-import type { AvanceDTO } from "@/features/avance/types"
+import type { AvanceElementoDTO } from "@/features/avance/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import { BarraAvance } from "@/components/barra-avance"
+import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -19,8 +21,16 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
+  MoreVertical, PenLine,
 } from "lucide-react"
 
 // ─── Tipo archivo ─────────────────────────────────────────────────────────────
@@ -36,7 +46,7 @@ interface RegistroArchivo {
 
 interface Props {
   elementoId: string | null
-  avance: AvanceDTO | null
+  avance: AvanceElementoDTO | null
   open: boolean
   onClose: () => void
 }
@@ -97,18 +107,11 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
 
           {/* Barra de avance */}
           {avance && (
-            <div className="space-y-2">
-              <BarraAvance porcentaje={avance.porcentajeAvance} />
-              <div className="flex flex-wrap gap-2 text-xs">
-                <EstadoChip label="Pendiente"  value={avance.pendiente}  color="gray" />
-                <EstadoChip label="En proceso" value={avance.enProceso}  color="blue" />
-                <EstadoChip label="Completado" value={avance.completado} color="yellow" />
-                <EstadoChip label="Aprobado"   value={avance.aprobado}   color="green" />
-                <EstadoChip label="Rechazado"  value={avance.rechazado}  color="red" />
-                {avance.cancelado > 0 && (
-                  <EstadoChip label="Cancelado" value={avance.cancelado} color="muted" />
-                )}
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <BarraAvance porcentaje={avance.porcentajeAvance} />
               </div>
+              <EstadosPopover avance={avance} />
             </div>
           )}
 
@@ -119,7 +122,8 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                 Datos del elemento
               </h3>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <DataItem label="Prioridad" value={elemento.prioridadTexto} />
+                {avance?.elementoTipoNombre        && <DataItem label="Tipo"         value={avance.elementoTipoNombre} />}
+                {avance?.elementoTipoEspecialidad  && <DataItem label="Especialidad" value={avance.elementoTipoEspecialidad} />}
                 {elemento.pid      && <DataItem label="PID"      value={elemento.pid} />}
                 {elemento.testpack && <DataItem label="Testpack" value={elemento.testpack} />}
                 {elemento.horasAdicionales > 0 && (
@@ -150,68 +154,23 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                 No hay tareas asignadas a este elemento.
               </p>
             ) : (
-              <div className="space-y-2">
-                {tareas.map((t) => (
-                  <div key={t.id} className="rounded-lg border bg-white p-3 space-y-2">
-                    {/* Encabezado */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-gray-400">{t.codigo}</span>
-                          {t.esCritica && (
-                            <span className="inline-flex items-center gap-0.5 text-xs text-red-600 font-medium">
-                              <AlertCircle className="h-3 w-3" /> Crítica
-                            </span>
-                          )}
-                        </div>
-                        <p className="font-medium text-sm text-gray-900">{t.tareaNombre}</p>
-                      </div>
-                      <EstadoBadge estado={t.estado} estadoTexto={t.estadoTexto} />
-                    </div>
-
-                    {/* Meta */}
-                    <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-                      {t.asignadoNombre && (
-                        <span>Asignado: <span className="font-medium text-gray-700">{t.asignadoNombre}</span></span>
-                      )}
-                      {t.fechaPlanificada && (
-                        <span>Planif.: <span className="font-medium text-gray-700">{formatFecha(t.fechaPlanificada)}</span></span>
-                      )}
-                      {t.fechaInicio && (
-                        <span>Inicio: <span className="font-medium text-gray-700">{formatFecha(t.fechaInicio)}</span></span>
-                      )}
-                      {t.fechaFinalizacion && (
-                        <span>Fin: <span className="font-medium text-gray-700">{formatFecha(t.fechaFinalizacion)}</span></span>
-                      )}
-                      {t.horasEstimadas != null && (
-                        <span>Hs. est.: <span className="font-medium text-gray-700">{t.horasEstimadas}</span></span>
-                      )}
-                    </div>
-
-                    {t.porcentajeAvance > 0 && t.estado !== 4 && (
-                      <BarraAvance porcentaje={t.porcentajeAvance} />
-                    )}
-
-                    {t.motivoRechazo && (
-                      <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
-                        Motivo rechazo: {t.motivoRechazo}
-                      </p>
-                    )}
-
-                    {/* Acciones */}
-                    <TareaAcciones
-                      tarea={t}
-                      onIniciar={handleIniciar}
-                      onAbrirFormulario={handleAbrirFormulario}
-                      onCargarPdf={handleCargarPdf}
-                      isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
-                    />
-                    <BotonPlanillaPdf tarea={t} />
-
-                    {/* Firmas digitales para registros físicos */}
-                    {t.esFisico && t.registroId && (
-                      <FirmaPanel registroId={t.registroId} />
-                    )}
+              <div className="space-y-4">
+                {agruparPorNivel(tareas).map((g) => (
+                  <div key={g.key} className="space-y-2">
+                    <h4 className="text-xs font-semibold text-gray-500 px-1">
+                      {g.nombre}
+                      <span className="ml-1.5 text-gray-400 font-normal">({g.tareas.length})</span>
+                    </h4>
+                    {g.tareas.map((t) => (
+                      <TareaCard
+                        key={t.id}
+                        tarea={t}
+                        onIniciar={handleIniciar}
+                        onAbrirFormulario={handleAbrirFormulario}
+                        onCargarPdf={handleCargarPdf}
+                        isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
+                      />
+                    ))}
                   </div>
                 ))}
               </div>
@@ -223,72 +182,9 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
   )
 }
 
-// ─── Botón descarga / preview planilla en blanco ─────────────────────────────
+// ─── Card por tarea ─────────────────────────────────────────────────────────
 
-function BotonPlanillaPdf({ tarea }: { tarea: ElementoTarea }) {
-  if (!tarea.planillaId) return null
-
-  const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}`
-  const urlPreview  = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}/preview`
-
-  return (
-    <div className="flex gap-2 pt-1 flex-wrap">
-      <a href={urlDescarga} download target="_blank" rel="noreferrer">
-        <Button size="sm" variant="outline" className="gap-1.5 h-8" type="button">
-          <Download className="h-3.5 w-3.5" />
-          Descargar planilla
-        </Button>
-      </a>
-      <a href={urlPreview} target="_blank" rel="noreferrer">
-        <Button size="sm" variant="outline" className="gap-1.5 h-8" type="button">
-          <Eye className="h-3.5 w-3.5" />
-          Vista previa
-        </Button>
-      </a>
-    </div>
-  )
-}
-
-// ─── Botón ver archivo físico subido ─────────────────────────────────────────
-
-function BotonArchivoFisico({ registroId }: { registroId: string }) {
-  const { data, isLoading, refetch, isFetched } = useQuery({
-    queryKey: ["registro-archivos", registroId],
-    queryFn: () => apiClient.get<{ data: RegistroArchivo[] }>(`/api/registros/${registroId}/archivos`),
-    enabled: false, // carga on-demand
-    staleTime: 1000 * 50, // un poco menos que los 60 min de la SAS
-  })
-
-  const archivos = data?.data ?? []
-
-  async function handleVer() {
-    const result = await refetch()
-    const lista = (result.data as any)?.data as RegistroArchivo[] | undefined
-    const primero = lista?.[0]
-    if (primero?.url) window.open(primero.url, "_blank", "noreferrer")
-  }
-
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="gap-1.5 h-8"
-      onClick={handleVer}
-      disabled={isLoading}
-    >
-      {isLoading ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : (
-        <FileDown className="h-3.5 w-3.5" />
-      )}
-      Ver archivo subido
-    </Button>
-  )
-}
-
-// ─── Acciones por estado ────────────────────────────────────────────────────
-
-function TareaAcciones({
+function TareaCard({
   tarea,
   onIniciar,
   onAbrirFormulario,
@@ -301,198 +197,309 @@ function TareaAcciones({
   onCargarPdf: (t: ElementoTarea) => void
   isIniciando: boolean
 }) {
-  // 1 = PENDIENTE
-  if (tarea.estado === 1) {
-    return (
-      <div className="flex gap-2 pt-1 flex-wrap">
-        <Button
-          size="sm"
-          className="gap-1.5 h-8"
-          onClick={() => onIniciar(tarea)}
-          disabled={isIniciando}
-        >
-          {isIniciando ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Play className="h-3.5 w-3.5" />
-          )}
-          Iniciar tarea
-        </Button>
-        {tarea.planillaId && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8"
-            onClick={() => onCargarPdf(tarea)}
-            disabled={isIniciando}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Cargar PDF
-          </Button>
-        )}
-      </div>
-    )
-  }
+  const [showFirmas, setShowFirmas] = useState(false)
+  const tieneFirmas = tarea.esFisico && !!tarea.registroId
+  const archivoFisico = useArchivoFisico(tarea.esFisico ? tarea.registroId : null)
 
-  // 2 = EN_PROCESO
-  if (tarea.estado === 2 && tarea.registroId) {
-    return (
-      <div className="flex gap-2 pt-1 flex-wrap">
-        {!tarea.esFisico && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8"
-            onClick={() => onAbrirFormulario(tarea)}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Completar formulario
-          </Button>
-        )}
-        {tarea.esFisico && <BotonArchivoFisico registroId={tarea.registroId} />}
-        {tarea.planillaId && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8"
-            onClick={() => onCargarPdf(tarea)}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Cargar PDF
-          </Button>
-        )}
-      </div>
-    )
-  }
+  const items = buildTareaMenuItems({
+    tarea,
+    onIniciar,
+    onAbrirFormulario,
+    onCargarPdf,
+    isIniciando,
+    archivoFisico,
+    showFirmas,
+    onToggleFirmas: () => setShowFirmas((s) => !s),
+  })
 
-  // 3 = COMPLETADO — ver registro y firmar
-  if (tarea.estado === 3 && tarea.registroId) {
-    return (
-      <div className="flex gap-2 pt-1 flex-wrap">
-        {tarea.esFisico ? (
-          <BotonArchivoFisico registroId={tarea.registroId} />
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8"
-            onClick={() => onAbrirFormulario(tarea)}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Ver y firmar
-          </Button>
-        )}
-      </div>
-    )
-  }
+  const busy = isIniciando || archivoFisico.isLoading
 
-  // 7 = FIRMADO — ver registro (pendiente de aprobación)
-  if (tarea.estado === 7 && tarea.registroId) {
-    return (
-      <div className="flex gap-2 pt-1 flex-wrap">
-        {tarea.esFisico ? (
-          <BotonArchivoFisico registroId={tarea.registroId} />
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8"
-            onClick={() => onAbrirFormulario(tarea)}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Ver registro
-          </Button>
-        )}
-      </div>
-    )
-  }
-
-  // 4 = APROBADO — solo lectura
-  if (tarea.estado === 4 && tarea.registroId) {
-    return (
-      <div className="flex gap-2 pt-1 flex-wrap">
-        {tarea.esFisico ? (
-          <BotonArchivoFisico registroId={tarea.registroId} />
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8"
-            onClick={() => onAbrirFormulario(tarea)}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Ver registro
-          </Button>
-        )}
-      </div>
-    )
-  }
-
-  // 5 = RECHAZADO — permite volver a completar
-  if (tarea.estado === 5 && tarea.registroId) {
-    return (
-      <div className="flex gap-2 pt-1 flex-wrap">
-        {tarea.esFisico ? (
-          <BotonArchivoFisico registroId={tarea.registroId} />
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8 border-red-200 text-red-700 hover:bg-red-50"
-            onClick={() => onAbrirFormulario(tarea)}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Revisar y re-completar
-          </Button>
-        )}
-        {tarea.planillaId && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-8 border-red-200 text-red-700 hover:bg-red-50"
-            onClick={() => onCargarPdf(tarea)}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Cargar PDF
-          </Button>
-        )}
-      </div>
-    )
-  }
-
-  return null
-}
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function DataItem({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-gray-800 mt-0.5">{value}</dd>
+    <div className="rounded-lg border bg-white p-3 space-y-2">
+      {/* Encabezado */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-gray-400">{tarea.codigo}</span>
+            {tarea.esCritica && (
+              <span className="inline-flex items-center gap-0.5 text-xs text-red-600 font-medium">
+                <AlertCircle className="h-3 w-3" /> Crítica
+              </span>
+            )}
+          </div>
+          <p className="font-medium text-sm text-gray-900">{tarea.tareaNombre}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <EstadoBadge estado={tarea.estado} estadoTexto={tarea.estadoTexto} />
+          {items.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-gray-500"
+                    disabled={busy}
+                    aria-label="Acciones"
+                  />
+                }
+              >
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MoreVertical className="h-4 w-4" />
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-52">
+                {items.map((item, i) =>
+                  item.kind === "separator" ? (
+                    <DropdownMenuSeparator key={`sep-${i}`} />
+                  ) : (
+                    <DropdownMenuItem
+                      key={item.label}
+                      onClick={item.onSelect}
+                      disabled={item.disabled}
+                      variant={item.variant}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </DropdownMenuItem>
+                  )
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </div>
+
+      <TareaMeta tarea={tarea} />
+
+      {tarea.motivoRechazo && (
+        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+          Motivo rechazo: {tarea.motivoRechazo}
+        </p>
+      )}
+
+      {tieneFirmas && showFirmas && tarea.registroId && (
+        <div className="pt-1">
+          <FirmaPanel registroId={tarea.registroId} />
+        </div>
+      )}
     </div>
   )
 }
 
-function EstadoChip({
-  label, value, color,
+// ─── Construcción de items del menú según estado ─────────────────────────────
+
+type LucideIcon = ComponentType<{ className?: string }>
+type MenuItem =
+  | { kind: "separator" }
+  | {
+      kind: "item"
+      label: string
+      icon: LucideIcon
+      onSelect: () => void
+      disabled?: boolean
+      variant?: "default" | "destructive"
+    }
+
+function buildTareaMenuItems({
+  tarea,
+  onIniciar,
+  onAbrirFormulario,
+  onCargarPdf,
+  isIniciando,
+  archivoFisico,
+  showFirmas,
+  onToggleFirmas,
 }: {
-  label: string; value: number; color: "gray" | "blue" | "yellow" | "green" | "red" | "muted"
-}) {
-  if (value === 0) return null
-  const styles = {
-    gray:   "bg-gray-100 text-gray-700",
-    blue:   "bg-blue-100 text-blue-700",
-    yellow: "bg-yellow-100 text-yellow-700",
-    green:  "bg-green-100 text-green-700",
-    red:    "bg-red-100 text-red-700",
-    muted:  "bg-gray-50 text-gray-400",
+  tarea: ElementoTarea
+  onIniciar: (t: ElementoTarea) => void
+  onAbrirFormulario: (t: ElementoTarea) => void
+  onCargarPdf: (t: ElementoTarea) => void
+  isIniciando: boolean
+  archivoFisico: { abrir: () => Promise<void>; isLoading: boolean }
+  showFirmas: boolean
+  onToggleFirmas: () => void
+}): MenuItem[] {
+  const items: MenuItem[] = []
+  const tieneFirmas = tarea.esFisico && !!tarea.registroId
+
+  // Acciones primarias por estado
+  switch (tarea.estado) {
+    case 1: // PENDIENTE
+      items.push({
+        kind: "item",
+        label: "Iniciar tarea",
+        icon: Play,
+        onSelect: () => onIniciar(tarea),
+        disabled: isIniciando,
+      })
+      if (tarea.planillaId) {
+        items.push({
+          kind: "item",
+          label: "Cargar PDF",
+          icon: Upload,
+          onSelect: () => onCargarPdf(tarea),
+          disabled: isIniciando,
+        })
+      }
+      break
+    case 2: // EN_PROCESO
+      if (tarea.registroId) {
+        items.push(
+          tarea.esFisico
+            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
+            : { kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
+        )
+        if (tarea.planillaId) {
+          items.push({ kind: "item", label: "Cargar PDF", icon: Upload, onSelect: () => onCargarPdf(tarea) })
+        }
+      }
+      break
+    case 3: // COMPLETADO
+      if (tarea.registroId) {
+        items.push(
+          tarea.esFisico
+            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
+            : { kind: "item", label: "Ver y firmar", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
+        )
+      }
+      break
+    case 4: // APROBADO
+    case 7: // FIRMADO
+      if (tarea.registroId) {
+        items.push(
+          tarea.esFisico
+            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
+            : { kind: "item", label: "Ver registro", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
+        )
+      }
+      break
+    case 5: // RECHAZADO
+      if (tarea.registroId) {
+        items.push(
+          tarea.esFisico
+            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
+            : { kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" }
+        )
+        if (tarea.planillaId) {
+          items.push({ kind: "item", label: "Cargar PDF", icon: Upload, onSelect: () => onCargarPdf(tarea), variant: "destructive" })
+        }
+      }
+      break
   }
+
+  // Planilla en blanco — siempre que haya planilla
+  if (tarea.planillaId) {
+    if (items.length > 0) items.push({ kind: "separator" })
+    const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}`
+    const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}/preview`
+    items.push({ kind: "item", label: "Descargar planilla", icon: Download, onSelect: () => triggerDownload(urlDescarga) })
+    items.push({ kind: "item", label: "Vista previa", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
+  }
+
+  // Firmas (solo cuando registro físico)
+  if (tieneFirmas) {
+    if (items.length > 0) items.push({ kind: "separator" })
+    items.push({
+      kind: "item",
+      label: showFirmas ? "Ocultar firmas" : "Ver firmas",
+      icon: PenLine,
+      onSelect: onToggleFirmas,
+    })
+  }
+
+  return items
+}
+
+// ─── Hook: archivo físico subido (carga on-demand y abre en nueva pestaña) ───
+
+function useArchivoFisico(registroId: string | null) {
+  const query = useQuery({
+    queryKey: ["registro-archivos", registroId],
+    queryFn: () => apiClient.get<{ data: RegistroArchivo[] }>(`/api/registros/${registroId}/archivos`),
+    enabled: false, // carga on-demand
+    staleTime: 1000 * 50, // un poco menos que los 60 min de la SAS
+  })
+
+  async function abrir() {
+    if (!registroId) return
+    const result = await query.refetch()
+    const lista = (result.data as any)?.data as RegistroArchivo[] | undefined
+    const primero = lista?.[0]
+    if (primero?.url) window.open(primero.url, "_blank", "noreferrer")
+  }
+
+  return { abrir, isLoading: query.isLoading }
+}
+
+function triggerDownload(url: string) {
+  const a = document.createElement("a")
+  a.href = url
+  a.target = "_blank"
+  a.rel = "noreferrer"
+  a.download = ""
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+function TareaMeta({ tarea }: { tarea: ElementoTarea }) {
+  const fecha = fechaRelevante(tarea)
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${styles[color]}`}>
-      {value} {label}
-    </span>
+    <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+      {tarea.asignadoNombre && (
+        <span>Asignado: <span className="font-medium text-gray-700">{tarea.asignadoNombre}</span></span>
+      )}
+      {fecha && (
+        <span>{fecha.label}: <span className="font-medium text-gray-700">{formatFecha(fecha.value)}</span></span>
+      )}
+      {tarea.horasEstimadas != null && (
+        <span>Hs. est.: <span className="font-medium text-gray-700">{tarea.horasEstimadas}</span></span>
+      )}
+    </div>
   )
+}
+
+interface GrupoNivel {
+  key: string
+  nombre: string
+  posicion: number
+  tareas: ElementoTarea[]
+}
+
+function agruparPorNivel(tareas: ElementoTarea[]): GrupoNivel[] {
+  const map = new Map<string, GrupoNivel>()
+  for (const t of tareas) {
+    const key = t.nivelId ?? "__sin-nivel__"
+    let grupo = map.get(key)
+    if (!grupo) {
+      grupo = {
+        key,
+        nombre: t.nivelNombre ?? "Sin nivel",
+        // Sin nivel al final
+        posicion: t.nivelPosicion ?? Number.MAX_SAFE_INTEGER,
+        tareas: [],
+      }
+      map.set(key, grupo)
+    }
+    grupo.tareas.push(t)
+  }
+  return Array.from(map.values()).sort((a, b) => a.posicion - b.posicion)
+}
+
+function fechaRelevante(t: ElementoTarea): { label: string; value: string } | null {
+  // 1=PENDIENTE → planif.; 2=EN_PROCESO → inicio; 3,4,5,7=completado/aprobado/rechazado/firmado → fin; 6=CANCELADO → fin
+  if (t.estado === 1 && t.fechaPlanificada) return { label: "Planif.", value: t.fechaPlanificada }
+  if (t.estado === 2 && t.fechaInicio)      return { label: "Inicio",  value: t.fechaInicio }
+  if (t.fechaFinalizacion)                  return { label: "Fin",     value: t.fechaFinalizacion }
+  if (t.fechaInicio)                        return { label: "Inicio",  value: t.fechaInicio }
+  if (t.fechaPlanificada)                   return { label: "Planif.", value: t.fechaPlanificada }
+  return null
 }
 
 const ESTADO_ICONS: Record<number, React.ReactNode> = {
@@ -526,4 +533,13 @@ function EstadoBadge({ estado, estadoTexto }: { estado: number; estadoTexto: str
 
 function formatFecha(iso: string) {
   return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
+
+function DataItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-gray-800 mt-0.5">{value}</dd>
+    </div>
+  )
 }

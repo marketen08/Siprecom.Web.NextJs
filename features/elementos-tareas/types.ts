@@ -14,6 +14,9 @@ export interface ElementoTarea {
   elementoNombre: string
   tareaId: string
   tareaNombre: string
+  nivelId: string | null
+  nivelNombre: string | null
+  nivelPosicion: number | null
   proyectoId: string
   proyectoNombre: string
   terminalId: string
