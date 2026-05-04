@@ -6,17 +6,26 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import { Plus, Search, X } from "lucide-react"
 
 import { useGetTareas } from "@/features/tareas/api/use-get-tareas"
 import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
 import { NewTareaSheet } from "@/features/tareas/components/new-tarea-sheet"
 import { EditTareaSheet } from "@/features/tareas/components/edit-tarea-sheet"
+import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -26,13 +35,37 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+const ALL = "__all__"
+
 export default function TareasPage() {
   const [search, setSearch] = useState("")
+  const [elementoTipoId, setElementoTipoId] = useState<string>(ALL)
+  const [nivelId, setNivelId] = useState<string>(ALL)
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const { data, isLoading, isFetching } = useGetTareas({ page, pageSize, nombre: search || undefined })
+  const { data, isLoading, isFetching } = useGetTareas({
+    page,
+    pageSize,
+    nombre: search || undefined,
+    elementoTipoId: elementoTipoId !== ALL ? elementoTipoId : undefined,
+    nivelId: nivelId !== ALL ? nivelId : undefined,
+  })
   const { open } = useNewTarea()
+
+  const { data: tiposRaw } = useGetElementosTiposSelect()
+  const { data: nivelesRaw } = useGetNivelesSelect()
+  const tipos = (tiposRaw as any)?.data ?? []
+  const niveles = (nivelesRaw as any)?.data ?? (Array.isArray(nivelesRaw) ? nivelesRaw : [])
+
+  const hayFiltros = search !== "" || elementoTipoId !== ALL || nivelId !== ALL
+
+  function clearFiltros() {
+    setSearch("")
+    setElementoTipoId(ALL)
+    setNivelId(ALL)
+    setPage(1)
+  }
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -64,15 +97,62 @@ export default function TareasPage() {
           </Button>
         </div>
 
-        {/* Buscador */}
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9"
-          />
+        {/* Filtros */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="pl-9"
+            />
+          </div>
+
+          <Select
+            value={elementoTipoId}
+            onValueChange={(v) => { setElementoTipoId(v); setPage(1) }}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Tipo de elemento">
+                {elementoTipoId === ALL
+                  ? "Todos los tipos"
+                  : tipos.find((t: any) => t.id === elementoTipoId)?.nombre ?? "Tipo de elemento"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los tipos</SelectItem>
+              {tipos.map((t: any) => (
+                <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={nivelId}
+            onValueChange={(v) => { setNivelId(v); setPage(1) }}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Nivel">
+                {nivelId === ALL
+                  ? "Todos los niveles"
+                  : niveles.find((n: any) => n.id === nivelId)?.nombre ?? "Nivel"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los niveles</SelectItem>
+              {niveles.map((n: any) => (
+                <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {hayFiltros && (
+            <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={clearFiltros}>
+              <X className="h-3.5 w-3.5" />
+              Limpiar filtros
+            </Button>
+          )}
         </div>
 
         {/* Tabla */}
