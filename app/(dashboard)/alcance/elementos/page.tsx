@@ -267,7 +267,7 @@ export default function ElementosPage() {
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id} className="bg-gray-50">
+                <TableRow key={hg.id}>
                   {hg.headers.map((header) => (
                     <TableHead key={header.id} className="font-semibold text-gray-700">
                       {header.isPlaceholder

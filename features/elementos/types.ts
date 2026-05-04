@@ -11,10 +11,14 @@ export interface Elemento {
   tag: string
   nombre: string
   elementoTipoId: string
+  elementoTipoNombre: string | null
+  elementoTipoEspecialidad: string | null
   prioridad: number
   prioridadTexto: string
   sistemaId: string
   subSistemaId: string
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
   proyectoId: string
   terminalId: string
   horasAdicionales: number

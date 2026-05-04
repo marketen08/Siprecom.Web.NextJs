@@ -91,19 +91,49 @@ export const columns: ColumnDef<Elemento>[] = [
     ),
   },
   {
-    accessorKey: "prioridadTexto",
-    header: "Prioridad",
+    accessorKey: "subSistemaCodigo",
+    header: "Subsistema",
     cell: ({ row }) => (
-      <span className={`text-sm font-medium ${PRIORIDAD_COLOR[row.original.prioridad] ?? ""}`}>
-        {row.original.prioridadTexto}
+      <span className="font-mono text-sm text-muted-foreground" title={row.original.subSistemaNombre ?? undefined}>
+        {row.original.subSistemaCodigo ?? "—"}
       </span>
     ),
   },
   {
-    accessorKey: "createdByNombre",
-    header: "Creado por",
+    accessorKey: "elementoTipoNombre",
+    header: "Tipo",
     cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.createdByNombre}</span>
+      <span className="text-sm">{row.original.elementoTipoNombre ?? "—"}</span>
+    ),
+  },
+  {
+    accessorKey: "elementoTipoEspecialidad",
+    header: "Especialidad",
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground">{row.original.elementoTipoEspecialidad ?? "—"}</span>
+    ),
+  },
+  {
+    accessorKey: "prioridad",
+    header: "Prioridad",
+    cell: ({ row }) => (
+      <span className={`text-sm font-medium ${PRIORIDAD_COLOR[row.original.prioridad] ?? ""}`}>
+        {row.original.prioridadTexto || "—"}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "pid",
+    header: "PID",
+    cell: ({ row }) => (
+      <span className="font-mono text-xs text-muted-foreground">{row.original.pid || "—"}</span>
+    ),
+  },
+  {
+    accessorKey: "testpack",
+    header: "Testpack",
+    cell: ({ row }) => (
+      <span className="font-mono text-xs text-muted-foreground">{row.original.testpack || "—"}</span>
     ),
   },
   {
