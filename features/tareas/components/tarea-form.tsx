@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -13,6 +14,7 @@ import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planilla
 import { useGetProcedimientosSelect } from "@/features/procedimientos/api/use-get-procedimientos-select"
 
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import {
   Form,
@@ -51,6 +53,19 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   const planillas = (planillasData as any)?.data ?? []
   const procedimientos = (procedimientosData as any)?.data ?? []
 
+  // Lista distinta de especialidades, derivada de los tipos cargados.
+  const especialidades = useMemo<string[]>(() => {
+    const set = new Set<string>()
+    for (const t of tipos as Array<{ especialidad?: string }>) {
+      if (t.especialidad && t.especialidad.trim()) set.add(t.especialidad)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [tipos])
+
+  const ALL_ESP = "__all__"
+  // Especialidad seleccionada como helper de UI: filtra tipos. NO se manda al backend.
+  const [especialidad, setEspecialidad] = useState<string>(ALL_ESP)
+
   const form = useForm<TareaFormValues>({
     resolver: zodResolver(tareaSchema),
     defaultValues: {
@@ -65,6 +80,29 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
       impactoBase: defaultValues?.impactoBase ?? 0,
     },
   })
+
+  // Si hay un elementoTipoId pre-cargado (clonar/editar), inicializar la especialidad
+  // con la del tipo correspondiente para que el filtro tenga sentido al abrir el form.
+  useEffect(() => {
+    const currentTipoId = form.getValues("elementoTipoId")
+    if (currentTipoId && tipos.length > 0 && especialidad === ALL_ESP) {
+      const tipo = tipos.find((t: any) => t.id === currentTipoId)
+      if (tipo?.especialidad) setEspecialidad(tipo.especialidad)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipos.length])
+
+  // Tipos filtrados según la especialidad seleccionada
+  const tiposFiltrados = useMemo(() => {
+    if (especialidad === ALL_ESP) return tipos
+    return (tipos as Array<{ id: string; nombre: string; especialidad?: string }>)
+      .filter((t) => t.especialidad === especialidad)
+  }, [tipos, especialidad])
+
+  const tipoOptions = useMemo(
+    () => (tiposFiltrados as Array<{ id: string; nombre: string }>).map((t) => ({ value: t.id, label: t.nombre })),
+    [tiposFiltrados]
+  )
 
   const handleSubmit = (values: TareaFormValues) => {
     onSubmit({
@@ -157,36 +195,60 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
           </p>
 
           <div className="grid grid-cols-2 gap-3">
+            {/* Especialidad: helper de UI para filtrar el listado de tipos. NO se envía al backend. */}
+            <FormItem>
+              <FormLabel>Especialidad</FormLabel>
+              <Select
+                disabled={isPending || loadingTipos}
+                value={especialidad}
+                onValueChange={(v) => {
+                  setEspecialidad(v)
+                  // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpiamos.
+                  const currentTipoId = form.getValues("elementoTipoId")
+                  if (v !== ALL_ESP && currentTipoId) {
+                    const tipo = tipos.find((t: any) => t.id === currentTipoId)
+                    if (tipo?.especialidad !== v) form.setValue("elementoTipoId", "")
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas las especialidades">
+                    {especialidad === ALL_ESP ? "Todas las especialidades" : especialidad}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_ESP}>Todas las especialidades</SelectItem>
+                  {especialidades.map((esp) => (
+                    <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
+
             <FormField
               control={form.control}
               name="elementoTipoId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo de elemento</FormLabel>
-                  <Select
-                    disabled={isPending || loadingTipos}
-                    value={field.value || NONE}
-                    onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Ninguno">
-                          {tipos.find((t: any) => t.id === field.value)?.nombre ?? "Ninguno"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={NONE}>Ninguno</SelectItem>
-                      {tipos.map((t: any) => (
-                        <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      options={tipoOptions}
+                      value={field.value || ""}
+                      onChange={(v) => field.onChange(v)}
+                      placeholder={especialidad === ALL_ESP ? "Buscar entre todos los tipos..." : `Buscar en ${especialidad}...`}
+                      searchPlaceholder="Escribir para filtrar..."
+                      emptyMessage={especialidad === ALL_ESP ? "Sin tipos disponibles" : "Sin tipos para esta especialidad"}
+                      disabled={isPending || loadingTipos}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+          </div>
 
+          <div className="grid grid-cols-2 gap-3">
             <FormField
               control={form.control}
               name="nivelId"
@@ -216,9 +278,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 </FormItem>
               )}
             />
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
             <FormField
               control={form.control}
               name="planillaId"
@@ -248,37 +308,37 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 </FormItem>
               )}
             />
-
-            <FormField
-              control={form.control}
-              name="procedimientoId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Procedimiento</FormLabel>
-                  <Select
-                    disabled={isPending || loadingProcedimientos}
-                    value={field.value || NONE}
-                    onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Ninguno">
-                          {procedimientos.find((p: any) => p.id === field.value)?.nombre ?? "Ninguno"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={NONE}>Ninguno</SelectItem>
-                      {procedimientos.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </div>
+
+          <FormField
+            control={form.control}
+            name="procedimientoId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Procedimiento</FormLabel>
+                <Select
+                  disabled={isPending || loadingProcedimientos}
+                  value={field.value || NONE}
+                  onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ninguno">
+                        {procedimientos.find((p: any) => p.id === field.value)?.nombre ?? "Ninguno"}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Ninguno</SelectItem>
+                    {procedimientos.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <Separator />

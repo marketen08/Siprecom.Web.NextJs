@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -10,6 +11,7 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
@@ -46,6 +48,22 @@ export function ElementoForm({
   const { data: subSistemasData, isLoading: loadingSubSistemas } = useGetSubSistemasSelect()
   const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
 
+  const tipos = (tiposData as any)?.data ?? []
+
+  // Lista distinta de especialidades, derivada de los tipos cargados.
+  const especialidades = useMemo<string[]>(() => {
+    const set = new Set<string>()
+    for (const t of tipos as Array<{ especialidad?: string }>) {
+      if (t.especialidad && t.especialidad.trim()) set.add(t.especialidad)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [tipos])
+
+  const ALL_ESP = "__all__"
+  // Helper UI: filtra el listado de tipos. NO se manda al backend (la especialidad
+  // queda implícita por la del tipo elegido).
+  const [especialidad, setEspecialidad] = useState<string>(ALL_ESP)
+
   const form = useForm<ElementoFormValues>({
     resolver: zodResolver(elementoSchema),
     defaultValues: {
@@ -62,6 +80,29 @@ export function ElementoForm({
       observaciones: defaultValues?.observaciones ?? "",
     },
   })
+
+  // Si hay un elementoTipoId pre-cargado (edit), inicializar la especialidad
+  // con la del tipo correspondiente para que el filtro tenga sentido al abrir.
+  useEffect(() => {
+    const currentTipoId = form.getValues("elementoTipoId")
+    if (currentTipoId && tipos.length > 0 && especialidad === ALL_ESP) {
+      const tipo = tipos.find((t: any) => t.id === currentTipoId)
+      if (tipo?.especialidad) setEspecialidad(tipo.especialidad)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipos.length])
+
+  // Tipos filtrados según la especialidad
+  const tiposFiltrados = useMemo(() => {
+    if (especialidad === ALL_ESP) return tipos
+    return (tipos as Array<{ id: string; nombre: string; especialidad?: string }>)
+      .filter((t) => t.especialidad === especialidad)
+  }, [tipos, especialidad])
+
+  const tipoOptions = useMemo(
+    () => (tiposFiltrados as Array<{ id: string; nombre: string }>).map((t) => ({ value: t.id, label: t.nombre })),
+    [tiposFiltrados]
+  )
 
   const selectedSistemaId = useWatch({ control: form.control, name: "sistemaId" })
 
@@ -148,33 +189,59 @@ export function ElementoForm({
             )}
           />
 
+          {/* Especialidad: helper de UI para filtrar el listado de tipos. NO se envía al backend. */}
+          <FormItem>
+            <FormLabel>Especialidad</FormLabel>
+            <Select
+              disabled={isPending || loadingTipos}
+              value={especialidad}
+              onValueChange={(v) => {
+                setEspecialidad(v)
+                // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpiamos.
+                const currentTipoId = form.getValues("elementoTipoId")
+                if (v !== ALL_ESP && currentTipoId) {
+                  const tipo = tipos.find((t: any) => t.id === currentTipoId)
+                  if (tipo?.especialidad !== v) form.setValue("elementoTipoId", "")
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Todas las especialidades">
+                  {especialidad === ALL_ESP ? "Todas las especialidades" : especialidad}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_ESP}>Todas las especialidades</SelectItem>
+                {especialidades.map((esp) => (
+                  <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormItem>
+
           <FormField
             control={form.control}
             name="elementoTipoId"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipo de elemento</FormLabel>
-                <Select
-                  disabled={isPending || loadingTipos}
-                  onValueChange={(v) => v && field.onChange(v)}
-                  value={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingTipos ? "Cargando..." : "Seleccioná un tipo"}>
-                        {tiposData?.data.find((t) => t.id === field.value)?.nombre
-                          ?? (loadingTipos ? "Cargando..." : "Seleccioná un tipo")}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {tiposData?.data.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    options={tipoOptions}
+                    value={field.value || ""}
+                    onChange={(v) => field.onChange(v)}
+                    placeholder={
+                      loadingTipos
+                        ? "Cargando..."
+                        : especialidad === ALL_ESP
+                          ? "Buscar entre todos los tipos..."
+                          : `Buscar en ${especialidad}...`
+                    }
+                    searchPlaceholder="Escribir para filtrar..."
+                    emptyMessage={especialidad === ALL_ESP ? "Sin tipos disponibles" : "Sin tipos para esta especialidad"}
+                    disabled={isPending || loadingTipos}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
