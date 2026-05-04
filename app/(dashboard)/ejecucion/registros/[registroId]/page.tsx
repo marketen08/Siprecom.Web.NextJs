@@ -47,7 +47,10 @@ export default function RegistroFormPage({ params }: PageProps) {
   const { data: proyectoRaw } = useGetProyecto(proyectoId)
   const proyecto = proyectoRaw?.data
 
+  // Defaults defensivos mientras carga: digital permitido, físico no.
+  // Coincide con el comportamiento previo cuando solo existía permitirRegistroFisico.
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
+  const permitirDigital = proyecto?.permitirRegistroDigital ?? true
 
   const completarDigital = useCompletarDigital(registroId)
   const completarFisico = useCompletarFisico(registroId)
@@ -73,8 +76,13 @@ export default function RegistroFormPage({ params }: PageProps) {
     setObservaciones(registro.observaciones ?? "")
   }
 
-  // Modo determinado por config del proyecto
-  const [modo, setModo] = useState<"digital" | "fisico">(permitirFisico ? "fisico" : "digital")
+  // Modo: lo que el usuario elija (con override) sobre el default de la config.
+  // El default se calcula reactivamente porque `proyecto` carga async.
+  const defaultModo: "digital" | "fisico" = permitirDigital ? "digital" : "fisico"
+  const [userModo, setUserModo] = useState<"digital" | "fisico" | null>(null)
+  const modo = userModo ?? defaultModo
+  const showToggle = permitirDigital && permitirFisico
+
   const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
 
   const isLoading = loadingDetalle || loadingEstructura
@@ -229,10 +237,10 @@ export default function RegistroFormPage({ params }: PageProps) {
         <BarraAvance porcentaje={registro.porcentajeCompletitud} />
       )}
 
-      {!isReadOnly && (
+      {!isReadOnly && showToggle && (
         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
           <button
-            onClick={() => setModo("digital")}
+            onClick={() => setUserModo("digital")}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
               modo === "digital" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
             }`}
@@ -240,7 +248,7 @@ export default function RegistroFormPage({ params }: PageProps) {
             Completar formulario
           </button>
           <button
-            onClick={() => setModo("fisico")}
+            onClick={() => setUserModo("fisico")}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
               modo === "fisico" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
             }`}
@@ -251,7 +259,7 @@ export default function RegistroFormPage({ params }: PageProps) {
       )}
 
       {/* ── Modo PDF físico ── */}
-      {modo === "fisico" && !isReadOnly && (
+      {modo === "fisico" && !isReadOnly && permitirFisico && (
         <div className="rounded-xl border bg-white p-6 space-y-4">
           <h2 className="font-semibold text-gray-800">Cargar planilla física escaneada</h2>
           <p className="text-sm text-muted-foreground">
@@ -310,8 +318,10 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── Modo formulario digital ── */}
-      {(modo === "digital" || isReadOnly) && !registro.esFisico && (
+      {/* ── Modo formulario digital ──
+          Se muestra cuando: el registro es de solo lectura digital (para visualizar),
+          o cuando es editable y el proyecto permite completar digitalmente. */}
+      {!registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital)) && (
         <div className="space-y-6">
           {ordenSecciones.map((seccionId) => {
             const seccion = secciones.find((s) => s.id === seccionId)
