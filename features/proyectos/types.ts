@@ -24,6 +24,7 @@ export interface Proyecto {
   permitirDescargarRegistros: boolean
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean
+  permitirRegistroDigital: boolean
   createdAt: string
   createdByNombre: string
   updatedAt: string

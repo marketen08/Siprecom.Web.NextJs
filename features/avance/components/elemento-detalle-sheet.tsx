@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { apiClient } from "@/lib/api-client"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import type { AvanceElementoDTO } from "@/features/avance/types"
@@ -59,6 +60,12 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
 
   const elemento = elementoRaw?.data
   const tareas = tareasRaw?.data ?? []
+
+  const { data: proyectoRaw } = useGetProyecto(elemento?.proyectoId ?? null)
+  const proyecto = proyectoRaw?.data
+  // Default permisivo mientras carga el proyecto
+  const permitirFisico = proyecto?.permitirRegistroFisico ?? false
+  const permitirDigital = proyecto?.permitirRegistroDigital ?? true
 
   async function handleIniciar(tarea: ElementoTarea) {
     const result = await iniciarMutation.mutateAsync(tarea.id) as any
@@ -169,6 +176,8 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                         onAbrirFormulario={handleAbrirFormulario}
                         onCargarPdf={handleCargarPdf}
                         isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
+                        permitirFisico={permitirFisico}
+                        permitirDigital={permitirDigital}
                       />
                     ))}
                   </div>
@@ -190,12 +199,16 @@ function TareaCard({
   onAbrirFormulario,
   onCargarPdf,
   isIniciando,
+  permitirFisico,
+  permitirDigital,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
   onAbrirFormulario: (t: ElementoTarea) => void
   onCargarPdf: (t: ElementoTarea) => void
   isIniciando: boolean
+  permitirFisico: boolean
+  permitirDigital: boolean
 }) {
   const [showFirmas, setShowFirmas] = useState(false)
   const tieneFirmas = tarea.esFisico && !!tarea.registroId
@@ -210,6 +223,8 @@ function TareaCard({
     archivoFisico,
     showFirmas,
     onToggleFirmas: () => setShowFirmas((s) => !s),
+    permitirFisico,
+    permitirDigital,
   })
 
   const busy = isIniciando || archivoFisico.isLoading
@@ -312,6 +327,8 @@ function buildTareaMenuItems({
   archivoFisico,
   showFirmas,
   onToggleFirmas,
+  permitirFisico,
+  permitirDigital,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
@@ -321,6 +338,8 @@ function buildTareaMenuItems({
   archivoFisico: { abrir: () => Promise<void>; isLoading: boolean }
   showFirmas: boolean
   onToggleFirmas: () => void
+  permitirFisico: boolean
+  permitirDigital: boolean
 }): MenuItem[] {
   const items: MenuItem[] = []
   const tieneFirmas = tarea.esFisico && !!tarea.registroId
@@ -328,14 +347,16 @@ function buildTareaMenuItems({
   // Acciones primarias por estado
   switch (tarea.estado) {
     case 1: // PENDIENTE
-      items.push({
-        kind: "item",
-        label: "Iniciar tarea",
-        icon: Play,
-        onSelect: () => onIniciar(tarea),
-        disabled: isIniciando,
-      })
-      if (tarea.planillaId) {
+      if (permitirDigital) {
+        items.push({
+          kind: "item",
+          label: "Iniciar tarea",
+          icon: Play,
+          onSelect: () => onIniciar(tarea),
+          disabled: isIniciando,
+        })
+      }
+      if (tarea.planillaId && permitirFisico) {
         items.push({
           kind: "item",
           label: "Cargar PDF",
@@ -347,17 +368,17 @@ function buildTareaMenuItems({
       break
     case 2: // EN_PROCESO
       if (tarea.registroId) {
-        items.push(
-          tarea.esFisico
-            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
-            : { kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
-        )
-        if (tarea.planillaId) {
+        if (tarea.esFisico) {
+          items.push({ kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading })
+        } else if (permitirDigital) {
+          items.push({ kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
+        }
+        if (tarea.planillaId && permitirFisico) {
           items.push({ kind: "item", label: "Cargar PDF", icon: Upload, onSelect: () => onCargarPdf(tarea) })
         }
       }
       break
-    case 3: // COMPLETADO
+    case 3: // COMPLETADO — firmas son independientes, el "Ver y firmar" siempre disponible
       if (tarea.registroId) {
         items.push(
           tarea.esFisico
@@ -378,12 +399,12 @@ function buildTareaMenuItems({
       break
     case 5: // RECHAZADO
       if (tarea.registroId) {
-        items.push(
-          tarea.esFisico
-            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
-            : { kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" }
-        )
-        if (tarea.planillaId) {
+        if (tarea.esFisico) {
+          items.push({ kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading })
+        } else if (permitirDigital) {
+          items.push({ kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" })
+        }
+        if (tarea.planillaId && permitirFisico) {
           items.push({ kind: "item", label: "Cargar PDF", icon: Upload, onSelect: () => onCargarPdf(tarea), variant: "destructive" })
         }
       }
