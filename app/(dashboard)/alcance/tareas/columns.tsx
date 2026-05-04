@@ -1,11 +1,12 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Pencil, Trash2 } from "lucide-react"
+import { Copy, Pencil, Trash2 } from "lucide-react"
 
 import type { Tarea } from "@/features/tareas/types"
 import { PRIORIDAD, PRIORIDAD_COLOR } from "@/features/tareas/types"
 import { useOpenTarea } from "@/features/tareas/hooks/use-open-tarea"
+import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
 import { useDeleteTarea } from "@/features/tareas/api/use-delete-tarea"
 
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ import {
 
 function RowActions({ tarea }: { tarea: Tarea }) {
   const { open } = useOpenTarea()
+  const { openClone } = useNewTarea()
   const deleteMutation = useDeleteTarea()
 
   return (
@@ -32,8 +34,19 @@ function RowActions({ tarea }: { tarea: Tarea }) {
         size="icon"
         className="h-8 w-8"
         onClick={() => open(tarea.id)}
+        title="Editar"
       >
         <Pencil className="h-4 w-4" />
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => openClone(tarea)}
+        title="Clonar"
+      >
+        <Copy className="h-4 w-4" />
       </Button>
 
       <AlertDialog>

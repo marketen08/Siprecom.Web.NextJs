@@ -41,12 +41,19 @@ export function EditTareaSheet() {
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : tarea ? (
-            <TareaForm
-              defaultValues={tarea}
-              onSubmit={onSubmit}
-              isPending={mutation.isPending}
-              onCancel={close}
-            />
+            <>
+              <TareaForm
+                defaultValues={tarea}
+                onSubmit={onSubmit}
+                isPending={mutation.isPending}
+                onCancel={close}
+              />
+              {mutation.isError && (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">
+                  {(mutation.error as Error)?.message ?? "Error al actualizar la tarea."}
+                </div>
+              )}
+            </>
           ) : null}
         </div>
       </SheetContent>
