@@ -6,7 +6,7 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search, X } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
 import { useNewElemento } from "@/features/elementos/hooks/use-new-elemento"
@@ -30,6 +30,13 @@ import {
 } from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
 import {
+  FiltersTrigger,
+  FiltersChips,
+  FiltersSheet,
+  FilterField,
+  type FilterChip,
+} from "@/components/ui/filters-bar"
+import {
   Table,
   TableBody,
   TableCell,
@@ -48,6 +55,7 @@ export default function ElementosPage() {
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
   const [prioridad, setPrioridad] = useState<string>(ALL)
   const [page, setPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const pageSize = 10
 
   const { data, isLoading, isFetching } = useGetElementos({
@@ -96,22 +104,55 @@ export default function ElementosPage() {
     ]
   }, [tipos, especialidad])
 
-  const hayFiltros =
-    search !== "" ||
-    sistemaId !== ALL ||
-    subSistemaId !== ALL ||
-    especialidad !== ALL ||
-    elementoTipoId !== "" ||
-    prioridad !== ALL
-
+  // Limpiar resetea solo los filtros (el buscador es independiente y se mantiene).
   function clearFiltros() {
-    setSearch("")
     setSistemaId(ALL)
     setSubSistemaId(ALL)
     setEspecialidad(ALL)
     setElementoTipoId("")
     setPrioridad(ALL)
     setPage(1)
+  }
+
+  // Construir chips de filtros activos (para mostrar afuera del Sheet).
+  const activeFilters: FilterChip[] = []
+  if (sistemaId !== ALL) {
+    const s = (sistemas as any[]).find((x) => x.id === sistemaId)
+    activeFilters.push({
+      id: "sistema",
+      label: `Sistema: ${s ? `${s.codigo} — ${s.nombre}` : "—"}`,
+      onRemove: () => handleSistemaChange(ALL),
+    })
+  }
+  if (subSistemaId !== ALL) {
+    const ss = (subsistemas as any[]).find((x) => x.id === subSistemaId)
+    activeFilters.push({
+      id: "subsistema",
+      label: `Subsistema: ${ss ? `${ss.codigo} — ${ss.nombre}` : "—"}`,
+      onRemove: () => { setSubSistemaId(ALL); setPage(1) },
+    })
+  }
+  if (especialidad !== ALL) {
+    activeFilters.push({
+      id: "especialidad",
+      label: `Especialidad: ${especialidad}`,
+      onRemove: () => handleEspecialidadChange(ALL),
+    })
+  }
+  if (elementoTipoId) {
+    const t = (tipos as any[]).find((x) => x.id === elementoTipoId)
+    activeFilters.push({
+      id: "tipo",
+      label: `Tipo: ${t?.nombre ?? "—"}`,
+      onRemove: () => { setElementoTipoId(""); setPage(1) },
+    })
+  }
+  if (prioridad !== ALL) {
+    activeFilters.push({
+      id: "prioridad",
+      label: `Prioridad: ${PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "—"}`,
+      onRemove: () => { setPrioridad(ALL); setPage(1) },
+    })
   }
 
   // Si cambia el sistema y el subsistema actual no le pertenece, lo reseteamos.
@@ -150,8 +191,8 @@ export default function ElementosPage() {
       <EditElementoSheet />
 
       <div className="space-y-4">
-        {/* Buscador + Nuevo elemento */}
-        <div className="flex items-center justify-between gap-3">
+        {/* Buscador + Nuevo elemento + Filtros */}
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -161,65 +202,86 @@ export default function ElementosPage() {
               className="pl-9"
             />
           </div>
-          <Button onClick={open} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nuevo elemento
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nuevo elemento
+            </Button>
+            <FiltersTrigger
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+              activeCount={activeFilters.length}
+            />
+          </div>
         </div>
 
-        {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-3">
-          <Select value={sistemaId} onValueChange={handleSistemaChange}>
-            <SelectTrigger className="w-52">
-              <SelectValue>
-                {sistemaId === ALL
-                  ? "Todos los sistemas"
-                  : sistemas.find((s: any) => s.id === sistemaId)?.nombre ?? "Sistema"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos los sistemas</SelectItem>
-              {sistemas.map((s: any) => (
-                <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Chips de filtros activos (línea propia, solo si hay alguno) */}
+        <FiltersChips activeFilters={activeFilters} onClearAll={clearFiltros} />
 
-          <Select
-            value={subSistemaId}
-            onValueChange={(v) => { setSubSistemaId(v); setPage(1) }}
-            disabled={sistemaId !== ALL && subsistemasFiltrados.length === 0}
-          >
-            <SelectTrigger className="w-52">
-              <SelectValue>
-                {subSistemaId === ALL
-                  ? "Todos los subsistemas"
-                  : subsistemas.find((ss: any) => ss.id === subSistemaId)?.nombre ?? "Subsistema"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos los subsistemas</SelectItem>
-              {subsistemasFiltrados.map((ss: any) => (
-                <SelectItem key={ss.id} value={ss.id}>{ss.codigo} — {ss.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Sheet con los controles */}
+        <FiltersSheet
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          onClearAll={clearFiltros}
+          hasActiveFilters={activeFilters.length > 0}
+        >
+          <FilterField label="Sistema">
+            <Select value={sistemaId} onValueChange={handleSistemaChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {sistemaId === ALL
+                    ? "Todos los sistemas"
+                    : sistemas.find((s: any) => s.id === sistemaId)?.nombre ?? "Sistema"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los sistemas</SelectItem>
+                {sistemas.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
 
-          <Select value={especialidad} onValueChange={handleEspecialidadChange}>
-            <SelectTrigger className="w-44">
-              <SelectValue>
-                {especialidad === ALL ? "Todas las especialidades" : especialidad}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas las especialidades</SelectItem>
-              {especialidades.map((esp) => (
-                <SelectItem key={esp} value={esp}>{esp}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <FilterField label="Subsistema">
+            <Select
+              value={subSistemaId}
+              onValueChange={(v) => { setSubSistemaId(v); setPage(1) }}
+              disabled={sistemaId !== ALL && subsistemasFiltrados.length === 0}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {subSistemaId === ALL
+                    ? "Todos los subsistemas"
+                    : subsistemas.find((ss: any) => ss.id === subSistemaId)?.nombre ?? "Subsistema"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los subsistemas</SelectItem>
+                {subsistemasFiltrados.map((ss: any) => (
+                  <SelectItem key={ss.id} value={ss.id}>{ss.codigo} — {ss.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
 
-          <div className="w-56">
+          <FilterField label="Especialidad">
+            <Select value={especialidad} onValueChange={handleEspecialidadChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {especialidad === ALL ? "Todas las especialidades" : especialidad}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas las especialidades</SelectItem>
+                {especialidades.map((esp) => (
+                  <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Tipo de elemento">
             <Combobox
               options={tipoOptions}
               value={elementoTipoId}
@@ -228,32 +290,27 @@ export default function ElementosPage() {
               searchPlaceholder="Buscar tipo..."
               emptyMessage="Sin resultados"
             />
-          </div>
+          </FilterField>
 
-          <Select
-            value={prioridad}
-            onValueChange={(v) => { setPrioridad(v); setPage(1) }}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue>
-                {prioridad === ALL ? "Todas las prioridades" : PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "Prioridad"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas las prioridades</SelectItem>
-              {Object.entries(PRIORIDAD).map(([id, nombre]) => (
-                <SelectItem key={id} value={id}>{nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {hayFiltros && (
-            <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={clearFiltros}>
-              <X className="h-3.5 w-3.5" />
-              Limpiar filtros
-            </Button>
-          )}
-        </div>
+          <FilterField label="Prioridad">
+            <Select
+              value={prioridad}
+              onValueChange={(v) => { setPrioridad(v); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {prioridad === ALL ? "Todas las prioridades" : PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "Prioridad"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas las prioridades</SelectItem>
+                {Object.entries(PRIORIDAD).map(([id, nombre]) => (
+                  <SelectItem key={id} value={id}>{nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </FiltersSheet>
 
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>
