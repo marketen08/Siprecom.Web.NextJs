@@ -28,17 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 interface EmpresasTableProps {
   /** "cliente" → empresas con esContratista=false. "contratista" → esContratista=true. */
@@ -82,6 +72,7 @@ export function EmpresasTable({ kind }: EmpresasTableProps) {
     data: data?.data ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
     manualPagination: true,
     rowCount: data?.total ?? 0,
   })
@@ -197,28 +188,20 @@ function RowActions({ cliente, kind }: { cliente: Cliente; kind: "cliente" | "co
         <Pencil className="h-4 w-4" />
       </Button>
 
-      <AlertDialog>
-        <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar {tipoSingular}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará <strong>{cliente.nombre}</strong>. Podés reactivarlo después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => deleteMutation.mutate(cliente.id)}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Trash2 className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+        title={`¿Eliminar ${tipoSingular}?`}
+        description={
+          <>
+            Esta acción eliminará <strong>{cliente.nombre}</strong>. Podés reactivarlo después.
+          </>
+        }
+        confirmText="Eliminar"
+        pendingText="Eliminando..."
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutateAsync(cliente.id)}
+      />
     </div>
   )
 }

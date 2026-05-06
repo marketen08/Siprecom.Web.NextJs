@@ -121,6 +121,7 @@ export default function TareasPage() {
     data: data?.data ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
     manualPagination: true,
     rowCount: data?.total ?? 0,
   })
@@ -184,7 +185,7 @@ export default function TareasPage() {
           <FilterField label="Nivel">
             <Select
               value={nivelId}
-              onValueChange={(v) => { setNivelId(v); setPage(1) }}
+              onValueChange={(v) => { setNivelId(v ?? ALL); setPage(1) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>
@@ -219,7 +220,7 @@ export default function TareasPage() {
           <FilterField label="Prioridad">
             <Select
               value={prioridad}
-              onValueChange={(v) => { setPrioridad(v); setPage(1) }}
+              onValueChange={(v) => { setPrioridad(v ?? ALL); setPage(1) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>

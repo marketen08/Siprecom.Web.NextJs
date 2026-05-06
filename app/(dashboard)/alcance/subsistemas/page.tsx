@@ -80,6 +80,7 @@ export default function SubSistemasPage() {
     data: data?.data ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
     manualPagination: true,
     rowCount: data?.total ?? 0,
   })
@@ -129,7 +130,7 @@ export default function SubSistemasPage() {
           <FilterField label="Sistema">
             <Select
               value={sistemaId}
-              onValueChange={(v) => { setSistemaId(v); setPage(1) }}
+              onValueChange={(v) => { setSistemaId(v ?? ALL); setPage(1) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>

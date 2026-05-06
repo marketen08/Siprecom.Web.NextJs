@@ -13,17 +13,7 @@ import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { cn } from "@/lib/utils"
 
 interface CampoCardProps {
@@ -108,30 +98,20 @@ export function CampoCard({ campo, planillaId }: CampoCardProps) {
           >
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Quitar campo?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Se quitará <strong>{campo.campoNombre}</strong> de esta planilla. El campo global no se elimina.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive hover:bg-destructive/90"
-                  onClick={() => removeMutation.mutate({ planillaId, campoId: campo.id })}
-                >
-                  Quitar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <ConfirmActionDialog
+            trigger={<Trash2 className="h-4 w-4" />}
+            triggerClassName="inline-flex items-center justify-center h-7 w-7 rounded-md text-destructive hover:bg-accent transition-colors"
+            title="¿Quitar campo?"
+            description={
+              <>
+                Se quitará <strong>{campo.campoNombre}</strong> de esta planilla. El campo global no se elimina.
+              </>
+            }
+            confirmText="Quitar"
+            pendingText="Quitando..."
+            variant="destructive"
+            onConfirm={() => removeMutation.mutateAsync({ planillaId, campoId: campo.id })}
+          />
         </div>
       </div>
 

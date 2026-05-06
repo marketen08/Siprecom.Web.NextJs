@@ -10,17 +10,7 @@ import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
 import { useDeleteTarea } from "@/features/tareas/api/use-delete-tarea"
 
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 function RowActions({ tarea }: { tarea: Tarea }) {
   const { open } = useOpenTarea()
@@ -49,28 +39,20 @@ function RowActions({ tarea }: { tarea: Tarea }) {
         <Copy className="h-4 w-4" />
       </Button>
 
-      <AlertDialog>
-        <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar tarea?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará <strong>{tarea.nombre}</strong>. Podés reactivarla después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => deleteMutation.mutate(tarea.id)}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Trash2 className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+        title="¿Eliminar tarea?"
+        description={
+          <>
+            Esta acción eliminará <strong>{tarea.nombre}</strong>. Podés reactivarla después.
+          </>
+        }
+        confirmText="Eliminar"
+        pendingText="Eliminando..."
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutateAsync(tarea.id)}
+      />
     </div>
   )
 }

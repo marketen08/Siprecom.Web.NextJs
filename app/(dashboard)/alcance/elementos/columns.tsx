@@ -8,17 +8,7 @@ import { useOpenElemento } from "@/features/elementos/hooks/use-open-elemento"
 import { useDeleteElemento } from "@/features/elementos/api/use-delete-elemento"
 
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 const PRIORIDAD_COLOR: Record<number, string> = {
   1: "text-green-600",
@@ -42,28 +32,20 @@ function RowActions({ elemento }: { elemento: Elemento }) {
         <Pencil className="h-4 w-4" />
       </Button>
 
-      <AlertDialog>
-        <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar elemento?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará <strong>{elemento.tag} — {elemento.nombre}</strong>. Podés reactivarlo después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => deleteMutation.mutate(elemento.id)}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Trash2 className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+        title="¿Eliminar elemento?"
+        description={
+          <>
+            Esta acción eliminará <strong>{elemento.tag} — {elemento.nombre}</strong>. Podés reactivarlo después.
+          </>
+        }
+        confirmText="Eliminar"
+        pendingText="Eliminando..."
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutateAsync(elemento.id)}
+      />
     </div>
   )
 }

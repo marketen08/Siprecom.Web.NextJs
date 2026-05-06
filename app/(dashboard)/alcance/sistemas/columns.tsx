@@ -8,17 +8,7 @@ import { useOpenSistema } from "@/features/sistemas/hooks/use-open-sistema"
 import { useDeleteSistema } from "@/features/sistemas/api/use-delete-sistema"
 
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 function RowActions({ sistema }: { sistema: Sistema }) {
   const { open } = useOpenSistema()
@@ -35,28 +25,20 @@ function RowActions({ sistema }: { sistema: Sistema }) {
         <Pencil className="h-4 w-4" />
       </Button>
 
-      <AlertDialog>
-        <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar sistema?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará <strong>{sistema.nombre}</strong>. Podés reactivarlo después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => deleteMutation.mutate(sistema.id)}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Trash2 className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+        title="¿Eliminar sistema?"
+        description={
+          <>
+            Esta acción eliminará <strong>{sistema.nombre}</strong>. Podés reactivarlo después.
+          </>
+        }
+        confirmText="Eliminar"
+        pendingText="Eliminando..."
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutateAsync(sistema.id)}
+      />
     </div>
   )
 }

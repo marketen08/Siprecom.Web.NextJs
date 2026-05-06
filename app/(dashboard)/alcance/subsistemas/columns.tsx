@@ -8,17 +8,7 @@ import { useOpenSubSistema } from "@/features/subsistemas/hooks/use-open-subsist
 import { useDeleteSubSistema } from "@/features/subsistemas/api/use-delete-subsistema"
 
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 function RowActions({ subsistema }: { subsistema: SubSistema }) {
   const { open } = useOpenSubSistema()
@@ -35,28 +25,20 @@ function RowActions({ subsistema }: { subsistema: SubSistema }) {
         <Pencil className="h-4 w-4" />
       </Button>
 
-      <AlertDialog>
-        <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar subsistema?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará <strong>{subsistema.nombre}</strong>. Podés reactivarlo después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => deleteMutation.mutate(subsistema.id)}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Trash2 className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+        title="¿Eliminar subsistema?"
+        description={
+          <>
+            Esta acción eliminará <strong>{subsistema.nombre}</strong>. Podés reactivarlo después.
+          </>
+        }
+        confirmText="Eliminar"
+        pendingText="Eliminando..."
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutateAsync(subsistema.id)}
+      />
     </div>
   )
 }

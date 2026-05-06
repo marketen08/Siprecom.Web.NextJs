@@ -38,6 +38,7 @@ export default function SistemasPage() {
     data: data?.data ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
     manualPagination: true,
     rowCount: data?.total ?? 0,
   })

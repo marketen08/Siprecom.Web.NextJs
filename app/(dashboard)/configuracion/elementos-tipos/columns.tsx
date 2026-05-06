@@ -8,17 +8,7 @@ import { useOpenElementoTipo } from "@/features/elementostipos/hooks/use-open-el
 import { useDeleteElementoTipo } from "@/features/elementostipos/api/use-delete-elementotipo"
 
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 function RowActions({ tipo }: { tipo: ElementoTipo }) {
   const { open } = useOpenElementoTipo()
@@ -35,28 +25,20 @@ function RowActions({ tipo }: { tipo: ElementoTipo }) {
         <Pencil className="h-4 w-4" />
       </Button>
 
-      <AlertDialog>
-        <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar tipo de elemento?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará <strong>{tipo.nombre}</strong>. Podés reactivarlo después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => deleteMutation.mutate(tipo.id)}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Trash2 className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+        title="¿Eliminar tipo de elemento?"
+        description={
+          <>
+            Esta acción eliminará <strong>{tipo.nombre}</strong>. Podés reactivarlo después.
+          </>
+        }
+        confirmText="Eliminar"
+        pendingText="Eliminando..."
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutateAsync(tipo.id)}
+      />
     </div>
   )
 }

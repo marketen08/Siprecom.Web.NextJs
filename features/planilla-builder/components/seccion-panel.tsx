@@ -10,17 +10,7 @@ import { useDeleteSeccion } from "@/features/planillas/api/use-delete-seccion"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { cn } from "@/lib/utils"
 
 interface SeccionPanelProps {
@@ -85,15 +75,9 @@ export function SeccionPanel({
     )
   }
 
-  const handleDelete = (seccion: PlanillaSeccion) => {
-    deleteMutation.mutate(
-      { planillaId, seccionId: seccion.id },
-      {
-        onSuccess: () => {
-          if (selectedSeccionId === seccion.id) onSelect(null)
-        },
-      }
-    )
+  const handleDelete = async (seccion: PlanillaSeccion) => {
+    await deleteMutation.mutateAsync({ planillaId, seccionId: seccion.id })
+    if (selectedSeccionId === seccion.id) onSelect(null)
   }
 
   return (
@@ -178,34 +162,16 @@ export function SeccionPanel({
                   >
                     <Pencil className="h-3 w-3" />
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-destructive"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar sección?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Los campos de esta sección quedarán sin sección asignada.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive hover:bg-destructive/90"
-                          onClick={() => handleDelete(s)}
-                        >
-                          Eliminar
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <ConfirmActionDialog
+                    trigger={<Trash2 className="h-3 w-3" />}
+                    triggerClassName="inline-flex items-center justify-center h-6 w-6 rounded-md text-destructive hover:bg-accent transition-colors"
+                    title="¿Eliminar sección?"
+                    description="Los campos de esta sección quedarán sin sección asignada."
+                    confirmText="Eliminar"
+                    pendingText="Eliminando..."
+                    variant="destructive"
+                    onConfirm={() => handleDelete(s)}
+                  />
                 </div>
               </>
             )}

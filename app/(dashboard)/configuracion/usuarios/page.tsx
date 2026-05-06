@@ -37,6 +37,7 @@ export default function UsuariosPage() {
     data: (data as any)?.data ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row: any) => row.id,
     manualPagination: true,
     rowCount: (data as any)?.total ?? 0,
   })

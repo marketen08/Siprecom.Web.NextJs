@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { ColumnDef } from "@tanstack/react-table"
 import { Copy, Pencil, Settings, Trash2 } from "lucide-react"
 import Link from "next/link"
@@ -11,36 +10,12 @@ import { useDeletePlanilla } from "@/features/planillas/api/use-delete-planilla"
 import { useClonePlanilla } from "@/features/planillas/api/use-clone-planilla"
 
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 function RowActions({ planilla }: { planilla: Planilla }) {
   const { open } = useOpenPlanilla()
   const deleteMutation = useDeletePlanilla()
   const cloneMutation = useClonePlanilla()
-  const [cloneOpen, setCloneOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-
-  const handleClone = () => {
-    cloneMutation.mutate(planilla.id, {
-      onSuccess: () => setCloneOpen(false),
-    })
-  }
-
-  const handleDelete = () => {
-    deleteMutation.mutate(planilla.id, {
-      onSuccess: () => setDeleteOpen(false),
-    })
-  }
 
   return (
     <div className="flex items-center gap-1 justify-end">
@@ -66,52 +41,34 @@ function RowActions({ planilla }: { planilla: Planilla }) {
         </Link>
       </Button>
 
-      <AlertDialog open={cloneOpen} onOpenChange={setCloneOpen}>
-        <AlertDialogTrigger
-          className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors"
-          title="Clonar"
-        >
-          <Copy className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Clonar planilla?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo "(copia)" en el nombre.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cloneMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleClone} disabled={cloneMutation.isPending}>
-              {cloneMutation.isPending ? "Clonando..." : "Clonar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Copy className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors"
+        title="¿Clonar planilla?"
+        description={
+          <>
+            Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo "(copia)" en el nombre.
+          </>
+        }
+        confirmText="Clonar"
+        pendingText="Clonando..."
+        onConfirm={() => cloneMutation.mutateAsync(planilla.id)}
+      />
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar planilla?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará <strong>{planilla.nombre}</strong>. Podés reactivarla después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={handleDelete}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        trigger={<Trash2 className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+        title="¿Eliminar planilla?"
+        description={
+          <>
+            Esta acción eliminará <strong>{planilla.nombre}</strong>. Podés reactivarla después.
+          </>
+        }
+        confirmText="Eliminar"
+        pendingText="Eliminando..."
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutateAsync(planilla.id)}
+      />
     </div>
   )
 }
