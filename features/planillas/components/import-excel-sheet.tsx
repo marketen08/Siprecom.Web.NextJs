@@ -201,7 +201,7 @@ export function ImportExcelSheet({ open, onClose }: Props) {
       setProgreso("Creando planilla...")
       const planillaResp = await apiClient.post<{ data: Planilla }>("/api/planillas", {
         nombre: planilla.nombre,
-        requiereFirma: false,
+        requiereFirma: true,
         permiteAdjuntos: false,
         generaPdfFinal: false,
       })

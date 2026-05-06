@@ -39,7 +39,7 @@ export function PlanillaForm({
       descripcion: defaultValues?.descripcion ?? "",
       observaciones: defaultValues?.observaciones ?? "",
       version: defaultValues?.version ?? "1.0",
-      requiereFirma: defaultValues?.requiereFirma ?? false,
+      requiereFirma: defaultValues?.requiereFirma ?? true,
       permiteAdjuntos: defaultValues?.permiteAdjuntos ?? true,
       generaPdfFinal: defaultValues?.generaPdfFinal ?? true,
     },
