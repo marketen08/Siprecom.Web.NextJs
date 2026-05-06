@@ -102,19 +102,26 @@ export const columns: ColumnDef<Proyecto>[] = [
     },
   },
   {
+    accessorKey: "clienteNombre",
+    header: "Cliente",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.clienteNombre ?? "—"}</span>
+    ),
+  },
+  {
+    accessorKey: "contratistaNombre",
+    header: "Contratista",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.contratistaNombre ?? "—"}</span>
+    ),
+  },
+  {
     accessorKey: "observaciones",
     header: "Observaciones",
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground line-clamp-1 max-w-xs">
         {row.original.observaciones}
       </span>
-    ),
-  },
-  {
-    accessorKey: "createdByNombre",
-    header: "Creado por",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.createdByNombre}</span>
     ),
   },
   {

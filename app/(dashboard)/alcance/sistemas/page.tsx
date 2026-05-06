@@ -50,29 +50,21 @@ export default function SistemasPage() {
       <EditSistemaSheet />
 
       <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Sistemas</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {data?.total ?? 0} sistemas en total
-            </p>
+        {/* Buscador + Nuevo */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="pl-9"
+            />
           </div>
-          <Button onClick={open} className="gap-2">
+          <Button onClick={open} className="gap-2 ml-auto">
             <Plus className="h-4 w-4" />
             Nuevo sistema
           </Button>
-        </div>
-
-        {/* Buscador */}
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9"
-          />
         </div>
 
         {/* Tabla */}
@@ -119,32 +111,23 @@ export default function SistemasPage() {
           </Table>
         </DataTableWrapper>
 
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Página {page} de {totalPages}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page === 1}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages}
-              >
-                Siguiente
-              </Button>
+        {/* Total + Paginación */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{data?.total ?? 0} sistemas en total</span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-3">
+              <span>Página {page} de {totalPages}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>
+                  Anterior
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>
+                  Siguiente
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
   )

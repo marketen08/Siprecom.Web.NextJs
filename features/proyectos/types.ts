@@ -14,7 +14,9 @@ export interface Proyecto {
   id: string
   nombre: string
   clienteId: string
+  clienteNombre: string | null
   contratistaId: string
+  contratistaNombre: string | null
   estado: EstadoProyecto
   estadoTexto: string
   observaciones: string

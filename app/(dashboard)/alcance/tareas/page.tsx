@@ -6,7 +6,7 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search, X } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 
 import { useGetTareas } from "@/features/tareas/api/use-get-tareas"
 import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
@@ -29,6 +29,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  FiltersTrigger,
+  FiltersChips,
+  FiltersSheet,
+  FilterField,
+  type FilterChip,
+} from "@/components/ui/filters-bar"
+import {
   Table,
   TableBody,
   TableCell,
@@ -46,6 +53,7 @@ export default function TareasPage() {
   const [planillaId, setPlanillaId] = useState<string>(ALL)
   const [prioridad, setPrioridad] = useState<string>(ALL)
   const [page, setPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const pageSize = 10
 
   const { data, isLoading, isFetching } = useGetTareas({
@@ -66,16 +74,46 @@ export default function TareasPage() {
   const niveles = (nivelesRaw as any)?.data ?? (Array.isArray(nivelesRaw) ? nivelesRaw : [])
   const planillas = (planillasRaw as any)?.data ?? []
 
-  const hayFiltros =
-    search !== "" || elementoTipoId !== ALL || nivelId !== ALL || planillaId !== ALL || prioridad !== ALL
-
   function clearFiltros() {
-    setSearch("")
     setElementoTipoId(ALL)
     setNivelId(ALL)
     setPlanillaId(ALL)
     setPrioridad(ALL)
     setPage(1)
+  }
+
+  // Chips de filtros activos
+  const activeFilters: FilterChip[] = []
+  if (elementoTipoId !== ALL) {
+    const t = tipos.find((x: any) => x.id === elementoTipoId)
+    activeFilters.push({
+      id: "tipo",
+      label: `Tipo: ${t?.nombre ?? "—"}`,
+      onRemove: () => { setElementoTipoId(ALL); setPage(1) },
+    })
+  }
+  if (nivelId !== ALL) {
+    const n = niveles.find((x: any) => x.id === nivelId)
+    activeFilters.push({
+      id: "nivel",
+      label: `Nivel: ${n?.nombre ?? "—"}`,
+      onRemove: () => { setNivelId(ALL); setPage(1) },
+    })
+  }
+  if (planillaId !== ALL) {
+    const p = planillas.find((x: any) => x.id === planillaId)
+    activeFilters.push({
+      id: "planilla",
+      label: `Planilla: ${p?.nombre ?? "—"}`,
+      onRemove: () => { setPlanillaId(ALL); setPage(1) },
+    })
+  }
+  if (prioridad !== ALL) {
+    activeFilters.push({
+      id: "prioridad",
+      label: `Prioridad: ${PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "—"}`,
+      onRemove: () => { setPrioridad(ALL); setPage(1) },
+    })
   }
 
   const table = useReactTable({
@@ -94,23 +132,9 @@ export default function TareasPage() {
       <EditTareaSheet />
 
       <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tareas</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {data?.total ?? 0} tareas en total
-            </p>
-          </div>
-          <Button onClick={open} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nueva tarea
-          </Button>
-        </div>
-
-        {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-72">
+        {/* Buscador + Nuevo + Filtros */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nombre..."
@@ -119,88 +143,111 @@ export default function TareasPage() {
               className="pl-9"
             />
           </div>
-
-          <Select
-            value={elementoTipoId}
-            onValueChange={(v) => { setElementoTipoId(v); setPage(1) }}
-          >
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Tipo de elemento">
-                {elementoTipoId === ALL
-                  ? "Todos los tipos"
-                  : tipos.find((t: any) => t.id === elementoTipoId)?.nombre ?? "Tipo de elemento"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos los tipos</SelectItem>
-              {tipos.map((t: any) => (
-                <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={nivelId}
-            onValueChange={(v) => { setNivelId(v); setPage(1) }}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Nivel">
-                {nivelId === ALL
-                  ? "Todos los niveles"
-                  : niveles.find((n: any) => n.id === nivelId)?.nombre ?? "Nivel"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos los niveles</SelectItem>
-              {niveles.map((n: any) => (
-                <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={planillaId}
-            onValueChange={(v) => { setPlanillaId(v); setPage(1) }}
-          >
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Planilla">
-                {planillaId === ALL
-                  ? "Todas las planillas"
-                  : planillas.find((p: any) => p.id === planillaId)?.nombre ?? "Planilla"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas las planillas</SelectItem>
-              {planillas.map((p: any) => (
-                <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={prioridad}
-            onValueChange={(v) => { setPrioridad(v); setPage(1) }}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Prioridad">
-                {prioridad === ALL ? "Todas las prioridades" : PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "Prioridad"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas las prioridades</SelectItem>
-              {Object.entries(PRIORIDAD).map(([id, nombre]) => (
-                <SelectItem key={id} value={id}>{nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {hayFiltros && (
-            <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={clearFiltros}>
-              <X className="h-3.5 w-3.5" />
-              Limpiar filtros
+          <div className="ml-auto flex items-center gap-2">
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nueva tarea
             </Button>
-          )}
+            <FiltersTrigger
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+              activeCount={activeFilters.length}
+            />
+          </div>
         </div>
+
+        {/* Chips de filtros activos */}
+        <FiltersChips activeFilters={activeFilters} onClearAll={clearFiltros} />
+
+        {/* Sheet con los controles */}
+        <FiltersSheet
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          onClearAll={clearFiltros}
+          hasActiveFilters={activeFilters.length > 0}
+        >
+          <FilterField label="Tipo de elemento">
+            <Select
+              value={elementoTipoId}
+              onValueChange={(v) => { setElementoTipoId(v); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {elementoTipoId === ALL
+                    ? "Todos los tipos"
+                    : tipos.find((t: any) => t.id === elementoTipoId)?.nombre ?? "Tipo"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los tipos</SelectItem>
+                {tipos.map((t: any) => (
+                  <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Nivel">
+            <Select
+              value={nivelId}
+              onValueChange={(v) => { setNivelId(v); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {nivelId === ALL
+                    ? "Todos los niveles"
+                    : niveles.find((n: any) => n.id === nivelId)?.nombre ?? "Nivel"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los niveles</SelectItem>
+                {niveles.map((n: any) => (
+                  <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Planilla">
+            <Select
+              value={planillaId}
+              onValueChange={(v) => { setPlanillaId(v); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {planillaId === ALL
+                    ? "Todas las planillas"
+                    : planillas.find((p: any) => p.id === planillaId)?.nombre ?? "Planilla"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas las planillas</SelectItem>
+                {planillas.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Prioridad">
+            <Select
+              value={prioridad}
+              onValueChange={(v) => { setPrioridad(v); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {prioridad === ALL ? "Todas las prioridades" : PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "Prioridad"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas las prioridades</SelectItem>
+                {Object.entries(PRIORIDAD).map(([id, nombre]) => (
+                  <SelectItem key={id} value={id}>{nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </FiltersSheet>
 
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>
@@ -246,32 +293,33 @@ export default function TareasPage() {
           </Table>
         </DataTableWrapper>
 
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Página {page} de {totalPages}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page === 1}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages}
-              >
-                Siguiente
-              </Button>
+        {/* Total + Paginación */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{data?.total ?? 0} tareas en total</span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-3">
+              <span>Página {page} de {totalPages}</span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={page === 1}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Siguiente
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
   )
