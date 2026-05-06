@@ -75,6 +75,11 @@ function RowActions({ planilla }: { planilla: Planilla }) {
   )
 }
 
+function formatFecha(iso?: string) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
+
 export const columns: ColumnDef<Planilla>[] = [
   {
     accessorKey: "nombre",
@@ -87,16 +92,21 @@ export const columns: ColumnDef<Planilla>[] = [
     accessorKey: "descripcion",
     header: "Descripción",
     cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground line-clamp-1">
+      <span className="block text-sm text-muted-foreground line-clamp-2 max-w-sm whitespace-normal wrap-break-word">
         {row.original.descripcion || "—"}
       </span>
     ),
   },
   {
-    accessorKey: "createdByNombre",
-    header: "Creado por",
+    accessorKey: "updatedAt",
+    header: "Última actualización",
     cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.createdByNombre || "—"}</span>
+      <div className="text-sm leading-tight">
+        <div>{formatFecha(row.original.updatedAt)}</div>
+        {row.original.updatedByNombre && (
+          <div className="text-xs text-muted-foreground">por {row.original.updatedByNombre}</div>
+        )}
+      </div>
     ),
   },
   {
