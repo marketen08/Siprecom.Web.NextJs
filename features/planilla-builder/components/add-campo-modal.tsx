@@ -175,7 +175,11 @@ export function AddCampoModal({
             <Label>Sección destino</Label>
             <Select value={seccionId} onValueChange={setSeccionId}>
               <SelectTrigger>
-                <SelectValue placeholder="Sin sección" />
+                <SelectValue placeholder="Sin sección">
+                  {seccionId === "__none__"
+                    ? "Sin sección"
+                    : secciones.find((s) => s.id === seccionId)?.nombre ?? "Sin sección"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Sin sección</SelectItem>
@@ -262,7 +266,9 @@ export function AddCampoModal({
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue />
+                              <SelectValue>
+                                {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
+                              </SelectValue>
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
