@@ -107,7 +107,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   const handleSubmit = (values: TareaFormValues) => {
     onSubmit({
       ...values,
-      procedimientoId: values.procedimientoId === NONE ? undefined : values.procedimientoId || undefined,
+      procedimientoId: values.procedimientoId || undefined,
     })
   }
 
@@ -278,37 +278,32 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 </FormItem>
               )}
             />
-
-            <FormField
-              control={form.control}
-              name="planillaId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Planilla</FormLabel>
-                  <Select
-                    disabled={isPending || loadingPlanillas}
-                    value={field.value || NONE}
-                    onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Ninguna">
-                          {planillas.find((p: any) => p.id === field.value)?.nombre ?? "Ninguna"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={NONE}>Ninguna</SelectItem>
-                      {planillas.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </div>
+
+          <FormField
+            control={form.control}
+            name="planillaId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Planilla</FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={[
+                      { value: "", label: "Ninguna" },
+                      ...planillas.map((p: any) => ({ value: p.id, label: p.nombre })),
+                    ]}
+                    value={field.value || ""}
+                    onChange={(v) => field.onChange(v)}
+                    placeholder="Ninguna"
+                    searchPlaceholder="Buscar planilla..."
+                    emptyMessage="Sin planillas"
+                    disabled={isPending || loadingPlanillas}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}
@@ -316,25 +311,20 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Procedimiento</FormLabel>
-                <Select
-                  disabled={isPending || loadingProcedimientos}
-                  value={field.value || NONE}
-                  onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Ninguno">
-                        {procedimientos.find((p: any) => p.id === field.value)?.nombre ?? "Ninguno"}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={NONE}>Ninguno</SelectItem>
-                    {procedimientos.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    options={[
+                      { value: "", label: "Ninguno" },
+                      ...procedimientos.map((p: any) => ({ value: p.id, label: p.nombre })),
+                    ]}
+                    value={field.value || ""}
+                    onChange={(v) => field.onChange(v)}
+                    placeholder="Ninguno"
+                    searchPlaceholder="Buscar procedimiento..."
+                    emptyMessage="Sin procedimientos"
+                    disabled={isPending || loadingProcedimientos}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

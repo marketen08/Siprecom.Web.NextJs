@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import {
   FiltersTrigger,
   FiltersChips,
@@ -167,24 +168,17 @@ export default function TareasPage() {
           hasActiveFilters={activeFilters.length > 0}
         >
           <FilterField label="Tipo de elemento">
-            <Select
+            <Combobox
+              options={[
+                { value: ALL, label: "Todos los tipos" },
+                ...tipos.map((t: any) => ({ value: t.id, label: t.nombre })),
+              ]}
               value={elementoTipoId}
-              onValueChange={(v) => { setElementoTipoId(v); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {elementoTipoId === ALL
-                    ? "Todos los tipos"
-                    : tipos.find((t: any) => t.id === elementoTipoId)?.nombre ?? "Tipo"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos los tipos</SelectItem>
-                {tipos.map((t: any) => (
-                  <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => { setElementoTipoId(v); setPage(1) }}
+              placeholder="Todos los tipos"
+              searchPlaceholder="Buscar tipo..."
+              emptyMessage="Sin tipos"
+            />
           </FilterField>
 
           <FilterField label="Nivel">
@@ -209,24 +203,17 @@ export default function TareasPage() {
           </FilterField>
 
           <FilterField label="Planilla">
-            <Select
+            <Combobox
+              options={[
+                { value: ALL, label: "Todas las planillas" },
+                ...planillas.map((p: any) => ({ value: p.id, label: p.nombre })),
+              ]}
               value={planillaId}
-              onValueChange={(v) => { setPlanillaId(v); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {planillaId === ALL
-                    ? "Todas las planillas"
-                    : planillas.find((p: any) => p.id === planillaId)?.nombre ?? "Planilla"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas las planillas</SelectItem>
-                {planillas.map((p: any) => (
-                  <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => { setPlanillaId(v); setPage(1) }}
+              placeholder="Todas las planillas"
+              searchPlaceholder="Buscar planilla..."
+              emptyMessage="Sin planillas"
+            />
           </FilterField>
 
           <FilterField label="Prioridad">
