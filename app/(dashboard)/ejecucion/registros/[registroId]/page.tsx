@@ -2,7 +2,9 @@
 
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, FileImage, Lock } from "lucide-react"
+import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, FileImage, Lock } from "lucide-react"
+
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 
 import { useGetRegistroDetalle } from "@/features/registros/api/use-get-registro-detalle"
 import { useCompletarDigital } from "@/features/registros/api/use-completar-digital"
@@ -87,6 +89,19 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const isLoading = loadingDetalle || loadingEstructura
   const isReadOnly = registro?.estado === "COMPLETADO" || registro?.estado === "FIRMADO" || registro?.estado === "APROBADO"
+
+  // Breadcrumb dinámico: Ejecución → Registros → {nombre planilla}
+  // "Registros" es texto (no tiene página listing), pero da contexto.
+  const planillaNombre = (estructura as any)?.planilla?.nombre ?? null
+  useBreadcrumb(
+    planillaNombre
+      ? [
+          { label: "Ejecución" },
+          { label: "Registros" },
+          { label: planillaNombre },
+        ]
+      : null
+  )
 
   if (isLoading) {
     return (
@@ -187,14 +202,10 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
+      {/* Header de contexto */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="h-8 px-2 text-gray-500" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 truncate">{planilla.nombre}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground">
             {planilla.codigo && <span className="mr-2">{planilla.codigo}</span>}
             Registro <span className="font-mono">{registroId.slice(0, 8)}…</span>
             {registro.porcentajeCompletitud > 0 && (

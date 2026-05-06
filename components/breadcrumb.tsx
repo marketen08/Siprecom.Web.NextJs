@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronRight, Home } from "lucide-react"
 import { navBreadcrumbMap, segmentLabels } from "@/lib/nav-menu"
+import { useBreadcrumbOverride } from "./breadcrumb-context"
 
 function labelForSegment(segment: string): string {
   // UUID / ID — no mostramos el valor crudo
@@ -13,21 +14,26 @@ function labelForSegment(segment: string): string {
 
 export function Breadcrumb() {
   const pathname = usePathname()
+  const override = useBreadcrumbOverride()
 
-  // Intentar match exacto en el mapa del menú
-  const fromMenu = navBreadcrumbMap.get(pathname)
+  let items: { label: string; href?: string }[]
 
-  let items: { label: string; href: string }[]
-
-  if (fromMenu) {
-    items = fromMenu
+  if (override && override.length > 0) {
+    // La página declaró su propio trail (drilldown con query params, etc.)
+    items = override
   } else {
-    // Construir desde los segmentos del path
-    const segments = pathname.split("/").filter(Boolean)
-    items = segments.map((seg, i) => ({
-      label: labelForSegment(seg),
-      href: "/" + segments.slice(0, i + 1).join("/"),
-    }))
+    // Intentar match exacto en el mapa del menú
+    const fromMenu = navBreadcrumbMap.get(pathname)
+    if (fromMenu) {
+      items = fromMenu
+    } else {
+      // Construir desde los segmentos del path
+      const segments = pathname.split("/").filter(Boolean)
+      items = segments.map((seg, i) => ({
+        label: labelForSegment(seg),
+        href: "/" + segments.slice(0, i + 1).join("/"),
+      }))
+    }
   }
 
   if (items.length === 0) return null
@@ -49,7 +55,7 @@ export function Breadcrumb() {
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-400" />
             {isClickable ? (
               <Link
-                href={item.href}
+                href={item.href!}
                 className="hover:text-gray-700 transition-colors truncate"
               >
                 {item.label}

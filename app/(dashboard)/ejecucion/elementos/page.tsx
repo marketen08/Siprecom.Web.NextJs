@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState, useEffect } from "react"
-import { ArrowLeft, Search, X, FileDown } from "lucide-react"
+import { Search, X, FileDown } from "lucide-react"
 import { useGetAvanceElementosSubSistema } from "@/features/avance/api/use-get-avance-elementos-subsistema"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
@@ -10,6 +10,7 @@ import { ElementoDetalleSheet } from "@/features/avance/components/elemento-deta
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { ObtenerPlanillasDialog } from "@/features/planillas/components/obtener-planillas-dialog"
 import { BarraAvance } from "@/components/barra-avance"
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 import type { AvanceElementoDTO } from "@/features/avance/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -95,45 +96,32 @@ function AvanceElementosContent() {
   const sistemaSeleccionado = sistemas.find((s) => s.id === sistemaId)
   const subSistemaSeleccionado = todosSubSistemas.find((ss) => ss.id === subSistemaId)
 
+  // Breadcrumb dinámico cuando hay subsistema seleccionado.
+  // Sin subsistema, breadcrumb default del menú (Ejecución → Avance por elementos).
+  useBreadcrumb(
+    subSistemaId && subSistemaSeleccionado
+      ? [
+          { label: "Ejecución" },
+          { label: "Subsistemas", href: "/ejecucion/subsistemas" },
+          { label: `${subSistemaSeleccionado.codigo} — ${subSistemaSeleccionado.nombre}` },
+        ]
+      : null
+  )
+
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            {subSistemaIdParam && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-gray-500"
-                onClick={() => router.back()}
-              >
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Subsistemas
-              </Button>
-            )}
-            <h1 className="text-2xl font-bold text-gray-900">Avance por elementos</h1>
-          </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {!subSistemaId
-              ? "Seleccioná un subsistema para ver el avance por elemento."
-              : isLoading
-              ? "Cargando..."
-              : `${elementos.length}${search ? ` de ${elementosTodos.length}` : ""} elementos`}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {hayFiltros && (
-            <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={handleClearFiltros}>
-              <X className="h-3.5 w-3.5" />
-              Limpiar filtros
-            </Button>
-          )}
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPlanillasDialogOpen(true)}>
-            <FileDown className="h-4 w-4" />
-            Obtener planillas
+      {/* Acciones de la página */}
+      <div className="flex items-center justify-end gap-2">
+        {hayFiltros && (
+          <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={handleClearFiltros}>
+            <X className="h-3.5 w-3.5" />
+            Limpiar filtros
           </Button>
-        </div>
+        )}
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPlanillasDialogOpen(true)}>
+          <FileDown className="h-4 w-4" />
+          Obtener planillas
+        </Button>
       </div>
 
       {/* Filtros */}
@@ -256,6 +244,13 @@ function AvanceElementosContent() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {/* Total */}
+      {subSistemaId && !isLoading && (
+        <p className="text-sm text-muted-foreground">
+          {`${elementos.length}${search ? ` de ${elementosTodos.length}` : ""} elementos`}
+        </p>
       )}
 
       <ElementoDetalleSheet

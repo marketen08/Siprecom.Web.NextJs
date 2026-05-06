@@ -1,13 +1,13 @@
 "use client"
 
 import { use, useState, Suspense } from "react"
-import { useRouter } from "next/navigation"
 import {
-  ArrowLeft, Save, Check, X, Search, FolderOpen,
+  Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
 } from "lucide-react"
 import { useRef, useEffect } from "react"
 
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetUsuario } from "@/features/usuarios/api/use-get-usuario"
 import { useGetUsuarioProyectos } from "@/features/usuarios/api/use-get-usuario-proyectos"
 import { useAddProyectoUsuario } from "@/features/usuarios/api/use-add-proyecto-usuario"
@@ -40,12 +40,22 @@ interface PageProps {
 }
 
 function UsuarioDetailContent({ id }: { id: string }) {
-  const router = useRouter()
   const [tab, setTab] = useState<Tab>("datos")
 
   const { data: result, isLoading } = useGetUsuario(id)
   const usuario = (result as any)?.data?.[0] ?? null
   const fullName = [usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ")
+
+  // Breadcrumb dinámico: Configuración → Usuarios (link) → {nombre del usuario}
+  useBreadcrumb(
+    usuario
+      ? [
+          { label: "Configuración" },
+          { label: "Usuarios", href: "/configuracion/usuarios" },
+          { label: fullName || usuario.userName },
+        ]
+      : null
+  )
 
   if (isLoading) {
     return (
@@ -62,17 +72,8 @@ function UsuarioDetailContent({ id }: { id: string }) {
   return (
     <div className="space-y-6 max-w-2xl">
 
-      {/* Header */}
-      <div>
-        <button
-          onClick={() => router.push("/configuracion/usuarios")}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-1"
-        >
-          <ArrowLeft className="h-4 w-4" /> Usuarios
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900">{fullName || usuario.userName}</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{usuario.email}</p>
-      </div>
+      {/* Subtítulo de contexto */}
+      <p className="text-sm text-muted-foreground">{usuario.email}</p>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, Suspense } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import {
-  ArrowLeft, Save, Plus, Trash2, ChevronUp, ChevronDown,
+  Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
 } from "lucide-react"
 
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
@@ -52,11 +53,21 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 function ProyectoDetailContent() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
   const [tab, setTab] = useState<Tab>("general")
 
   const { data: raw, isLoading } = useGetProyecto(id)
   const proyecto = raw?.data
+
+  // Breadcrumb dinámico: Alcance → Proyectos (link) → {nombre del proyecto}
+  useBreadcrumb(
+    proyecto
+      ? [
+          { label: "Alcance" },
+          { label: "Proyectos", href: "/alcance/proyectos" },
+          { label: proyecto.nombre },
+        ]
+      : null
+  )
 
   if (isLoading) {
     return (
@@ -77,21 +88,10 @@ function ProyectoDetailContent() {
   return (
     <div className="space-y-6 max-w-3xl">
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <button
-            onClick={() => router.push("/alcance/proyectos")}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-1"
-          >
-            <ArrowLeft className="h-4 w-4" /> Proyectos
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {ESTADO_PROYECTO[proyecto.estado]} · Creado por {proyecto.createdByNombre}
-          </p>
-        </div>
-      </div>
+      {/* Subtítulo de contexto */}
+      <p className="text-sm text-muted-foreground">
+        {ESTADO_PROYECTO[proyecto.estado]} · Creado por {proyecto.createdByNombre}
+      </p>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

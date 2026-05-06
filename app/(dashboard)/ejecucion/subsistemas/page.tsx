@@ -2,14 +2,13 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense } from "react"
-import { ArrowLeft } from "lucide-react"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
 import { useGetAvanceSistema } from "@/features/avance/api/use-get-avance-sistema"
 import type { AvanceDTO } from "@/features/avance/types"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
-import { Button } from "@/components/ui/button"
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 import {
   Table,
   TableBody,
@@ -45,34 +44,21 @@ function AvanceSubsistemasContent() {
         s.subSistemas.map((ss) => ({ ...ss, sistemaNombre: s.nombre }))
       )
 
-  const tituloSistema = sistemaId ? avanceSistema?.nombre : undefined
+  // Breadcrumb dinámico cuando estamos drilldown desde un sistema específico.
+  // Cuando el usuario llega sin sistemaId, dejamos que el breadcrumb default del
+  // menú haga su trabajo (Home → Ejecución → Avance por subsistemas).
+  useBreadcrumb(
+    sistemaId && avanceSistema
+      ? [
+          { label: "Ejecución" },
+          { label: "Sistemas", href: "/ejecucion/sistemas" },
+          { label: `${avanceSistema.codigo} — ${avanceSistema.nombre}` },
+        ]
+      : null
+  )
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            {sistemaId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-gray-500"
-                onClick={() => router.push("/ejecucion/sistemas")}
-              >
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Sistemas
-              </Button>
-            )}
-            <h1 className="text-2xl font-bold text-gray-900">
-              {tituloSistema ? `${tituloSistema} — Subsistemas` : "Avance por subsistemas"}
-            </h1>
-          </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isLoading ? "Cargando..." : `${subsistemas.length} subsistemas`}
-          </p>
-        </div>
-      </div>
-
       {sistemaId && avanceSistema && (
         <AvanceSistemaCard
           codigo={avanceSistema.codigo}
@@ -131,6 +117,13 @@ function AvanceSubsistemasContent() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Total */}
+      {!isLoading && (
+        <p className="text-sm text-muted-foreground">
+          {`${subsistemas.length} subsistemas`}
+        </p>
+      )}
     </div>
   )
 }
