@@ -20,7 +20,6 @@ import { useAsignarUsuarioRol } from "@/features/proyectos/api/use-asignar-usuar
 import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario-rol"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import type { FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
-import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import {
@@ -87,11 +86,6 @@ function ProyectoDetailContent() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-
-      {/* Subtítulo de contexto */}
-      <p className="text-sm text-muted-foreground">
-        {ESTADO_PROYECTO[proyecto.estado]} · Creado por {proyecto.createdByNombre}
-      </p>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

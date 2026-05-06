@@ -12,11 +12,26 @@ import { useGetSubSistemas } from "@/features/subsistemas/api/use-get-subsistema
 import { useNewSubSistema } from "@/features/subsistemas/hooks/use-new-subsistema"
 import { NewSubSistemaSheet } from "@/features/subsistemas/components/new-subsistema-sheet"
 import { EditSubSistemaSheet } from "@/features/subsistemas/components/edit-subsistema-sheet"
+import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  FiltersTrigger,
+  FiltersChips,
+  FiltersSheet,
+  FilterField,
+  type FilterChip,
+} from "@/components/ui/filters-bar"
 import {
   Table,
   TableBody,
@@ -26,13 +41,40 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+const ALL = "__all__"
+
 export default function SubSistemasPage() {
   const [search, setSearch] = useState("")
+  const [sistemaId, setSistemaId] = useState<string>(ALL)
   const [page, setPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const pageSize = 10
 
-  const { data, isLoading, isFetching } = useGetSubSistemas({ page, pageSize, nombre: search || undefined })
+  const { data, isLoading, isFetching } = useGetSubSistemas({
+    page,
+    pageSize,
+    nombre: search || undefined,
+    sistemaId: sistemaId !== ALL ? sistemaId : undefined,
+  })
   const { open } = useNewSubSistema()
+
+  const { data: sistemasRaw } = useGetSistemasSelect()
+  const sistemas = (sistemasRaw as any)?.data ?? []
+
+  function clearFiltros() {
+    setSistemaId(ALL)
+    setPage(1)
+  }
+
+  const activeFilters: FilterChip[] = []
+  if (sistemaId !== ALL) {
+    const s = (sistemas as any[]).find((x) => x.id === sistemaId)
+    activeFilters.push({
+      id: "sistema",
+      label: `Sistema: ${s ? `${s.codigo} — ${s.nombre}` : "—"}`,
+      onRemove: () => { setSistemaId(ALL); setPage(1) },
+    })
+  }
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -50,7 +92,7 @@ export default function SubSistemasPage() {
       <EditSubSistemaSheet />
 
       <div className="space-y-4">
-        {/* Buscador + Nuevo */}
+        {/* Buscador + Nuevo + Filtros */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -61,11 +103,53 @@ export default function SubSistemasPage() {
               className="pl-9"
             />
           </div>
-          <Button onClick={open} className="gap-2 ml-auto">
-            <Plus className="h-4 w-4" />
-            Nuevo subsistema
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nuevo subsistema
+            </Button>
+            <FiltersTrigger
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+              activeCount={activeFilters.length}
+            />
+          </div>
         </div>
+
+        {/* Chips de filtros activos */}
+        <FiltersChips activeFilters={activeFilters} onClearAll={clearFiltros} />
+
+        {/* Sheet con los controles */}
+        <FiltersSheet
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          onClearAll={clearFiltros}
+          hasActiveFilters={activeFilters.length > 0}
+        >
+          <FilterField label="Sistema">
+            <Select
+              value={sistemaId}
+              onValueChange={(v) => { setSistemaId(v); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {sistemaId === ALL
+                    ? "Todos los sistemas"
+                    : (() => {
+                        const s = (sistemas as any[]).find((x) => x.id === sistemaId)
+                        return s ? `${s.codigo} — ${s.nombre}` : "Sistema"
+                      })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los sistemas</SelectItem>
+                {(sistemas as any[]).map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </FiltersSheet>
 
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>
