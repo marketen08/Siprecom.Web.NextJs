@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useRef, useEffect, useState, Suspense } from "react"
 import { useParams } from "next/navigation"
 import {
   Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
+  Users, Search, User as UserIcon,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -18,6 +19,9 @@ import { useSincronizarFirmasProyecto } from "@/features/proyectos/api/use-sincr
 import { useGetUsuariosRoles } from "@/features/proyectos/api/use-get-usuarios-roles"
 import { useAsignarUsuarioRol } from "@/features/proyectos/api/use-asignar-usuario-rol"
 import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario-rol"
+import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
+import { useAddUsuarioProyecto } from "@/features/proyectos/api/use-add-usuario-proyecto"
+import { useRemoveUsuarioProyecto } from "@/features/proyectos/api/use-remove-usuario-proyecto"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import type { FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
@@ -40,12 +44,13 @@ import { Separator } from "@/components/ui/separator"
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "general" | "permisos" | "firmas"
+type Tab = "general" | "configuracion" | "usuarios" | "firmas"
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "general",  label: "Datos generales",  icon: <Settings  className="h-4 w-4" /> },
-  { id: "permisos", label: "Permisos",          icon: <ShieldCheck className="h-4 w-4" /> },
-  { id: "firmas",   label: "Firmas",            icon: <PenLine   className="h-4 w-4" /> },
+  { id: "general",       label: "Datos generales", icon: <Settings    className="h-4 w-4" /> },
+  { id: "configuracion", label: "Configuración",   icon: <ShieldCheck className="h-4 w-4" /> },
+  { id: "usuarios",      label: "Usuarios",        icon: <Users       className="h-4 w-4" /> },
+  { id: "firmas",        label: "Firmas",          icon: <PenLine     className="h-4 w-4" /> },
 ]
 
 // ─── Página ───────────────────────────────────────────────────────────────────
@@ -109,9 +114,10 @@ function ProyectoDetailContent() {
 
       {/* Contenido */}
       <div>
-        {tab === "general"  && <TabGeneral  proyecto={proyecto} />}
-        {tab === "permisos" && <TabPermisos proyecto={proyecto} />}
-        {tab === "firmas"   && <TabFirmas   proyectoId={id} />}
+        {tab === "general"       && <TabGeneral       proyecto={proyecto} />}
+        {tab === "configuracion" && <TabConfiguracion proyecto={proyecto} />}
+        {tab === "usuarios"      && <TabUsuarios      proyectoId={id} />}
+        {tab === "firmas"        && <TabFirmas        proyectoId={id} />}
       </div>
     </div>
   )
@@ -146,7 +152,7 @@ function TabGeneral({ proyecto }: { proyecto: Proyecto }) {
   )
 }
 
-// ─── Tab Permisos ─────────────────────────────────────────────────────────────
+// ─── Tab Configuración ────────────────────────────────────────────────────────
 
 const FLAGS: { campo: string; label: string; descripcion: string }[] = [
   {
@@ -196,7 +202,7 @@ const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermitirTestFuncional:           "permitirTestFuncional",
 }
 
-function TabPermisos({ proyecto }: { proyecto: Proyecto }) {
+function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
   const updateFlag = useUpdateProyectoFlag(proyecto.id)
   const [saving, setSaving] = useState<string | null>(null)
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>(
@@ -241,6 +247,175 @@ function TabPermisos({ proyecto }: { proyecto: Proyecto }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Tab Usuarios ─────────────────────────────────────────────────────────────
+
+function TabUsuarios({ proyectoId }: { proyectoId: string }) {
+  const { data: asignadosData, isLoading } = useGetProyectoUsuarios(proyectoId)
+  const addMutation = useAddUsuarioProyecto(proyectoId)
+  const removeMutation = useRemoveUsuarioProyecto(proyectoId)
+
+  const asignados = Array.isArray(asignadosData) ? asignadosData : []
+  const asignadosIds = new Set(asignados.map((u) => u.usuarioId))
+
+  return (
+    <div className="space-y-4 max-w-lg">
+      <p className="text-sm text-muted-foreground">
+        Usuarios con acceso a este proyecto. El indicador "Activo" significa que es el proyecto actualmente seleccionado por el usuario al iniciar sesión.
+      </p>
+
+      {/* Buscador para agregar */}
+      <UsuarioCombobox
+        asignadosIds={asignadosIds}
+        onAdd={(usuarioId) => addMutation.mutate(usuarioId)}
+        isPending={addMutation.isPending}
+      />
+
+      {/* Lista */}
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+        </div>
+      ) : asignados.length === 0 ? (
+        <div className="rounded-lg border border-dashed bg-gray-50 p-6 text-center text-sm text-muted-foreground">
+          Sin usuarios asignados. Usá el buscador para agregar.
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {asignados.map((u) => {
+            const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ")
+            return (
+              <div
+                key={u.usuarioId}
+                className="flex items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <UserIcon className="h-4 w-4 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {fullName || u.userName}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                  </div>
+                  {u.esActivo && (
+                    <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
+                      Activo
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeMutation.mutate(u.usuarioId)}
+                  disabled={removeMutation.isPending}
+                  className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                  aria-label="Quitar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Combobox de usuarios ─────────────────────────────────────────────────────
+
+function UsuarioCombobox({
+  asignadosIds, onAdd, isPending,
+}: {
+  asignadosIds: Set<string>
+  onAdd: (id: string) => void
+  isPending: boolean
+}) {
+  const [search, setSearch] = useState("")
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const { data, isFetching } = useGetUsuarios({ nombre: search || undefined, pageSize: 10, page: 1 })
+  const resultados = (data as any)?.data ?? []
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
+        setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar usuario para agregar..."
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          className="pl-9"
+          autoComplete="off"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => { setSearch(""); setOpen(false) }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
+          {isFetching && resultados.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Buscando...</p>
+          ) : resultados.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {search ? "Sin resultados." : "Escribí para buscar usuarios."}
+            </p>
+          ) : (
+            <ul className="divide-y max-h-56 overflow-y-auto">
+              {resultados.map((u: any) => {
+                const yaAsignado = asignadosIds.has(u.id)
+                const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ")
+                return (
+                  <li key={u.id} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-50">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <UserIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{fullName || u.userName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                      </div>
+                    </div>
+                    {yaAsignado ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded shrink-0">
+                        Asignado
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs shrink-0"
+                        disabled={isPending}
+                        onClick={() => { onAdd(u.id); setOpen(false); setSearch("") }}
+                      >
+                        Agregar
+                      </Button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }
