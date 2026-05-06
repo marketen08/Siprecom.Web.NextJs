@@ -1,12 +1,13 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Pencil, Settings, Trash2 } from "lucide-react"
+import { Copy, Pencil, Settings, Trash2 } from "lucide-react"
 import Link from "next/link"
 
 import type { Planilla } from "@/features/planillas/types"
 import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
 import { useDeletePlanilla } from "@/features/planillas/api/use-delete-planilla"
+import { useClonePlanilla } from "@/features/planillas/api/use-clone-planilla"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +25,7 @@ import {
 function RowActions({ planilla }: { planilla: Planilla }) {
   const { open } = useOpenPlanilla()
   const deleteMutation = useDeletePlanilla()
+  const cloneMutation = useClonePlanilla()
 
   return (
     <div className="flex items-center gap-1 justify-end">
@@ -48,6 +50,30 @@ function RowActions({ planilla }: { planilla: Planilla }) {
           <Settings className="h-4 w-4" />
         </Link>
       </Button>
+
+      <AlertDialog>
+        <AlertDialogTrigger
+          className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors"
+          title="Clonar"
+          disabled={cloneMutation.isPending}
+        >
+          <Copy className="h-4 w-4" />
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Clonar planilla?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo "(copia)" en el nombre.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => cloneMutation.mutate(planilla.id)}>
+              Clonar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog>
         <AlertDialogTrigger className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors">
