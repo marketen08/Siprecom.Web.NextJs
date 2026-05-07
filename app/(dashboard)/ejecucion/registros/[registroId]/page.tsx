@@ -648,9 +648,11 @@ function CampoInput({
       break
     case 4: // Boolean
       input = (
-        <Select value={value} onValueChange={onChange} disabled={readOnly}>
+        <Select value={value} onValueChange={(v) => onChange(v ?? "")} disabled={readOnly}>
           <SelectTrigger>
-            <SelectValue placeholder="Seleccioná..." />
+            <SelectValue placeholder="Seleccioná...">
+              {value === "true" ? "Sí" : value === "false" ? "No" : "Seleccioná..."}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="true">Sí</SelectItem>
@@ -659,22 +661,54 @@ function CampoInput({
         </Select>
       )
       break
-    case 5: // Lista
-      input = (
-        <Select value={value} onValueChange={onChange} disabled={readOnly}>
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccioná una opción..." />
-          </SelectTrigger>
-          <SelectContent>
-            {campo.opciones.sort((a, b) => a.orden - b.orden).map((op) => (
-              <SelectItem key={op.id} value={op.valor}>
-                {op.etiqueta}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )
+    case 5: { // Lista
+      const opcionesOrdenadas = [...campo.opciones].sort((a, b) => a.orden - b.orden)
+      // Pocas opciones (típico de checklists Sí/No/N/A): pill-buttons inline para ver todo de un vistazo.
+      // Listas largas: dropdown.
+      if (opcionesOrdenadas.length > 0 && opcionesOrdenadas.length <= 4) {
+        input = (
+          <div className="flex flex-wrap gap-2">
+            {opcionesOrdenadas.map((op) => {
+              const selected = value === op.valor
+              return (
+                <button
+                  key={op.id}
+                  type="button"
+                  onClick={() => !readOnly && onChange(op.valor)}
+                  disabled={readOnly}
+                  className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                    selected
+                      ? "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {op.etiqueta}
+                </button>
+              )
+            })}
+          </div>
+        )
+      } else {
+        const selectedLabel = opcionesOrdenadas.find((op) => op.valor === value)?.etiqueta
+        input = (
+          <Select value={value} onValueChange={(v) => onChange(v ?? "")} disabled={readOnly}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccioná una opción...">
+                {selectedLabel ?? "Seleccioná una opción..."}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {opcionesOrdenadas.map((op) => (
+                <SelectItem key={op.id} value={op.valor}>
+                  {op.etiqueta}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )
+      }
       break
+    }
     case 6: // Firma — manejada por separado
       return (
         <div className="space-y-1">
