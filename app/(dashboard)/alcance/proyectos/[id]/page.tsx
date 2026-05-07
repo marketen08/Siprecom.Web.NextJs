@@ -26,19 +26,9 @@ import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import type { FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 
 import { Button } from "@/components/ui/button"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 
@@ -535,28 +525,25 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
               La nueva configuración no se aplicará a esos registros hasta que los sincronices.
             </p>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-yellow-400 bg-white px-3 py-1.5 text-sm font-medium text-yellow-800 hover:bg-yellow-100 transition-colors">
-              <RefreshCw className="h-3.5 w-3.5" />
-              Aplicar a registros
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Sincronizar firmas en registros existentes?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esto actualizará los slots de firma de <strong>{registrosPendientes} registro{registrosPendientes !== 1 ? "s" : ""}</strong> en estado Completado,
-                  aplicando la configuración actual. Las firmas ya registradas no se modificarán.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleSincronizar} disabled={sincronizar.isPending}>
-                  {sincronizar.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Sincronizar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <ConfirmActionDialog
+            trigger={
+              <>
+                <RefreshCw className="h-3.5 w-3.5" />
+                Aplicar a registros
+              </>
+            }
+            triggerClassName="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-yellow-400 bg-white px-3 py-1.5 text-sm font-medium text-yellow-800 hover:bg-yellow-100 transition-colors"
+            title="¿Sincronizar firmas en registros existentes?"
+            description={
+              <>
+                Esto actualizará los slots de firma de <strong>{registrosPendientes} registro{registrosPendientes !== 1 ? "s" : ""}</strong> en estado Completado,
+                aplicando la configuración actual. Las firmas ya registradas no se modificarán.
+              </>
+            }
+            confirmText="Sincronizar"
+            pendingText="Sincronizando..."
+            onConfirm={handleSincronizar}
+          />
         </div>
       )}
 
