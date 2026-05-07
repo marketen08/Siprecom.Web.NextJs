@@ -1,10 +1,12 @@
 "use client"
 
 import { use, useState } from "react"
-import { ArrowLeft, Plus } from "lucide-react"
-import Link from "next/link"
+import { Pencil, Plus } from "lucide-react"
 
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
+import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
+import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla-sheet"
 import { SeccionPanel } from "@/features/planilla-builder/components/seccion-panel"
 import { CampoCard } from "@/features/planilla-builder/components/campo-card"
 import { AddCampoModal } from "@/features/planilla-builder/components/add-campo-modal"
@@ -21,9 +23,22 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
 
   const [selectedSeccionId, setSelectedSeccionId] = useState<string | null>(null)
   const [addModalOpen, setAddModalOpen] = useState(false)
+  const { open: openEditPlanilla } = useOpenPlanilla()
 
   // Backend returns ServiceResult<PlanillaEstructuraDTO> — extract the data property
   const estructura = (estructuraResult as any)?.data ?? estructuraResult
+  const planillaNombre = (estructura as any)?.planilla?.nombre ?? null
+
+  // Breadcrumb dinámico: Alcance → Planillas (link) → {nombre planilla}
+  useBreadcrumb(
+    planillaNombre
+      ? [
+          { label: "Alcance" },
+          { label: "Planillas", href: "/alcance/planillas" },
+          { label: planillaNombre },
+        ]
+      : null
+  )
 
   if (isLoading) {
     return (
@@ -67,25 +82,31 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
         existingCampoIds={existingCampoIds}
         nextOrden={nextOrden}
       />
+      <EditPlanillaSheet />
 
       <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-            <Link href="/alcance/planillas">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{planilla.nombre}</h1>
-            {planilla.descripcion && (
-              <p className="text-sm text-muted-foreground mt-0.5">{planilla.descripcion}</p>
+        {/* Datos de la planilla */}
+        <div className="rounded-lg border bg-white p-4 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            {planilla.descripcion ? (
+              <p className="text-sm text-muted-foreground">{planilla.descripcion}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Sin descripción</p>
             )}
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 shrink-0"
+            onClick={() => openEditPlanilla(id)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Editar datos
+          </Button>
         </div>
 
         {/* Builder layout */}
-        <div className="flex gap-4 h-[calc(100vh-200px)]">
+        <div className="flex gap-4 h-[calc(100vh-280px)]">
           {/* Left: Secciones */}
           <div className="w-56 shrink-0 border rounded-lg p-3 bg-white overflow-hidden flex flex-col">
             <SeccionPanel
