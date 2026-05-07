@@ -43,6 +43,21 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   7: "Adjunto",
 }
 
+/** Cómo se renderiza un campo Lista en formularios y PDFs. Otros tipos lo ignoran. */
+export type CampoListaRenderMode = 0 | 1 | 2
+
+export const CAMPO_LISTA_RENDER_MODE = {
+  Auto: 0,
+  Inline: 1,
+  Dropdown: 2,
+} as const
+
+export const CAMPO_LISTA_RENDER_MODE_LABEL: Record<CampoListaRenderMode, string> = {
+  0: "Automático (según cantidad de opciones)",
+  1: "Checklist (todas las opciones visibles)",
+  2: "Desplegable (select)",
+}
+
 export interface PlanillaCampoDetalle {
   id: string
   planillaId: string
@@ -60,6 +75,8 @@ export interface PlanillaCampoDetalle {
   visible: boolean
   soloLectura: boolean
   valorDefault?: string
+  /** Solo aplica cuando campoTipoDato === 5 (Lista). Default Auto. */
+  renderMode: CampoListaRenderMode
   opciones: CampoOpcion[]
 }
 
@@ -116,6 +133,7 @@ export interface PlanillaCampoCreateInput {
   visible: boolean
   soloLectura: boolean
   valorDefault?: string
+  renderMode?: CampoListaRenderMode
 }
 
 export interface PlanillaCampoUpdateInput {
@@ -128,4 +146,5 @@ export interface PlanillaCampoUpdateInput {
   visible: boolean
   soloLectura: boolean
   valorDefault?: string
+  renderMode?: CampoListaRenderMode
 }

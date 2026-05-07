@@ -3,12 +3,20 @@
 import { useState } from "react"
 import { Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 
-import type { PlanillaCampoDetalle, CampoTipoDato } from "@/features/planillas/types"
-import { CAMPO_TIPO_DATO } from "@/features/planillas/types"
+import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode } from "@/features/planillas/types"
+import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL } from "@/features/planillas/types"
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,6 +54,22 @@ export function CampoCard({ campo, planillaId }: CampoCardProps) {
       visible: field === "visible" ? value : campo.visible,
       soloLectura: field === "soloLectura" ? value : campo.soloLectura,
       valorDefault: campo.valorDefault,
+      renderMode: campo.renderMode,
+    })
+  }
+
+  const handleRenderModeChange = (value: CampoListaRenderMode) => {
+    updateMutation.mutate({
+      id: campo.id,
+      planillaId,
+      campoId: campo.campoId,
+      planillaSeccionId: campo.planillaSeccionId,
+      orden: campo.orden,
+      esObligatorio: campo.esObligatorio,
+      visible: campo.visible,
+      soloLectura: campo.soloLectura,
+      valorDefault: campo.valorDefault,
+      renderMode: value,
     })
   }
 
@@ -169,12 +193,36 @@ export function CampoCard({ campo, planillaId }: CampoCardProps) {
                     visible: campo.visible,
                     soloLectura: campo.soloLectura,
                     valorDefault: e.target.value || undefined,
+                    renderMode: campo.renderMode,
                   })
                 }
               }}
               disabled={updateMutation.isPending}
             />
           </div>
+
+          {/* Render mode (only for Lista) */}
+          {isLista && (
+            <div className="space-y-1">
+              <Label className="text-xs">Cómo se muestra esta lista</Label>
+              <Select
+                value={String(campo.renderMode ?? 0)}
+                onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
+                disabled={updateMutation.isPending}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue>
+                    {CAMPO_LISTA_RENDER_MODE_LABEL[campo.renderMode ?? 0]}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Opciones (only for Lista) */}
           {isLista && (

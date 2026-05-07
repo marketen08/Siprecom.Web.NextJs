@@ -663,9 +663,13 @@ function CampoInput({
       break
     case 5: { // Lista
       const opcionesOrdenadas = [...campo.opciones].sort((a, b) => a.orden - b.orden)
-      // Pocas opciones (típico de checklists Sí/No/N/A): pill-buttons inline para ver todo de un vistazo.
-      // Listas largas: dropdown.
-      if (opcionesOrdenadas.length > 0 && opcionesOrdenadas.length <= 4) {
+      // renderMode explícito (1=Inline, 2=Dropdown) gana sobre la heurística.
+      // Auto (0): pocas opciones (≤4) → pill-buttons inline; muchas → dropdown.
+      const useInline =
+        campo.renderMode === 1 ||
+        (campo.renderMode !== 2 && opcionesOrdenadas.length > 0 && opcionesOrdenadas.length <= 4)
+
+      if (useInline) {
         input = (
           <div className="flex flex-wrap gap-2">
             {opcionesOrdenadas.map((op) => {
