@@ -663,10 +663,12 @@ function CampoInput({
       break
     case 5: { // Lista
       const opcionesOrdenadas = [...campo.opciones].sort((a, b) => a.orden - b.orden)
-      // renderMode explícito (1=Inline, 2=Dropdown) gana sobre la heurística.
-      // Auto (0): pocas opciones (≤4) → pill-buttons inline; muchas → dropdown.
+      // renderMode: 0=Auto, 1=Inline, 2=Dropdown, 3=Checklist.
+      // En web Checklist se renderiza como Inline (la "tabla agrupada" es solo del PDF).
+      // Auto: pocas opciones (≤4) → inline; muchas → dropdown.
       const useInline =
         campo.renderMode === 1 ||
+        campo.renderMode === 3 ||
         (campo.renderMode !== 2 && opcionesOrdenadas.length > 0 && opcionesOrdenadas.length <= 4)
 
       if (useInline) {

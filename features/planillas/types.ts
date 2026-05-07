@@ -44,18 +44,20 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
 }
 
 /** Cómo se renderiza un campo Lista en formularios y PDFs. Otros tipos lo ignoran. */
-export type CampoListaRenderMode = 0 | 1 | 2
+export type CampoListaRenderMode = 0 | 1 | 2 | 3
 
 export const CAMPO_LISTA_RENDER_MODE = {
   Auto: 0,
   Inline: 1,
   Dropdown: 2,
+  Checklist: 3,
 } as const
 
 export const CAMPO_LISTA_RENDER_MODE_LABEL: Record<CampoListaRenderMode, string> = {
   0: "Automático (según cantidad de opciones)",
-  1: "Checklist (todas las opciones visibles)",
+  1: "Inline (opciones visibles separadas)",
   2: "Desplegable (select)",
+  3: "Checklist (tabla agrupada con columnas)",
 }
 
 export interface PlanillaCampoDetalle {

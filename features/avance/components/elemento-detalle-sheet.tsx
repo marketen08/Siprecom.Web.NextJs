@@ -414,8 +414,8 @@ function buildTareaMenuItems({
   // Planilla en blanco — siempre que haya planilla
   if (tarea.planillaId) {
     if (items.length > 0) items.push({ kind: "separator" })
-    const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}`
-    const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/checklist/blanco/${tarea.id}/preview`
+    const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}`
+    const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
     items.push({ kind: "item", label: "Descargar planilla", icon: Download, onSelect: () => triggerDownload(urlDescarga) })
     items.push({ kind: "item", label: "Vista previa", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
   }
