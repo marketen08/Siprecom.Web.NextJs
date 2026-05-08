@@ -20,7 +20,7 @@ import {
   type CampoListaRenderMode,
   type PlanillaSeccion,
 } from "@/features/planillas/types"
-import { ImageIcon, Trash2, Plus } from "lucide-react"
+import { ArrowDown, ArrowUp, ImageIcon, Trash2, Plus } from "lucide-react"
 
 import {
   Sheet,
@@ -211,6 +211,16 @@ export function AddCampoModal({
 
   const handleRemoveOpcion = (index: number) => {
     setTempOpciones((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleMoveOpcion = (index: number, dir: -1 | 1) => {
+    setTempOpciones((prev) => {
+      const target = index + dir
+      if (target < 0 || target >= prev.length) return prev
+      const next = [...prev]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
   }
 
   const isPending = createCampoMutation.isPending || createOpcionMutation.isPending || addCampoMutation.isPending
@@ -548,9 +558,27 @@ export function AddCampoModal({
                     {tempOpciones.length > 0 && (
                       <div className="space-y-1">
                         {tempOpciones.map((op, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs bg-white border rounded px-2 py-1">
+                          <div key={i} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
                             <span className="font-mono text-gray-500 shrink-0">{op.valor}</span>
                             <span className="flex-1 truncate">{op.etiqueta}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveOpcion(i, -1)}
+                              disabled={i === 0}
+                              className="text-gray-400 hover:text-gray-700 shrink-0 disabled:opacity-30 disabled:hover:text-gray-400"
+                              aria-label="Mover arriba"
+                            >
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveOpcion(i, 1)}
+                              disabled={i === tempOpciones.length - 1}
+                              className="text-gray-400 hover:text-gray-700 shrink-0 disabled:opacity-30 disabled:hover:text-gray-400"
+                              aria-label="Mover abajo"
+                            >
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleRemoveOpcion(i)}

@@ -8,6 +8,7 @@ import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_TAMANO_OPCIONES }
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
+import { useUpdateOpcion } from "@/features/campos/api/use-update-opcion"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
 
 import {
@@ -42,6 +43,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
   const removeMutation = useRemoveCampo()
   const updateMutation = useUpdateCampo()
   const createOpcionMutation = useCreateOpcion()
+  const updateOpcionMutation = useUpdateOpcion()
   const deleteOpcionMutation = useDeleteOpcion()
 
   const tipoDatoLabel = CAMPO_TIPO_DATO[campo.campoTipoDato as CampoTipoDato] ?? "—"
@@ -108,6 +110,22 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
 
   const handleMoveUp = () => { if (previousCampo) swapOrden(previousCampo) }
   const handleMoveDown = () => { if (nextCampo) swapOrden(nextCampo) }
+
+  // Swap del orden entre dos opciones de Lista. El campo Orden de CampoOpcion no es UNIQUE,
+  // así que dos updates seguidos funcionan sin colisión.
+  const swapOpcionOrden = async (i: number, dir: -1 | 1) => {
+    const opciones = [...campo.opciones].sort((a, b) => a.orden - b.orden)
+    const j = i + dir
+    if (j < 0 || j >= opciones.length) return
+    const a = opciones[i]
+    const b = opciones[j]
+    await updateOpcionMutation.mutateAsync({
+      id: a.id, campoId: campo.campoId, valor: a.valor, etiqueta: a.etiqueta, orden: b.orden,
+    })
+    await updateOpcionMutation.mutateAsync({
+      id: b.id, campoId: campo.campoId, valor: b.valor, etiqueta: b.etiqueta, orden: a.orden,
+    })
+  }
 
   const handleAddOpcion = () => {
     if (!newOpcionValor.trim() || !newOpcionEtiqueta.trim()) return
@@ -367,10 +385,30 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
               </div>
 
               <div className="space-y-1">
-                {campo.opciones.map((o) => (
-                  <div key={o.id} className="flex items-center gap-2 text-xs bg-white border rounded px-2 py-1">
+                {[...campo.opciones].sort((a, b) => a.orden - b.orden).map((o, i, arr) => (
+                  <div key={o.id} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
                     <span className="font-mono text-gray-500">{o.valor}</span>
                     <span className="flex-1">{o.etiqueta}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => swapOpcionOrden(i, -1)}
+                      disabled={i === 0 || updateOpcionMutation.isPending}
+                      title="Mover arriba"
+                    >
+                      <ArrowUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => swapOpcionOrden(i, 1)}
+                      disabled={i === arr.length - 1 || updateOpcionMutation.isPending}
+                      title="Mover abajo"
+                    >
+                      <ArrowDown className="h-3 w-3" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
