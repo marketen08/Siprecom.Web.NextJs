@@ -1,7 +1,7 @@
 "use client"
 
 import { use, useState } from "react"
-import { Pencil, Plus } from "lucide-react"
+import { Download, Pencil, Plus } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
@@ -94,15 +94,42 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
               <p className="text-sm text-muted-foreground italic">Sin descripción</p>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 shrink-0"
-            onClick={() => openEditPlanilla(id)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Editar datos
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* La planilla está "vacía" si no tiene secciones ni campos.
+                En ese caso el PDF saldría sin contenido útil, así que deshabilitamos la descarga. */}
+            {secciones.length === 0 && campos.length === 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled
+                title="Agregá al menos una sección o un campo para descargar el PDF"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Descargar PDF
+              </Button>
+            ) : (
+              <a
+                href={`/api/planillas/${id}/pdf/blanco`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Download className="h-3.5 w-3.5" />
+                  Descargar PDF
+                </Button>
+              </a>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => openEditPlanilla(id)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Editar datos
+            </Button>
+          </div>
         </div>
 
         {/* Builder layout */}
