@@ -8,8 +8,16 @@ export interface Campo {
   tipoDatoNombre?: string
   unidad?: string
   descripcion?: string
+  /** Cantidad de planillas activas que usan este campo. */
+  usoCount?: number
   createdAt: string
   updatedAt: string
+}
+
+export interface CampoUsoPlanilla {
+  planillaId: string
+  planillaCodigo?: string
+  planillaNombre: string
 }
 
 export interface CampoCreateInput {

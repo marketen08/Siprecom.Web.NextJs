@@ -63,6 +63,7 @@ export const menu: MenuItem[] = [
       { label: "Clientes",          href: "/configuracion/clientes" },
       { label: "Contratistas",      href: "/configuracion/contratistas" },
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
+      { label: "Campos",            href: "/configuracion/campos" },
       { label: "Procedimientos",    href: "/configuracion/procedimientos" },
     ],
   },
