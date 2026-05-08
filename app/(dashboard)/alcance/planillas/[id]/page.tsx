@@ -6,7 +6,9 @@ import { Download, Pencil, Plus } from "lucide-react"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
 import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
+import { useOpenSeccion } from "@/features/planillas/hooks/use-open-seccion"
 import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla-sheet"
+import { EditSeccionSheet } from "@/features/planillas/components/edit-seccion-sheet"
 import { SeccionPanel } from "@/features/planilla-builder/components/seccion-panel"
 import { CampoCard } from "@/features/planilla-builder/components/campo-card"
 import { AddCampoModal } from "@/features/planilla-builder/components/add-campo-modal"
@@ -24,6 +26,7 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
   const [selectedSeccionId, setSelectedSeccionId] = useState<string | null>(null)
   const [addModalOpen, setAddModalOpen] = useState(false)
   const { open: openEditPlanilla } = useOpenPlanilla()
+  const { open: openEditSeccion } = useOpenSeccion()
 
   // Backend returns ServiceResult<PlanillaEstructuraDTO> — extract the data property
   const estructura = (estructuraResult as any)?.data ?? estructuraResult
@@ -83,6 +86,7 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
         nextOrden={nextOrden}
       />
       <EditPlanillaSheet />
+      <EditSeccionSheet secciones={secciones} planillaId={id} />
 
       <div className="space-y-4">
         {/* Datos de la planilla */}
@@ -147,14 +151,35 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
           {/* Right: Campos */}
           <div className="flex-1 border rounded-lg bg-white overflow-hidden flex flex-col">
             {/* Campos header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700">
-                  {selectedSeccionId
-                    ? secciones.find((s) => s.id === selectedSeccionId)?.nombre ?? "Sección"
-                    : "Sin sección"}
-                </h3>
-                <p className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-gray-700 truncate">
+                    {selectedSeccionId
+                      ? secciones.find((s) => s.id === selectedSeccionId)?.nombre ?? "Sección"
+                      : "Sin sección"}
+                  </h3>
+                  {selectedSeccionId && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      title="Editar sección"
+                      onClick={() => openEditSeccion(selectedSeccionId)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                {(() => {
+                  const desc = selectedSeccionId
+                    ? secciones.find((s) => s.id === selectedSeccionId)?.descripcion
+                    : null
+                  return desc ? (
+                    <p className="text-xs text-muted-foreground italic mt-0.5 line-clamp-2">{desc}</p>
+                  ) : null
+                })()}
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {camposEnSeccion.length} campo{camposEnSeccion.length !== 1 ? "s" : ""}
                 </p>
               </div>

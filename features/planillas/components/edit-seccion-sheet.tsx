@@ -1,0 +1,120 @@
+"use client"
+
+import { useEffect, useState } from "react"
+
+import { useOpenSeccion } from "../hooks/use-open-seccion"
+import { useUpdateSeccion } from "../api/use-update-seccion"
+import type { PlanillaSeccion } from "../types"
+
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+
+interface EditSeccionSheetProps {
+  /** Lista completa de secciones de la planilla (la actual se busca por id). */
+  secciones: PlanillaSeccion[]
+  planillaId: string
+}
+
+export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProps) {
+  const { id, isOpen, close } = useOpenSeccion()
+  const seccion = secciones.find((s) => s.id === id) ?? null
+
+  const [nombre, setNombre] = useState("")
+  const [descripcion, setDescripcion] = useState("")
+
+  const mutation = useUpdateSeccion()
+
+  // Hidratar form cada vez que cambia la sección a editar.
+  useEffect(() => {
+    if (seccion) {
+      setNombre(seccion.nombre)
+      setDescripcion(seccion.descripcion ?? "")
+    }
+  }, [seccion?.id, seccion?.nombre, seccion?.descripcion])
+
+  const handleSave = () => {
+    if (!seccion || !nombre.trim()) return
+    mutation.mutate(
+      {
+        id: seccion.id,
+        planillaId,
+        nombre: nombre.trim(),
+        descripcion: descripcion.trim() || undefined,
+        orden: seccion.orden,
+      },
+      { onSuccess: close }
+    )
+  }
+
+  return (
+    <Sheet open={isOpen} onOpenChange={close}>
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Editar sección</SheetTitle>
+          <SheetDescription>
+            Modificá el nombre y la descripción. Estos cambios afectan solo a esta planilla.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="mt-6 px-4 pb-6 space-y-4">
+          {!seccion ? (
+            <p className="text-sm text-muted-foreground">Cargando...</p>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="seccion-nombre">Nombre *</Label>
+                <Input
+                  id="seccion-nombre"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Datos generales"
+                  disabled={mutation.isPending}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="seccion-descripcion">Descripción</Label>
+                <Textarea
+                  id="seccion-descripcion"
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder="Notas o ayuda para esta sección (opcional)"
+                  rows={4}
+                  disabled={mutation.isPending}
+                />
+              </div>
+
+              {mutation.isError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">
+                  {(mutation.error as Error)?.message ?? "Error al guardar."}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  className="flex-1 bg-blue-900 hover:bg-blue-800"
+                  onClick={handleSave}
+                  disabled={mutation.isPending || !nombre.trim()}
+                >
+                  {mutation.isPending ? "Guardando..." : "Guardar"}
+                </Button>
+                <Button variant="outline" onClick={close} disabled={mutation.isPending}>
+                  Cancelar
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
