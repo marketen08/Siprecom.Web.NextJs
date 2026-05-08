@@ -3,8 +3,7 @@ import type { CampoOpcion, CampoTipoDato } from "@/features/planillas/types"
 export interface Campo {
   id: string
   codigo: string
-  nombre: string
-  etiqueta?: string
+  etiqueta: string
   tipoDato: CampoTipoDato
   tipoDatoNombre?: string
   unidad?: string
@@ -15,8 +14,7 @@ export interface Campo {
 
 export interface CampoCreateInput {
   codigo: string
-  nombre: string
-  etiqueta?: string
+  etiqueta: string
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string
@@ -25,8 +23,7 @@ export interface CampoCreateInput {
 export interface CampoUpdateInput {
   id: string
   codigo: string
-  nombre: string
-  etiqueta?: string
+  etiqueta: string
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string

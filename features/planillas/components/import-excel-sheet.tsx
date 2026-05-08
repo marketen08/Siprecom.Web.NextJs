@@ -228,8 +228,8 @@ export function ImportExcelSheet({ open, onClose }: Props) {
           const campo = camposActivos[i]
           setProgreso(`Creando campo "${campo.etiqueta}"...`)
 
-          // Generar código único a partir del nombre
-          const codigo = campo.nombre
+          // Generar código único a partir de la etiqueta
+          const codigo = campo.etiqueta
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, "_")
             .replace(/_+/g, "_")
@@ -237,7 +237,6 @@ export function ImportExcelSheet({ open, onClose }: Props) {
 
           const campoResp = await apiClient.post<{ data: { id: string } }>("/api/campos", {
             codigo: `${codigo}_${Date.now()}`,
-            nombre: campo.nombre,
             etiqueta: campo.etiqueta,
             tipoDato: campo.tipoDato,
             esObligatorioDefault: campo.esObligatorio,
@@ -410,7 +409,6 @@ export function ImportExcelSheet({ open, onClose }: Props) {
                                   onChange={(e) =>
                                     setCampo(seccion._id, campo._id, {
                                       etiqueta: e.target.value,
-                                      nombre: e.target.value,
                                     })
                                   }
                                   className="h-7 text-sm border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"

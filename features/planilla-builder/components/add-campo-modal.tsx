@@ -85,7 +85,6 @@ export function AddCampoModal({
     resolver: zodResolver(campoSchema),
     defaultValues: {
       codigo: "",
-      nombre: "",
       etiqueta: "",
       tipoDato: 1,
       unidad: "",
@@ -96,7 +95,7 @@ export function AddCampoModal({
   const availableCampos = campos.filter(
     (c) => !existingCampoIds.includes(c.id) &&
       (campoSearch === "" ||
-        c.nombre.toLowerCase().includes(campoSearch.toLowerCase()) ||
+        c.etiqueta.toLowerCase().includes(campoSearch.toLowerCase()) ||
         c.codigo.toLowerCase().includes(campoSearch.toLowerCase()))
   )
 
@@ -171,6 +170,19 @@ export function AddCampoModal({
     if (!opcionInput.valor.trim() || !opcionInput.etiqueta.trim()) return
     setTempOpciones((prev) => [...prev, { valor: opcionInput.valor.trim(), etiqueta: opcionInput.etiqueta.trim() }])
     setOpcionInput({ valor: "", etiqueta: "" })
+  }
+
+  // Si elige Checklist y aún no cargó opciones, sugerir SI/NO/NA por defecto
+  // (solo aplica al tab "Nuevo"; en "Existente" las opciones ya están definidas en el Campo).
+  const handleRenderModeChange = (next: CampoListaRenderMode) => {
+    setRenderMode(next)
+    if (tab === "new" && next === 3 && tempOpciones.length === 0) {
+      setTempOpciones([
+        { valor: "SI", etiqueta: "Sí" },
+        { valor: "NO", etiqueta: "No" },
+        { valor: "NA", etiqueta: "No Aplica" },
+      ])
+    }
   }
 
   const handleRemoveOpcion = (index: number) => {
@@ -260,7 +272,7 @@ export function AddCampoModal({
                           : "hover:bg-gray-50"
                       )}
                     >
-                      <span className="font-medium">{c.nombre}</span>
+                      <span className="font-medium">{c.etiqueta}</span>
                       <span className="ml-2 text-xs text-muted-foreground font-mono">{c.codigo}</span>
                       <span className="ml-2 text-xs text-muted-foreground">
                         {CAMPO_TIPO_DATO[c.tipoDato as CampoTipoDato]}
@@ -274,7 +286,7 @@ export function AddCampoModal({
                   <Label className="text-xs">Cómo se muestra esta lista</Label>
                   <Select
                     value={String(renderMode)}
-                    onValueChange={(v) => setRenderMode(Number(v) as CampoListaRenderMode)}
+                    onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
                     disabled={isPending}
                   >
                     <SelectTrigger className="h-8 text-sm">
@@ -349,21 +361,7 @@ export function AddCampoModal({
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="nombre"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Temperatura de aceite" disabled={isPending} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-[2fr_1fr] gap-3">
                   <FormField
                     control={form.control}
                     name="etiqueta"
@@ -371,7 +369,7 @@ export function AddCampoModal({
                       <FormItem>
                         <FormLabel>Etiqueta</FormLabel>
                         <FormControl>
-                          <Input placeholder="Temp. aceite" disabled={isPending} {...field} />
+                          <Input placeholder="Temperatura de aceite" disabled={isPending} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -455,7 +453,7 @@ export function AddCampoModal({
                       <Label className="text-xs">Cómo se muestra</Label>
                       <Select
                         value={String(renderMode)}
-                        onValueChange={(v) => setRenderMode(Number(v) as CampoListaRenderMode)}
+                        onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
                         disabled={isPending}
                       >
                         <SelectTrigger className="h-8 text-sm">

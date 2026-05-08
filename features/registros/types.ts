@@ -2,7 +2,6 @@ export interface RegistroValor {
   id: string
   registroId: string
   planillaCampoId: string
-  campoNombre: string
   campoEtiqueta: string
   valorTexto: string | null
   valorNumero: number | null

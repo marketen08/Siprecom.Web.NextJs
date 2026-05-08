@@ -67,7 +67,6 @@ export interface PlanillaCampoDetalle {
   planillaSeccionNombre?: string
   campoId: string
   campoCodigo?: string
-  campoNombre?: string
   campoEtiqueta?: string
   campoTipoDato: CampoTipoDato
   campoTipoDatoNombre?: string

@@ -614,7 +614,7 @@ function CampoInput({
 }) {
   const label = (
     <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-      {campo.campoEtiqueta || campo.campoNombre}
+      {campo.campoEtiqueta}
       {campo.esObligatorio && <span className="text-red-500">*</span>}
       {campo.campoUnidad && (
         <span className="text-xs text-muted-foreground font-normal">({campo.campoUnidad})</span>

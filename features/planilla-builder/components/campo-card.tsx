@@ -101,7 +101,7 @@ export function CampoCard({ campo, planillaId }: CampoCardProps) {
       <div className="flex items-center gap-2 px-3 py-2.5">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-sm">{campo.campoNombre || campo.campoEtiqueta}</span>
+            <span className="font-medium text-sm">{campo.campoEtiqueta}</span>
             <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-mono shrink-0">
               {campo.campoCodigo}
             </span>
@@ -128,7 +128,7 @@ export function CampoCard({ campo, planillaId }: CampoCardProps) {
             title="¿Quitar campo?"
             description={
               <>
-                Se quitará <strong>{campo.campoNombre}</strong> de esta planilla. El campo global no se elimina.
+                Se quitará <strong>{campo.campoEtiqueta}</strong> de esta planilla. El campo global no se elimina.
               </>
             }
             confirmText="Quitar"

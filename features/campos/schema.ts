@@ -2,8 +2,7 @@ import { z } from "zod"
 
 export const campoSchema = z.object({
   codigo: z.string().min(1, "El código es requerido"),
-  nombre: z.string().min(1, "El nombre es requerido"),
-  etiqueta: z.string().optional(),
+  etiqueta: z.string().min(1, "La etiqueta es requerida"),
   tipoDato: z.coerce.number().min(1).max(7),
   unidad: z.string().optional(),
   descripcion: z.string().optional(),
