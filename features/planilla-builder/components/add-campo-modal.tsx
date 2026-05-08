@@ -133,7 +133,10 @@ export function AddCampoModal({
 
   const handleCreateAndAdd = async (values: CampoFormValues) => {
     try {
-      const res: any = await createCampoMutation.mutateAsync(values)
+      const res: any = await createCampoMutation.mutateAsync({
+        ...values,
+        tipoDato: values.tipoDato as CampoTipoDato,
+      })
       const newCampoId = res?.data?.id ?? res?.id
       if (!newCampoId) return
 
@@ -193,7 +196,7 @@ export function AddCampoModal({
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Agregar campo</SheetTitle>
           <SheetDescription>
@@ -231,7 +234,7 @@ export function AddCampoModal({
           {/* Sección destino (shared) */}
           <div className="space-y-1.5">
             <Label>Sección destino</Label>
-            <Select value={seccionId} onValueChange={setSeccionId}>
+            <Select value={seccionId} onValueChange={(v) => setSeccionId(v ?? "__none__")}>
               <SelectTrigger>
                 <SelectValue placeholder="Sin sección">
                   {seccionId === "__none__"
