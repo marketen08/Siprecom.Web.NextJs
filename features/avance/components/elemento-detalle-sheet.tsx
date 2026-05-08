@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
+import { useReiniciarTarea } from "@/features/elementos-tareas/api/use-reiniciar-tarea"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { apiClient } from "@/lib/api-client"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
@@ -31,8 +32,18 @@ import {
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
-  MoreVertical, PenLine,
+  MoreVertical, PenLine, RotateCcw,
 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // ─── Tipo archivo ─────────────────────────────────────────────────────────────
 
@@ -57,6 +68,7 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
   const { data: elementoRaw, isLoading: loadingElemento } = useGetElemento(elementoId)
   const { data: tareasRaw, isLoading: loadingTareas } = useGetElementosTareasPorElemento(elementoId)
   const iniciarMutation = useIniciarTarea()
+  const reiniciarMutation = useReiniciarTarea()
 
   const elemento = elementoRaw?.data
   const tareas = tareasRaw?.data ?? []
@@ -75,6 +87,10 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
       onClose()
       router.push(`/ejecucion/registros/${registroId}`)
     }
+  }
+
+  async function handleReiniciar(tarea: ElementoTarea) {
+    await reiniciarMutation.mutateAsync(tarea.id)
   }
 
   function handleAbrirFormulario(tarea: ElementoTarea) {
@@ -175,7 +191,9 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                         onIniciar={handleIniciar}
                         onAbrirFormulario={handleAbrirFormulario}
                         onCargarPdf={handleCargarPdf}
+                        onReiniciar={handleReiniciar}
                         isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
+                        isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
                         permitirFisico={permitirFisico}
                         permitirDigital={permitirDigital}
                       />
@@ -198,7 +216,9 @@ function TareaCard({
   onIniciar,
   onAbrirFormulario,
   onCargarPdf,
+  onReiniciar,
   isIniciando,
+  isReiniciando,
   permitirFisico,
   permitirDigital,
 }: {
@@ -206,11 +226,14 @@ function TareaCard({
   onIniciar: (t: ElementoTarea) => void
   onAbrirFormulario: (t: ElementoTarea) => void
   onCargarPdf: (t: ElementoTarea) => void
+  onReiniciar: (t: ElementoTarea) => Promise<void>
   isIniciando: boolean
+  isReiniciando: boolean
   permitirFisico: boolean
   permitirDigital: boolean
 }) {
   const [showFirmas, setShowFirmas] = useState(false)
+  const [reiniciarOpen, setReiniciarOpen] = useState(false)
   const tieneFirmas = tarea.esFisico && !!tarea.registroId
   const archivoFisico = useArchivoFisico(tarea.esFisico ? tarea.registroId : null)
 
@@ -219,7 +242,9 @@ function TareaCard({
     onIniciar,
     onAbrirFormulario,
     onCargarPdf,
+    onRequestReiniciar: () => setReiniciarOpen(true),
     isIniciando,
+    isReiniciando,
     archivoFisico,
     showFirmas,
     onToggleFirmas: () => setShowFirmas((s) => !s),
@@ -228,6 +253,15 @@ function TareaCard({
   })
 
   const busy = isIniciando || archivoFisico.isLoading
+
+  async function handleConfirmReiniciar() {
+    try {
+      await onReiniciar(tarea)
+      setReiniciarOpen(false)
+    } catch {
+      // Mantener abierto si falla
+    }
+  }
 
   return (
     <div className="rounded-lg border bg-white p-3 space-y-2">
@@ -300,6 +334,30 @@ function TareaCard({
           <FirmaPanel registroId={tarea.registroId} />
         </div>
       )}
+
+      <AlertDialog open={reiniciarOpen} onOpenChange={setReiniciarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Reiniciar tarea?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se descartará el registro actual y todos los valores cargados
+              {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
+              La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReiniciando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleConfirmReiniciar}
+              disabled={isReiniciando}
+            >
+              {isReiniciando ? "Reiniciando..." : "Reiniciar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -323,7 +381,9 @@ function buildTareaMenuItems({
   onIniciar,
   onAbrirFormulario,
   onCargarPdf,
+  onRequestReiniciar,
   isIniciando,
+  isReiniciando,
   archivoFisico,
   showFirmas,
   onToggleFirmas,
@@ -334,7 +394,9 @@ function buildTareaMenuItems({
   onIniciar: (t: ElementoTarea) => void
   onAbrirFormulario: (t: ElementoTarea) => void
   onCargarPdf: (t: ElementoTarea) => void
+  onRequestReiniciar: () => void
   isIniciando: boolean
+  isReiniciando: boolean
   archivoFisico: { abrir: () => Promise<void>; isLoading: boolean }
   showFirmas: boolean
   onToggleFirmas: () => void
@@ -428,6 +490,21 @@ function buildTareaMenuItems({
       label: showFirmas ? "Ocultar firmas" : "Ver firmas",
       icon: PenLine,
       onSelect: onToggleFirmas,
+    })
+  }
+
+  // Reiniciar tarea: descarta el registro y vuelve a PENDIENTE.
+  // Disponible cuando hay registro abierto o cerrado-no-final (EN_PROCESO, COMPLETADO, RECHAZADO).
+  const puedeReiniciar = tarea.estado === 2 || tarea.estado === 3 || tarea.estado === 5
+  if (puedeReiniciar) {
+    if (items.length > 0) items.push({ kind: "separator" })
+    items.push({
+      kind: "item",
+      label: "Reiniciar tarea",
+      icon: RotateCcw,
+      onSelect: onRequestReiniciar,
+      disabled: isReiniciando,
+      variant: "destructive",
     })
   }
 
