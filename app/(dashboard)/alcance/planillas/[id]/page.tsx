@@ -149,11 +149,18 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
                   <p className="text-xs mt-1">Hacé clic en "Agregar campo" para comenzar.</p>
                 </div>
               ) : (
-                camposEnSeccion
-                  .sort((a, b) => a.orden - b.orden)
-                  .map((campo) => (
-                    <CampoCard key={campo.id} campo={campo} planillaId={id} />
+                (() => {
+                  const ordenados = [...camposEnSeccion].sort((a, b) => a.orden - b.orden)
+                  return ordenados.map((campo, idx) => (
+                    <CampoCard
+                      key={campo.id}
+                      campo={campo}
+                      planillaId={id}
+                      previousCampo={idx > 0 ? ordenados[idx - 1] : null}
+                      nextCampo={idx < ordenados.length - 1 ? ordenados[idx + 1] : null}
+                    />
                   ))
+                })()
               )}
             </div>
           </div>

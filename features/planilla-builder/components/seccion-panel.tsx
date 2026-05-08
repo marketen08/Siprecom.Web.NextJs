@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Pencil, Trash2, Check, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Plus, Pencil, Trash2, Check, X } from "lucide-react"
 
 import type { PlanillaSeccion } from "@/features/planillas/types"
 import { useCreateSeccion } from "@/features/planillas/api/use-create-seccion"
@@ -80,6 +80,29 @@ export function SeccionPanel({
     if (selectedSeccionId === seccion.id) onSelect(null)
   }
 
+  // Swap del orden de dos secciones (no hay índice unique sobre orden, así que es seguro).
+  const swapOrden = async (a: PlanillaSeccion, b: PlanillaSeccion) => {
+    const ordenA = a.orden
+    const ordenB = b.orden
+    await updateMutation.mutateAsync({
+      id: a.id,
+      planillaId,
+      nombre: a.nombre,
+      descripcion: a.descripcion,
+      orden: ordenB,
+    })
+    await updateMutation.mutateAsync({
+      id: b.id,
+      planillaId,
+      nombre: b.nombre,
+      descripcion: b.descripcion,
+      orden: ordenA,
+    })
+  }
+
+  // Lista ordenada para que las flechitas operen sobre vecinos consistentes (no por id).
+  const seccionesOrdenadas = [...secciones].sort((a, b) => a.orden - b.orden)
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
@@ -108,7 +131,7 @@ export function SeccionPanel({
           Sin sección
         </button>
 
-        {secciones.map((s) => (
+        {seccionesOrdenadas.map((s, idx, arr) => (
           <div key={s.id} className="group flex items-center gap-1">
             {editingId === s.id ? (
               <div className="flex items-center gap-1 flex-1">
@@ -154,6 +177,26 @@ export function SeccionPanel({
                   {s.nombre}
                 </button>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => swapOrden(s, arr[idx - 1])}
+                    disabled={idx === 0 || updateMutation.isPending}
+                    title="Mover arriba"
+                  >
+                    <ArrowUp className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => swapOrden(s, arr[idx + 1])}
+                    disabled={idx === arr.length - 1 || updateMutation.isPending}
+                    title="Mover abajo"
+                  >
+                    <ArrowDown className="h-3 w-3" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 
 import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode } from "@/features/planillas/types"
 import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL } from "@/features/planillas/types"
@@ -27,9 +27,13 @@ import { cn } from "@/lib/utils"
 interface CampoCardProps {
   campo: PlanillaCampoDetalle
   planillaId: string
+  /** Vecino anterior en la sección (para reordenar arriba). null si es el primero. */
+  previousCampo?: PlanillaCampoDetalle | null
+  /** Vecino siguiente en la sección (para reordenar abajo). null si es el último. */
+  nextCampo?: PlanillaCampoDetalle | null
 }
 
-export function CampoCard({ campo, planillaId }: CampoCardProps) {
+export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: CampoCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [newOpcionValor, setNewOpcionValor] = useState("")
   const [newOpcionEtiqueta, setNewOpcionEtiqueta] = useState("")
@@ -72,6 +76,40 @@ export function CampoCard({ campo, planillaId }: CampoCardProps) {
       renderMode: value,
     })
   }
+
+  // Swap del orden con un vecino (previousCampo o nextCampo).
+  // Como el index en DB no es UNIQUE, podemos hacer 2 updates seguidos sin colisión.
+  const swapOrden = async (otro: PlanillaCampoDetalle) => {
+    const ordenActual = campo.orden
+    const ordenOtro = otro.orden
+    await updateMutation.mutateAsync({
+      id: campo.id,
+      planillaId,
+      campoId: campo.campoId,
+      planillaSeccionId: campo.planillaSeccionId,
+      orden: ordenOtro,
+      esObligatorio: campo.esObligatorio,
+      visible: campo.visible,
+      soloLectura: campo.soloLectura,
+      valorDefault: campo.valorDefault,
+      renderMode: campo.renderMode,
+    })
+    await updateMutation.mutateAsync({
+      id: otro.id,
+      planillaId,
+      campoId: otro.campoId,
+      planillaSeccionId: otro.planillaSeccionId,
+      orden: ordenActual,
+      esObligatorio: otro.esObligatorio,
+      visible: otro.visible,
+      soloLectura: otro.soloLectura,
+      valorDefault: otro.valorDefault,
+      renderMode: otro.renderMode,
+    })
+  }
+
+  const handleMoveUp = () => { if (previousCampo) swapOrden(previousCampo) }
+  const handleMoveDown = () => { if (nextCampo) swapOrden(nextCampo) }
 
   const handleAddOpcion = () => {
     if (!newOpcionValor.trim() || !newOpcionEtiqueta.trim()) return
@@ -118,7 +156,28 @@ export function CampoCard({ campo, planillaId }: CampoCardProps) {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
+            onClick={handleMoveUp}
+            disabled={!previousCampo || updateMutation.isPending}
+            title="Mover arriba"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleMoveDown}
+            disabled={!nextCampo || updateMutation.isPending}
+            title="Mover abajo"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Contraer" : "Expandir"}
           >
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
