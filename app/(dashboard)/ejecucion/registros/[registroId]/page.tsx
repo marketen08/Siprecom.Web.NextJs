@@ -167,8 +167,9 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   function buildValores(): RegistroValorInput[] {
+    // Excluimos tipos que NO son inputs digitales: Firma (6), Adjunto (7), Imagen (8).
     return campos
-      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 6 && c.campoTipoDato !== 7)
+      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 6 && c.campoTipoDato !== 7 && c.campoTipoDato !== 8)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -187,7 +188,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function validate(): boolean {
     const camposObligatorios = campos.filter(
-      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 6 && c.campoTipoDato !== 7
+      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 6 && c.campoTipoDato !== 7 && c.campoTipoDato !== 8
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
