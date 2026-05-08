@@ -393,6 +393,26 @@ export function AddCampoModal({
                 {/* Sub-sección Lista: opciones + render mode */}
                 {isListaNuevo && (
                   <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Cómo se muestra</Label>
+                      <Select
+                        value={String(renderMode)}
+                        onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue>
+                            {CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
+                            <SelectItem key={k} value={k}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
 
                     {tempOpciones.length > 0 && (
@@ -447,26 +467,6 @@ export function AddCampoModal({
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </Button>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs">Cómo se muestra</Label>
-                      <Select
-                        value={String(renderMode)}
-                        onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
-                        disabled={isPending}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue>
-                            {CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
                 )}
