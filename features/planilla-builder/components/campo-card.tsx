@@ -8,7 +8,7 @@ import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_TAMANO_OPCIONES }
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
-import { useUpdateOpcion } from "@/features/campos/api/use-update-opcion"
+import { useReorderOpciones } from "@/features/campos/api/use-reorder-opciones"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
 
 import {
@@ -43,7 +43,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
   const removeMutation = useRemoveCampo()
   const updateMutation = useUpdateCampo()
   const createOpcionMutation = useCreateOpcion()
-  const updateOpcionMutation = useUpdateOpcion()
+  const reorderOpcionesMutation = useReorderOpciones()
   const deleteOpcionMutation = useDeleteOpcion()
 
   const tipoDatoLabel = CAMPO_TIPO_DATO[campo.campoTipoDato as CampoTipoDato] ?? "—"
@@ -111,19 +111,17 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
   const handleMoveUp = () => { if (previousCampo) swapOrden(previousCampo) }
   const handleMoveDown = () => { if (nextCampo) swapOrden(nextCampo) }
 
-  // Swap del orden entre dos opciones de Lista. El campo Orden de CampoOpcion no es UNIQUE,
-  // así que dos updates seguidos funcionan sin colisión.
+  // Reorder atómico vía endpoint bulk: el backend asigna orden = index+1 a todas las opciones.
+  // Inmune a colisiones de orden previas (legacy o creación con length+1 tras un delete).
   const swapOpcionOrden = async (i: number, dir: -1 | 1) => {
     const opciones = [...campo.opciones].sort((a, b) => a.orden - b.orden)
     const j = i + dir
     if (j < 0 || j >= opciones.length) return
-    const a = opciones[i]
-    const b = opciones[j]
-    await updateOpcionMutation.mutateAsync({
-      id: a.id, campoId: campo.campoId, valor: a.valor, etiqueta: a.etiqueta, orden: b.orden,
-    })
-    await updateOpcionMutation.mutateAsync({
-      id: b.id, campoId: campo.campoId, valor: b.valor, etiqueta: b.etiqueta, orden: a.orden,
+    const reordered = [...opciones]
+    ;[reordered[i], reordered[j]] = [reordered[j], reordered[i]]
+    await reorderOpcionesMutation.mutateAsync({
+      campoId: campo.campoId,
+      orderedIds: reordered.map((o) => o.id),
     })
   }
 
@@ -134,7 +132,8 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
         campoId: campo.campoId,
         valor: newOpcionValor.trim(),
         etiqueta: newOpcionEtiqueta.trim(),
-        orden: campo.opciones.length + 1,
+        // Usamos max(orden)+1 en vez de length+1 para evitar colisión cuando se borraron items intermedios.
+        orden: campo.opciones.reduce((m, o) => Math.max(m, o.orden), 0) + 1,
       },
       {
         onSuccess: () => {
@@ -394,7 +393,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
                       size="icon"
                       className="h-5 w-5"
                       onClick={() => swapOpcionOrden(i, -1)}
-                      disabled={i === 0 || updateOpcionMutation.isPending}
+                      disabled={i === 0 || reorderOpcionesMutation.isPending}
                       title="Mover arriba"
                     >
                       <ArrowUp className="h-3 w-3" />
@@ -404,7 +403,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
                       size="icon"
                       className="h-5 w-5"
                       onClick={() => swapOpcionOrden(i, 1)}
-                      disabled={i === arr.length - 1 || updateOpcionMutation.isPending}
+                      disabled={i === arr.length - 1 || reorderOpcionesMutation.isPending}
                       title="Mover abajo"
                     >
                       <ArrowDown className="h-3 w-3" />

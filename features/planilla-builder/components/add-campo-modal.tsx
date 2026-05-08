@@ -79,6 +79,9 @@ export function AddCampoModal({
   // Opciones temporales para nuevo campo Lista (se crean tras crear el Campo).
   const [tempOpciones, setTempOpciones] = useState<Array<{ valor: string; etiqueta: string }>>([])
   const [opcionInput, setOpcionInput] = useState({ valor: "", etiqueta: "" })
+  // Mientras esté en false, cada opción nueva se inserta alfabéticamente por etiqueta.
+  // En cuanto el usuario use las flechas, pasa a true y se respeta su orden manual.
+  const [opcionesManualOrder, setOpcionesManualOrder] = useState(false)
   // Imagen pre-cargada para campo nuevo de tipo Imagen (sube primero, recibe URL).
   const [imagenUrl, setImagenUrl] = useState<string | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -115,6 +118,7 @@ export function AddCampoModal({
     setTamano(CAMPO_TAMANO_DEFAULT)
     setTempOpciones([])
     setOpcionInput({ valor: "", etiqueta: "" })
+    setOpcionesManualOrder(false)
     setImagenUrl(undefined)
     form.reset()
     onClose()
@@ -192,7 +196,14 @@ export function AddCampoModal({
 
   const handleAddOpcion = () => {
     if (!opcionInput.valor.trim() || !opcionInput.etiqueta.trim()) return
-    setTempOpciones((prev) => [...prev, { valor: opcionInput.valor.trim(), etiqueta: opcionInput.etiqueta.trim() }])
+    const nueva = { valor: opcionInput.valor.trim(), etiqueta: opcionInput.etiqueta.trim() }
+    setTempOpciones((prev) => {
+      // Sin orden manual → insertamos alfabéticamente. Con orden manual → al final.
+      if (opcionesManualOrder) return [...prev, nueva]
+      return [...prev, nueva].sort((a, b) =>
+        a.etiqueta.localeCompare(b.etiqueta, "es", { sensitivity: "base" })
+      )
+    })
     setOpcionInput({ valor: "", etiqueta: "" })
   }
 
@@ -201,11 +212,13 @@ export function AddCampoModal({
   const handleRenderModeChange = (next: CampoListaRenderMode) => {
     setRenderMode(next)
     if (tab === "new" && next === 3 && tempOpciones.length === 0) {
+      // Sí/No/NA es un orden semántico explícito, no alfabético: activamos manual.
       setTempOpciones([
         { valor: "SI", etiqueta: "Sí" },
         { valor: "NO", etiqueta: "No" },
         { valor: "NA", etiqueta: "No Aplica" },
       ])
+      setOpcionesManualOrder(true)
     }
   }
 
@@ -221,6 +234,8 @@ export function AddCampoModal({
       ;[next[index], next[target]] = [next[target], next[index]]
       return next
     })
+    // Una vez que el usuario reordena manualmente, no volvemos a auto-ordenar al agregar.
+    setOpcionesManualOrder(true)
   }
 
   const isPending = createCampoMutation.isPending || createOpcionMutation.isPending || addCampoMutation.isPending
