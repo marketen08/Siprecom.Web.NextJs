@@ -8,6 +8,8 @@ export interface Campo {
   tipoDatoNombre?: string
   unidad?: string
   descripcion?: string
+  /** URL del blob con la imagen embebida (sólo cuando tipoDato === 8 / Imagen). */
+  imagenUrl?: string
   /** Cantidad de planillas activas que usan este campo. */
   usoCount?: number
   createdAt: string
@@ -26,6 +28,7 @@ export interface CampoCreateInput {
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string
+  imagenUrl?: string
 }
 
 export interface CampoUpdateInput {
@@ -35,6 +38,7 @@ export interface CampoUpdateInput {
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string
+  imagenUrl?: string
 }
 
 export interface CampoOpcionCreateInput {

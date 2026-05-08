@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ArrowDown, ArrowUp, Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 
 import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode } from "@/features/planillas/types"
-import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL } from "@/features/planillas/types"
+import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_TAMANO_OPCIONES } from "@/features/planillas/types"
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
@@ -46,35 +46,43 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
 
   const tipoDatoLabel = CAMPO_TIPO_DATO[campo.campoTipoDato as CampoTipoDato] ?? "—"
   const isLista = campo.campoTipoDato === 5
+  const isImagen = campo.campoTipoDato === 8
+
+  // Construye el payload de update reusando todos los valores actuales del campo, con overrides.
+  const buildUpdatePayload = (overrides: Partial<{
+    esObligatorio: boolean
+    visible: boolean
+    soloLectura: boolean
+    valorDefault?: string
+    renderMode: CampoListaRenderMode
+    orden: number
+    tamano: number
+  }> = {}) => ({
+    id: campo.id,
+    planillaId,
+    campoId: campo.campoId,
+    planillaSeccionId: campo.planillaSeccionId,
+    orden: campo.orden,
+    esObligatorio: campo.esObligatorio,
+    visible: campo.visible,
+    soloLectura: campo.soloLectura,
+    valorDefault: campo.valorDefault,
+    renderMode: campo.renderMode,
+    tamano: campo.tamano,
+    ...overrides,
+  })
 
   const handleToggle = (field: "esObligatorio" | "visible" | "soloLectura", value: boolean) => {
-    updateMutation.mutate({
-      id: campo.id,
-      planillaId,
-      campoId: campo.campoId,
-      planillaSeccionId: campo.planillaSeccionId,
-      orden: campo.orden,
-      esObligatorio: field === "esObligatorio" ? value : campo.esObligatorio,
-      visible: field === "visible" ? value : campo.visible,
-      soloLectura: field === "soloLectura" ? value : campo.soloLectura,
-      valorDefault: campo.valorDefault,
-      renderMode: campo.renderMode,
-    })
+    updateMutation.mutate(buildUpdatePayload({ [field]: value }))
   }
 
   const handleRenderModeChange = (value: CampoListaRenderMode) => {
-    updateMutation.mutate({
-      id: campo.id,
-      planillaId,
-      campoId: campo.campoId,
-      planillaSeccionId: campo.planillaSeccionId,
-      orden: campo.orden,
-      esObligatorio: campo.esObligatorio,
-      visible: campo.visible,
-      soloLectura: campo.soloLectura,
-      valorDefault: campo.valorDefault,
-      renderMode: value,
-    })
+    updateMutation.mutate(buildUpdatePayload({ renderMode: value }))
+  }
+
+  const handleTamanoChange = (n: number) => {
+    const clamped = Math.max(1, Math.min(12, Math.floor(n)))
+    updateMutation.mutate(buildUpdatePayload({ tamano: clamped }))
   }
 
   // Swap del orden con un vecino (previousCampo o nextCampo).
@@ -82,18 +90,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
   const swapOrden = async (otro: PlanillaCampoDetalle) => {
     const ordenActual = campo.orden
     const ordenOtro = otro.orden
-    await updateMutation.mutateAsync({
-      id: campo.id,
-      planillaId,
-      campoId: campo.campoId,
-      planillaSeccionId: campo.planillaSeccionId,
-      orden: ordenOtro,
-      esObligatorio: campo.esObligatorio,
-      visible: campo.visible,
-      soloLectura: campo.soloLectura,
-      valorDefault: campo.valorDefault,
-      renderMode: campo.renderMode,
-    })
+    await updateMutation.mutateAsync(buildUpdatePayload({ orden: ordenOtro }))
     await updateMutation.mutateAsync({
       id: otro.id,
       planillaId,
@@ -105,6 +102,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
       soloLectura: otro.soloLectura,
       valorDefault: otro.valorDefault,
       renderMode: otro.renderMode,
+      tamano: otro.tamano,
     })
   }
 
@@ -234,31 +232,101 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
             </label>
           </div>
 
-          <div>
-            <Label className="text-xs">Valor por defecto</Label>
-            <Input
-              className="mt-1 h-7 text-sm"
-              defaultValue={campo.valorDefault ?? ""}
-              placeholder="—"
-              onBlur={(e) => {
-                if (e.target.value !== (campo.valorDefault ?? "")) {
-                  updateMutation.mutate({
-                    id: campo.id,
-                    planillaId,
-                    campoId: campo.campoId,
-                    planillaSeccionId: campo.planillaSeccionId,
-                    orden: campo.orden,
-                    esObligatorio: campo.esObligatorio,
-                    visible: campo.visible,
-                    soloLectura: campo.soloLectura,
-                    valorDefault: e.target.value || undefined,
-                    renderMode: campo.renderMode,
-                  })
-                }
-              }}
-              disabled={updateMutation.isPending}
-            />
+          {/* Valor por defecto — no aplica a tipo Imagen */}
+          {!isImagen && (
+            <div>
+              <Label className="text-xs">Valor por defecto</Label>
+              <Input
+                className="mt-1 h-7 text-sm"
+                defaultValue={campo.valorDefault ?? ""}
+                placeholder="—"
+                onBlur={(e) => {
+                  if (e.target.value !== (campo.valorDefault ?? "")) {
+                    updateMutation.mutate(buildUpdatePayload({ valorDefault: e.target.value || undefined }))
+                  }
+                }}
+                disabled={updateMutation.isPending}
+              />
+            </div>
+          )}
+
+          {/* Ancho (siempre): selector predefinido + input numérico para Personalizado */}
+          <div className="space-y-1">
+            <Label className="text-xs">Ancho del campo</Label>
+            <div className="flex items-center gap-2">
+              <Select
+                value={(() => {
+                  const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === campo.tamano)
+                  return String(match?.value ?? -1)
+                })()}
+                onValueChange={(v) => {
+                  const num = Number(v)
+                  if (num === -1) {
+                    // Personalizado: no aplicamos cambio aún, solo cambia la UI a mostrar input
+                    handleTamanoChange(campo.tamano || 4)
+                  } else {
+                    handleTamanoChange(num)
+                  }
+                }}
+                disabled={updateMutation.isPending}
+              >
+                <SelectTrigger className="h-8 text-sm flex-1">
+                  <SelectValue>
+                    {(() => {
+                      const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === campo.tamano)
+                      return match ? match.label : `Personalizado (${campo.tamano})`
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {CAMPO_TAMANO_OPCIONES.map((o) => (
+                    <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!CAMPO_TAMANO_OPCIONES.some((o) => o.value === campo.tamano) && (
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={campo.tamano}
+                  className="h-8 w-20 text-sm"
+                  onChange={(e) => {
+                    const n = Number(e.target.value)
+                    if (Number.isFinite(n)) handleTamanoChange(n)
+                  }}
+                  disabled={updateMutation.isPending}
+                />
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              En grilla de 12. Los campos consecutivos se agrupan automáticamente.
+            </p>
           </div>
+
+          {/* Imagen (solo para tipo Imagen) — preview de la imagen global del Campo */}
+          {isImagen && (
+            <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50/40 p-3">
+              <Label className="text-xs font-semibold text-blue-900">Imagen</Label>
+              {campo.campoImagenUrl ? (
+                <div className="rounded border bg-white p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={campo.campoImagenUrl}
+                    alt={campo.campoEtiqueta || "Imagen"}
+                    className="max-h-40 max-w-full object-contain mx-auto"
+                  />
+                </div>
+              ) : (
+                <div className="rounded border border-dashed border-gray-300 bg-white p-4 text-center text-xs text-muted-foreground">
+                  Este campo no tiene imagen cargada.
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground">
+                La imagen es parte del Campo global. Editala desde Configuración → Campos.
+              </p>
+            </div>
+          )}
 
           {/* Render mode (only for Lista) */}
           {isLista && (

@@ -31,7 +31,7 @@ export interface CampoOpcion {
   orden: number
 }
 
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 6 | 7
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -41,7 +41,19 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   5: "Lista",
   6: "Firma",
   7: "Adjunto",
+  8: "Imagen",
 }
+
+/** Opciones predefinidas de tamaño en grilla 12. -1 = personalizado (input numérico). */
+export const CAMPO_TAMANO_OPCIONES = [
+  { label: "Completo (12)", value: 12 },
+  { label: "Medio (6)", value: 6 },
+  { label: "Tercio (4)", value: 4 },
+  { label: "Cuarto (3)", value: 3 },
+  { label: "Personalizado", value: -1 },
+] as const
+
+export const CAMPO_TAMANO_DEFAULT = 4
 
 /** Cómo se renderiza un campo Lista en formularios y PDFs. Otros tipos lo ignoran. */
 export type CampoListaRenderMode = 0 | 1 | 2 | 3
@@ -71,6 +83,8 @@ export interface PlanillaCampoDetalle {
   campoTipoDato: CampoTipoDato
   campoTipoDatoNombre?: string
   campoUnidad?: string
+  /** URL del blob con la imagen (vive en el Campo global). Solo si tipoDato === 8. */
+  campoImagenUrl?: string
   orden: number
   esObligatorio: boolean
   visible: boolean
@@ -78,6 +92,8 @@ export interface PlanillaCampoDetalle {
   valorDefault?: string
   /** Solo aplica cuando campoTipoDato === 5 (Lista). Default Auto. */
   renderMode: CampoListaRenderMode
+  /** Ancho en grilla 12 (1-12). Default 4. */
+  tamano: number
   opciones: CampoOpcion[]
 }
 
@@ -135,6 +151,7 @@ export interface PlanillaCampoCreateInput {
   soloLectura: boolean
   valorDefault?: string
   renderMode?: CampoListaRenderMode
+  tamano?: number
 }
 
 export interface PlanillaCampoUpdateInput {
@@ -148,4 +165,5 @@ export interface PlanillaCampoUpdateInput {
   soloLectura: boolean
   valorDefault?: string
   renderMode?: CampoListaRenderMode
+  tamano?: number
 }

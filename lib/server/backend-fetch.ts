@@ -18,14 +18,16 @@ async function callBackend(
   token: string,
   options: RequestInit
 ): Promise<Response> {
-  return fetch(`${BACKEND_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options.headers ?? {}),
-    },
-  })
+  // Si el body es FormData, dejá que fetch ponga el Content-Type con boundary correcto.
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    ...((options.headers as Record<string, string>) ?? {}),
+  }
+  if (!isFormData && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json"
+  }
+  return fetch(`${BACKEND_URL}${path}`, { ...options, headers })
 }
 
 /**

@@ -1,14 +1,18 @@
 "use client"
 
+import { useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { ImageIcon } from "lucide-react"
 
 import { campoSchema, type CampoFormValues } from "../schema"
 import type { Campo } from "../types"
 import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
+import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Form,
@@ -56,8 +60,20 @@ export function CampoForm({
       tipoDato: (defaultValues?.tipoDato ?? 1) as CampoTipoDato,
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
+      imagenUrl: defaultValues?.imagenUrl ?? "",
     },
   })
+
+  const tipoDato = form.watch("tipoDato")
+  const imagenUrl = form.watch("imagenUrl")
+  const isImagen = tipoDato === 8
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadMutation = useUploadImagenCampo()
+
+  const handleUploadImagen = async (file: File) => {
+    const url = await uploadMutation.mutateAsync(file)
+    form.setValue("imagenUrl", url, { shouldDirty: true })
+  }
 
   return (
     <Form {...form}>
@@ -170,6 +186,59 @@ export function CampoForm({
             </FormItem>
           )}
         />
+
+        {isImagen && (
+          <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50/40 p-3">
+            <Label className="text-xs font-semibold text-blue-900">Imagen</Label>
+            {imagenUrl ? (
+              <div className="rounded border bg-white p-2">
+                <img
+                  src={imagenUrl}
+                  alt="Imagen del campo"
+                  className="max-h-40 max-w-full object-contain mx-auto"
+                />
+              </div>
+            ) : (
+              <div className="rounded border border-dashed border-blue-200 bg-white px-3 py-6 text-center text-xs text-muted-foreground">
+                Sin imagen cargada
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleUploadImagen(f)
+                if (fileInputRef.current) fileInputRef.current.value = ""
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending || isPending}
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                {uploadMutation.isPending
+                  ? "Subiendo..."
+                  : imagenUrl
+                    ? "Reemplazar imagen"
+                    : "Subir imagen"}
+              </Button>
+              {uploadMutation.isError && (
+                <span className="text-xs text-red-600">Error al subir la imagen</span>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Formatos: JPG, PNG, WEBP, SVG, GIF. Máximo 5 MB.
+            </p>
+          </div>
+        )}
 
         <div className="flex gap-2 pt-2">
           <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">

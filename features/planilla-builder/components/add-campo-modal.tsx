@@ -4,19 +4,23 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
+import { useRef } from "react"
 import { useGetCamposSelect } from "@/features/campos/api/use-get-campos-select"
 import { useCreateCampo } from "@/features/campos/api/use-create-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useAddCampo } from "@/features/planillas/api/use-add-campo"
+import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 import { campoSchema, type CampoFormValues } from "@/features/campos/schema"
 import {
   CAMPO_TIPO_DATO,
   CAMPO_LISTA_RENDER_MODE_LABEL,
+  CAMPO_TAMANO_OPCIONES,
+  CAMPO_TAMANO_DEFAULT,
   type CampoTipoDato,
   type CampoListaRenderMode,
   type PlanillaSeccion,
 } from "@/features/planillas/types"
-import { Trash2, Plus } from "lucide-react"
+import { ImageIcon, Trash2, Plus } from "lucide-react"
 
 import {
   Sheet,
@@ -71,15 +75,20 @@ export function AddCampoModal({
   const [seccionId, setSeccionId] = useState<string>(selectedSeccionId ?? "__none__")
   const [campoSearch, setCampoSearch] = useState("")
   const [renderMode, setRenderMode] = useState<CampoListaRenderMode>(0)
+  const [tamano, setTamano] = useState<number>(CAMPO_TAMANO_DEFAULT)
   // Opciones temporales para nuevo campo Lista (se crean tras crear el Campo).
   const [tempOpciones, setTempOpciones] = useState<Array<{ valor: string; etiqueta: string }>>([])
   const [opcionInput, setOpcionInput] = useState({ valor: "", etiqueta: "" })
+  // Imagen pre-cargada para campo nuevo de tipo Imagen (sube primero, recibe URL).
+  const [imagenUrl, setImagenUrl] = useState<string | undefined>(undefined)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: camposResult } = useGetCamposSelect()
   const campos = (camposResult as any)?.data ?? []
   const createCampoMutation = useCreateCampo()
   const createOpcionMutation = useCreateOpcion()
   const addCampoMutation = useAddCampo()
+  const uploadMutation = useUploadImagenCampo()
 
   const form = useForm<CampoFormValues>({
     resolver: zodResolver(campoSchema),
@@ -103,8 +112,10 @@ export function AddCampoModal({
     setSelectedCampoId("")
     setCampoSearch("")
     setRenderMode(0)
+    setTamano(CAMPO_TAMANO_DEFAULT)
     setTempOpciones([])
     setOpcionInput({ valor: "", etiqueta: "" })
+    setImagenUrl(undefined)
     form.reset()
     onClose()
   }
@@ -113,6 +124,12 @@ export function AddCampoModal({
   const tipoDatoFormulario = form.watch("tipoDato") as CampoTipoDato
   const isListaExistente = selectedCampoExistente?.tipoDato === 5
   const isListaNuevo = tipoDatoFormulario === 5
+  const isImagenNuevo = tipoDatoFormulario === 8
+
+  const handleUploadImagen = async (file: File) => {
+    const url = await uploadMutation.mutateAsync(file)
+    setImagenUrl(url)
+  }
 
   const handleAddExisting = () => {
     if (!selectedCampoId) return
@@ -126,6 +143,7 @@ export function AddCampoModal({
         visible: true,
         soloLectura: false,
         renderMode: isListaExistente ? renderMode : undefined,
+        tamano,
       },
       { onSuccess: handleClose }
     )
@@ -133,9 +151,11 @@ export function AddCampoModal({
 
   const handleCreateAndAdd = async (values: CampoFormValues) => {
     try {
+      // La imagen vive en el Campo (global). Si es tipo Imagen, mandamos imagenUrl al crear.
       const res: any = await createCampoMutation.mutateAsync({
         ...values,
         tipoDato: values.tipoDato as CampoTipoDato,
+        imagenUrl: values.tipoDato === 8 ? imagenUrl : undefined,
       })
       const newCampoId = res?.data?.id ?? res?.id
       if (!newCampoId) return
@@ -162,6 +182,7 @@ export function AddCampoModal({
         visible: true,
         soloLectura: false,
         renderMode: values.tipoDato === 5 ? renderMode : undefined,
+        tamano,
       })
       handleClose()
     } catch {
@@ -249,6 +270,58 @@ export function AddCampoModal({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Ancho del campo (shared) */}
+          <div className="space-y-1.5">
+            <Label>Ancho del campo</Label>
+            <div className="flex items-center gap-2">
+              <Select
+                value={(() => {
+                  const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
+                  return String(match?.value ?? -1)
+                })()}
+                onValueChange={(v) => {
+                  const num = Number(v)
+                  if (num === -1) {
+                    // Personalizado: dejá el actual, mostrar input numérico
+                    if (CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano)) setTamano(tamano)
+                  } else {
+                    setTamano(num)
+                  }
+                }}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {(() => {
+                      const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
+                      return match ? match.label : `Personalizado (${tamano})`
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {CAMPO_TAMANO_OPCIONES.map((o) => (
+                    <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano) && (
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={tamano}
+                  className="w-20"
+                  onChange={(e) => {
+                    const n = Number(e.target.value)
+                    if (Number.isFinite(n)) setTamano(Math.max(1, Math.min(12, Math.floor(n))))
+                  }}
+                />
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Grilla de 12. Los campos consecutivos se agrupan automáticamente.
+            </p>
           </div>
 
           {tab === "existing" ? (
@@ -392,6 +465,60 @@ export function AddCampoModal({
                     )}
                   />
                 </div>
+
+                {/* Sub-sección Imagen: subir archivo + preview */}
+                {isImagenNuevo && (
+                  <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50/40 p-3">
+                    <Label className="text-xs font-semibold text-blue-900">Imagen</Label>
+                    {imagenUrl ? (
+                      <div className="rounded border bg-white p-2">
+                        <img
+                          src={imagenUrl}
+                          alt="Imagen del campo"
+                          className="max-h-40 max-w-full object-contain mx-auto"
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded border border-dashed border-blue-200 bg-white px-3 py-6 text-center text-xs text-muted-foreground">
+                        Sin imagen cargada
+                      </div>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) handleUploadImagen(f)
+                        if (fileInputRef.current) fileInputRef.current.value = ""
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadMutation.isPending || isPending}
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        {uploadMutation.isPending
+                          ? "Subiendo..."
+                          : imagenUrl
+                            ? "Reemplazar imagen"
+                            : "Subir imagen"}
+                      </Button>
+                      {uploadMutation.isError && (
+                        <span className="text-xs text-red-600">Error al subir la imagen</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Formatos: JPG, PNG, WEBP, SVG, GIF. Máximo 5 MB.
+                    </p>
+                  </div>
+                )}
 
                 {/* Sub-sección Lista: opciones + render mode */}
                 {isListaNuevo && (

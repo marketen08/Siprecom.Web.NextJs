@@ -16,6 +16,7 @@ import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
+import { packCampos } from "@/features/planillas/lib/pack-campos"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +32,27 @@ import { BarraAvance } from "@/components/barra-avance"
 
 interface PageProps {
   params: Promise<{ registroId: string }>
+}
+
+// Las clases de Tailwind deben ser literales para que el JIT las detecte; usamos un map estático.
+const COL_SPAN_SM: Record<number, string> = {
+  1: "sm:col-span-1",
+  2: "sm:col-span-2",
+  3: "sm:col-span-3",
+  4: "sm:col-span-4",
+  5: "sm:col-span-5",
+  6: "sm:col-span-6",
+  7: "sm:col-span-7",
+  8: "sm:col-span-8",
+  9: "sm:col-span-9",
+  10: "sm:col-span-10",
+  11: "sm:col-span-11",
+  12: "sm:col-span-12",
+}
+
+function clampTamano(t: number | null | undefined): number {
+  const n = typeof t === "number" && Number.isFinite(t) ? Math.floor(t) : 4
+  return Math.max(1, Math.min(12, n))
 }
 
 export default function RegistroFormPage({ params }: PageProps) {
@@ -348,17 +370,22 @@ export default function RegistroFormPage({ params }: PageProps) {
                   </div>
                 )}
                 <div className="p-5 space-y-5">
-                  {camposSeccion.map((campo) => (
-                    <CampoInput
-                      key={campo.id}
-                      campo={campo}
-                      value={valores[campo.id] ?? campo.valorDefault ?? ""}
-                      observacion={observacionesCampo[campo.id] ?? ""}
-                      onChange={(v) => setValue(campo.id, v)}
-                      onObservacionChange={(v) => setObsCampo(campo.id, v)}
-                      readOnly={isReadOnly || campo.soloLectura}
-                      hasError={!!errors[campo.id]}
-                    />
+                  {packCampos<PlanillaCampoDetalle>(camposSeccion).map((fila, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-4">
+                      {fila.map((campo) => (
+                        <div key={campo.id} className={`col-span-12 ${COL_SPAN_SM[clampTamano(campo.tamano)]}`}>
+                          <CampoInput
+                            campo={campo}
+                            value={valores[campo.id] ?? campo.valorDefault ?? ""}
+                            observacion={observacionesCampo[campo.id] ?? ""}
+                            onChange={(v) => setValue(campo.id, v)}
+                            onObservacionChange={(v) => setObsCampo(campo.id, v)}
+                            readOnly={isReadOnly || campo.soloLectura}
+                            hasError={!!errors[campo.id]}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -731,6 +758,22 @@ function CampoInput({
           <div className="rounded-lg border border-dashed bg-gray-50 px-4 py-3 text-sm text-muted-foreground">
             Los adjuntos se gestionan por separado.
           </div>
+        </div>
+      )
+    case 8: // Imagen — parte de la planilla (global del Campo), sin input
+      return (
+        <div id={`campo-${campo.id}`} className="space-y-1">
+          {campo.campoImagenUrl ? (
+            <img
+              src={campo.campoImagenUrl}
+              alt={campo.campoEtiqueta ?? "Imagen"}
+              className="max-w-full h-auto rounded border bg-white"
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed bg-gray-50 px-4 py-3 text-sm text-muted-foreground">
+              Imagen no disponible.
+            </div>
+          )}
         </div>
       )
     default: // 1 = Texto
