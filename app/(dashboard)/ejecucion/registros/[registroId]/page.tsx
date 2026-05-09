@@ -13,6 +13,8 @@ import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-plani
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
+import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
+import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
@@ -439,17 +441,42 @@ export default function RegistroFormPage({ params }: PageProps) {
 function FirmasSection({ registroId }: { registroId: string }) {
   const { data: raw, isLoading } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
+  const miFirmaQuery = useGetMiFirma()
+  const uploadMiFirma = useUploadMiFirma()
   const status = (raw as any)?.data ?? raw
 
   const [slotFirmando, setSlotFirmando] = useState<string | null>(null)
   const [rolLibre, setRolLibre] = useState("")
   const [observacionFirma, setObservacionFirma] = useState("")
+  const [modoFirma, setModoFirma] = useState<"guardada" | "dibujar">("guardada")
+  const [guardarPerfil, setGuardarPerfil] = useState(false)
+  const [padIsEmpty, setPadIsEmpty] = useState(true)
+  const padRef = useRef<SignaturePadHandle | null>(null)
+
+  const firmaGuardadaUrl = miFirmaQuery.data?.data?.url ?? null
+  const modoEfectivo = firmaGuardadaUrl ? modoFirma : "dibujar"
 
   async function handleFirmar(rolNombre: string) {
-    await firmar.mutateAsync({ rolFirmante: rolNombre, observaciones: observacionFirma || null })
+    let datosFirma: string | null = null
+    if (modoEfectivo === "guardada" && firmaGuardadaUrl) {
+      datosFirma = await fetchAsDataUrl(firmaGuardadaUrl)
+    } else if (modoEfectivo === "dibujar") {
+      datosFirma = padRef.current?.getDataUrl() ?? null
+      if (!datosFirma) return
+      if (guardarPerfil) {
+        try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
+      }
+    }
+
+    await firmar.mutateAsync({
+      rolFirmante: rolNombre,
+      observaciones: observacionFirma || null,
+      datosFirma,
+    })
     setSlotFirmando(null)
     setObservacionFirma("")
     setRolLibre("")
+    setGuardarPerfil(false)
   }
 
   if (isLoading) return null
@@ -480,6 +507,17 @@ function FirmasSection({ registroId }: { registroId: string }) {
                   onChange={(e) => setRolLibre(e.target.value)}
                 />
               </div>
+
+              <FirmaCapturaInline
+                firmaGuardadaUrl={firmaGuardadaUrl}
+                modoEfectivo={modoEfectivo}
+                setModoFirma={setModoFirma}
+                guardarPerfil={guardarPerfil}
+                setGuardarPerfil={setGuardarPerfil}
+                padRef={padRef}
+                setPadIsEmpty={setPadIsEmpty}
+              />
+
               <div>
                 <label className="text-xs font-medium text-gray-600 block mb-1">Observaciones (opcional)</label>
                 <Textarea
@@ -494,9 +532,14 @@ function FirmasSection({ registroId }: { registroId: string }) {
                   size="sm"
                   className="gap-1.5"
                   onClick={() => handleFirmar(rolLibre)}
-                  disabled={firmar.isPending || !rolLibre.trim()}
+                  disabled={
+                    firmar.isPending
+                    || uploadMiFirma.isPending
+                    || !rolLibre.trim()
+                    || (modoEfectivo === "dibujar" && padIsEmpty)
+                  }
                 >
-                  {firmar.isPending
+                  {firmar.isPending || uploadMiFirma.isPending
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     : <PenLine className="h-3.5 w-3.5" />
                   }
@@ -584,6 +627,15 @@ function FirmasSection({ registroId }: { registroId: string }) {
 
               {esActivo && (
                 <div className="pl-8 space-y-3">
+                  <FirmaCapturaInline
+                    firmaGuardadaUrl={firmaGuardadaUrl}
+                    modoEfectivo={modoEfectivo}
+                    setModoFirma={setModoFirma}
+                    guardarPerfil={guardarPerfil}
+                    setGuardarPerfil={setGuardarPerfil}
+                    padRef={padRef}
+                    setPadIsEmpty={setPadIsEmpty}
+                  />
                   <div>
                     <label className="text-xs font-medium text-gray-600 block mb-1">
                       Observaciones (opcional)
@@ -600,9 +652,13 @@ function FirmasSection({ registroId }: { registroId: string }) {
                       size="sm"
                       className="gap-1.5"
                       onClick={() => handleFirmar(slot.rolNombre)}
-                      disabled={firmar.isPending}
+                      disabled={
+                        firmar.isPending
+                        || uploadMiFirma.isPending
+                        || (modoEfectivo === "dibujar" && padIsEmpty)
+                      }
                     >
-                      {firmar.isPending
+                      {firmar.isPending || uploadMiFirma.isPending
                         ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         : <PenLine className="h-3.5 w-3.5" />
                       }
@@ -623,6 +679,87 @@ function FirmasSection({ registroId }: { registroId: string }) {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+async function fetchAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url)
+  const blob = await res.blob()
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+// ─── Captura de firma compartida (libre + slot) ─────────────────────────────
+
+function FirmaCapturaInline({
+  firmaGuardadaUrl,
+  modoEfectivo,
+  setModoFirma,
+  guardarPerfil,
+  setGuardarPerfil,
+  padRef,
+  setPadIsEmpty,
+}: {
+  firmaGuardadaUrl: string | null
+  modoEfectivo: "guardada" | "dibujar"
+  setModoFirma: (m: "guardada" | "dibujar") => void
+  guardarPerfil: boolean
+  setGuardarPerfil: (v: boolean) => void
+  padRef: React.RefObject<SignaturePadHandle | null>
+  setPadIsEmpty: (v: boolean) => void
+}) {
+  return (
+    <div className="space-y-2">
+      {firmaGuardadaUrl && (
+        <div className="flex gap-1 p-0.5 bg-gray-100 border rounded-md w-fit">
+          <button
+            type="button"
+            onClick={() => setModoFirma("guardada")}
+            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+              modoEfectivo === "guardada" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Mi firma guardada
+          </button>
+          <button
+            type="button"
+            onClick={() => setModoFirma("dibujar")}
+            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+              modoEfectivo === "dibujar" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Dibujar nueva
+          </button>
+        </div>
+      )}
+
+      {modoEfectivo === "guardada" && firmaGuardadaUrl && (
+        <div className="rounded-md border bg-white p-2 max-w-sm">
+          <img src={firmaGuardadaUrl} alt="Tu firma" className="max-h-28 max-w-full object-contain mx-auto" />
+        </div>
+      )}
+
+      {modoEfectivo === "dibujar" && (
+        <div className="space-y-1.5">
+          <SignaturePad ref={padRef} height={140} onChange={(empty) => setPadIsEmpty(empty)} />
+          {!firmaGuardadaUrl && (
+            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 rounded border-gray-300"
+                checked={guardarPerfil}
+                onChange={(e) => setGuardarPerfil(e.target.checked)}
+              />
+              Guardar esta firma en mi perfil para próximas veces
+            </label>
+          )}
+        </div>
+      )}
     </div>
   )
 }

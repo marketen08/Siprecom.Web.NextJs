@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { CheckCircle2, Clock, Loader2, PenLine, Lock } from "lucide-react"
 import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
+import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
 import type { RegistroFirmaSlot } from "@/features/registros/types"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 
 interface Props {
   registroId: string
@@ -17,10 +19,21 @@ interface Props {
 export function FirmaPanel({ registroId, soloLectura = false }: Props) {
   const { data, isLoading, isError } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
+  const miFirmaQuery = useGetMiFirma(!soloLectura)
+  const uploadMiFirma = useUploadMiFirma()
 
   const [slotSeleccionado, setSlotSeleccionado] = useState<RegistroFirmaSlot | null>(null)
   const [observaciones, setObs] = useState("")
   const [firmado, setFirmado] = useState(false)
+  // Modo de captura: "guardada" = usar la firma del perfil; "dibujar" = pad en pantalla.
+  const [modoFirma, setModoFirma] = useState<"guardada" | "dibujar">("guardada")
+  const [guardarPerfil, setGuardarPerfil] = useState(false)
+  const [padIsEmpty, setPadIsEmpty] = useState(true)
+  const padRef = useRef<SignaturePadHandle | null>(null)
+
+  const firmaGuardadaUrl = miFirmaQuery.data?.data?.url ?? null
+  // Si no tiene firma guardada, forzamos modo "dibujar".
+  const modoEfectivo = firmaGuardadaUrl ? modoFirma : "dibujar"
 
   const status = data?.data
   const slots = status?.slots ?? []
@@ -46,10 +59,30 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
 
   async function handleFirmar() {
     if (!slotSeleccionado) return
-    await firmar.mutateAsync({ rolFirmante: slotSeleccionado.rolNombre, observaciones: observaciones || undefined })
+
+    // Resolver imagen de firma según el modo elegido.
+    let datosFirma: string | null = null
+    if (modoEfectivo === "guardada" && firmaGuardadaUrl) {
+      // Convertir la SAS URL en dataURL Base64 desde el navegador.
+      datosFirma = await fetchAsDataUrl(firmaGuardadaUrl)
+    } else if (modoEfectivo === "dibujar") {
+      datosFirma = padRef.current?.getDataUrl() ?? null
+      if (!datosFirma) return // botón ya estará disabled, doble check
+      // Si pidió guardarla en su perfil, la subimos antes de firmar (si falla, no bloqueamos la firma).
+      if (guardarPerfil) {
+        try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
+      }
+    }
+
+    await firmar.mutateAsync({
+      rolFirmante: slotSeleccionado.rolNombre,
+      observaciones: observaciones || undefined,
+      datosFirma,
+    })
     setFirmado(true)
     setSlotSeleccionado(null)
     setObs("")
+    setGuardarPerfil(false)
   }
 
   return (
@@ -108,25 +141,89 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
               ))}
             </div>
 
-            {/* Observaciones */}
+            {/* Captura de firma — visible cuando seleccionó un slot */}
             {slotSeleccionado && (
-              <textarea
-                value={observaciones}
-                onChange={(e) => setObs(e.target.value)}
-                rows={2}
-                maxLength={500}
-                placeholder="Observaciones (opcional)"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <>
+                {/* Toggle entre firma guardada y dibujar (sólo si tiene firma guardada) */}
+                {firmaGuardadaUrl && (
+                  <div className="flex gap-1 p-0.5 bg-white border rounded-md w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setModoFirma("guardada")}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                        modoEfectivo === "guardada" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      Mi firma guardada
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoFirma("dibujar")}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                        modoEfectivo === "dibujar" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      Dibujar nueva
+                    </button>
+                  </div>
+                )}
+
+                {/* Preview de firma guardada */}
+                {modoEfectivo === "guardada" && firmaGuardadaUrl && (
+                  <div className="rounded-md border bg-white p-2 max-w-xs">
+                    <img
+                      src={firmaGuardadaUrl}
+                      alt="Tu firma"
+                      className="max-h-24 max-w-full object-contain mx-auto"
+                    />
+                  </div>
+                )}
+
+                {/* Pad para dibujar */}
+                {modoEfectivo === "dibujar" && (
+                  <div className="space-y-1.5">
+                    <SignaturePad
+                      ref={padRef}
+                      height={140}
+                      onChange={(empty) => setPadIsEmpty(empty)}
+                    />
+                    {!firmaGuardadaUrl && (
+                      <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-gray-300"
+                          checked={guardarPerfil}
+                          onChange={(e) => setGuardarPerfil(e.target.checked)}
+                        />
+                        Guardar esta firma en mi perfil para próximas veces
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                <textarea
+                  value={observaciones}
+                  onChange={(e) => setObs(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="Observaciones (opcional)"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </>
             )}
 
             <Button
               size="sm"
               className="gap-1.5 h-8"
               onClick={handleFirmar}
-              disabled={!slotSeleccionado || firmar.isPending}
+              disabled={
+                !slotSeleccionado
+                || firmar.isPending
+                || uploadMiFirma.isPending
+                || (modoEfectivo === "dibujar" && padIsEmpty)
+              }
             >
-              {firmar.isPending ? (
+              {firmar.isPending || uploadMiFirma.isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <PenLine className="h-3.5 w-3.5" />
@@ -152,6 +249,18 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
       )}
     </div>
   )
+}
+
+// Convierte una URL de imagen (incl. SAS) en dataURL Base64 para enviar al backend.
+async function fetchAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url)
+  const blob = await res.blob()
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
 }
 
 // ─── Fila individual de slot ──────────────────────────────────────────────────

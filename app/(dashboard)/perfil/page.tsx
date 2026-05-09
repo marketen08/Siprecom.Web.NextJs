@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { KeyRound, User, FolderKey, Eye, EyeOff, CheckCircle2, Loader2, Save } from "lucide-react"
+import { KeyRound, User, FolderKey, Eye, EyeOff, CheckCircle2, Loader2, Save, PenLine, Trash2 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,12 +12,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useUpdatePerfil } from "@/features/auth/api/use-update-perfil"
 import { useChangePassword } from "@/features/auth/api/use-change-password"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useGetMisFirmaRoles } from "@/features/auth/api/use-get-mis-firma-roles"
+import { useGetMiFirma, useUploadMiFirma, useDeleteMiFirma } from "@/features/usuarios/api/use-mi-firma"
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -40,11 +42,12 @@ type PasswordForm = z.infer<typeof passwordSchema>
 
 // ─── Tabs config ─────────────────────────────────────────────────────────────
 
-type Tab = "datos" | "seguridad" | "accesos"
+type Tab = "datos" | "seguridad" | "firma" | "accesos"
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "datos",     label: "Datos personales", icon: <User      className="h-4 w-4" /> },
   { id: "seguridad", label: "Seguridad",         icon: <KeyRound  className="h-4 w-4" /> },
+  { id: "firma",     label: "Firma",             icon: <PenLine   className="h-4 w-4" /> },
   { id: "accesos",   label: "Mis accesos",       icon: <FolderKey className="h-4 w-4" /> },
 ]
 
@@ -262,6 +265,107 @@ function TabAccesos() {
   )
 }
 
+// ─── Tab Firma ────────────────────────────────────────────────────────────────
+
+function TabFirma() {
+  const { data: miFirma, isLoading } = useGetMiFirma()
+  const upload = useUploadMiFirma()
+  const remove = useDeleteMiFirma()
+  const [padIsEmpty, setPadIsEmpty] = useState(true)
+  const padRef = useRef<SignaturePadHandle | null>(null)
+
+  const firmaUrl = miFirma?.data?.url ?? null
+
+  async function handleGuardar() {
+    const dataUrl = padRef.current?.getDataUrl()
+    if (!dataUrl) return
+    await upload.mutateAsync(dataUrl)
+    padRef.current?.clear()
+    setPadIsEmpty(true)
+  }
+
+  async function handleEliminar() {
+    if (!confirm("¿Eliminar tu firma guardada? Tendrás que dibujarla la próxima vez que firmes.")) return
+    await remove.mutateAsync()
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <PenLine className="h-5 w-5" />
+          Mi firma
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Guardá tu firma para que se aplique automáticamente cada vez que firmes un registro.
+          Podés cambiarla cuando quieras — los registros ya firmados conservan la firma original.
+        </p>
+
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando...
+          </div>
+        ) : firmaUrl ? (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Firma actual</Label>
+              <div className="mt-1.5 rounded-md border bg-white p-3 max-w-sm">
+                <img src={firmaUrl} alt="Mi firma" className="max-h-32 max-w-full object-contain mx-auto" />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <Label className="text-xs">Reemplazar firma</Label>
+              <div className="mt-1.5 space-y-2">
+                <SignaturePad ref={padRef} height={160} onChange={(empty) => setPadIsEmpty(empty)} />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleGuardar}
+                    disabled={padIsEmpty || upload.isPending}
+                    className="gap-1.5"
+                  >
+                    {upload.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Reemplazar firma
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleEliminar}
+                    disabled={remove.isPending}
+                    className="gap-1.5 text-destructive hover:text-destructive"
+                  >
+                    {remove.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    Eliminar firma
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label className="text-xs">Dibujá tu firma</Label>
+            <SignaturePad ref={padRef} height={160} onChange={(empty) => setPadIsEmpty(empty)} />
+            <Button
+              size="sm"
+              onClick={handleGuardar}
+              disabled={padIsEmpty || upload.isPending}
+              className="gap-1.5"
+            >
+              {upload.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Guardar firma
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PerfilPage() {
@@ -297,6 +401,7 @@ export default function PerfilPage() {
       <div>
         {tab === "datos"     && <TabDatos />}
         {tab === "seguridad" && <TabSeguridad />}
+        {tab === "firma"     && <TabFirma />}
         {tab === "accesos"   && <TabAccesos />}
       </div>
     </div>

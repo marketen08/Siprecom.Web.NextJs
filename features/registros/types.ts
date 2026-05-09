@@ -94,6 +94,8 @@ export interface RegistroFirmasStatus {
 export interface FirmarRegistroInput {
   rolFirmante: string
   observaciones?: string | null
+  /** Imagen de la firma como dataURL Base64 (PNG). Se persiste en RegistroFirma.DatosFirma. */
+  datosFirma?: string | null
 }
 
 export interface ApiResponse<T> {
