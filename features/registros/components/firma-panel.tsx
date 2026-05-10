@@ -60,15 +60,15 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
   async function handleFirmar() {
     if (!slotSeleccionado) return
 
-    // Resolver imagen de firma según el modo elegido.
+    // Resolver firma según el modo: el "guardada" lo resuelve el backend desde el perfil
+    // (evita CORS browser→Azure). El "dibujar" sí manda dataURL.
     let datosFirma: string | null = null
+    let usarFirmaGuardada = false
     if (modoEfectivo === "guardada" && firmaGuardadaUrl) {
-      // Convertir la SAS URL en dataURL Base64 desde el navegador.
-      datosFirma = await fetchAsDataUrl(firmaGuardadaUrl)
+      usarFirmaGuardada = true
     } else if (modoEfectivo === "dibujar") {
       datosFirma = padRef.current?.getDataUrl() ?? null
-      if (!datosFirma) return // botón ya estará disabled, doble check
-      // Si pidió guardarla en su perfil, la subimos antes de firmar (si falla, no bloqueamos la firma).
+      if (!datosFirma) return
       if (guardarPerfil) {
         try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
       }
@@ -78,6 +78,7 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
       rolFirmante: slotSeleccionado.rolNombre,
       observaciones: observaciones || undefined,
       datosFirma,
+      usarFirmaGuardada,
     })
     setFirmado(true)
     setSlotSeleccionado(null)
@@ -249,18 +250,6 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
       )}
     </div>
   )
-}
-
-// Convierte una URL de imagen (incl. SAS) en dataURL Base64 para enviar al backend.
-async function fetchAsDataUrl(url: string): Promise<string> {
-  const res = await fetch(url)
-  const blob = await res.blob()
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
 }
 
 // ─── Fila individual de slot ──────────────────────────────────────────────────

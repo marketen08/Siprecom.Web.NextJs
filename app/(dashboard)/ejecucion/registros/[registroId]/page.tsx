@@ -457,9 +457,11 @@ function FirmasSection({ registroId }: { registroId: string }) {
   const modoEfectivo = firmaGuardadaUrl ? modoFirma : "dibujar"
 
   async function handleFirmar(rolNombre: string) {
+    // Resolver firma según el modo: el "guardada" lo resuelve el backend (evita CORS browser→Azure).
     let datosFirma: string | null = null
+    let usarFirmaGuardada = false
     if (modoEfectivo === "guardada" && firmaGuardadaUrl) {
-      datosFirma = await fetchAsDataUrl(firmaGuardadaUrl)
+      usarFirmaGuardada = true
     } else if (modoEfectivo === "dibujar") {
       datosFirma = padRef.current?.getDataUrl() ?? null
       if (!datosFirma) return
@@ -472,6 +474,7 @@ function FirmasSection({ registroId }: { registroId: string }) {
       rolFirmante: rolNombre,
       observaciones: observacionFirma || null,
       datosFirma,
+      usarFirmaGuardada,
     })
     setSlotFirmando(null)
     setObservacionFirma("")
@@ -681,17 +684,6 @@ function FirmasSection({ registroId }: { registroId: string }) {
       </div>
     </div>
   )
-}
-
-async function fetchAsDataUrl(url: string): Promise<string> {
-  const res = await fetch(url)
-  const blob = await res.blob()
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
 }
 
 // ─── Captura de firma compartida (libre + slot) ─────────────────────────────

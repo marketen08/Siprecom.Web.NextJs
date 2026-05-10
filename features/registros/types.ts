@@ -96,6 +96,12 @@ export interface FirmarRegistroInput {
   observaciones?: string | null
   /** Imagen de la firma como dataURL Base64 (PNG). Se persiste en RegistroFirma.DatosFirma. */
   datosFirma?: string | null
+  /**
+   * Si es true y datosFirma viene vacío, el backend toma la firma guardada del perfil del
+   * usuario (ApplicationUser.FirmaUrl) y la persiste como DatosFirma. Así evitamos el fetch
+   * directo desde el browser al blob (CORS).
+   */
+  usarFirmaGuardada?: boolean
 }
 
 export interface RegistroVerificacionFirma {
