@@ -279,7 +279,7 @@ function TareaCard({
           <p className="font-medium text-sm text-gray-900">{tarea.tareaNombre}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <EstadoBadge estado={tarea.estado} estadoTexto={tarea.estadoTexto} />
+          <EstadoBadge tarea={tarea} />
           {items.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -620,7 +620,37 @@ const ESTADO_STYLES: Record<number, string> = {
   7: "bg-blue-100 text-blue-700",
 }
 
-function EstadoBadge({ estado, estadoTexto }: { estado: number; estadoTexto: string }) {
+function EstadoBadge({ tarea }: { tarea: ElementoTarea }) {
+  const { estado, estadoTexto } = tarea
+
+  // Cuando el registro está COMPLETADO (3) y existe configuración de firmas, ajustamos
+  // el texto según el contexto del usuario actual: si te falta firmar, lo pedimos;
+  // si ya firmaste, indicamos que se espera a otros; si no sos firmante, mostramos genérico.
+  if (estado === 3 && tarea.firmasTotal > 0) {
+    if (tarea.usuarioPuedeFirmar) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap bg-amber-100 text-amber-800">
+          <Clock className="h-3.5 w-3.5" />
+          Esperando tu firma
+        </span>
+      )
+    }
+    if (tarea.usuarioYaFirmo) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-700">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Esperando otras firmas
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap bg-yellow-100 text-yellow-700">
+        <Clock className="h-3.5 w-3.5" />
+        Pendiente de firmas
+      </span>
+    )
+  }
+
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${ESTADO_STYLES[estado] ?? "bg-gray-100 text-gray-700"}`}>
       {ESTADO_ICONS[estado]}

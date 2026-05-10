@@ -50,6 +50,14 @@ export interface ElementoTarea {
   registroId: string | null
   esFisico: boolean
 
+  // Firmas — agregados desde el backend para badge contextual del firmante actual.
+  firmasTotal: number
+  firmasCompletadas: number
+  /** El usuario actual ya firmó al menos un slot de este registro. */
+  usuarioYaFirmo: boolean
+  /** El usuario actual tiene un slot de firma pendiente con su rol. */
+  usuarioPuedeFirmar: boolean
+
   // Planilla asociada a la Tarea
   planillaId: string | null
   planillaNombre: string | null
