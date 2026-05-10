@@ -473,6 +473,19 @@ function buildTareaMenuItems({
       break
   }
 
+  // Acceso a la página del registro para físicos. En digital ya hay "Completar formulario" /
+  // "Ver y firmar" / "Ver registro" según estado; para físico solo había "Descargar registro",
+  // sin forma de llegar a la pantalla donde se gestionan adjuntos. Lo agregamos siempre que
+  // haya registro físico.
+  if (tarea.registroId && tarea.esFisico) {
+    items.push({
+      kind: "item",
+      label: "Ver registro / adjuntos",
+      icon: FileText,
+      onSelect: () => onAbrirFormulario(tarea),
+    })
+  }
+
   // Planilla en blanco — siempre que haya planilla
   if (tarea.planillaId) {
     if (items.length > 0) items.push({ kind: "separator" })

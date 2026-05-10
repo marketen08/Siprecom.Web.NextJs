@@ -433,11 +433,12 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── Adjuntos ── disponibles para registros digitales y físicos */}
+      {/* ── Adjuntos ── disponibles para digital y físico, incluso después de completar/firmar.
+          Solo se bloquean cuando el registro entró en estado terminal (APROBADO/RECHAZADO). */}
       <RegistroAdjuntos
         registroId={registroId}
         permiteSubir={permiteAdjuntos}
-        readOnly={isReadOnly}
+        readOnly={registro.estado === "APROBADO" || registro.estado === "RECHAZADO"}
       />
 
       {/* ── Firmas ── */}
