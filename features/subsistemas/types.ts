@@ -4,8 +4,6 @@ export interface SubSistema {
   nombre: string
   sistemaId: string
   proyectoId: string
-  fechaInicio: string
-  fechaFin: string
   createdAt: string
   createdByNombre: string
   updatedAt: string
@@ -17,15 +15,28 @@ export interface SubSistemaCreateInput {
   codigo: string
   nombre: string
   sistemaId: string
-  fechaInicio: string
-  fechaFin: string
 }
 
 export interface SubSistemaUpdateInput {
   codigo: string
   nombre: string
   sistemaId: string
-  fechaInicio: string
-  fechaFin: string
   proyectoId: string
+}
+
+/** Planificación de un (subsistema, nivel). FechaInicio/FechaFin son opcionales. */
+export interface SubSistemaNivel {
+  id: string
+  subSistemaId: string
+  nivelId: string
+  nivelNombre: string
+  nivelPosicion: number
+  fechaInicio: string | null
+  fechaFin: string | null
+}
+
+export interface SubSistemaNivelUpsertInput {
+  nivelId: string
+  fechaInicio: string | null
+  fechaFin: string | null
 }

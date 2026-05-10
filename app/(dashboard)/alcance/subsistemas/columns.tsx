@@ -58,24 +58,8 @@ export const columns: ColumnDef<SubSistema>[] = [
       <span className="font-medium">{row.original.nombre}</span>
     ),
   },
-  {
-    accessorKey: "fechaInicio",
-    header: "Inicio",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">
-        {row.original.fechaInicio.substring(0, 10)}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "fechaFin",
-    header: "Fin",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">
-        {row.original.fechaFin.substring(0, 10)}
-      </span>
-    ),
-  },
+  // Las fechas planificadas ahora viven en SubSistemaNivel (planificación por nivel).
+  // Se editan desde el sheet del subsistema. Acá omitimos columnas de fecha para no inducir confusión.
   {
     accessorKey: "createdByNombre",
     header: "Creado por",

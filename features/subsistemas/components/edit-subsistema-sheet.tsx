@@ -4,6 +4,7 @@ import { useOpenSubSistema } from "../hooks/use-open-subsistema"
 import { useGetSubSistema } from "../api/use-get-subsistema"
 import { useUpdateSubSistema } from "../api/use-update-subsistema"
 import { SubSistemaForm } from "./subsistema-form"
+import { SubSistemaNivelesEditor } from "./subsistema-niveles-editor"
 import type { SubSistemaFormValues } from "../schema"
 
 import {
@@ -13,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Separator } from "@/components/ui/separator"
 
 export function EditSubSistemaSheet() {
   const { id, isOpen, close } = useOpenSubSistema()
@@ -41,12 +43,16 @@ export function EditSubSistemaSheet() {
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : subsistema ? (
-            <SubSistemaForm
-              defaultValues={subsistema}
-              onSubmit={onSubmit}
-              isPending={mutation.isPending}
-              onCancel={close}
-            />
+            <div className="space-y-6">
+              <SubSistemaForm
+                defaultValues={subsistema}
+                onSubmit={onSubmit}
+                isPending={mutation.isPending}
+                onCancel={close}
+              />
+              <Separator />
+              <SubSistemaNivelesEditor subSistemaId={subsistema.id} />
+            </div>
           ) : (
             <p className="text-sm text-destructive">No se pudo cargar el subsistema.</p>
           )}

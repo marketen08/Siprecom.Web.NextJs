@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import {
   Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
-  Users, Search, User as UserIcon,
+  Users, Search, User as UserIcon, CalendarRange,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -22,6 +22,7 @@ import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useAddUsuarioProyecto } from "@/features/proyectos/api/use-add-usuario-proyecto"
 import { useRemoveUsuarioProyecto } from "@/features/proyectos/api/use-remove-usuario-proyecto"
+import { useGetFechaEstimadaFin } from "@/features/proyectos/api/use-fecha-estimada-fin"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import type { FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
@@ -126,7 +127,7 @@ function TabGeneral({ proyecto }: { proyecto: Proyecto }) {
   }
 
   return (
-    <div className="max-w-lg">
+    <div className="max-w-lg space-y-6">
       {saved && (
         <div className="mb-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
           <CheckCircle2 className="h-4 w-4" /> Cambios guardados correctamente
@@ -138,6 +139,81 @@ function TabGeneral({ proyecto }: { proyecto: Proyecto }) {
         isPending={update.isPending}
         onCancel={() => {}}
       />
+      <FechaEstimadaFinSection proyectoId={proyecto.id} />
+    </div>
+  )
+}
+
+// ─── Sección: Fecha estimada de fin ───────────────────────────────────────────
+
+function FechaEstimadaFinSection({ proyectoId }: { proyectoId: string }) {
+  const { data, isLoading } = useGetFechaEstimadaFin(proyectoId)
+  const resumen = data?.data
+
+  function fmt(iso: string | null): string {
+    if (!iso) return "—"
+    return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+  }
+
+  return (
+    <div className="rounded-lg border bg-white p-4 space-y-3">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <CalendarRange className="h-3.5 w-3.5" />
+        Fecha estimada de fin
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Calculando...
+        </div>
+      ) : !resumen || resumen.cantidadFilas === 0 ? (
+        <p className="text-sm text-muted-foreground italic">
+          Aún no hay planificación cargada. Cargá fechas por nivel en los subsistemas para ver una estimación.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Inicio estimado</p>
+              <p className="font-medium">{fmt(resumen.fechaInicioEstimada)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Fin estimado</p>
+              <p className="font-medium text-blue-700">{fmt(resumen.fechaFinEstimada)}</p>
+            </div>
+          </div>
+
+          {resumen.porNivel.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-gray-700">Por nivel</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground">
+                      <th className="text-left font-medium py-1">Nivel</th>
+                      <th className="text-left font-medium py-1">Inicio</th>
+                      <th className="text-left font-medium py-1">Fin</th>
+                      <th className="text-right font-medium py-1">Subsistemas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resumen.porNivel.map((n) => (
+                      <tr key={n.nivelId} className="border-t">
+                        <td className="py-1.5">{n.nivelNombre}</td>
+                        <td className="py-1.5">{fmt(n.fechaInicio)}</td>
+                        <td className="py-1.5">{fmt(n.fechaFin)}</td>
+                        <td className="py-1.5 text-right">{n.cantidadSubSistemas}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -159,6 +235,11 @@ const FLAGS: { campo: string; label: string; descripcion: string }[] = [
     campo: "PermiteAdjuntos",
     label: "Adjuntar archivos",
     descripcion: "Permite a los usuarios adjuntar archivos (fotos, PDFs, etc.) a los registros del proyecto. Cada planilla puede vetar individualmente.",
+  },
+  {
+    campo: "NivelesSecuenciales",
+    label: "Niveles secuenciales",
+    descripcion: "Si está activo, en la planificación por subsistema cada nivel debe iniciar después del fin del nivel anterior. Útil para flujos donde un nivel depende del anterior (precomisionado → comisionado → puesta en marcha).",
   },
   {
     campo: "PermitirAvanceSinRegistro",
@@ -191,6 +272,7 @@ const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermitirRegistroFisico:          "permitirRegistroFisico",
   PermitirRegistroDigital:         "permitirRegistroDigital",
   PermiteAdjuntos:                 "permiteAdjuntos",
+  NivelesSecuenciales:             "nivelesSecuenciales",
   PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
   PermitirDescargarPlanillas:      "permitirDescargarPlanillas",
   PermitirDescargarProcedimientos: "permitirDescargarProcedimientos",

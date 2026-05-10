@@ -46,12 +46,6 @@ export function SubSistemaForm({
       codigo: defaultValues?.codigo ?? "",
       nombre: defaultValues?.nombre ?? "",
       sistemaId: defaultValues?.sistemaId ?? "",
-      fechaInicio: defaultValues?.fechaInicio
-        ? defaultValues.fechaInicio.substring(0, 10)
-        : "",
-      fechaFin: defaultValues?.fechaFin
-        ? defaultValues.fechaFin.substring(0, 10)
-        : "",
     },
   })
 
@@ -134,40 +128,8 @@ export function SubSistemaForm({
           />
         </div>
 
-        {/* Sección: Fechas */}
-        <div className="flex flex-col gap-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Fechas
-          </p>
-
-          <FormField
-            control={form.control}
-            name="fechaInicio"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha de inicio</FormLabel>
-                <FormControl>
-                  <Input type="date" disabled={isPending} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="fechaFin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha de fin</FormLabel>
-                <FormControl>
-                  <Input type="date" disabled={isPending} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        {/* Nota: las fechas planificadas por nivel se editan en una grilla aparte, una vez
+            guardado el subsistema (usa la ruta /subsistemas/{id}/niveles). */}
 
         {/* Botones */}
         <div className="flex gap-3 pt-2">

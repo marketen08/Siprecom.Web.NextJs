@@ -29,6 +29,8 @@ export interface Proyecto {
   permitirRegistroDigital: boolean
   /** Si está en false, ningún registro del proyecto acepta adjuntos. Default true. */
   permiteAdjuntos: boolean
+  /** Si está en true, cada nivel debe iniciar después del fin del nivel anterior (mismo subsistema). */
+  nivelesSecuenciales: boolean
   createdAt: string
   createdByNombre: string
   updatedAt: string
