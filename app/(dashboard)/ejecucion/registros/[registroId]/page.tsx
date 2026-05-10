@@ -169,9 +169,9 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   function buildValores(): RegistroValorInput[] {
-    // Excluimos tipos que NO son inputs digitales: Firma (6), Adjunto (7), Imagen (8).
+    // Excluimos tipos que NO son inputs digitales: Adjunto (7), Imagen (8).
     return campos
-      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 6 && c.campoTipoDato !== 7 && c.campoTipoDato !== 8)
+      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 7 && c.campoTipoDato !== 8)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -190,7 +190,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function validate(): boolean {
     const camposObligatorios = campos.filter(
-      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 6 && c.campoTipoDato !== 7 && c.campoTipoDato !== 8
+      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 7 && c.campoTipoDato !== 8
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
@@ -872,15 +872,6 @@ function CampoInput({
       }
       break
     }
-    case 6: // Firma — manejada por separado
-      return (
-        <div className="space-y-1">
-          {label}
-          <div className="rounded-lg border border-dashed bg-gray-50 px-4 py-3 text-sm text-muted-foreground">
-            La firma se gestiona al finalizar el formulario.
-          </div>
-        </div>
-      )
     case 7: // Adjunto
       return (
         <div className="space-y-1">
