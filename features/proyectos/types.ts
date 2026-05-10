@@ -27,6 +27,8 @@ export interface Proyecto {
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean
   permitirRegistroDigital: boolean
+  /** Si está en false, ningún registro del proyecto acepta adjuntos. Default true. */
+  permiteAdjuntos: boolean
   createdAt: string
   createdByNombre: string
   updatedAt: string

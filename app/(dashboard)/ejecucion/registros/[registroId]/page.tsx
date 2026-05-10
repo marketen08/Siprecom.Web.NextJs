@@ -15,6 +15,7 @@ import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-stat
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
+import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
@@ -77,6 +78,10 @@ export default function RegistroFormPage({ params }: PageProps) {
   // Coincide con el comportamiento previo cuando solo existía permitirRegistroFisico.
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
+  // Adjuntos: AND entre proyecto y planilla. Si alguno veta, no se aceptan.
+  const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? true
+  const permiteAdjuntosPlanilla = (estructura as any)?.planilla?.permiteAdjuntos ?? true
+  const permiteAdjuntos = permiteAdjuntosProyecto && permiteAdjuntosPlanilla
 
   const completarDigital = useCompletarDigital(registroId)
   const completarFisico = useCompletarFisico(registroId)
@@ -169,9 +174,9 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   function buildValores(): RegistroValorInput[] {
-    // Excluimos tipos que NO son inputs digitales: Adjunto (7), Imagen (8).
+    // Excluimos tipos que NO son inputs digitales: Imagen (8).
     return campos
-      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 7 && c.campoTipoDato !== 8)
+      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 8)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -190,7 +195,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function validate(): boolean {
     const camposObligatorios = campos.filter(
-      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 7 && c.campoTipoDato !== 8
+      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 8
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
@@ -427,6 +432,13 @@ export default function RegistroFormPage({ params }: PageProps) {
           )}
         </div>
       )}
+
+      {/* ── Adjuntos ── disponibles para registros digitales y físicos */}
+      <RegistroAdjuntos
+        registroId={registroId}
+        permiteSubir={permiteAdjuntos}
+        readOnly={isReadOnly}
+      />
 
       {/* ── Firmas ── */}
       {(registro.estado === "COMPLETADO" || registro.estado === "FIRMADO") && (
@@ -872,15 +884,6 @@ function CampoInput({
       }
       break
     }
-    case 7: // Adjunto
-      return (
-        <div className="space-y-1">
-          {label}
-          <div className="rounded-lg border border-dashed bg-gray-50 px-4 py-3 text-sm text-muted-foreground">
-            Los adjuntos se gestionan por separado.
-          </div>
-        </div>
-      )
     case 8: // Imagen — parte de la planilla (global del Campo), sin input
       return (
         <div id={`campo-${campo.id}`} className="space-y-1">

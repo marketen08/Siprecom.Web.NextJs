@@ -156,6 +156,11 @@ const FLAGS: { campo: string; label: string; descripcion: string }[] = [
     descripcion: "Permite completar registros con formularios digitales.",
   },
   {
+    campo: "PermiteAdjuntos",
+    label: "Adjuntar archivos",
+    descripcion: "Permite a los usuarios adjuntar archivos (fotos, PDFs, etc.) a los registros del proyecto. Cada planilla puede vetar individualmente.",
+  },
+  {
     campo: "PermitirAvanceSinRegistro",
     label: "Avance sin registro",
     descripcion: "Permite registrar avance de tareas sin completar un registro asociado.",
@@ -185,6 +190,7 @@ const FLAGS: { campo: string; label: string; descripcion: string }[] = [
 const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermitirRegistroFisico:          "permitirRegistroFisico",
   PermitirRegistroDigital:         "permitirRegistroDigital",
+  PermiteAdjuntos:                 "permiteAdjuntos",
   PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
   PermitirDescargarPlanillas:      "permitirDescargarPlanillas",
   PermitirDescargarProcedimientos: "permitirDescargarProcedimientos",

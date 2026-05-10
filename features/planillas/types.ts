@@ -31,8 +31,10 @@ export interface CampoOpcion {
   orden: number
 }
 
-// 6 = Firma fue eliminado: las firmas se gestionan a nivel registro, no como tipo de campo.
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 7 | 8
+// 6 = Firma y 7 = Adjunto fueron eliminados como tipos de campo. Se gestionan a nivel registro:
+//   - Firmas: ProyectosFirmasConfig + RegistroFirma.
+//   - Adjuntos: flags Proyecto.PermiteAdjuntos / Planilla.PermiteAdjuntos + RegistroArchivo.
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -40,7 +42,6 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   3: "Fecha",
   4: "Boolean",
   5: "Lista",
-  7: "Adjunto",
   8: "Imagen",
 }
 
