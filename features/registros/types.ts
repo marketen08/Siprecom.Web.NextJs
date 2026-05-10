@@ -98,6 +98,29 @@ export interface FirmarRegistroInput {
   datosFirma?: string | null
 }
 
+export interface RegistroVerificacionFirma {
+  rol: string
+  nombreFirmante: string
+  fechaFirma: string
+}
+
+export interface RegistroVerificacion {
+  registroId: string
+  estado: string
+  planillaCodigo?: string
+  planillaNombre?: string
+  planillaVersion?: string
+  proyectoNombre?: string
+  elementoNombre?: string
+  tareaNombre?: string
+  fechaTerminado?: string
+  fechaFirma?: string
+  pdfHashSha256?: string | null
+  pdfGeneradoEn?: string | null
+  pdfDisponible: boolean
+  firmas: RegistroVerificacionFirma[]
+}
+
 export interface ApiResponse<T> {
   data: T
   message: string
