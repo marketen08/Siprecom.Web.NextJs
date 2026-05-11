@@ -1,15 +1,24 @@
 import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
-// GET /api/avance/elementos?sistemaId=...&subSistemaId=...
+const PARAMS = [
+  "sistemaId",
+  "subSistemaId",
+  "especialidad",
+  "elementoTipoId",
+  "prioridad",
+  "tareaId",
+  "estadoTarea",
+] as const
+
+// GET /api/avance/elementos?{filtros}
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams
-  const sistemaId = sp.get("sistemaId")
-  const subSistemaId = sp.get("subSistemaId")
-
   const qs = new URLSearchParams()
-  if (sistemaId) qs.set("sistemaId", sistemaId)
-  if (subSistemaId) qs.set("subSistemaId", subSistemaId)
+  for (const key of PARAMS) {
+    const v = sp.get(key)
+    if (v) qs.set(key, v)
+  }
   const path = qs.toString()
     ? `/avance/elementos?${qs.toString()}`
     : "/avance/elementos"
