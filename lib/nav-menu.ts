@@ -53,6 +53,7 @@ export const menu: MenuItem[] = [
       { label: "Elementos",    href: "/alcance/elementos" },
       { label: "Tareas",       href: "/alcance/tareas" },
       { label: "Planillas",    href: "/alcance/planillas" },
+      { label: "Importación masiva", href: "/alcance/importacion" },
     ],
   },
   {
@@ -65,7 +66,6 @@ export const menu: MenuItem[] = [
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
       { label: "Campos",            href: "/configuracion/campos" },
       { label: "Procedimientos",    href: "/configuracion/procedimientos" },
-      { label: "Importación masiva", href: "/configuracion/importacion" },
     ],
   },
 ]
