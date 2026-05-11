@@ -50,6 +50,20 @@ export interface RegistroDetalle {
   validacionPasada: boolean
   valores: RegistroValor[]
   archivos: RegistroArchivo[]
+  /**
+   * Valores precargados a nivel Elemento+Planilla. El backend solo los envía
+   * cuando `valores` está vacío (registro nunca completado). El form los aplica
+   * como default editable.
+   */
+  valoresPrecargados?: RegistroValorPrecargado[]
+}
+
+export interface RegistroValorPrecargado {
+  planillaCampoId: string
+  valorTexto: string | null
+  valorNumero: number | null
+  valorFecha: string | null
+  valorBit: boolean | null
 }
 
 export interface RegistroValorInput {

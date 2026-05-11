@@ -92,12 +92,17 @@ export default function RegistroFormPage({ params }: PageProps) {
   const [observacionesCampo, setObservacionesCampo] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, boolean>>({})
 
-  // Pre-rellenar con valores existentes cuando cargan
+  // Pre-rellenar con valores existentes cuando cargan. Si el registro todavía no
+  // tiene valores guardados, el backend devuelve `valoresPrecargados` (datos del
+  // elemento+planilla) que se usan como default editable.
   const prefilledRef = useRef(false)
   if (registro && estructura && !prefilledRef.current) {
     prefilledRef.current = true
     const init: Record<string, string> = {}
-    for (const v of registro.valores) {
+    const fuente = registro.valores.length > 0
+      ? registro.valores
+      : (registro.valoresPrecargados ?? [])
+    for (const v of fuente) {
       if (v.valorTexto != null)        init[v.planillaCampoId] = v.valorTexto
       else if (v.valorNumero != null)  init[v.planillaCampoId] = String(v.valorNumero)
       else if (v.valorFecha != null)   init[v.planillaCampoId] = v.valorFecha.substring(0, 10)

@@ -4,6 +4,7 @@ import { useOpenElemento } from "../hooks/use-open-elemento"
 import { useGetElemento } from "../api/use-get-elemento"
 import { useUpdateElemento } from "../api/use-update-elemento"
 import { ElementoForm } from "./elemento-form"
+import { ElementoValoresPrecargadosEditor } from "./elemento-valores-precargados-editor"
 import type { ElementoFormValues } from "../schema"
 
 import {
@@ -13,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Separator } from "@/components/ui/separator"
 
 export function EditElementoSheet() {
   const { id, isOpen, close } = useOpenElemento()
@@ -35,7 +37,7 @@ export function EditElementoSheet() {
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Editar elemento</SheetTitle>
           <SheetDescription>
@@ -46,12 +48,16 @@ export function EditElementoSheet() {
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : elemento ? (
-            <ElementoForm
-              defaultValues={elemento}
-              onSubmit={onSubmit}
-              isPending={mutation.isPending}
-              onCancel={close}
-            />
+            <div className="space-y-6">
+              <ElementoForm
+                defaultValues={elemento}
+                onSubmit={onSubmit}
+                isPending={mutation.isPending}
+                onCancel={close}
+              />
+              <Separator />
+              <ElementoValoresPrecargadosEditor elementoId={elemento.id} />
+            </div>
           ) : (
             <p className="text-sm text-destructive">No se pudo cargar el elemento.</p>
           )}
