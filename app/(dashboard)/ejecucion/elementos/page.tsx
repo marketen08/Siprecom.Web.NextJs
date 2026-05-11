@@ -2,8 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState, useEffect } from "react"
-import { Search, X, FileDown } from "lucide-react"
-import { useGetAvanceElementosSubSistema } from "@/features/avance/api/use-get-avance-elementos-subsistema"
+import { Search, FileDown } from "lucide-react"
+import { useGetAvanceElementos } from "@/features/avance/api/use-get-avance-elementos"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
@@ -22,6 +22,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  FiltersTrigger,
+  FiltersChips,
+  FiltersSheet,
+  FilterField,
+  type FilterChip,
+} from "@/components/ui/filters-bar"
+import {
   Table,
   TableBody,
   TableCell,
@@ -29,6 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+
+const ALL = "__all__"
 
 function AvanceElementosContent() {
   const router = useRouter()
@@ -40,6 +49,7 @@ function AvanceElementosContent() {
   const [search, setSearch] = useState("")
   const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceElementoDTO } | null>(null)
   const [planillasDialogOpen, setPlanillasDialogOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   useEffect(() => {
     if (subSistemaIdParam && subSistemaId !== subSistemaIdParam) {
@@ -56,7 +66,10 @@ function AvanceElementosContent() {
     ? todosSubSistemas.filter((ss) => ss.sistemaId === sistemaId)
     : todosSubSistemas
 
-  const { data: raw, isLoading } = useGetAvanceElementosSubSistema(subSistemaId || undefined)
+  const { data: raw, isLoading } = useGetAvanceElementos({
+    sistemaId: sistemaId || undefined,
+    subSistemaId: subSistemaId || undefined,
+  })
 
   const elementosTodos = raw?.data ?? []
   const elementos = search.trim()
@@ -67,16 +80,24 @@ function AvanceElementosContent() {
       )
     : elementosTodos
 
-  function handleSistemaChange(value: string) {
-    setSistemaId(value === "__all__" ? "" : value)
-    setSubSistemaId("")
-    router.replace("/ejecucion/elementos")
+  function handleSistemaChange(value: string | null) {
+    const id = !value || value === ALL ? "" : value
+    setSistemaId(id)
+    // Si el subsistema actual no pertenece al nuevo sistema, lo reseteamos.
+    if (id && subSistemaId) {
+      const ss = todosSubSistemas.find((s) => s.id === subSistemaId)
+      if (ss?.sistemaId !== id) {
+        setSubSistemaId("")
+        router.replace("/ejecucion/elementos")
+      }
+    } else if (!id) {
+      router.replace("/ejecucion/elementos")
+    }
   }
 
-  function handleSubSistemaChange(value: string) {
-    const id = value === "__all__" ? "" : value
+  function handleSubSistemaChange(value: string | null) {
+    const id = !value || value === ALL ? "" : value
     setSubSistemaId(id)
-    setSearch("")
     if (id) {
       router.replace(`/ejecucion/elementos?subSistemaId=${id}`)
     } else {
@@ -91,10 +112,29 @@ function AvanceElementosContent() {
     router.replace("/ejecucion/elementos")
   }
 
-  const hayFiltros = !!sistemaId || !!subSistemaId || !!search
-
   const sistemaSeleccionado = sistemas.find((s) => s.id === sistemaId)
   const subSistemaSeleccionado = todosSubSistemas.find((ss) => ss.id === subSistemaId)
+
+  // Construir chips de filtros activos (la búsqueda es independiente y NO genera chip).
+  const activeFilters: FilterChip[] = []
+  if (sistemaId) {
+    activeFilters.push({
+      id: "sistema",
+      label: `Sistema: ${sistemaSeleccionado
+        ? `${sistemaSeleccionado.codigo} — ${sistemaSeleccionado.nombre}`
+        : "—"}`,
+      onRemove: () => handleSistemaChange(ALL),
+    })
+  }
+  if (subSistemaId) {
+    activeFilters.push({
+      id: "subsistema",
+      label: `Subsistema: ${subSistemaSeleccionado
+        ? `${subSistemaSeleccionado.codigo} — ${subSistemaSeleccionado.nombre}`
+        : "—"}`,
+      onRemove: () => handleSubSistemaChange(ALL),
+    })
+  }
 
   // Breadcrumb dinámico cuando hay subsistema seleccionado.
   // Sin subsistema, breadcrumb default del menú (Ejecución → Avance por elementos).
@@ -110,144 +150,151 @@ function AvanceElementosContent() {
 
   return (
     <div className="space-y-4">
-      {/* Acciones de la página */}
-      <div className="flex items-center justify-end gap-2">
-        {hayFiltros && (
-          <Button variant="ghost" size="sm" className="text-gray-500 gap-1" onClick={handleClearFiltros}>
-            <X className="h-3.5 w-3.5" />
-            Limpiar filtros
+      {/* Buscador + acciones (Obtener planillas, Filtros) */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre o TAG..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPlanillasDialogOpen(true)}>
+            <FileDown className="h-4 w-4" />
+            Obtener planillas
           </Button>
-        )}
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPlanillasDialogOpen(true)}>
-          <FileDown className="h-4 w-4" />
-          Obtener planillas
-        </Button>
+          <FiltersTrigger
+            open={filtersOpen}
+            onOpenChange={setFiltersOpen}
+            activeCount={activeFilters.length}
+          />
+        </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <Select value={sistemaId || "__all__"} onValueChange={handleSistemaChange}>
-          <SelectTrigger className="w-56">
-            <SelectValue>
-              {sistemaSeleccionado
-                ? `${sistemaSeleccionado.codigo} — ${sistemaSeleccionado.nombre}`
-                : "Todos los sistemas"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Todos los sistemas</SelectItem>
-            {sistemas.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.codigo} — {s.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Chips de filtros activos (línea propia, solo si hay alguno) */}
+      <FiltersChips activeFilters={activeFilters} onClearAll={handleClearFiltros} />
 
-        <Select value={subSistemaId || "__all__"} onValueChange={handleSubSistemaChange}>
-          <SelectTrigger className="w-64">
-            <SelectValue>
-              {subSistemaSeleccionado
-                ? `${subSistemaSeleccionado.codigo} — ${subSistemaSeleccionado.nombre}`
-                : "Seleccioná un subsistema"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Todos los subsistemas</SelectItem>
-            {subSistemasFiltrados.map((ss) => (
-              <SelectItem key={ss.id} value={ss.id}>
-                {ss.codigo} — {ss.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Sheet con los controles */}
+      <FiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        onClearAll={handleClearFiltros}
+        hasActiveFilters={activeFilters.length > 0}
+      >
+        <FilterField label="Sistema">
+          <Select value={sistemaId || ALL} onValueChange={handleSistemaChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {sistemaSeleccionado
+                  ? `${sistemaSeleccionado.codigo} — ${sistemaSeleccionado.nombre}`
+                  : "Todos los sistemas"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los sistemas</SelectItem>
+              {sistemas.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.codigo} — {s.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
 
-        {subSistemaId && (
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre o TAG..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-64"
-            />
-          </div>
-        )}
-      </div>
+        <FilterField label="Subsistema">
+          <Select
+            value={subSistemaId || ALL}
+            onValueChange={handleSubSistemaChange}
+            disabled={!!sistemaId && subSistemasFiltrados.length === 0}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {subSistemaSeleccionado
+                  ? `${subSistemaSeleccionado.codigo} — ${subSistemaSeleccionado.nombre}`
+                  : "Todos los subsistemas"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los subsistemas</SelectItem>
+              {subSistemasFiltrados.map((ss) => (
+                <SelectItem key={ss.id} value={ss.id}>
+                  {ss.codigo} — {ss.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FiltersSheet>
 
       {/* Tabla */}
-      {!subSistemaId ? (
-        <div className="rounded-lg border bg-white p-10 text-center text-muted-foreground">
-          Seleccioná un subsistema en el filtro de arriba, o navegá desde{" "}
-          <button
-            className="text-blue-600 underline underline-offset-2"
-            onClick={() => router.push("/ejecucion/subsistemas")}
-          >
-            Avance por subsistemas
-          </button>
-          .
-        </div>
-      ) : (
-        <div className="rounded-lg border bg-white overflow-hidden">
-          <Table>
-            <TableHeader>
+      <div className="rounded-lg border bg-white overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="font-semibold text-gray-700 w-28">TAG</TableHead>
+              <TableHead className="font-semibold text-gray-700">Elemento</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-36">Tipo</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-32">Especialidad</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-24">Prioridad</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-28">PID</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-28">Testpack</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-52">Avance</TableHead>
+              <TableHead className="font-semibold text-gray-700 text-center w-24">Estados</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableHead className="font-semibold text-gray-700 w-28">TAG</TableHead>
-                <TableHead className="font-semibold text-gray-700">Elemento</TableHead>
-                <TableHead className="font-semibold text-gray-700 w-36">Tipo</TableHead>
-                <TableHead className="font-semibold text-gray-700 w-32">Especialidad</TableHead>
-                <TableHead className="font-semibold text-gray-700 w-24">Prioridad</TableHead>
-                <TableHead className="font-semibold text-gray-700 w-28">PID</TableHead>
-                <TableHead className="font-semibold text-gray-700 w-28">Testpack</TableHead>
-                <TableHead className="font-semibold text-gray-700 w-52">Avance</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-24">Estados</TableHead>
+                <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  Cargando...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                    Cargando...
+            ) : elementos.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  {search
+                    ? "No hay elementos que coincidan con la búsqueda."
+                    : subSistemaId
+                      ? "No hay elementos en este subsistema."
+                      : sistemaId
+                        ? "No hay elementos en este sistema."
+                        : "No hay elementos en el proyecto."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              elementos.map((e) => (
+                <TableRow
+                  key={e.id}
+                  className="cursor-pointer hover:bg-blue-50 transition-colors"
+                  onClick={() => setSelectedElemento({ id: e.id, avance: e })}
+                >
+                  <TableCell className="font-mono text-sm text-gray-600">{e.codigo}</TableCell>
+                  <TableCell className="font-medium">{e.nombre}</TableCell>
+                  <TableCell className="text-sm text-gray-600">{e.elementoTipoNombre ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-gray-600">{e.elementoTipoEspecialidad ?? "—"}</TableCell>
+                  <TableCell>
+                    <PrioridadBadge prioridad={e.prioridadTexto} />
+                  </TableCell>
+                  <TableCell className="font-mono text-sm text-gray-500">{e.pid ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-sm text-gray-500">{e.testpack ?? "—"}</TableCell>
+                  <TableCell>
+                    <BarraAvance porcentaje={e.porcentajeAvance} />
+                  </TableCell>
+                  <TableCell className="text-center" onClick={(ev) => ev.stopPropagation()}>
+                    <EstadosPopover avance={e} />
                   </TableCell>
                 </TableRow>
-              ) : elementos.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                    {search ? "No hay elementos que coincidan con la búsqueda." : "No hay elementos con datos de avance en este subsistema."}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                elementos.map((e) => (
-                  <TableRow
-                    key={e.id}
-                    className="cursor-pointer hover:bg-blue-50 transition-colors"
-                    onClick={() => setSelectedElemento({ id: e.id, avance: e })}
-                  >
-                    <TableCell className="font-mono text-sm text-gray-600">{e.codigo}</TableCell>
-                    <TableCell className="font-medium">{e.nombre}</TableCell>
-                    <TableCell className="text-sm text-gray-600">{e.elementoTipoNombre ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-gray-600">{e.elementoTipoEspecialidad ?? "—"}</TableCell>
-                    <TableCell>
-                      <PrioridadBadge prioridad={e.prioridadTexto} />
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-gray-500">{e.pid ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-sm text-gray-500">{e.testpack ?? "—"}</TableCell>
-                    <TableCell>
-                      <BarraAvance porcentaje={e.porcentajeAvance} />
-                    </TableCell>
-                    <TableCell className="text-center" onClick={(ev) => ev.stopPropagation()}>
-                      <EstadosPopover avance={e} />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Total */}
-      {subSistemaId && !isLoading && (
+      {!isLoading && (
         <p className="text-sm text-muted-foreground">
           {`${elementos.length}${search ? ` de ${elementosTodos.length}` : ""} elementos`}
         </p>
