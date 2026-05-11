@@ -21,6 +21,15 @@ export async function PUT(
     method: "PUT",
     body: JSON.stringify(body),
   })
-  const data = await res.json()
+  const text = await res.text()
+  const ct = res.headers.get("content-type") ?? ""
+  if (!ct.includes("application/json")) {
+    const snippet = text.slice(0, 500)
+    return Response.json(
+      { message: `Backend devolvió ${res.status} no-JSON: ${snippet}` },
+      { status: res.status || 500 }
+    )
+  }
+  const data = JSON.parse(text)
   return Response.json(data, { status: res.status })
 }
