@@ -57,9 +57,10 @@ const ESTADO_TAREA_LABEL: Record<number, string> = {
 function AvanceElementosContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const sistemaIdParam = searchParams.get("sistemaId") ?? undefined
   const subSistemaIdParam = searchParams.get("subSistemaId") ?? undefined
 
-  const [sistemaId, setSistemaId] = useState<string>("")
+  const [sistemaId, setSistemaId] = useState<string>(sistemaIdParam ?? "")
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam ?? "")
   const [especialidad, setEspecialidad] = useState<string>("")
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
@@ -76,6 +77,22 @@ function AvanceElementosContent() {
       setSubSistemaId(subSistemaIdParam)
     }
   }, [subSistemaIdParam])
+
+  useEffect(() => {
+    if (sistemaIdParam && sistemaId !== sistemaIdParam) {
+      setSistemaId(sistemaIdParam)
+    }
+  }, [sistemaIdParam])
+
+  // Mantiene la URL sincronizada con los filtros de sistema/subsistema. Los otros filtros
+  // viven solo en estado local (no van a la URL para no contaminarla).
+  function syncUrl(nextSistemaId: string, nextSubSistemaId: string) {
+    const qs = new URLSearchParams()
+    if (nextSistemaId) qs.set("sistemaId", nextSistemaId)
+    if (nextSubSistemaId) qs.set("subSistemaId", nextSubSistemaId)
+    const s = qs.toString()
+    router.replace(s ? `/ejecucion/elementos?${s}` : "/ejecucion/elementos")
+  }
 
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
@@ -143,25 +160,21 @@ function AvanceElementosContent() {
     const id = !value || value === ALL ? "" : value
     setSistemaId(id)
     // Si el subsistema actual no pertenece al nuevo sistema, lo reseteamos.
+    let nextSubSistemaId = subSistemaId
     if (id && subSistemaId) {
       const ss = todosSubSistemas.find((s) => s.id === subSistemaId)
       if (ss?.sistemaId !== id) {
+        nextSubSistemaId = ""
         setSubSistemaId("")
-        router.replace("/ejecucion/elementos")
       }
-    } else if (!id) {
-      router.replace("/ejecucion/elementos")
     }
+    syncUrl(id, nextSubSistemaId)
   }
 
   function handleSubSistemaChange(value: string | null) {
     const id = !value || value === ALL ? "" : value
     setSubSistemaId(id)
-    if (id) {
-      router.replace(`/ejecucion/elementos?subSistemaId=${id}`)
-    } else {
-      router.replace("/ejecucion/elementos")
-    }
+    syncUrl(sistemaId, id)
   }
 
   function handleEspecialidadChange(value: string | null) {
@@ -183,7 +196,7 @@ function AvanceElementosContent() {
     setTareaId("")
     setEstadoTarea("")
     setSearch("")
-    router.replace("/ejecucion/elementos")
+    syncUrl("", "")
   }
 
   const sistemaSeleccionado = sistemas.find((s) => s.id === sistemaId)
