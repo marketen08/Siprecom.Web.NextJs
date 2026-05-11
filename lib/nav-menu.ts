@@ -65,6 +65,7 @@ export const menu: MenuItem[] = [
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
       { label: "Campos",            href: "/configuracion/campos" },
       { label: "Procedimientos",    href: "/configuracion/procedimientos" },
+      { label: "Importación masiva", href: "/configuracion/importacion" },
     ],
   },
 ]
@@ -115,4 +116,5 @@ export const segmentLabels: Record<string, string> = {
   contratistas:  "Contratistas",
   reporte:       "Reporte",
   avance:        "Avance",
+  importacion:   "Importación masiva",
 }
