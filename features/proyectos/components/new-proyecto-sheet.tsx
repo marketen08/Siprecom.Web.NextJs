@@ -18,6 +18,7 @@ export function NewProyectoSheet() {
   const mutation = useCreateProyecto()
 
   const onSubmit = (values: ProyectoFormValues) => {
+    const tienePlantilla = !!values.proyectoPlantillaId
     mutation.mutate(
       {
         nombre: values.nombre,
@@ -25,7 +26,14 @@ export function NewProyectoSheet() {
         contratistaId: values.contratistaId,
         estado: values.estado as 1 | 2 | 3 | 4 | 5 | 6 | 7,
         observaciones: values.observaciones,
-        proyectoPlantillaId: values.proyectoPlantillaId || undefined,
+        proyectoPlantillaId: tienePlantilla ? values.proyectoPlantillaId : undefined,
+        clonar: tienePlantilla && values.clonar ? {
+          tareas: values.clonar.tareas ?? true,
+          flags: values.clonar.flags ?? true,
+          firmas: values.clonar.firmas ?? true,
+          acceso: values.clonar.acceso ?? true,
+          estructura: values.clonar.estructura ?? false,
+        } : undefined,
       },
       { onSuccess: close }
     )
@@ -45,6 +53,7 @@ export function NewProyectoSheet() {
             onSubmit={onSubmit}
             isPending={mutation.isPending}
             onCancel={close}
+            mostrarClonado
           />
         </div>
       </SheetContent>

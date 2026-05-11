@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { proyectoSchema, type ProyectoFormValues } from "../schema"
 import { ESTADO_PROYECTO, type Proyecto } from "../types"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
+import { useGetProyectosSelect } from "../api/use-get-proyectos-select"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +33,8 @@ interface ProyectoFormProps {
   onSubmit: (values: ProyectoFormValues) => void
   isPending: boolean
   onCancel: () => void
+  /** Si true, muestra la sección "Heredar de proyecto" + checkboxes. Default: false. */
+  mostrarClonado?: boolean
 }
 
 export function ProyectoForm({
@@ -39,8 +42,10 @@ export function ProyectoForm({
   onSubmit,
   isPending,
   onCancel,
+  mostrarClonado = false,
 }: ProyectoFormProps) {
   const { data: clientesData, isLoading: loadingClientes } = useGetClientesSelect()
+  const { data: proyectosData, isLoading: loadingProyectos } = useGetProyectosSelect()
 
   const form = useForm<ProyectoFormValues>({
     resolver: zodResolver(proyectoSchema),
@@ -51,8 +56,19 @@ export function ProyectoForm({
       estado: defaultValues?.estado ?? 1,
       observaciones: defaultValues?.observaciones ?? "",
       proyectoPlantillaId: "",
+      clonar: {
+        tareas: true,
+        flags: true,
+        firmas: true,
+        acceso: true,
+        estructura: false,
+      },
     },
   })
+
+  const plantillaId = form.watch("proyectoPlantillaId")
+  const hayPlantilla = !!plantillaId && plantillaId.length > 0
+  const proyectosLista = proyectosData?.data ?? []
 
   return (
     <Form {...form}>
@@ -207,6 +223,64 @@ export function ProyectoForm({
           />
         </div>
 
+        {mostrarClonado && (
+          <>
+            <Separator />
+            <div className="flex flex-col gap-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Heredar configuración (opcional)
+              </p>
+
+              <FormField
+                control={form.control}
+                name="proyectoPlantillaId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Proyecto plantilla</FormLabel>
+                    <Select
+                      disabled={isPending || loadingProyectos}
+                      onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
+                      value={field.value || "__none__"}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Ninguno">
+                            {field.value
+                              ? proyectosLista.find((p) => p.id === field.value)?.nombre
+                              : "Ninguno"}
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">Ninguno</SelectItem>
+                        {proyectosLista.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {hayPlantilla && (
+                <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Elegí qué se copia del proyecto plantilla al nuevo:
+                  </p>
+                  <ClonarCheckbox name="tareas" label="Tareas" form={form} disabled={isPending} />
+                  <ClonarCheckbox name="flags" label="Configuración general (permisos, niveles secuenciales)" form={form} disabled={isPending} />
+                  <ClonarCheckbox name="firmas" label="Configuración de firmas" form={form} disabled={isPending} />
+                  <ClonarCheckbox name="acceso" label="Acceso de usuarios" form={form} disabled={isPending} />
+                  <ClonarCheckbox name="estructura" label="Estructura (sistemas, subsistemas, elementos)" form={form} disabled={isPending} />
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
         {/* Botones */}
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">
@@ -225,5 +299,34 @@ export function ProyectoForm({
 
       </form>
     </Form>
+  )
+}
+
+interface ClonarCheckboxProps {
+  name: "tareas" | "flags" | "firmas" | "acceso" | "estructura"
+  label: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  form: any
+  disabled?: boolean
+}
+
+function ClonarCheckbox({ name, label, form, disabled }: ClonarCheckboxProps) {
+  return (
+    <FormField
+      control={form.control}
+      name={`clonar.${name}`}
+      render={({ field }) => (
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={field.value ?? false}
+            onChange={(e) => field.onChange(e.target.checked)}
+            disabled={disabled}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          <span>{label}</span>
+        </label>
+      )}
+    />
   )
 }

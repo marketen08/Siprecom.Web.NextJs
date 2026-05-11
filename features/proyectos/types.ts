@@ -38,6 +38,14 @@ export interface Proyecto {
   isActive: boolean
 }
 
+export interface ProyectoClonOptions {
+  tareas: boolean
+  flags: boolean
+  firmas: boolean
+  acceso: boolean
+  estructura: boolean
+}
+
 export interface ProyectoCreateInput {
   nombre: string
   clienteId: string
@@ -45,6 +53,7 @@ export interface ProyectoCreateInput {
   estado: EstadoProyecto
   observaciones: string
   proyectoPlantillaId?: string
+  clonar?: ProyectoClonOptions
 }
 
 export interface ProyectoUpdateInput {
