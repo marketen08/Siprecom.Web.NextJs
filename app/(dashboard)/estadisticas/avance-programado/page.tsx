@@ -75,7 +75,7 @@ export default function AvanceProgramadoPage() {
 
           {/* Curva S */}
           <div className="rounded-lg border border-gray-100 bg-white p-4">
-            <CurvaSChart semanas={timeline.semanas} />
+            <CurvaSChart semanas={timeline.semanas} semanaActual={timeline.semanaActual} />
           </div>
 
           {timeline.tareasSinProgramar > 0 && (

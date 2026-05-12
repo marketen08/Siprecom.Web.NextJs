@@ -35,4 +35,5 @@ export interface TimelineDTO {
   semanas: TimelineSemanaDTO[]
   totalTareas: number
   tareasSinProgramar: number
+  semanaActual: string
 }

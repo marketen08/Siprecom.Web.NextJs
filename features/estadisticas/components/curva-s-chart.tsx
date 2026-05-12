@@ -1,6 +1,6 @@
 "use client"
 
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 import {
   type ChartConfig,
   ChartContainer,
@@ -39,9 +39,10 @@ function lunesDeSemanaIso(label: string): string {
 
 interface Props {
   semanas: TimelineSemanaDTO[]
+  semanaActual?: string
 }
 
-export function CurvaSChart({ semanas }: Props) {
+export function CurvaSChart({ semanas, semanaActual }: Props) {
   if (semanas.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-gray-200 py-16 text-center text-sm text-muted-foreground">
@@ -49,6 +50,11 @@ export function CurvaSChart({ semanas }: Props) {
       </div>
     )
   }
+
+  // Sólo dibujamos la línea "Hoy" si la semana actual cae dentro del rango cargado.
+  // Si no, no aporta y termina superpuesta al borde del chart.
+  const mostrarHoy =
+    !!semanaActual && semanas.some((s) => s.semana === semanaActual)
 
   return (
     <div className="space-y-3">
@@ -110,6 +116,20 @@ export function CurvaSChart({ semanas }: Props) {
             dot={{ r: 2 }}
             isAnimationActive={false}
           />
+          {mostrarHoy && (
+            <ReferenceLine
+              x={semanaActual}
+              stroke="#dc2626"
+              strokeDasharray="4 3"
+              strokeWidth={1.5}
+              label={{
+                value: "Hoy",
+                position: "top",
+                fill: "#dc2626",
+                fontSize: 11,
+              }}
+            />
+          )}
         </LineChart>
       </ChartContainer>
     </div>
