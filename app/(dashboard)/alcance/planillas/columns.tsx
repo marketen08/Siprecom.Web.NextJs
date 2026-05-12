@@ -1,13 +1,14 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Copy, Pencil, Settings, Trash2 } from "lucide-react"
+import { Copy, Download, Pencil, Settings, Trash2 } from "lucide-react"
 import Link from "next/link"
 
 import type { Planilla } from "@/features/planillas/types"
 import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
 import { useDeletePlanilla } from "@/features/planillas/api/use-delete-planilla"
 import { useClonePlanilla } from "@/features/planillas/api/use-clone-planilla"
+import { exportarPlanilla } from "@/features/planillas/api/use-import-export"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -39,6 +40,16 @@ function RowActions({ planilla }: { planilla: Planilla }) {
         <Link href={`/alcance/planillas/${planilla.id}`}>
           <Settings className="h-4 w-4" />
         </Link>
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title="Exportar JSON"
+        onClick={() => exportarPlanilla(planilla.id)}
+      >
+        <Download className="h-4 w-4" />
       </Button>
 
       <ConfirmActionDialog
