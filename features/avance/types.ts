@@ -19,6 +19,8 @@ export interface AvanceElementoDTO extends AvanceDTO {
   prioridadTexto: string
   pid: string | null
   testpack: string | null
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
 }
 
 export interface AvanceSistemaDTO extends AvanceDTO {

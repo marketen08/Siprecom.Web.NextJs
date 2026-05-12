@@ -440,8 +440,8 @@ function AvanceElementosContent() {
             <TableRow>
               <TableHead className="font-semibold text-gray-700 w-28">TAG</TableHead>
               <TableHead className="font-semibold text-gray-700">Elemento</TableHead>
-              <TableHead className="font-semibold text-gray-700 w-36">Tipo</TableHead>
-              <TableHead className="font-semibold text-gray-700 w-32">Especialidad</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-44">Subsistema</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-44">Tipo</TableHead>
               <TableHead className="font-semibold text-gray-700 w-24">Prioridad</TableHead>
               <TableHead className="font-semibold text-gray-700 w-28">PID</TableHead>
               <TableHead className="font-semibold text-gray-700 w-28">Testpack</TableHead>
@@ -477,8 +477,34 @@ function AvanceElementosContent() {
                 >
                   <TableCell className="font-mono text-sm text-gray-600">{e.codigo}</TableCell>
                   <TableCell className="font-medium">{e.nombre}</TableCell>
-                  <TableCell className="text-sm text-gray-600">{e.elementoTipoNombre ?? "—"}</TableCell>
-                  <TableCell className="text-sm text-gray-600">{e.elementoTipoEspecialidad ?? "—"}</TableCell>
+                  <TableCell>
+                    {e.subSistemaNombre || e.subSistemaCodigo ? (
+                      <>
+                        <p className="text-sm text-gray-600">{e.subSistemaNombre ?? "—"}</p>
+                        {e.subSistemaCodigo && (
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                            {e.subSistemaCodigo}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-sm text-gray-600">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {e.elementoTipoNombre || e.elementoTipoEspecialidad ? (
+                      <>
+                        <p className="text-sm text-gray-600">{e.elementoTipoNombre ?? "—"}</p>
+                        {e.elementoTipoEspecialidad && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {e.elementoTipoEspecialidad}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-sm text-gray-600">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <PrioridadBadge prioridad={e.prioridadTexto} />
                   </TableCell>

@@ -58,6 +58,7 @@ export interface Pendiente {
   codigoFormateado: string
   proyectoId: string
   subSistemaId: string | null
+  subSistemaCodigo: string | null
   subSistemaNombre: string | null
   elementoId: string | null
   elementoTag: string | null

@@ -316,6 +316,7 @@ export default function PendientesPage() {
               <TableRow>
                 <TableHead className="w-24 font-semibold text-gray-700">Código</TableHead>
                 <TableHead className="font-semibold text-gray-700">Descripción</TableHead>
+                <TableHead className="w-40 font-semibold text-gray-700">Subsistema</TableHead>
                 <TableHead className="w-32 font-semibold text-gray-700">Categoría</TableHead>
                 <TableHead className="w-28 font-semibold text-gray-700">Prioridad</TableHead>
                 <TableHead className="w-40 font-semibold text-gray-700">Estado</TableHead>
@@ -326,11 +327,11 @@ export default function PendientesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">Cargando...</TableCell>
+                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">Cargando...</TableCell>
                 </TableRow>
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No hay pendientes que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
@@ -349,6 +350,20 @@ export default function PendientesPage() {
                           <span className="font-mono">{p.elementoTag}</span>
                           {p.elementoNombre ? ` — ${p.elementoNombre}` : ""}
                         </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {p.subSistemaNombre || p.subSistemaCodigo ? (
+                        <>
+                          <p className="text-sm text-gray-600">{p.subSistemaNombre ?? "—"}</p>
+                          {p.subSistemaCodigo && (
+                            <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                              {p.subSistemaCodigo}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-sm text-gray-600">—</span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-gray-600">{p.categoriaNombre}</TableCell>
