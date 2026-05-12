@@ -7,10 +7,11 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import type { AvanceProyectoDTO } from "@/features/avance/types"
+import type { AvanceSubsistemaFilteredDTO } from "../types"
 
 interface Props {
-  avance: AvanceProyectoDTO
+  data: AvanceSubsistemaFilteredDTO[]
+  compact?: boolean
 }
 
 // Mismos cortes que el badge de riesgo del dashboard.
@@ -25,28 +26,19 @@ const config = {
   pct: { label: "% Avance" },
 } satisfies ChartConfig
 
-export function AvanceSubsistemasChart({ avance }: Props) {
-  const data = avance.sistemas.flatMap((s) =>
-    (s.subSistemas ?? []).map((ss) => ({
-      key: ss.id,
-      codigo: ss.codigo,
-      nombre: ss.nombre,
-      sistemaCodigo: s.codigo,
-      pct: ss.porcentajeAvance,
-      totalTareas: ss.totalTareas,
-    }))
-  )
-
+export function AvanceSubsistemasChart({ data, compact = false }: Props) {
   if (data.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-gray-200 py-16 text-center text-sm text-muted-foreground">
-        No hay subsistemas para mostrar.
+        No hay subsistemas para mostrar con los filtros actuales.
       </div>
     )
   }
 
-  // 28px por barra + márgenes. Para 50 subsistemas → ~1500px, scroll en el contenedor padre.
-  const height = Math.max(280, data.length * 28 + 60)
+  // Altura por barra: 20px en compacto, 28px en estándar.
+  const rowHeight = compact ? 20 : 28
+  const height = Math.max(280, data.length * rowHeight + 60)
+  const fontSize = compact ? 10 : 11
 
   return (
     <ChartContainer
@@ -69,7 +61,7 @@ export function AvanceSubsistemasChart({ avance }: Props) {
           dataKey="codigo"
           width={140}
           interval={0}
-          tick={{ fontSize: 11 }}
+          tick={{ fontSize }}
         />
         <ChartTooltip
           content={
@@ -77,30 +69,32 @@ export function AvanceSubsistemasChart({ avance }: Props) {
               hideIndicator
               labelFormatter={(_label, payload) => {
                 const item = payload?.[0]?.payload as
-                  | (typeof data)[number]
+                  | AvanceSubsistemaFilteredDTO
                   | undefined
                 if (!item) return ""
                 return `${item.codigo} — ${item.nombre}`
               }}
               formatter={(value, _name, item) => {
-                const raw = item?.payload as (typeof data)[number] | undefined
+                const raw = item?.payload as
+                  | AvanceSubsistemaFilteredDTO
+                  | undefined
                 return [
-                  `${value}%  ·  ${raw?.totalTareas ?? 0} tareas`,
+                  `${value}%  ·  ${raw?.completadas ?? 0}/${raw?.totalTareas ?? 0} tareas`,
                   "Avance",
                 ]
               }}
             />
           }
         />
-        <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
+        <Bar dataKey="porcentajeAvance" radius={[0, 4, 4, 0]}>
           {data.map((d) => (
-            <Cell key={d.key} fill={colorPorAvance(d.pct)} />
+            <Cell key={d.subSistemaId} fill={colorPorAvance(d.porcentajeAvance)} />
           ))}
           <LabelList
-            dataKey="pct"
+            dataKey="porcentajeAvance"
             position="right"
             formatter={(v) => `${v}%`}
-            style={{ fontSize: 11, fill: "#374151" }}
+            style={{ fontSize, fill: "#374151" }}
           />
         </Bar>
       </BarChart>

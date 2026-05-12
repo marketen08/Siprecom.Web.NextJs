@@ -14,6 +14,24 @@ export interface DistribucionItemDTO {
   count: number
 }
 
+export interface AvanceSubsistemaFilteredDTO {
+  subSistemaId: string
+  codigo: string
+  nombre: string
+  sistemaId: string
+  sistemaCodigo: string
+  sistemaNombre: string
+  totalTareas: number
+  completadas: number
+  porcentajeAvance: number
+}
+
+export interface AvanceSubsistemaFilters {
+  sistemaId?: string
+  nivelId?: string
+  especialidadId?: string
+}
+
 export interface ElementosPorSubsistemaDTO {
   subSistemaId: string
   codigo: string
