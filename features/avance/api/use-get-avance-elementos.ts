@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import type { ApiResponse } from "@/features/proyectos/types"
+import type { PagedResponse } from "@/features/proyectos/types"
 import type { AvanceElementoDTO } from "../types"
 
 interface Filters {
@@ -12,21 +12,28 @@ interface Filters {
   tareaId?: string
   /** Estado de ElementoTarea (1=Pendiente, 2=EnProceso, 3=Completado, 4=Aprobado, 5=Rechazado, 6=Cancelado, 7=Firmado). */
   estadoTarea?: number
+  /** Búsqueda libre sobre TAG y Nombre (filtra en backend). */
+  search?: string
+  page?: number
+  pageSize?: number
 }
 
 /**
- * Lista de avance por elemento del proyecto del usuario, con filtros opcionales.
- * Sin filtros, devuelve todos los elementos del proyecto.
+ * Lista paginada de avance por elemento del proyecto del usuario. Backend devuelve
+ * { data, total, page, pageSize }. Default pageSize=20.
  */
 export function useGetAvanceElementos(filters: Filters) {
   const {
     sistemaId, subSistemaId, especialidad, elementoTipoId,
-    prioridad, tareaId, estadoTarea,
+    prioridad, tareaId, estadoTarea, search,
+    page = 1, pageSize = 20,
   } = filters
   return useQuery({
     queryKey: ["avance", "elementos", filters],
     queryFn: () =>
-      apiClient.get<ApiResponse<AvanceElementoDTO[]>>("/api/avance/elementos", {
+      apiClient.get<PagedResponse<AvanceElementoDTO>>("/api/avance/elementos", {
+        page,
+        pageSize,
         ...(sistemaId ? { sistemaId } : {}),
         ...(subSistemaId ? { subSistemaId } : {}),
         ...(especialidad ? { especialidad } : {}),
@@ -34,6 +41,7 @@ export function useGetAvanceElementos(filters: Filters) {
         ...(prioridad !== undefined ? { prioridad } : {}),
         ...(tareaId ? { tareaId } : {}),
         ...(estadoTarea !== undefined ? { estadoTarea } : {}),
+        ...(search ? { search } : {}),
       }),
   })
 }

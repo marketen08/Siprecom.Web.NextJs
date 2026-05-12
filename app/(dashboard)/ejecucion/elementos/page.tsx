@@ -68,6 +68,8 @@ function AvanceElementosContent() {
   const [tareaId, setTareaId] = useState<string>("")
   const [estadoTarea, setEstadoTarea] = useState<string>("")
   const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const pageSize = 20
   const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceElementoDTO } | null>(null)
   const [planillasDialogOpen, setPlanillasDialogOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -77,6 +79,11 @@ function AvanceElementosContent() {
       setSubSistemaId(subSistemaIdParam)
     }
   }, [subSistemaIdParam])
+
+  // Cuando cambia algún filtro o la búsqueda, volvemos a la página 1.
+  useEffect(() => {
+    setPage(1)
+  }, [search, sistemaId, subSistemaId, especialidad, elementoTipoId, prioridad, tareaId, estadoTarea])
 
   useEffect(() => {
     if (sistemaIdParam && sistemaId !== sistemaIdParam) {
@@ -145,16 +152,14 @@ function AvanceElementosContent() {
     prioridad: prioridad ? Number(prioridad) : undefined,
     tareaId: tareaId || undefined,
     estadoTarea: estadoTarea ? Number(estadoTarea) : undefined,
+    search: search.trim() || undefined,
+    page,
+    pageSize,
   })
 
-  const elementosTodos = raw?.data ?? []
-  const elementos = search.trim()
-    ? elementosTodos.filter(
-        (e) =>
-          e.nombre.toLowerCase().includes(search.toLowerCase()) ||
-          e.codigo.toLowerCase().includes(search.toLowerCase())
-      )
-    : elementosTodos
+  const elementos = raw?.data ?? []
+  const total = raw?.total ?? 0
+  const totalPages = Math.ceil(total / pageSize)
 
   function handleSistemaChange(value: string | null) {
     const id = !value || value === ALL ? "" : value
@@ -523,12 +528,23 @@ function AvanceElementosContent() {
         </Table>
       </div>
 
-      {/* Total */}
-      {!isLoading && (
-        <p className="text-sm text-muted-foreground">
-          {`${elementos.length}${search ? ` de ${elementosTodos.length}` : ""} elementos`}
-        </p>
-      )}
+      {/* Total + Paginación */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>{total} elementos en total</span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-3">
+            <span>Página {page} de {totalPages}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>
+                Anterior
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <ElementoDetalleSheet
         elementoId={selectedElemento?.id ?? null}

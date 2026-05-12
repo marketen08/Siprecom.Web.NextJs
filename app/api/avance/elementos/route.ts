@@ -9,6 +9,9 @@ const PARAMS = [
   "prioridad",
   "tareaId",
   "estadoTarea",
+  "search",
+  "page",
+  "pageSize",
 ] as const
 
 // GET /api/avance/elementos?{filtros}
