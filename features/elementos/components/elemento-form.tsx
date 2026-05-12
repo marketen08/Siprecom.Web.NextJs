@@ -9,6 +9,7 @@ import { PRIORIDAD, type Elemento } from "../types"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -47,22 +48,15 @@ export function ElementoForm({
   const { data: sistemasData, isLoading: loadingSistemas } = useGetSistemasSelect()
   const { data: subSistemasData, isLoading: loadingSubSistemas } = useGetSubSistemasSelect()
   const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
+  const { data: especialidadesData } = useGetEspecialidades()
 
   const tipos = (tiposData as any)?.data ?? []
-
-  // Lista distinta de especialidades, derivada de los tipos cargados.
-  const especialidades = useMemo<string[]>(() => {
-    const set = new Set<string>()
-    for (const t of tipos as Array<{ especialidad?: string }>) {
-      if (t.especialidad && t.especialidad.trim()) set.add(t.especialidad)
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [tipos])
+  const especialidades = especialidadesData?.data ?? []
 
   const ALL_ESP = "__all__"
   // Helper UI: filtra el listado de tipos. NO se manda al backend (la especialidad
   // queda implícita por la del tipo elegido).
-  const [especialidad, setEspecialidad] = useState<string>(ALL_ESP)
+  const [especialidadId, setEspecialidadId] = useState<string>(ALL_ESP)
 
   const form = useForm<ElementoFormValues>({
     resolver: zodResolver(elementoSchema),
@@ -85,19 +79,19 @@ export function ElementoForm({
   // con la del tipo correspondiente para que el filtro tenga sentido al abrir.
   useEffect(() => {
     const currentTipoId = form.getValues("elementoTipoId")
-    if (currentTipoId && tipos.length > 0 && especialidad === ALL_ESP) {
+    if (currentTipoId && tipos.length > 0 && especialidadId === ALL_ESP) {
       const tipo = tipos.find((t: any) => t.id === currentTipoId)
-      if (tipo?.especialidad) setEspecialidad(tipo.especialidad)
+      if (tipo?.especialidadId) setEspecialidadId(tipo.especialidadId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipos.length])
 
   // Tipos filtrados según la especialidad
   const tiposFiltrados = useMemo(() => {
-    if (especialidad === ALL_ESP) return tipos
-    return (tipos as Array<{ id: string; nombre: string; especialidad?: string }>)
-      .filter((t) => t.especialidad === especialidad)
-  }, [tipos, especialidad])
+    if (especialidadId === ALL_ESP) return tipos
+    return (tipos as Array<{ id: string; nombre: string; especialidadId?: string }>)
+      .filter((t) => t.especialidadId === especialidadId)
+  }, [tipos, especialidadId])
 
   const tipoOptions = useMemo(
     () => (tiposFiltrados as Array<{ id: string; nombre: string }>).map((t) => ({ value: t.id, label: t.nombre })),
@@ -194,26 +188,30 @@ export function ElementoForm({
             <FormLabel>Especialidad</FormLabel>
             <Select
               disabled={isPending || loadingTipos}
-              value={especialidad}
+              value={especialidadId}
               onValueChange={(v) => {
-                setEspecialidad(v)
+                setEspecialidadId(v)
                 // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpiamos.
                 const currentTipoId = form.getValues("elementoTipoId")
                 if (v !== ALL_ESP && currentTipoId) {
                   const tipo = tipos.find((t: any) => t.id === currentTipoId)
-                  if (tipo?.especialidad !== v) form.setValue("elementoTipoId", "")
+                  if (tipo?.especialidadId !== v) form.setValue("elementoTipoId", "")
                 }
               }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todas las especialidades">
-                  {especialidad === ALL_ESP ? "Todas las especialidades" : especialidad}
+                  {especialidadId === ALL_ESP
+                    ? "Todas las especialidades"
+                    : especialidades.find((e) => e.id === especialidadId)?.nombre ?? "—"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_ESP}>Todas las especialidades</SelectItem>
                 {especialidades.map((esp) => (
-                  <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                  <SelectItem key={esp.id} value={esp.id}>
+                    {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -233,12 +231,12 @@ export function ElementoForm({
                     placeholder={
                       loadingTipos
                         ? "Cargando..."
-                        : especialidad === ALL_ESP
+                        : especialidadId === ALL_ESP
                           ? "Buscar entre todos los tipos..."
-                          : `Buscar en ${especialidad}...`
+                          : `Buscar en ${especialidades.find((e) => e.id === especialidadId)?.nombre ?? "esta especialidad"}...`
                     }
                     searchPlaceholder="Escribir para filtrar..."
-                    emptyMessage={especialidad === ALL_ESP ? "Sin tipos disponibles" : "Sin tipos para esta especialidad"}
+                    emptyMessage={especialidadId === ALL_ESP ? "Sin tipos disponibles" : "Sin tipos para esta especialidad"}
                     disabled={isPending || loadingTipos}
                   />
                 </FormControl>

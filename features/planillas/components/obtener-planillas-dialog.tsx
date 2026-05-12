@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { apiClient } from "@/lib/api-client"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
@@ -33,7 +34,7 @@ interface Nivel {
 interface Filtros {
   nivelId: string
   subSistemaId: string
-  especialidad: string
+  especialidadId: string
   elementoTipoId: string
   soloPendientes: boolean
   agruparPorTarea: boolean
@@ -51,7 +52,7 @@ function useBuscarPlanillas(filtros: Filtros, proyectoId: string | undefined) {
           tienePlanilla: true,
           ...(filtros.nivelId       && { nivelId:       filtros.nivelId }),
           ...(filtros.subSistemaId  && { subSistemaId:  filtros.subSistemaId }),
-          ...(filtros.especialidad  && { especialidad:  filtros.especialidad }),
+          ...(filtros.especialidadId && { especialidadId: filtros.especialidadId }),
           ...(filtros.elementoTipoId && { elementoTipoId: filtros.elementoTipoId }),
           ...(filtros.soloPendientes && { estado: 1 }), // 1 = PENDIENTE
         },
@@ -76,7 +77,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
   const [filtros, setFiltros] = useState<Filtros>({
     nivelId: "",
     subSistemaId: "",
-    especialidad: "",
+    especialidadId: "",
     elementoTipoId: "",
     soloPendientes: false,
     agruparPorTarea: true,
@@ -88,6 +89,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
   const { data: nivelesRaw }       = useGetNivelesSelect()
   const { data: subSistemasRaw }   = useGetSubSistemasSelect()
   const { data: elementosTiposRaw} = useGetElementosTiposSelect()
+  const { data: especialidadesRaw } = useGetEspecialidades()
 
   const nivelesResponse = nivelesRaw as { data: Nivel[] } | Nivel[] | undefined
   const niveles = Array.isArray(nivelesResponse)
@@ -95,12 +97,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
     : (nivelesResponse as { data: Nivel[] } | undefined)?.data ?? []
   const subSistemas   = subSistemasRaw?.data ?? []
   const elementosTipos = elementosTiposRaw?.data ?? []
-
-  // Especialidades únicas derivadas de los tipos de elemento
-  const especialidades = useMemo(
-    () => [...new Set(elementosTipos.map((et) => et.especialidad).filter(Boolean))].sort(),
-    [elementosTipos]
-  )
+  const especialidades = especialidadesRaw?.data ?? []
 
   // Búsqueda reactiva
   const { data: resultados, isLoading: buscando } = useBuscarPlanillas(
@@ -224,16 +221,22 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Especialidad</label>
             <Select
-              value={filtros.especialidad || "__all__"}
-              onValueChange={(v) => set("especialidad", v === "__all__" ? "" : v)}
+              value={filtros.especialidadId || "__all__"}
+              onValueChange={(v) => set("especialidadId", v === "__all__" ? "" : v)}
             >
               <SelectTrigger className="w-full">
-                <SelectValue>{filtros.especialidad || "TODOS"}</SelectValue>
+                <SelectValue>
+                  {filtros.especialidadId
+                    ? (especialidades.find((e) => e.id === filtros.especialidadId)?.nombre ?? "TODOS")
+                    : "TODOS"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">TODOS</SelectItem>
                 {especialidades.map((esp) => (
-                  <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                  <SelectItem key={esp.id} value={esp.id}>
+                    {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

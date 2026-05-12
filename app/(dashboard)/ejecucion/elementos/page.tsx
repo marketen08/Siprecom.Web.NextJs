@@ -7,6 +7,7 @@ import { useGetAvanceElementos } from "@/features/avance/api/use-get-avance-elem
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetTareasSelect } from "@/features/tareas/api/use-get-tareas-select"
 import { PRIORIDAD } from "@/features/elementos/types"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
@@ -62,7 +63,7 @@ function AvanceElementosContent() {
 
   const [sistemaId, setSistemaId] = useState<string>(sistemaIdParam ?? "")
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam ?? "")
-  const [especialidad, setEspecialidad] = useState<string>("")
+  const [especialidadId, setEspecialidadId] = useState<string>("")
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
   const [prioridad, setPrioridad] = useState<string>("")
   const [tareaId, setTareaId] = useState<string>("")
@@ -83,7 +84,7 @@ function AvanceElementosContent() {
   // Cuando cambia algún filtro o la búsqueda, volvemos a la página 1.
   useEffect(() => {
     setPage(1)
-  }, [search, sistemaId, subSistemaId, especialidad, elementoTipoId, prioridad, tareaId, estadoTarea])
+  }, [search, sistemaId, subSistemaId, especialidadId, elementoTipoId, prioridad, tareaId, estadoTarea])
 
   useEffect(() => {
     if (sistemaIdParam && sistemaId !== sistemaIdParam) {
@@ -105,35 +106,28 @@ function AvanceElementosContent() {
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
   const { data: tiposRaw } = useGetElementosTiposSelect()
   const { data: tareasRaw } = useGetTareasSelect()
+  const { data: especialidadesRaw } = useGetEspecialidades()
 
   const sistemas = sistemasRaw?.data ?? []
   const todosSubSistemas = subSistemasRaw?.data ?? []
-  const tipos: Array<{ id: string; nombre: string; especialidad?: string }> = (tiposRaw as any)?.data ?? []
+  const tipos: Array<{ id: string; nombre: string; especialidadId?: string }> = (tiposRaw as any)?.data ?? []
   const tareas: Array<{ id: string; codigo: number; nombre: string }> = (tareasRaw as any)?.data ?? []
+  const especialidades = especialidadesRaw?.data ?? []
 
   const subSistemasFiltrados = sistemaId
     ? todosSubSistemas.filter((ss) => ss.sistemaId === sistemaId)
     : todosSubSistemas
 
-  // Lista distinta de especialidades a partir de los tipos.
-  const especialidades = useMemo<string[]>(() => {
-    const set = new Set<string>()
-    for (const t of tipos) {
-      if (t.especialidad?.trim()) set.add(t.especialidad)
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [tipos])
-
   // Tipos filtrados por especialidad → opciones del Combobox.
   const tipoOptions = useMemo(() => {
-    const filtrados = especialidad
-      ? tipos.filter((t) => t.especialidad === especialidad)
+    const filtrados = especialidadId
+      ? tipos.filter((t) => t.especialidadId === especialidadId)
       : tipos
     return [
       { value: "", label: "Todos los tipos" },
       ...filtrados.map((t) => ({ value: t.id, label: t.nombre })),
     ]
-  }, [tipos, especialidad])
+  }, [tipos, especialidadId])
 
   // Opciones de tareas para el Combobox.
   const tareaOptions = useMemo(
@@ -147,7 +141,7 @@ function AvanceElementosContent() {
   const { data: raw, isLoading } = useGetAvanceElementos({
     sistemaId: sistemaId || undefined,
     subSistemaId: subSistemaId || undefined,
-    especialidad: especialidad || undefined,
+    especialidadId: especialidadId || undefined,
     elementoTipoId: elementoTipoId || undefined,
     prioridad: prioridad ? Number(prioridad) : undefined,
     tareaId: tareaId || undefined,
@@ -184,18 +178,18 @@ function AvanceElementosContent() {
 
   function handleEspecialidadChange(value: string | null) {
     const v = !value || value === ALL ? "" : value
-    setEspecialidad(v)
+    setEspecialidadId(v)
     // Si la especialidad cambia y el tipo actual ya no le corresponde, lo limpiamos.
     if (v && elementoTipoId) {
       const tipo = tipos.find((t) => t.id === elementoTipoId)
-      if (tipo?.especialidad !== v) setElementoTipoId("")
+      if (tipo?.especialidadId !== v) setElementoTipoId("")
     }
   }
 
   function handleClearFiltros() {
     setSistemaId("")
     setSubSistemaId("")
-    setEspecialidad("")
+    setEspecialidadId("")
     setElementoTipoId("")
     setPrioridad("")
     setTareaId("")
@@ -229,10 +223,11 @@ function AvanceElementosContent() {
       onRemove: () => handleSubSistemaChange(ALL),
     })
   }
-  if (especialidad) {
+  if (especialidadId) {
+    const espSel = especialidades.find((e) => e.id === especialidadId)
     activeFilters.push({
       id: "especialidad",
-      label: `Especialidad: ${especialidad}`,
+      label: `Especialidad: ${espSel?.nombre ?? "—"}`,
       onRemove: () => handleEspecialidadChange(ALL),
     })
   }
@@ -358,16 +353,18 @@ function AvanceElementosContent() {
         </FilterField>
 
         <FilterField label="Especialidad">
-          <Select value={especialidad || ALL} onValueChange={handleEspecialidadChange}>
+          <Select value={especialidadId || ALL} onValueChange={handleEspecialidadChange}>
             <SelectTrigger className="w-full">
               <SelectValue>
-                {especialidad || "Todas las especialidades"}
+                {especialidades.find((e) => e.id === especialidadId)?.nombre ?? "Todas las especialidades"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>Todas las especialidades</SelectItem>
               {especialidades.map((esp) => (
-                <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                <SelectItem key={esp.id} value={esp.id}>
+                  {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>

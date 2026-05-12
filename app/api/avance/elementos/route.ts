@@ -4,7 +4,7 @@ import { backendFetch } from "@/lib/server/backend-fetch"
 const PARAMS = [
   "sistemaId",
   "subSistemaId",
-  "especialidad",
+  "especialidadId",
   "elementoTipoId",
   "prioridad",
   "tareaId",

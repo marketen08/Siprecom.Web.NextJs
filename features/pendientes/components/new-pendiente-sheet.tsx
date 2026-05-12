@@ -35,7 +35,7 @@ export function NewPendienteSheet() {
             defaultValues={{
               elementoId: prefill?.elementoId ?? null,
               subSistemaId: prefill?.subSistemaId ?? null,
-              especialidad: prefill?.especialidad ?? null,
+              especialidadId: prefill?.especialidadId ?? null,
             }}
             onSubmit={onSubmit}
             isPending={mutation.isPending}

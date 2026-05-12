@@ -52,11 +52,25 @@ export const columns: ColumnDef<ElementoTipo>[] = [
     ),
   },
   {
-    accessorKey: "especialidad",
+    accessorKey: "especialidadNombre",
     header: "Especialidad",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.especialidad || "—"}</span>
-    ),
+    cell: ({ row }) => {
+      const nombre = row.original.especialidadNombre
+      const color = row.original.especialidadColor
+      const codigo = row.original.especialidadCodigo
+      if (!nombre) return <span className="text-sm text-muted-foreground">—</span>
+      return (
+        <span className="inline-flex items-center gap-2 text-sm">
+          {color && (
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+              style={{ backgroundColor: color }}
+            />
+          )}
+          <span className="text-gray-700">{codigo ? `${codigo} — ${nombre}` : nombre}</span>
+        </span>
+      )
+    },
   },
   {
     accessorKey: "horasBaseDefault",

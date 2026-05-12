@@ -15,6 +15,7 @@ import { EditElementoSheet } from "@/features/elementos/components/edit-elemento
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { PRIORIDAD } from "@/features/elementos/types"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
@@ -51,7 +52,7 @@ export default function ElementosPage() {
   const [search, setSearch] = useState("")
   const [sistemaId, setSistemaId] = useState<string>(ALL)
   const [subSistemaId, setSubSistemaId] = useState<string>(ALL)
-  const [especialidad, setEspecialidad] = useState<string>(ALL)
+  const [especialidadId, setEspecialidadId] = useState<string>(ALL)
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
   const [prioridad, setPrioridad] = useState<string>(ALL)
   const [page, setPage] = useState(1)
@@ -65,7 +66,7 @@ export default function ElementosPage() {
     sistemaId: sistemaId !== ALL ? sistemaId : undefined,
     subSistemaId: subSistemaId !== ALL ? subSistemaId : undefined,
     elementoTipoId: elementoTipoId || undefined,
-    especialidad: especialidad !== ALL ? especialidad : undefined,
+    especialidadId: especialidadId !== ALL ? especialidadId : undefined,
     prioridad: prioridad !== ALL ? Number(prioridad) : undefined,
   })
   const { open } = useNewElemento()
@@ -74,9 +75,11 @@ export default function ElementosPage() {
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subsistemasRaw } = useGetSubSistemasSelect()
   const { data: tiposRaw } = useGetElementosTiposSelect()
+  const { data: especialidadesRaw } = useGetEspecialidades()
   const sistemas = (sistemasRaw as any)?.data ?? []
   const subsistemas = (subsistemasRaw as any)?.data ?? []
   const tipos = (tiposRaw as any)?.data ?? []
+  const especialidades = especialidadesRaw?.data ?? []
 
   // Subsistemas filtrados por el sistema seleccionado
   const subsistemasFiltrados = useMemo(() => {
@@ -84,31 +87,22 @@ export default function ElementosPage() {
     return (subsistemas as any[]).filter((ss) => ss.sistemaId === sistemaId)
   }, [subsistemas, sistemaId])
 
-  // Lista distinta de especialidades a partir de los tipos
-  const especialidades = useMemo<string[]>(() => {
-    const set = new Set<string>()
-    for (const t of tipos as Array<{ especialidad?: string }>) {
-      if (t.especialidad?.trim()) set.add(t.especialidad)
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [tipos])
-
   // Tipos filtrados por especialidad → opciones del Combobox
   const tipoOptions = useMemo(() => {
-    const filtrados = especialidad === ALL
+    const filtrados = especialidadId === ALL
       ? tipos
-      : (tipos as any[]).filter((t) => t.especialidad === especialidad)
+      : (tipos as any[]).filter((t) => t.especialidadId === especialidadId)
     return [
       { value: "", label: "Todos los tipos" },
       ...filtrados.map((t: any) => ({ value: t.id, label: t.nombre })),
     ]
-  }, [tipos, especialidad])
+  }, [tipos, especialidadId])
 
   // Limpiar resetea solo los filtros (el buscador es independiente y se mantiene).
   function clearFiltros() {
     setSistemaId(ALL)
     setSubSistemaId(ALL)
-    setEspecialidad(ALL)
+    setEspecialidadId(ALL)
     setElementoTipoId("")
     setPrioridad(ALL)
     setPage(1)
@@ -132,10 +126,11 @@ export default function ElementosPage() {
       onRemove: () => { setSubSistemaId(ALL); setPage(1) },
     })
   }
-  if (especialidad !== ALL) {
+  if (especialidadId !== ALL) {
+    const espSel = especialidades.find((e) => e.id === especialidadId)
     activeFilters.push({
       id: "especialidad",
-      label: `Especialidad: ${especialidad}`,
+      label: `Especialidad: ${espSel?.nombre ?? "—"}`,
       onRemove: () => handleEspecialidadChange(ALL),
     })
   }
@@ -167,10 +162,10 @@ export default function ElementosPage() {
 
   // Si cambia la especialidad y el tipo actual no pertenece, lo reseteamos.
   function handleEspecialidadChange(v: string) {
-    setEspecialidad(v)
+    setEspecialidadId(v)
     if (v !== ALL && elementoTipoId) {
       const tipo = (tipos as any[]).find((t) => t.id === elementoTipoId)
-      if (tipo?.especialidad !== v) setElementoTipoId("")
+      if (tipo?.especialidadId !== v) setElementoTipoId("")
     }
     setPage(1)
   }
@@ -267,16 +262,20 @@ export default function ElementosPage() {
           </FilterField>
 
           <FilterField label="Especialidad">
-            <Select value={especialidad} onValueChange={handleEspecialidadChange}>
+            <Select value={especialidadId} onValueChange={handleEspecialidadChange}>
               <SelectTrigger className="w-full">
                 <SelectValue>
-                  {especialidad === ALL ? "Todas las especialidades" : especialidad}
+                  {especialidadId === ALL
+                    ? "Todas las especialidades"
+                    : especialidades.find((e) => e.id === especialidadId)?.nombre ?? "—"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Todas las especialidades</SelectItem>
                 {especialidades.map((esp) => (
-                  <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                  <SelectItem key={esp.id} value={esp.id}>
+                    {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

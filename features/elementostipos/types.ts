@@ -1,7 +1,10 @@
 export interface ElementoTipo {
   id: string
   nombre: string
-  especialidad: string
+  especialidadId: string
+  especialidadNombre: string | null
+  especialidadCodigo: string | null
+  especialidadColor: string | null
   horasBaseDefault: number
   impactoBaseDefault: number
   horasAdicionalesDefault: number
@@ -15,7 +18,7 @@ export interface ElementoTipo {
 
 export interface ElementoTipoCreateInput {
   nombre: string
-  especialidad?: string
+  especialidadId: string
   horasBaseDefault: number
   impactoBaseDefault: number
   horasAdicionalesDefault: number
@@ -24,7 +27,7 @@ export interface ElementoTipoCreateInput {
 
 export interface ElementoTipoUpdateInput {
   nombre: string
-  especialidad?: string
+  especialidadId: string
   horasBaseDefault: number
   impactoBaseDefault: number
   horasAdicionalesDefault: number

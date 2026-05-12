@@ -72,7 +72,7 @@ export function PendienteDetalleSheet() {
               <DataItem label="Responsable" value={p.responsableNombre} />
               <DataItem label="Subsistema"  value={p.subSistemaNombre} />
               <DataItem label="Elemento"    value={p.elementoTag ? `${p.elementoTag} — ${p.elementoNombre}` : null} />
-              <DataItem label="Especialidad" value={p.especialidad} />
+              <DataItem label="Especialidad" value={p.especialidadNombre} />
               <DataItem label="PID"         value={p.pid} />
               <DataItem label="Circuito"    value={p.circuito} />
               <DataItem label="Detección"   value={p.fechaDeteccion} />

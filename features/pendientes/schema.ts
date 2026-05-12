@@ -9,7 +9,7 @@ export const pendienteCreateSchema = z.object({
   fechaCierreEstimado: z.string().min(1, "Fecha de cierre estimada requerida"),
   subSistemaId: z.string().optional().nullable(),
   elementoId: z.string().optional().nullable(),
-  especialidad: z.string().max(100).optional().nullable(),
+  especialidadId: z.string().optional().nullable(),
   pid: z.string().max(500).optional().nullable(),
   circuito: z.string().max(500).optional().nullable(),
 })

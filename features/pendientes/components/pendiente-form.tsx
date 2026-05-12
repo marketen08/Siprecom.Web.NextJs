@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 
 import { pendienteCreateSchema, type PendienteFormValues } from "../schema"
 import { useGetPendienteCategorias, useGetPendienteTipos } from "../api/use-catalogos"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
@@ -55,12 +56,14 @@ export function PendienteForm({
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
+  const { data: especialidadesRaw } = useGetEspecialidades()
 
   const categorias = categoriasRaw?.data ?? []
   const tipos = tiposRaw?.data ?? []
   const sistemas = sistemasRaw?.data ?? []
   const subSistemas = subSistemasRaw?.data ?? []
   const usuarios = usuariosRaw ?? []
+  const especialidades = especialidadesRaw?.data ?? []
 
   const hoy = new Date()
   const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000)
@@ -77,7 +80,7 @@ export function PendienteForm({
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       subSistemaId: defaultValues?.subSistemaId ?? null,
       elementoId: defaultValues?.elementoId ?? null,
-      especialidad: defaultValues?.especialidad ?? null,
+      especialidadId: defaultValues?.especialidadId ?? null,
       pid: defaultValues?.pid ?? null,
       circuito: defaultValues?.circuito ?? null,
     },
@@ -344,16 +347,22 @@ export function PendienteForm({
           <div className="grid grid-cols-2 gap-3">
             <FormField
               control={form.control}
-              name="especialidad"
+              name="especialidadId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Especialidad</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="Ej: Mecánica, Eléctrica…"
-                      disabled={isPending}
+                    <Combobox
+                      options={especialidades.map((e) => ({
+                        value: e.id,
+                        label: e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre,
+                      }))}
                       value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value || null)}
+                      onChange={(v) => field.onChange(v || null)}
+                      placeholder="Seleccionar especialidad"
+                      searchPlaceholder="Buscar..."
+                      emptyMessage="No hay especialidades cargadas"
+                      disabled={isPending}
                     />
                   </FormControl>
                   <FormMessage />

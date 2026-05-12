@@ -77,7 +77,8 @@ export interface Pendiente {
   responsableNombre: string | null
   descripcion: string
   pid: string | null
-  especialidad: string | null
+  especialidadId: string | null
+  especialidadNombre: string | null
   circuito: string | null
   fechaDeteccion: string
   fechaCierreEstimado: string
@@ -144,7 +145,7 @@ export interface PendienteCreateInput {
   fechaCierreEstimado: string // YYYY-MM-DD
   subSistemaId?: string | null
   elementoId?: string | null
-  especialidad?: string | null
+  especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
 }
@@ -157,7 +158,7 @@ export interface PendienteUpdateInput {
   fechaCierreEstimado: string
   subSistemaId?: string | null
   elementoId?: string | null
-  especialidad?: string | null
+  especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
 }
@@ -173,7 +174,7 @@ export interface PendienteFilterInput {
   responsableId?: string
   detectadoPorId?: string
   prioridad?: number
-  especialidad?: string
+  especialidadId?: string
   soloAbiertos?: boolean
   orderBy?: string
   orderDescending?: boolean

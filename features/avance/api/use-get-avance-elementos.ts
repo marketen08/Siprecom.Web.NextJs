@@ -6,7 +6,7 @@ import type { AvanceElementoDTO } from "../types"
 interface Filters {
   sistemaId?: string
   subSistemaId?: string
-  especialidad?: string
+  especialidadId?: string
   elementoTipoId?: string
   prioridad?: number
   tareaId?: string
@@ -24,7 +24,7 @@ interface Filters {
  */
 export function useGetAvanceElementos(filters: Filters) {
   const {
-    sistemaId, subSistemaId, especialidad, elementoTipoId,
+    sistemaId, subSistemaId, especialidadId, elementoTipoId,
     prioridad, tareaId, estadoTarea, search,
     page = 1, pageSize = 20,
   } = filters
@@ -36,7 +36,7 @@ export function useGetAvanceElementos(filters: Filters) {
         pageSize,
         ...(sistemaId ? { sistemaId } : {}),
         ...(subSistemaId ? { subSistemaId } : {}),
-        ...(especialidad ? { especialidad } : {}),
+        ...(especialidadId ? { especialidadId } : {}),
         ...(elementoTipoId ? { elementoTipoId } : {}),
         ...(prioridad !== undefined ? { prioridad } : {}),
         ...(tareaId ? { tareaId } : {}),

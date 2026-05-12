@@ -11,15 +11,15 @@ interface Params {
   sistemaId?: string
   subSistemaId?: string
   elementoTipoId?: string
-  especialidad?: string
+  especialidadId?: string
   prioridad?: number
 }
 
 export function useGetElementos(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, sistemaId, subSistemaId, elementoTipoId, especialidad, prioridad } = params
+  const { page = 1, pageSize = 10, nombre, sistemaId, subSistemaId, elementoTipoId, especialidadId, prioridad } = params
 
   return useQuery({
-    queryKey: ["elementos", { page, pageSize, nombre, sistemaId, subSistemaId, elementoTipoId, especialidad, prioridad }],
+    queryKey: ["elementos", { page, pageSize, nombre, sistemaId, subSistemaId, elementoTipoId, especialidadId, prioridad }],
     queryFn: () =>
       apiClient.get<PagedResponse<Elemento>>("/api/elementos", {
         page,
@@ -28,7 +28,7 @@ export function useGetElementos(params: Params = {}) {
         ...(sistemaId ? { sistemaId } : {}),
         ...(subSistemaId ? { subSistemaId } : {}),
         ...(elementoTipoId ? { elementoTipoId } : {}),
-        ...(especialidad ? { especialidad } : {}),
+        ...(especialidadId ? { especialidadId } : {}),
         ...(prioridad !== undefined ? { prioridad } : {}),
       }),
   })

@@ -5,8 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod"
 
 import { elementoTipoSchema, type ElementoTipoFormValues } from "../schema"
 import type { ElementoTipo } from "../types"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -31,11 +33,17 @@ export function ElementoTipoForm({
   isPending,
   onCancel,
 }: ElementoTipoFormProps) {
+  const { data: especialidadesData, isLoading: cargandoEsp } = useGetEspecialidades()
+  const especialidadOpts = (especialidadesData?.data ?? []).map((e) => ({
+    value: e.id,
+    label: e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre,
+  }))
+
   const form = useForm<ElementoTipoFormValues>({
     resolver: zodResolver(elementoTipoSchema),
     defaultValues: {
       nombre: defaultValues?.nombre ?? "",
-      especialidad: defaultValues?.especialidad ?? "",
+      especialidadId: defaultValues?.especialidadId ?? "",
       horasBaseDefault: defaultValues?.horasBaseDefault ?? 1,
       impactoBaseDefault: defaultValues?.impactoBaseDefault ?? 1,
       horasAdicionalesDefault: defaultValues?.horasAdicionalesDefault ?? 0,
@@ -69,12 +77,20 @@ export function ElementoTipoForm({
 
           <FormField
             control={form.control}
-            name="especialidad"
+            name="especialidadId"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Especialidad</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ej: Instrumentación" disabled={isPending} {...field} />
+                  <Combobox
+                    options={especialidadOpts}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder={cargandoEsp ? "Cargando..." : "Seleccionar especialidad"}
+                    searchPlaceholder="Buscar..."
+                    emptyMessage="No hay especialidades. Cárgalas en Configuración → Especialidades."
+                    disabled={isPending || cargandoEsp}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
