@@ -17,6 +17,7 @@ export const menu: MenuItem[] = [
       { label: "Avance por sistemas",     href: "/ejecucion/sistemas" },
       { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
       { label: "Avance por elementos",    href: "/ejecucion/elementos" },
+      { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Mis firmas",              href: "/mis-firmas" },
     ],
   },
@@ -117,4 +118,5 @@ export const segmentLabels: Record<string, string> = {
   reporte:       "Reporte",
   avance:        "Avance",
   importacion:   "Importación masiva",
+  pendientes:    "Pendientes",
 }

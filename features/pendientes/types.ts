@@ -1,0 +1,179 @@
+/** Estados del workflow de Pendientes (IDs fijos del seed backend). */
+export const PENDIENTE_ESTADO_IDS = {
+  ABIERTO: "estado-pend-abierto",
+  EN_PROCESO: "estado-pend-en-proceso",
+  PENDIENTE_APROBACION: "estado-pend-aprobacion",
+  CERRADO: "estado-pend-cerrado",
+  CANCELADO: "estado-pend-cancelado",
+} as const
+
+export const PRIORIDAD: Record<number, string> = {
+  1: "Baja",
+  2: "Media",
+  3: "Alta",
+  4: "Urgente",
+}
+
+export const PRIORIDAD_COLOR: Record<number, string> = {
+  1: "bg-gray-100 text-gray-600",
+  2: "bg-blue-50 text-blue-700",
+  3: "bg-orange-100 text-orange-700",
+  4: "bg-red-100 text-red-700",
+}
+
+export const ESTADO_COLOR: Record<string, string> = {
+  ABIERTO: "bg-gray-100 text-gray-700",
+  EN_PROCESO: "bg-blue-100 text-blue-700",
+  PENDIENTE_APROBACION: "bg-amber-100 text-amber-800",
+  CERRADO: "bg-green-100 text-green-700",
+  CANCELADO: "bg-red-100 text-red-700",
+}
+
+export const ESTADO_LABEL: Record<string, string> = {
+  ABIERTO: "Abierto",
+  EN_PROCESO: "En proceso",
+  PENDIENTE_APROBACION: "Esperando aprobación",
+  CERRADO: "Cerrado",
+  CANCELADO: "Cancelado",
+}
+
+export interface PendienteCategoria {
+  id: string
+  nombre: string
+}
+
+export interface PendienteTipo {
+  id: string
+  tipo: string
+}
+
+export interface PendienteEstado {
+  id: string
+  estado: string
+}
+
+export interface Pendiente {
+  id: string
+  codigo: number
+  codigoFormateado: string
+  proyectoId: string
+  subSistemaId: string | null
+  subSistemaNombre: string | null
+  elementoId: string | null
+  elementoTag: string | null
+  elementoNombre: string | null
+  categoriaId: string
+  categoriaNombre: string | null
+  tipoId: string
+  tipoNombre: string | null
+  estadoId: string
+  estadoNombre: string | null
+  prioridad: number
+  prioridadTexto: string
+  detectadoPorId: string
+  detectadoPorNombre: string | null
+  responsableId: string
+  responsableNombre: string | null
+  descripcion: string
+  pid: string | null
+  especialidad: string | null
+  circuito: string | null
+  fechaDeteccion: string
+  fechaCierreEstimado: string
+  fechaCierre: string | null
+  cierrePorId: string | null
+  cierrePorNombre: string | null
+  fechaDesestimado: string | null
+  desestimadoPorId: string | null
+  desestimadoPorNombre: string | null
+  motivoRechazoCierre: string | null
+  createdAt: string
+  updatedAt: string
+  isActive: boolean
+}
+
+export interface PendienteComentario {
+  id: string
+  pendienteId: string
+  comentario: string
+  autorId: string
+  autorNombre: string | null
+  createdAt: string
+}
+
+export interface PendienteAdjunto {
+  id: string
+  pendienteId: string
+  fileName: string
+  fileType: string | null
+  url: string
+  urlExpiraEn: string | null
+  createdAt: string
+  createdByNombre: string | null
+}
+
+export interface PendienteHistorial {
+  id: string
+  estadoAnteriorId: string | null
+  estadoAnteriorNombre: string | null
+  estadoNuevoId: string
+  estadoNuevoNombre: string | null
+  responsableAnteriorId: string | null
+  responsableAnteriorNombre: string | null
+  responsableNuevoId: string | null
+  responsableNuevoNombre: string | null
+  comentario: string | null
+  fecha: string
+  usuarioId: string
+  usuarioNombre: string | null
+}
+
+export interface PendienteDetalle extends Pendiente {
+  comentarios: PendienteComentario[]
+  adjuntos: PendienteAdjunto[]
+  historial: PendienteHistorial[]
+}
+
+export interface PendienteCreateInput {
+  categoriaId: string
+  tipoId: string
+  responsableId: string
+  descripcion: string
+  prioridad: number
+  fechaCierreEstimado: string // YYYY-MM-DD
+  subSistemaId?: string | null
+  elementoId?: string | null
+  especialidad?: string | null
+  pid?: string | null
+  circuito?: string | null
+}
+
+export interface PendienteUpdateInput {
+  categoriaId: string
+  tipoId: string
+  descripcion: string
+  prioridad: number
+  fechaCierreEstimado: string
+  subSistemaId?: string | null
+  elementoId?: string | null
+  especialidad?: string | null
+  pid?: string | null
+  circuito?: string | null
+}
+
+export interface PendienteFilterInput {
+  search?: string
+  sistemaId?: string
+  subSistemaId?: string
+  elementoId?: string
+  categoriaId?: string
+  tipoId?: string
+  estadoId?: string
+  responsableId?: string
+  detectadoPorId?: string
+  prioridad?: number
+  especialidad?: string
+  soloAbiertos?: boolean
+  orderBy?: string
+  orderDescending?: boolean
+}
