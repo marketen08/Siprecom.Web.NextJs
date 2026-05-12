@@ -25,3 +25,16 @@ export interface ImportResultado {
   preview: ImportPreview
   mensaje: string
 }
+
+/** Preview de importación de Pendientes (hoja única, un solo resumen). */
+export interface ImportPendientesPreview {
+  pendientes: ImportEntidadResumen
+  errores: ImportError[]
+  esAplicable: boolean
+}
+
+export interface ImportPendientesResultado {
+  aplicado: boolean
+  preview: ImportPendientesPreview
+  mensaje: string
+}

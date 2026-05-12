@@ -55,6 +55,7 @@ export const menu: MenuItem[] = [
       { label: "Tareas",       href: "/alcance/tareas" },
       { label: "Planillas",    href: "/alcance/planillas" },
       { label: "Importación masiva", href: "/alcance/importacion" },
+      { label: "Importar pendientes", href: "/alcance/importacion-pendientes" },
     ],
   },
   {
@@ -120,6 +121,7 @@ export const segmentLabels: Record<string, string> = {
   reporte:       "Reporte",
   avance:        "Avance",
   importacion:   "Importación masiva",
+  "importacion-pendientes": "Importar pendientes",
   pendientes:    "Pendientes",
   "pendientes-categorias": "Categorías de pendientes",
   "pendientes-tipos":      "Tipos de pendientes",
