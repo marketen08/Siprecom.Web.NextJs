@@ -43,6 +43,13 @@ export const menu: MenuItem[] = [
           { label: "Estado de pendientes",         href: "/estadisticas/estado-pendientes" },
         ],
       },
+      {
+        label: "Planificación",
+        children: [
+          { label: "Estimador",     href: "/planificacion/estimador" },
+          { label: "Configuración", href: "/planificacion/configuracion" },
+        ],
+      },
     ],
   },
   {
@@ -123,6 +130,9 @@ export const segmentLabels: Record<string, string> = {
   avance:        "Avance",
   especialidades: "Especialidades",
   estadisticas:                "Estadísticas",
+  planificacion:               "Planificación",
+  estimador:                   "Estimador",
+  configuracion:               "Configuración",
   "avance-subsistemas":        "Avance por subsistemas",
   "cuantitativo-subsistemas":  "Cuantitativo por subsistemas",
   "avance-programado":         "Avance programado",

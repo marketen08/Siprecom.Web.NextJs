@@ -31,6 +31,9 @@ export interface Proyecto {
   permiteAdjuntos: boolean
   /** Si está en true, cada nivel debe iniciar después del fin del nivel anterior (mismo subsistema). */
   nivelesSecuenciales: boolean
+  /** Calendario laboral: lun-vie son siempre laborables. Estos flags habilitan sábado y/o domingo. */
+  incluirSabado: boolean
+  incluirDomingo: boolean
   createdAt: string
   createdByNombre: string
   updatedAt: string
