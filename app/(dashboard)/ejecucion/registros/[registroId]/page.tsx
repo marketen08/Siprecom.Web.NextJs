@@ -69,7 +69,12 @@ export default function RegistroFormPage({ params }: PageProps) {
   const proyectoId = registro?.proyectoId ?? null
 
   const { data: estructuraRaw, isLoading: loadingEstructura } = useGetPlanillaEstructura(planillaId)
-  const estructura = (estructuraRaw as any)?.data ?? estructuraRaw
+  type EstructuraData = {
+    planilla: { permiteAdjuntos?: boolean } & Record<string, any>
+    secciones: Array<{ id: string; nombre: string; orden: number } & Record<string, any>>
+    campos: PlanillaCampoDetalle[]
+  }
+  const estructura = ((estructuraRaw as any)?.data ?? estructuraRaw) as EstructuraData | undefined
 
   const { data: proyectoRaw } = useGetProyecto(proyectoId)
   const proyecto = proyectoRaw?.data

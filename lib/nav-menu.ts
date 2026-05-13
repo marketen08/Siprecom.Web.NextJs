@@ -134,7 +134,6 @@ export const segmentLabels: Record<string, string> = {
   planificacion:               "Planificación",
   estimador:                   "Estimador",
   generador:                   "Generador",
-  configuracion:               "Configuración",
   "avance-subsistemas":        "Avance por subsistemas",
   "cuantitativo-subsistemas":  "Cuantitativo por subsistemas",
   "avance-programado":         "Avance programado",

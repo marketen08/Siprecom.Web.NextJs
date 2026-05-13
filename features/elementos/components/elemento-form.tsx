@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { elementoSchema, type ElementoFormValues } from "../schema"
+import { elementoSchema, type ElementoFormInput, type ElementoFormValues } from "../schema"
 import { PRIORIDAD, type Elemento } from "../types"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
@@ -58,7 +58,7 @@ export function ElementoForm({
   // queda implícita por la del tipo elegido).
   const [especialidadId, setEspecialidadId] = useState<string>(ALL_ESP)
 
-  const form = useForm<ElementoFormValues>({
+  const form = useForm<ElementoFormInput, any, ElementoFormValues>({
     resolver: zodResolver(elementoSchema),
     defaultValues: {
       tag: defaultValues?.tag ?? "",
@@ -190,12 +190,13 @@ export function ElementoForm({
               disabled={isPending || loadingTipos}
               value={especialidadId}
               onValueChange={(v) => {
-                setEspecialidadId(v)
+                const value = v ?? ALL_ESP
+                setEspecialidadId(value)
                 // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpiamos.
                 const currentTipoId = form.getValues("elementoTipoId")
-                if (v !== ALL_ESP && currentTipoId) {
+                if (value !== ALL_ESP && currentTipoId) {
                   const tipo = tipos.find((t: any) => t.id === currentTipoId)
-                  if (tipo?.especialidadId !== v) form.setValue("elementoTipoId", "")
+                  if (tipo?.especialidadId !== value) form.setValue("elementoTipoId", "")
                 }
               }}
             >

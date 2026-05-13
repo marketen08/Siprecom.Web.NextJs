@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { proyectoSchema, type ProyectoFormValues } from "../schema"
+import { proyectoSchema, type ProyectoFormInput, type ProyectoFormValues } from "../schema"
 import { ESTADO_PROYECTO, type Proyecto } from "../types"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { useGetProyectosSelect } from "../api/use-get-proyectos-select"
@@ -47,7 +47,7 @@ export function ProyectoForm({
   const { data: clientesData, isLoading: loadingClientes } = useGetClientesSelect()
   const { data: proyectosData, isLoading: loadingProyectos } = useGetProyectosSelect()
 
-  const form = useForm<ProyectoFormValues>({
+  const form = useForm<ProyectoFormInput, any, ProyectoFormValues>({
     resolver: zodResolver(proyectoSchema),
     defaultValues: {
       nombre: defaultValues?.nombre ?? "",

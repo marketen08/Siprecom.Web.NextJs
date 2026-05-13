@@ -27,7 +27,7 @@ export function useGetMisFirmas({ proyectoId, page = 1, pageSize = 20, estado }:
     queryFn: () =>
       apiClient.get<{ data: MiFirmaPendiente[]; total: number; page: number; pageSize: number }>(
         "/api/registros/mis-firmas",
-        { proyectoId, page, pageSize, ...(estado ? { estado } : {}) }
+        { proyectoId: proyectoId ?? "", page, pageSize, ...(estado ? { estado } : {}) }
       ),
     enabled: !!proyectoId,
   })

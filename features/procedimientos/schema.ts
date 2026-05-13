@@ -6,4 +6,5 @@ export const procedimientoSchema = z.object({
   nombreArchivoId: z.string().max(100).optional().default(""),
 })
 
-export type ProcedimientoFormValues = z.infer<typeof procedimientoSchema>
+export type ProcedimientoFormInput = z.input<typeof procedimientoSchema>
+export type ProcedimientoFormValues = z.output<typeof procedimientoSchema>

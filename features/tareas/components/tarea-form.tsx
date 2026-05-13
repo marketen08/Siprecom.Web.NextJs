@@ -202,12 +202,13 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 disabled={isPending || loadingTipos}
                 value={especialidad}
                 onValueChange={(v) => {
-                  setEspecialidad(v)
+                  const value = v ?? ALL_ESP
+                  setEspecialidad(value)
                   // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpiamos.
                   const currentTipoId = form.getValues("elementoTipoId")
-                  if (v !== ALL_ESP && currentTipoId) {
+                  if (value !== ALL_ESP && currentTipoId) {
                     const tipo = tipos.find((t: any) => t.id === currentTipoId)
-                    if (tipo?.especialidad !== v) form.setValue("elementoTipoId", "")
+                    if (tipo?.especialidad !== value) form.setValue("elementoTipoId", "")
                   }
                 }}
               >

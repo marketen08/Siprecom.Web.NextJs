@@ -151,21 +151,23 @@ export default function ElementosPage() {
   }
 
   // Si cambia el sistema y el subsistema actual no le pertenece, lo reseteamos.
-  function handleSistemaChange(v: string) {
-    setSistemaId(v)
-    if (v !== ALL && subSistemaId !== ALL) {
+  function handleSistemaChange(v: string | null) {
+    const value = v ?? ALL
+    setSistemaId(value)
+    if (value !== ALL && subSistemaId !== ALL) {
       const ss = (subsistemas as any[]).find((s) => s.id === subSistemaId)
-      if (ss?.sistemaId !== v) setSubSistemaId(ALL)
+      if (ss?.sistemaId !== value) setSubSistemaId(ALL)
     }
     setPage(1)
   }
 
   // Si cambia la especialidad y el tipo actual no pertenece, lo reseteamos.
-  function handleEspecialidadChange(v: string) {
-    setEspecialidadId(v)
-    if (v !== ALL && elementoTipoId) {
+  function handleEspecialidadChange(v: string | null) {
+    const value = v ?? ALL
+    setEspecialidadId(value)
+    if (value !== ALL && elementoTipoId) {
       const tipo = (tipos as any[]).find((t) => t.id === elementoTipoId)
-      if (tipo?.especialidadId !== v) setElementoTipoId("")
+      if (tipo?.especialidadId !== value) setElementoTipoId("")
     }
     setPage(1)
   }
@@ -242,7 +244,7 @@ export default function ElementosPage() {
           <FilterField label="Subsistema">
             <Select
               value={subSistemaId}
-              onValueChange={(v) => { setSubSistemaId(v); setPage(1) }}
+              onValueChange={(v) => { setSubSistemaId(v ?? ALL); setPage(1) }}
               disabled={sistemaId !== ALL && subsistemasFiltrados.length === 0}
             >
               <SelectTrigger className="w-full">
@@ -295,7 +297,7 @@ export default function ElementosPage() {
           <FilterField label="Prioridad">
             <Select
               value={prioridad}
-              onValueChange={(v) => { setPrioridad(v); setPage(1) }}
+              onValueChange={(v) => { setPrioridad(v ?? ALL); setPage(1) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>

@@ -178,7 +178,7 @@ export default function PendientesPage() {
           hasActiveFilters={activeFilters.length > 0}
         >
           <FilterField label="Estado">
-            <Select value={estadoId || ALL} onValueChange={(v) => { setEstadoId(v === ALL ? "" : v); setPage(1) }}>
+            <Select value={estadoId || ALL} onValueChange={(v) => { const value = v ?? ALL; setEstadoId(value === ALL ? "" : value); setPage(1) }}>
               <SelectTrigger className="w-full">
                 <SelectValue>
                   {estadoId ? ESTADO_LABEL[estados.find((e) => e.id === estadoId)?.estado ?? ""] ?? "Estado" : "Todos los estados"}
@@ -194,7 +194,7 @@ export default function PendientesPage() {
           </FilterField>
 
           <FilterField label="Responsable">
-            <Select value={responsableId || ALL} onValueChange={(v) => { setResponsableId(v === ALL ? "" : v); setPage(1) }}>
+            <Select value={responsableId || ALL} onValueChange={(v) => { const value = v ?? ALL; setResponsableId(value === ALL ? "" : value); setPage(1) }}>
               <SelectTrigger className="w-full">
                 <SelectValue>
                   {responsableId
@@ -249,7 +249,7 @@ export default function PendientesPage() {
           </FilterField>
 
           <FilterField label="Categoría">
-            <Select value={categoriaId || ALL} onValueChange={(v) => { setCategoriaId(v === ALL ? "" : v); setPage(1) }}>
+            <Select value={categoriaId || ALL} onValueChange={(v) => { const value = v ?? ALL; setCategoriaId(value === ALL ? "" : value); setPage(1) }}>
               <SelectTrigger className="w-full">
                 <SelectValue>
                   {categoriaId ? categorias.find((c) => c.id === categoriaId)?.nombre ?? "Categoría" : "Todas"}
@@ -265,7 +265,7 @@ export default function PendientesPage() {
           </FilterField>
 
           <FilterField label="Tipo">
-            <Select value={tipoId || ALL} onValueChange={(v) => { setTipoId(v === ALL ? "" : v); setPage(1) }}>
+            <Select value={tipoId || ALL} onValueChange={(v) => { const value = v ?? ALL; setTipoId(value === ALL ? "" : value); setPage(1) }}>
               <SelectTrigger className="w-full">
                 <SelectValue>
                   {tipoId ? tipos.find((t) => t.id === tipoId)?.tipo ?? "Tipo" : "Todos"}
@@ -281,7 +281,7 @@ export default function PendientesPage() {
           </FilterField>
 
           <FilterField label="Prioridad">
-            <Select value={prioridad || ALL} onValueChange={(v) => { setPrioridad(v === ALL ? "" : v); setPage(1) }}>
+            <Select value={prioridad || ALL} onValueChange={(v) => { const value = v ?? ALL; setPrioridad(value === ALL ? "" : value); setPage(1) }}>
               <SelectTrigger className="w-full">
                 <SelectValue>
                   {prioridad ? PRIORIDAD[Number(prioridad)] : "Todas"}

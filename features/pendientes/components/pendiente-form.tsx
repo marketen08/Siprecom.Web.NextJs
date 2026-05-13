@@ -273,7 +273,7 @@ export function PendienteForm({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <FormLabel>Sistema</FormLabel>
-              <Select value={sistemaId || NONE} onValueChange={(v) => setSistemaId(v === NONE ? "" : v)}>
+              <Select value={sistemaId || NONE} onValueChange={(v) => { const value = v ?? NONE; setSistemaId(value === NONE ? "" : value) }}>
                 <SelectTrigger>
                   <SelectValue>
                     {sistemaId

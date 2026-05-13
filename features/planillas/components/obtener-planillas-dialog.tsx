@@ -174,7 +174,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
             <label className="text-sm font-medium text-gray-700">Nivel</label>
             <Select
               value={filtros.nivelId || "__all__"}
-              onValueChange={(v) => set("nivelId", v === "__all__" ? "" : v)}
+              onValueChange={(v) => { const value = v ?? "__all__"; set("nivelId", value === "__all__" ? "" : value) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>
@@ -197,7 +197,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
             <label className="text-sm font-medium text-gray-700">Subsistema</label>
             <Select
               value={filtros.subSistemaId || "__all__"}
-              onValueChange={(v) => set("subSistemaId", v === "__all__" ? "" : v)}
+              onValueChange={(v) => { const value = v ?? "__all__"; set("subSistemaId", value === "__all__" ? "" : value) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>
@@ -222,7 +222,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
             <label className="text-sm font-medium text-gray-700">Especialidad</label>
             <Select
               value={filtros.especialidadId || "__all__"}
-              onValueChange={(v) => set("especialidadId", v === "__all__" ? "" : v)}
+              onValueChange={(v) => { const value = v ?? "__all__"; set("especialidadId", value === "__all__" ? "" : value) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>
@@ -247,7 +247,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
             <label className="text-sm font-medium text-gray-700">Tipo de elemento</label>
             <Select
               value={filtros.elementoTipoId || "__all__"}
-              onValueChange={(v) => set("elementoTipoId", v === "__all__" ? "" : v)}
+              onValueChange={(v) => { const value = v ?? "__all__"; set("elementoTipoId", value === "__all__" ? "" : value) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>

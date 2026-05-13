@@ -18,5 +18,6 @@ export const proyectoSchema = z.object({
   clonar: proyectoClonOptionsSchema.optional(),
 })
 
-export type ProyectoFormValues = z.infer<typeof proyectoSchema>
-export type ProyectoClonOptions = z.infer<typeof proyectoClonOptionsSchema>
+export type ProyectoFormInput = z.input<typeof proyectoSchema>
+export type ProyectoFormValues = z.output<typeof proyectoSchema>
+export type ProyectoClonOptions = z.output<typeof proyectoClonOptionsSchema>

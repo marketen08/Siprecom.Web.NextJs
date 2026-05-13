@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { procedimientoSchema, type ProcedimientoFormValues } from "../schema"
+import { procedimientoSchema, type ProcedimientoFormInput, type ProcedimientoFormValues } from "../schema"
 import type { Procedimiento } from "../types"
 
 import { Button } from "@/components/ui/button"
@@ -31,7 +31,7 @@ export function ProcedimientoForm({
   isPending,
   onCancel,
 }: ProcedimientoFormProps) {
-  const form = useForm<ProcedimientoFormValues>({
+  const form = useForm<ProcedimientoFormInput, any, ProcedimientoFormValues>({
     resolver: zodResolver(procedimientoSchema),
     defaultValues: {
       nombre: defaultValues?.nombre ?? "",

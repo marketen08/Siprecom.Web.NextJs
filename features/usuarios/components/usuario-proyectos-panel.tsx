@@ -90,7 +90,7 @@ export function UsuarioProyectosPanel({ usuarioId }: Props) {
         <div className="flex gap-2">
           <Select
             value={proyectoSeleccionado}
-            onValueChange={setProyectoSeleccionado}
+            onValueChange={(v) => setProyectoSeleccionado(v ?? "")}
             disabled={addMutation.isPending}
           >
             <SelectTrigger className="flex-1">

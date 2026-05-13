@@ -157,7 +157,7 @@ export default function ProyectosPage() {
           <FilterField label="Estado">
             <Select
               value={estado}
-              onValueChange={(v) => { setEstado(v); setPage(1) }}
+              onValueChange={(v) => { setEstado(v ?? ALL); setPage(1) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>
@@ -178,7 +178,7 @@ export default function ProyectosPage() {
           <FilterField label="Cliente">
             <Select
               value={clienteId}
-              onValueChange={(v) => { setClienteId(v); setPage(1) }}
+              onValueChange={(v) => { setClienteId(v ?? ALL); setPage(1) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>
@@ -199,7 +199,7 @@ export default function ProyectosPage() {
           <FilterField label="Contratista">
             <Select
               value={contratistaId}
-              onValueChange={(v) => { setContratistaId(v); setPage(1) }}
+              onValueChange={(v) => { setContratistaId(v ?? ALL); setPage(1) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue>

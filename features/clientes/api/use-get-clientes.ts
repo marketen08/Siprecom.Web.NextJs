@@ -20,7 +20,7 @@ export function useGetClientes(params: Params = {}) {
         page,
         pageSize,
         ...(nombre ? { nombre } : {}),
-        ...(esContratista !== undefined ? { esContratista } : {}),
+        ...(esContratista !== undefined ? { esContratista: String(esContratista) } : {}),
       }),
   })
 }

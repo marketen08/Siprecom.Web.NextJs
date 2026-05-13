@@ -87,7 +87,7 @@ export function AddCampoModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: camposResult } = useGetCamposSelect()
-  const campos = (camposResult as any)?.data ?? []
+  const campos: Array<{ id: string; etiqueta: string; codigo: string } & Record<string, any>> = (camposResult as any)?.data ?? []
   const createCampoMutation = useCreateCampo()
   const createOpcionMutation = useCreateOpcion()
   const addCampoMutation = useAddCampo()

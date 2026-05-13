@@ -24,7 +24,7 @@ import { useAddUsuarioProyecto } from "@/features/proyectos/api/use-add-usuario-
 import { useRemoveUsuarioProyecto } from "@/features/proyectos/api/use-remove-usuario-proyecto"
 import { useGetFechaEstimadaFin } from "@/features/proyectos/api/use-fecha-estimada-fin"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
-import type { FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
+import type { EstadoProyecto, FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 
@@ -121,7 +121,7 @@ function TabGeneral({ proyecto }: { proyecto: Proyecto }) {
   const [saved, setSaved] = useState(false)
 
   async function handleSubmit(values: ProyectoFormValues) {
-    await update.mutateAsync(values)
+    await update.mutateAsync({ ...values, estado: values.estado as EstadoProyecto })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }

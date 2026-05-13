@@ -14,4 +14,5 @@ export const elementoSchema = z.object({
   observaciones: z.string(),
 })
 
-export type ElementoFormValues = z.infer<typeof elementoSchema>
+export type ElementoFormInput = z.input<typeof elementoSchema>
+export type ElementoFormValues = z.output<typeof elementoSchema>
