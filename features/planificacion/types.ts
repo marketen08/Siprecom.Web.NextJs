@@ -38,3 +38,36 @@ export interface EstimacionPlanificacion {
   porEspecialidad: EspecialidadDetalle[]
   warnings: string[]
 }
+
+// ── Generador ───────────────────────────────────────────────────────────────
+
+export interface GenerarPlanificacionInput {
+  fechaInicio?: string
+  dryRun: boolean
+  /** Si true, reprograma tareas cuya ventana SubSistemaNivel ya terminó (atrasadas). */
+  incluirAtrasadas?: boolean
+}
+
+export interface CambioFechaPlanificada {
+  elementoTareaId: string
+  elementoTag: string | null
+  elementoNombre: string | null
+  tareaNombre: string | null
+  especialidadNombre: string | null
+  nivelNombre: string | null
+  subSistemaCodigo: string | null
+  fechaAnterior: string | null
+  fechaNueva: string
+  /** True si fue reprogramada fuera de su ventana SubSistemaNivel (estaba atrasada). */
+  esAtrasada: boolean
+}
+
+export interface GenerarPlanificacionResult {
+  tareasFijas: number
+  tareasAsignadas: number
+  tareasSinAsignar: number
+  fechaFinEstimada: string | null
+  cambios: CambioFechaPlanificada[]
+  warnings: string[]
+  aplicado: boolean
+}

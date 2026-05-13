@@ -5,6 +5,8 @@ import type {
   CapacidadBulkInput,
   CapacidadEspecialidad,
   EstimacionPlanificacion,
+  GenerarPlanificacionInput,
+  GenerarPlanificacionResult,
 } from "../types"
 
 const QK_CAPS = ["planificacion", "capacidades"] as const
@@ -40,5 +42,23 @@ export function useGetEstimacion(fechaInicio: string | undefined) {
         "/api/planificacion/estimacion",
         fechaInicio ? { fechaInicio } : undefined,
       ),
+  })
+}
+
+// El generador siempre se invoca explícitamente vía mutación. Se usa el MISMO endpoint
+// para preview (dryRun=true) y apply (dryRun=false); la diferencia está en el body.
+export function useGenerarPlanificacion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: GenerarPlanificacionInput) =>
+      apiClient.post<ApiResponse<GenerarPlanificacionResult>>("/api/planificacion/generar", input),
+    onSuccess: (resp) => {
+      // Solo invalidamos cachés si efectivamente aplicamos (no en dry-run).
+      if (resp?.data?.aplicado) {
+        qc.invalidateQueries({ queryKey: QK_EST })
+        qc.invalidateQueries({ queryKey: ["estadisticas"] })
+        qc.invalidateQueries({ queryKey: ["avance"] })
+      }
+    },
   })
 }
