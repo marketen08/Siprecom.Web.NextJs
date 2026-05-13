@@ -1,9 +1,10 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { X } from "lucide-react"
+import { FileDown, Loader2, X } from "lucide-react"
 
 import { useGetAvanceSubsistemasFiltrado } from "@/features/estadisticas/api/use-get-avance-subsistemas-filtrado"
+import { downloadPdf } from "@/features/estadisticas/api/download-pdf"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
@@ -35,6 +36,8 @@ export default function AvanceSubsistemasPage() {
   const [nivelId, setNivelId] = useState("")
   const [especialidadId, setEspecialidadId] = useState("")
   const [compact, setCompact] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: nivelesRaw } = useGetNivelesSelect()
@@ -78,15 +81,53 @@ export default function AvanceSubsistemasPage() {
     setEspecialidadId("")
   }
 
+  async function exportarPdf() {
+    if (downloading) return
+    setDownloadError(null)
+    setDownloading(true)
+    try {
+      const qs = new URLSearchParams()
+      if (sistemaId) qs.set("sistemaId", sistemaId)
+      if (nivelId) qs.set("nivelId", nivelId)
+      if (especialidadId) qs.set("especialidadId", especialidadId)
+      const url = "/api/reportes/avance-subsistemas/pdf"
+        + (qs.toString() ? `?${qs.toString()}` : "")
+      await downloadPdf(url, "avance-subsistemas.pdf")
+    } catch (e) {
+      setDownloadError((e as Error).message)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Avance por subsistemas</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          % de avance por subsistema. Los filtros de Nivel y Especialidad recalculan el %
-          considerando solo las tareas que matchean.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Avance por subsistemas</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            % de avance por subsistema. Los filtros de Nivel y Especialidad recalculan el %
+            considerando solo las tareas que matchean.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={exportarPdf}
+          disabled={downloading}
+          className="gap-2 shrink-0"
+        >
+          {downloading
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <FileDown className="h-4 w-4" />}
+          {downloading ? "Generando..." : "Exportar PDF"}
+        </Button>
       </div>
+
+      {downloadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {downloadError}
+        </div>
+      )}
 
       {/* Barra de filtros */}
       <div className="rounded-lg border border-gray-100 bg-white p-3 flex flex-wrap items-end gap-3">
