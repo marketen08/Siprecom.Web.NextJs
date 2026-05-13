@@ -1,6 +1,6 @@
 "use client"
 
-import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts"
 import {
   type ChartConfig,
   ChartContainer,
@@ -14,16 +14,12 @@ interface Props {
   compact?: boolean
 }
 
-// Mismos cortes que el badge de riesgo del dashboard.
-function colorPorAvance(pct: number) {
-  if (pct >= 85) return "#16a34a" // green-600
-  if (pct >= 60) return "#eab308" // yellow-500
-  if (pct >= 30) return "#f97316" // orange-500
-  return "#dc2626"                 // red-600
-}
+const COLOR_COMPLETADO = "#16a34a" // green-600
+const COLOR_PENDIENTE  = "#e5e7eb" // gray-200
 
 const config = {
-  pct: { label: "% Avance" },
+  porcentajeAvance: { label: "Completado" },
+  restante:         { label: "Pendiente"  },
 } satisfies ChartConfig
 
 export function AvanceSubsistemasChart({ data, compact = false }: Props) {
@@ -35,9 +31,15 @@ export function AvanceSubsistemasChart({ data, compact = false }: Props) {
     )
   }
 
+  // Cada fila lleva ya el complemento — Recharts apila los dos valores.
+  const rows = data.map((d) => ({
+    ...d,
+    restante: Math.max(0, 100 - d.porcentajeAvance),
+  }))
+
   // Altura por barra: 20px en compacto, 28px en estándar.
   const rowHeight = compact ? 20 : 28
-  const height = Math.max(280, data.length * rowHeight + 60)
+  const height = Math.max(280, rows.length * rowHeight + 60)
   const fontSize = compact ? 10 : 11
 
   return (
@@ -47,9 +49,10 @@ export function AvanceSubsistemasChart({ data, compact = false }: Props) {
       style={{ height }}
     >
       <BarChart
-        data={data}
+        data={rows}
         layout="vertical"
         margin={{ left: 8, right: 48, top: 8, bottom: 8 }}
+        barCategoryGap={compact ? 2 : 4}
       >
         <XAxis
           type="number"
@@ -69,32 +72,52 @@ export function AvanceSubsistemasChart({ data, compact = false }: Props) {
               hideIndicator
               labelFormatter={(_label, payload) => {
                 const item = payload?.[0]?.payload as
-                  | AvanceSubsistemaFilteredDTO
+                  | (AvanceSubsistemaFilteredDTO & { restante: number })
                   | undefined
                 if (!item) return ""
                 return `${item.codigo} — ${item.nombre}`
               }}
-              formatter={(value, _name, item) => {
+              formatter={(_value, name, item) => {
                 const raw = item?.payload as
-                  | AvanceSubsistemaFilteredDTO
+                  | (AvanceSubsistemaFilteredDTO & { restante: number })
                   | undefined
-                return [
-                  `${value}%  ·  ${raw?.completadas ?? 0}/${raw?.totalTareas ?? 0} tareas`,
-                  "Avance",
-                ]
+                if (!raw) return ["", ""]
+                // Mostramos un solo resumen por barra (en el primer segmento) y
+                // dejamos el otro sin texto para evitar duplicar la info.
+                if (name === "porcentajeAvance") {
+                  return [
+                    `${raw.porcentajeAvance}%  ·  ${raw.completadas}/${raw.totalTareas} tareas`,
+                    "Avance",
+                  ]
+                }
+                return ["", ""]
               }}
             />
           }
         />
-        <Bar dataKey="porcentajeAvance" radius={[0, 4, 4, 0]}>
-          {data.map((d) => (
-            <Cell key={d.subSistemaId} fill={colorPorAvance(d.porcentajeAvance)} />
-          ))}
+
+        {/* Segmento completado */}
+        <Bar
+          dataKey="porcentajeAvance"
+          stackId="avance"
+          fill={COLOR_COMPLETADO}
+          isAnimationActive={false}
+        />
+
+        {/* Segmento pendiente: gris claro, esquina derecha redondeada para que el stack
+            tenga la apariencia de una sola barra */}
+        <Bar
+          dataKey="restante"
+          stackId="avance"
+          fill={COLOR_PENDIENTE}
+          radius={[0, 4, 4, 0]}
+          isAnimationActive={false}
+        >
           <LabelList
             dataKey="porcentajeAvance"
             position="right"
             formatter={(v) => `${v}%`}
-            style={{ fontSize, fill: "#374151" }}
+            style={{ fontSize, fill: "#374151", fontWeight: 500 }}
           />
         </Bar>
       </BarChart>
