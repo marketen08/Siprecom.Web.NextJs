@@ -15,10 +15,12 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
 // Este NavigationClient cancela navegaciones "internas" cuando estamos en
 // /auth-callback. Las navegaciones externas (a Microsoft, el loginRedirect)
 // pasan normalmente.
+// Bloquea las navegaciones internas que MSAL hace al volver del redirect,
+// para que el callback page pueda procesar el response sin que MSAL nos lleve
+// de vuelta a /login (URL desde donde se inicio loginRedirect).
 class NoBouncebackNavigationClient extends NavigationClient {
   async navigateInternal(url: string, options: NavigationOptions): Promise<boolean> {
     if (typeof window !== "undefined" && window.location.pathname === "/auth-callback") {
-      console.log("[NavClient] cancelando navegacion interna desde /auth-callback hacia", url)
       return false
     }
     return super.navigateInternal(url, options)

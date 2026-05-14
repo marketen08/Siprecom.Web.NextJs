@@ -10,10 +10,10 @@ import {
 import { MsalProvider as MsalProviderLib } from "@azure/msal-react"
 import { msalConfig } from "@/lib/msal-config"
 
-// Singleton: una sola PCA por carga de la app, fuera del componente. Esto es el
-// patron oficial de los samples MSAL React + Next.js. Evita problemas con
-// StrictMode (double effects) y garantiza una sola llamada a
-// handleRedirectPromise (el response del redirect solo se puede consumir una vez).
+// Singleton: una sola PCA por carga de la app, fuera del componente.
+// StrictMode hace que useEffect corra dos veces en dev; sin singleton se crearian
+// dos instancias de PCA y la segunda llamada a handleRedirectPromise devolveria
+// null (el response del redirect solo se puede consumir una vez).
 let msalInstance: PublicClientApplication | null = null
 let initPromise: Promise<void> | null = null
 
@@ -22,26 +22,13 @@ function getInitPromise(): Promise<void> {
 
   initPromise = (async () => {
     msalInstance = new PublicClientApplication(msalConfig)
-    console.log("[msal-provider] PCA creado")
-
     await msalInstance.initialize()
-    console.log("[msal-provider] initialize() OK")
 
     const response = await msalInstance.handleRedirectPromise()
-    console.log(
-      "[msal-provider] handleRedirectPromise OK; response =",
-      response ? "HAS_RESPONSE" : "null",
-    )
-
     if (response?.account) {
-      console.log("[msal-provider] setActiveAccount desde response:", response.account.username)
       msalInstance.setActiveAccount(response.account)
     } else if (msalInstance.getAllAccounts().length > 0) {
-      const first = msalInstance.getAllAccounts()[0]
-      console.log("[msal-provider] setActiveAccount desde cache:", first.username)
-      msalInstance.setActiveAccount(first)
-    } else {
-      console.log("[msal-provider] sin accounts")
+      msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0])
     }
 
     msalInstance.addEventCallback((event) => {
@@ -70,7 +57,7 @@ export function MsalProviderClient({ children }: { children: React.ReactNode }) 
       .catch((err) => {
         console.error("[msal-provider] init falló:", err)
         setInitError(String(err?.message ?? err))
-        setReady(true) // Igual marcamos ready para que la UI no quede colgada
+        setReady(true)
       })
   }, [])
 
