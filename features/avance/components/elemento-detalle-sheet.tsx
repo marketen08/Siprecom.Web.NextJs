@@ -245,7 +245,9 @@ function TareaCard({
 }) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
-  const tieneFirmas = tarea.esFisico && !!tarea.registroId
+  // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
+  // y los registros sin firma requerida tienen firmasTotal === 0, así que quedan excluidos.
+  const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
   const archivoFisico = useArchivoFisico(tarea.esFisico ? tarea.registroId : null)
 
   // Adjuntar archivo a la tarea (al registro asociado). El hook necesita un string
@@ -469,7 +471,9 @@ function buildTareaMenuItems({
   adjuntandoPending: boolean
 }): MenuItem[] {
   const items: MenuItem[] = []
-  const tieneFirmas = tarea.esFisico && !!tarea.registroId
+  // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
+  // y los registros sin firma requerida tienen firmasTotal === 0, así que quedan excluidos.
+  const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
   const cargarRegistroLabel = fisicoPreFirmado ? "Cargar registro firmado" : "Cargar registro"
 
   // Acciones primarias por estado
@@ -564,8 +568,10 @@ function buildTareaMenuItems({
     })
   }
 
-  // Planilla en blanco — siempre que haya planilla
-  if (tarea.planillaId) {
+  // Planilla en blanco — sólo útil cuando el proyecto acepta registros físicos
+  // (la idea es imprimir, completar a mano y subir el escaneo). En proyectos digitales
+  // no aporta valor: el usuario completa el formulario online.
+  if (tarea.planillaId && permitirFisico) {
     if (items.length > 0) items.push({ kind: "separator" })
     const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}`
     const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
@@ -573,7 +579,7 @@ function buildTareaMenuItems({
     items.push({ kind: "item", label: "Vista previa", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
   }
 
-  // Firmas (solo cuando registro físico)
+  // Firmas (digital o físico, mientras haya slots configurados)
   if (tieneFirmas) {
     if (items.length > 0) items.push({ kind: "separator" })
     items.push({

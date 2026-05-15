@@ -2,15 +2,18 @@
 
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, Eye, PenLine, Clock, Check, FileImage, Lock } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 
+import { apiClient } from "@/lib/api-client"
 import { useGetRegistroDetalle } from "@/features/registros/api/use-get-registro-detalle"
 import { useCompletarDigital } from "@/features/registros/api/use-completar-digital"
 import { useCompletarFisico } from "@/features/registros/api/use-completar-fisico"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
+import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
@@ -18,7 +21,17 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 
 import type { RegistroValorInput } from "@/features/registros/types"
+import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
+
+// Hook local: la lista por elemento ya existe pero no hay uno por ID; lo inlineamos acá.
+function useGetElementoTarea(id: string | null) {
+  return useQuery({
+    queryKey: ["elementos-tareas", id],
+    queryFn: () => apiClient.get<{ data: ElementoTarea }>(`/api/elementos-tareas/${id}`),
+    enabled: !!id,
+  })
+}
 import { packCampos } from "@/features/planillas/lib/pack-campos"
 
 import { Button } from "@/components/ui/button"
@@ -78,6 +91,15 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const { data: proyectoRaw } = useGetProyecto(proyectoId)
   const proyecto = proyectoRaw?.data
+
+  // Datos del contexto: tarea (para el título y nombre del elemento) y elemento (TAG, tipo,
+  // especialidad). Las dos queries son secuenciales: tarea trae el elementoId.
+  const elementoTareaId = registro?.elementoTareaId ?? null
+  const { data: tareaRaw } = useGetElementoTarea(elementoTareaId)
+  const elementoTarea = tareaRaw?.data
+  const elementoId = elementoTarea?.elementoId ?? null
+  const { data: elementoRaw } = useGetElemento(elementoId)
+  const elemento = elementoRaw?.data
 
   // Defaults defensivos mientras carga: digital permitido, físico no.
   // Coincide con el comportamiento previo cuando solo existía permitirRegistroFisico.
@@ -240,18 +262,40 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const isSaving = completarDigital.isPending || completarFisico.isPending
 
+  // Detalles del elemento (tipo / especialidad / % completado) que van en una línea muted
+  // bajo el TAG + nombre. Filtramos los nulos así no quedan separadores huérfanos.
+  const detallesElemento = [
+    elemento?.elementoTipoNombre,
+    elemento?.elementoTipoEspecialidad,
+  ].filter(Boolean) as string[]
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header de contexto */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-muted-foreground">
-            {planilla.codigo && <span className="mr-2">{planilla.codigo}</span>}
-            Registro <span className="font-mono">{registroId.slice(0, 8)}…</span>
-            {registro.porcentajeCompletitud > 0 && (
-              <span className="ml-3 font-medium text-blue-700">{registro.porcentajeCompletitud}% completado</span>
-            )}
-          </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-1">
+          {/* Título: nombre de la tarea */}
+          <h1 className="text-lg font-bold text-gray-900 truncate">
+            {elementoTarea?.tareaNombre ?? "Registro"}
+          </h1>
+          {/* Elemento: TAG (mono azul) + nombre */}
+          {elemento && (
+            <p className="text-sm text-gray-700 truncate">
+              <span className="font-mono font-semibold text-blue-700 mr-2">{elemento.tag}</span>
+              {elemento.nombre}
+            </p>
+          )}
+          {/* Detalles del elemento + % completado */}
+          {(detallesElemento.length > 0 || registro.porcentajeCompletitud > 0) && (
+            <p className="text-xs text-muted-foreground">
+              {detallesElemento.join(" · ")}
+              {registro.porcentajeCompletitud > 0 && (
+                <span className={`${detallesElemento.length > 0 ? "ml-3 " : ""}font-medium text-blue-700`}>
+                  {registro.porcentajeCompletitud}% completado
+                </span>
+              )}
+            </p>
+          )}
         </div>
         {isReadOnly && (
           <div className="flex items-center gap-2 flex-shrink-0">
