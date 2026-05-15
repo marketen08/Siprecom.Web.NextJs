@@ -27,6 +27,8 @@ export interface Proyecto {
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean
   permitirRegistroDigital: boolean
+  /** Si está activo, los PDFs físicos cargados se asumen firmados en papel y la tarea pasa directo a "Físico firmado" sin firmas digitales. Sólo aplica si permitirRegistroFisico = true. */
+  registrosFisicosPreFirmados: boolean
   /** Si está en false, ningún registro del proyecto acepta adjuntos. Default true. */
   permiteAdjuntos: boolean
   /** Si está en true, cada nivel debe iniciar después del fin del nivel anterior (mismo subsistema). */

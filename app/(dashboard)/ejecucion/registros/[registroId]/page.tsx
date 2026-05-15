@@ -276,8 +276,8 @@ export default function RegistroFormPage({ params }: PageProps) {
               </span>
             )}
             {registro.estado === "APROBADO" && (
-              <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-green-100 text-green-700">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Aprobado
+              <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-teal-100 text-teal-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Físico firmado
               </span>
             )}
           </div>

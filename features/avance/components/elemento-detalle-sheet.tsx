@@ -627,10 +627,10 @@ const ESTADO_STYLES: Record<number, string> = {
   1: "bg-gray-100 text-gray-700",
   2: "bg-blue-100 text-blue-700",
   3: "bg-yellow-100 text-yellow-700",
-  4: "bg-green-100 text-green-700",
+  4: "bg-teal-100 text-teal-700",   // "Físico firmado" — PDF en papel
   5: "bg-red-100 text-red-700",
   6: "bg-gray-50 text-gray-400",
-  7: "bg-blue-100 text-blue-700",
+  7: "bg-emerald-100 text-emerald-700", // "Firmado" — digitalmente
 }
 
 function EstadoBadge({ tarea }: { tarea: ElementoTarea }) {

@@ -7,13 +7,13 @@ import {
 
 export function EstadosPopover({ avance }: { avance: AvanceDTO }) {
   const filas = [
-    { label: "Pendiente",   value: avance.pendiente,   color: "bg-gray-100 text-gray-700" },
-    { label: "En proceso",  value: avance.enProceso,   color: "bg-blue-100 text-blue-700" },
-    { label: "Completado",  value: avance.completado,  color: "bg-yellow-100 text-yellow-700" },
-    { label: "Firmado",     value: avance.firmado,     color: "bg-indigo-100 text-indigo-700" },
-    { label: "Aprobado",    value: avance.aprobado,    color: "bg-green-100 text-green-700" },
-    { label: "Rechazado",   value: avance.rechazado,   color: "bg-red-100 text-red-700" },
-    { label: "Cancelado",   value: avance.cancelado,   color: "bg-gray-50 text-gray-400" },
+    { label: "Pendiente",      value: avance.pendiente,   color: "bg-gray-100 text-gray-700" },
+    { label: "En proceso",     value: avance.enProceso,   color: "bg-blue-100 text-blue-700" },
+    { label: "Completado",     value: avance.completado,  color: "bg-yellow-100 text-yellow-700" },
+    { label: "Firmado",        value: avance.firmado,     color: "bg-emerald-100 text-emerald-700" },
+    { label: "Físico firmado", value: avance.aprobado,    color: "bg-teal-100 text-teal-700" },
+    { label: "Rechazado",      value: avance.rechazado,   color: "bg-red-100 text-red-700" },
+    { label: "Cancelado",      value: avance.cancelado,   color: "bg-gray-50 text-gray-400" },
   ].filter((f) => f.value > 0)
 
   return (

@@ -220,7 +220,13 @@ function FechaEstimadaFinSection({ proyectoId }: { proyectoId: string }) {
 
 // ─── Tab Configuración ────────────────────────────────────────────────────────
 
-const FLAGS: { campo: string; label: string; descripcion: string }[] = [
+const FLAGS: {
+  campo: string
+  label: string
+  descripcion: string
+  /** Si está definido, el toggle queda deshabilitado mientras el flag indicado esté en false. */
+  dependeDe?: string
+}[] = [
   {
     campo: "PermitirRegistroFisico",
     label: "Registro físico",
@@ -230,6 +236,12 @@ const FLAGS: { campo: string; label: string; descripcion: string }[] = [
     campo: "PermitirRegistroDigital",
     label: "Registro digital",
     descripcion: "Permite completar registros con formularios digitales.",
+  },
+  {
+    campo: "RegistrosFisicosPreFirmados",
+    label: "PDF físico pre-firmado",
+    descripcion: "Si está activo, los PDFs físicos cargados se asumen firmados en papel: la tarea pasa directo a 'Físico firmado' sin generar slots de firma digital. Requiere 'Registro físico'.",
+    dependeDe: "PermitirRegistroFisico",
   },
   {
     campo: "PermiteAdjuntos",
@@ -271,6 +283,7 @@ const FLAGS: { campo: string; label: string; descripcion: string }[] = [
 const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermitirRegistroFisico:          "permitirRegistroFisico",
   PermitirRegistroDigital:         "permitirRegistroDigital",
+  RegistrosFisicosPreFirmados:     "registrosFisicosPreFirmados",
   PermiteAdjuntos:                 "permiteAdjuntos",
   NivelesSecuenciales:             "nivelesSecuenciales",
   PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
@@ -291,7 +304,17 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
 
   async function handleToggle(campo: string, valor: boolean) {
     setSaving(campo)
-    setLocalFlags(prev => ({ ...prev, [campo]: valor }))
+    setLocalFlags(prev => {
+      const next = { ...prev, [campo]: valor }
+      // Si desactivamos un flag del que dependen otros, también los apagamos localmente
+      // para que el backend (que hace lo mismo) y la UI queden alineados.
+      if (!valor) {
+        for (const child of FLAGS) {
+          if (child.dependeDe === campo) next[child.campo] = false
+        }
+      }
+      return next
+    })
     try {
       await updateFlag.mutateAsync({ campo, valor })
     } catch {
@@ -304,27 +327,31 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
 
   return (
     <div className="space-y-3 max-w-lg">
-      {FLAGS.map((flag) => (
-        <div
-          key={flag.campo}
-          className="flex items-center justify-between gap-4 rounded-lg border bg-white p-4"
-        >
-          <div className="space-y-0.5 min-w-0">
-            <p className="text-sm font-medium text-gray-900">{flag.label}</p>
-            <p className="text-xs text-muted-foreground">{flag.descripcion}</p>
+      {FLAGS.map((flag) => {
+        const parentOn = flag.dependeDe ? !!localFlags[flag.dependeDe] : true
+        const disabled = saving !== null || !parentOn
+        return (
+          <div
+            key={flag.campo}
+            className={`flex items-center justify-between gap-4 rounded-lg border bg-white p-4 ${!parentOn ? "opacity-60" : ""}`}
+          >
+            <div className="space-y-0.5 min-w-0">
+              <p className="text-sm font-medium text-gray-900">{flag.label}</p>
+              <p className="text-xs text-muted-foreground">{flag.descripcion}</p>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              {saving === flag.campo && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+              )}
+              <Toggle
+                checked={localFlags[flag.campo]}
+                onChange={(v) => handleToggle(flag.campo, v)}
+                disabled={disabled}
+              />
+            </div>
           </div>
-          <div className="shrink-0 flex items-center gap-2">
-            {saving === flag.campo && (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
-            )}
-            <Toggle
-              checked={localFlags[flag.campo]}
-              onChange={(v) => handleToggle(flag.campo, v)}
-              disabled={saving !== null}
-            />
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

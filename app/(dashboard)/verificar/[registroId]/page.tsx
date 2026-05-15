@@ -240,10 +240,10 @@ function Row({ label, value }: { label: string; value: React.ReactNode | null | 
 
 function EstadoBanner({ estado }: { estado: string }) {
   const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-    COMPLETADO: { label: "Completado · pendiente de firmas", cls: "bg-amber-50 border-amber-200 text-amber-900", icon: <Clock className="h-4 w-4" /> },
-    FIRMADO:    { label: "Firmado",                          cls: "bg-blue-50 border-blue-200 text-blue-900",     icon: <CheckCircle2 className="h-4 w-4" /> },
-    APROBADO:   { label: "Aprobado",                         cls: "bg-green-50 border-green-200 text-green-900",  icon: <CheckCircle2 className="h-4 w-4" /> },
-    RECHAZADO:  { label: "Rechazado",                        cls: "bg-red-50 border-red-200 text-red-900",        icon: <XCircle className="h-4 w-4" /> },
+    COMPLETADO: { label: "Completado · pendiente de firmas", cls: "bg-amber-50 border-amber-200 text-amber-900",     icon: <Clock className="h-4 w-4" /> },
+    FIRMADO:    { label: "Firmado",                          cls: "bg-emerald-50 border-emerald-200 text-emerald-900", icon: <CheckCircle2 className="h-4 w-4" /> },
+    APROBADO:   { label: "Físico firmado",                   cls: "bg-teal-50 border-teal-200 text-teal-900",         icon: <CheckCircle2 className="h-4 w-4" /> },
+    RECHAZADO:  { label: "Rechazado",                        cls: "bg-red-50 border-red-200 text-red-900",            icon: <XCircle className="h-4 w-4" /> },
   }
   const m = map[estado] ?? { label: estado, cls: "bg-gray-50 border-gray-200 text-gray-800", icon: <Clock className="h-4 w-4" /> }
 

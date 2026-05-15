@@ -2,7 +2,7 @@ export const ESTADO_ELEMENTO_TAREA = {
   1: "Pendiente",
   2: "En proceso",
   3: "Completado",
-  4: "Aprobado",
+  4: "Físico firmado",
   5: "Rechazado",
   6: "Cancelado",
   7: "Firmado",
@@ -68,11 +68,6 @@ export interface ElementoTarea {
   prioridad: number
   prioridadTexto: string
   intentos: number
-
-  // Aprobación
-  fechaAprobacion: string | null
-  aprobadoPor: string
-  aprobadoNombre: string
 
   isActive: boolean
   createdAt: string

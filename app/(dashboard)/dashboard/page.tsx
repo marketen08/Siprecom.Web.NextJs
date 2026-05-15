@@ -249,12 +249,12 @@ export default function DashboardPage() {
             <h2 className="text-base font-semibold text-gray-800">Resumen de estados</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { label: "Pendiente",   value: avance.pendiente,  className: "bg-gray-50 text-gray-700 border-gray-200" },
-                { label: "En proceso",  value: avance.enProceso,  className: "bg-blue-50 text-blue-700 border-blue-100" },
-                { label: "Completado",  value: avance.completado, className: "bg-yellow-50 text-yellow-700 border-yellow-100" },
-                { label: "Firmado",     value: avance.firmado,    className: "bg-indigo-50 text-indigo-700 border-indigo-100" },
-                { label: "Aprobado",    value: avance.aprobado,   className: "bg-green-50 text-green-700 border-green-100" },
-                { label: "Rechazado",   value: avance.rechazado,  className: "bg-red-50 text-red-700 border-red-100" },
+                { label: "Pendiente",      value: avance.pendiente,  className: "bg-gray-50 text-gray-700 border-gray-200" },
+                { label: "En proceso",     value: avance.enProceso,  className: "bg-blue-50 text-blue-700 border-blue-100" },
+                { label: "Completado",     value: avance.completado, className: "bg-yellow-50 text-yellow-700 border-yellow-100" },
+                { label: "Firmado",        value: avance.firmado,    className: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+                { label: "Físico firmado", value: avance.aprobado,   className: "bg-teal-50 text-teal-700 border-teal-100" },
+                { label: "Rechazado",      value: avance.rechazado,  className: "bg-red-50 text-red-700 border-red-100" },
               ].map(({ label, value, className }) => (
                 <div
                   key={label}
