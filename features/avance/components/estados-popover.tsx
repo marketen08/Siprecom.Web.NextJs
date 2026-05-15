@@ -11,7 +11,7 @@ export function EstadosPopover({ avance }: { avance: AvanceDTO }) {
     { label: "En proceso",     value: avance.enProceso,   color: "bg-blue-100 text-blue-700" },
     { label: "Completado",     value: avance.completado,  color: "bg-yellow-100 text-yellow-700" },
     { label: "Firmado",        value: avance.firmado,     color: "bg-emerald-100 text-emerald-700" },
-    { label: "Físico firmado", value: avance.aprobado,    color: "bg-teal-100 text-teal-700" },
+    { label: "Firmado físico", value: avance.aprobado,    color: "bg-teal-100 text-teal-700" },
     { label: "Rechazado",      value: avance.rechazado,   color: "bg-red-100 text-red-700" },
     { label: "Cancelado",      value: avance.cancelado,   color: "bg-gray-50 text-gray-400" },
   ].filter((f) => f.value > 0)

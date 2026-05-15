@@ -277,7 +277,7 @@ export default function RegistroFormPage({ params }: PageProps) {
             )}
             {registro.estado === "APROBADO" && (
               <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-teal-100 text-teal-700">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Físico firmado
+                <CheckCircle2 className="h-3.5 w-3.5" /> Firmado físico
               </span>
             )}
           </div>
@@ -444,11 +444,12 @@ export default function RegistroFormPage({ params }: PageProps) {
       )}
 
       {/* ── Adjuntos ── disponibles para digital y físico, incluso después de completar/firmar.
-          Solo se bloquean cuando el registro entró en estado terminal (APROBADO/RECHAZADO). */}
+          Sólo se bloquean cuando el registro está RECHAZADO. APROBADO ("PDF firmado en papel")
+          sigue aceptando adjuntos para sumar evidencia/fotos posteriores. */}
       <RegistroAdjuntos
         registroId={registroId}
         permiteSubir={permiteAdjuntos}
-        readOnly={registro.estado === "APROBADO" || registro.estado === "RECHAZADO"}
+        readOnly={registro.estado === "RECHAZADO"}
       />
 
       {/* ── Firmas ── */}

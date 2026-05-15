@@ -20,7 +20,7 @@ interface Props {
   registroId: string
   /** True si el proyecto y la planilla permiten adjuntos. Si es false, solo lectura. */
   permiteSubir: boolean
-  /** True si el registro está en un estado que no debería aceptar más cambios (FIRMADO/APROBADO). */
+  /** True si el registro está en un estado que no debería aceptar más cambios (RECHAZADO). */
   readOnly?: boolean
 }
 

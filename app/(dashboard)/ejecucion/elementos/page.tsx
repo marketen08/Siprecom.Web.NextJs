@@ -49,7 +49,7 @@ const ESTADO_TAREA_LABEL: Record<number, string> = {
   1: "Pendiente",
   2: "En proceso",
   3: "Completado",
-  4: "Físico firmado",
+  4: "Firmado físico",
   5: "Rechazado",
   6: "Cancelado",
   7: "Firmado",

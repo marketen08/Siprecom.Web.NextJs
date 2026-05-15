@@ -30,7 +30,7 @@ export const ESTADO_REGISTRO_LABEL: Record<string, string> = {
   EN_PROCESO: "En proceso",
   COMPLETADO: "Completado",
   FIRMADO: "Firmado",
-  APROBADO: "Físico firmado",
+  APROBADO: "Firmado físico",
   RECHAZADO: "Rechazado",
 }
 

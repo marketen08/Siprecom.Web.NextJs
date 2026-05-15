@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ComponentType } from "react"
+import { useRef, useState, type ComponentType } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
@@ -8,10 +8,11 @@ import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/ap
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
 import { useReiniciarTarea } from "@/features/elementos-tareas/api/use-reiniciar-tarea"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
+import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
 import { apiClient } from "@/lib/api-client"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import type { AvanceElementoDTO } from "@/features/avance/types"
-import type { ElementoTarea } from "@/features/elementos-tareas/types"
+import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { Button } from "@/components/ui/button"
@@ -32,7 +33,7 @@ import {
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
-  MoreVertical, PenLine, RotateCcw,
+  MoreVertical, Paperclip, PenLine, RotateCcw,
 } from "lucide-react"
 import {
   AlertDialog,
@@ -78,6 +79,10 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
   // Default permisivo mientras carga el proyecto
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
+  const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
+  // Adjuntos: el sheet sólo conoce el flag del proyecto. La planilla puede vetar igual,
+  // pero eso lo valida el backend al hacer POST (sale como mensaje de error inline).
+  const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
 
   async function handleIniciar(tarea: ElementoTarea) {
     const result = await iniciarMutation.mutateAsync(tarea.id) as any
@@ -196,6 +201,8 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                         isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
                         permitirFisico={permitirFisico}
                         permitirDigital={permitirDigital}
+                        fisicoPreFirmado={fisicoPreFirmado}
+                        permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                       />
                     ))}
                   </div>
@@ -221,6 +228,8 @@ function TareaCard({
   isReiniciando,
   permitirFisico,
   permitirDigital,
+  fisicoPreFirmado,
+  permiteAdjuntosProyecto,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
@@ -231,17 +240,44 @@ function TareaCard({
   isReiniciando: boolean
   permitirFisico: boolean
   permitirDigital: boolean
+  fisicoPreFirmado: boolean
+  permiteAdjuntosProyecto: boolean
 }) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
   const tieneFirmas = tarea.esFisico && !!tarea.registroId
   const archivoFisico = useArchivoFisico(tarea.esFisico ? tarea.registroId : null)
 
+  // Adjuntar archivo a la tarea (al registro asociado). El hook necesita un string
+  // no-nullable; usamos "" cuando no hay registro todavía (la opción no se muestra).
+  const adjuntoInputRef = useRef<HTMLInputElement>(null)
+  const uploadAdjunto = useUploadRegistroArchivo(tarea.registroId ?? "")
+  const [adjuntoError, setAdjuntoError] = useState<string | null>(null)
+  const [adjuntoOk, setAdjuntoOk] = useState<string | null>(null)
+
+  async function handleAdjuntoFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file || !tarea.registroId) return
+    setAdjuntoError(null)
+    setAdjuntoOk(null)
+    try {
+      await uploadAdjunto.mutateAsync(file)
+      setAdjuntoOk(`"${file.name}" adjuntado.`)
+      setTimeout(() => setAdjuntoOk(null), 3000)
+    } catch (err) {
+      setAdjuntoError((err as Error).message ?? "No se pudo adjuntar.")
+    }
+  }
+
+  const puedeAdjuntar = !!tarea.registroId && permiteAdjuntosProyecto && tarea.estado !== 5
+
   const items = buildTareaMenuItems({
     tarea,
     onIniciar,
     onAbrirFormulario,
     onCargarPdf,
+    onAdjuntarArchivo: () => adjuntoInputRef.current?.click(),
     onRequestReiniciar: () => setReiniciarOpen(true),
     isIniciando,
     isReiniciando,
@@ -250,9 +286,12 @@ function TareaCard({
     onToggleFirmas: () => setShowFirmas((s) => !s),
     permitirFisico,
     permitirDigital,
+    fisicoPreFirmado,
+    puedeAdjuntar,
+    adjuntandoPending: uploadAdjunto.isPending,
   })
 
-  const busy = isIniciando || archivoFisico.isLoading
+  const busy = isIniciando || archivoFisico.isLoading || uploadAdjunto.isPending
 
   async function handleConfirmReiniciar() {
     try {
@@ -329,6 +368,24 @@ function TareaCard({
         </p>
       )}
 
+      {adjuntoError && (
+        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+          {adjuntoError}
+        </p>
+      )}
+      {adjuntoOk && (
+        <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1">
+          {adjuntoOk}
+        </p>
+      )}
+
+      <input
+        ref={adjuntoInputRef}
+        type="file"
+        hidden
+        onChange={handleAdjuntoFileSelected}
+      />
+
       {tieneFirmas && showFirmas && tarea.registroId && (
         <div className="pt-1">
           <FirmaPanel registroId={tarea.registroId} />
@@ -381,6 +438,7 @@ function buildTareaMenuItems({
   onIniciar,
   onAbrirFormulario,
   onCargarPdf,
+  onAdjuntarArchivo,
   onRequestReiniciar,
   isIniciando,
   isReiniciando,
@@ -389,11 +447,15 @@ function buildTareaMenuItems({
   onToggleFirmas,
   permitirFisico,
   permitirDigital,
+  fisicoPreFirmado,
+  puedeAdjuntar,
+  adjuntandoPending,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
   onAbrirFormulario: (t: ElementoTarea) => void
   onCargarPdf: (t: ElementoTarea) => void
+  onAdjuntarArchivo: () => void
   onRequestReiniciar: () => void
   isIniciando: boolean
   isReiniciando: boolean
@@ -402,9 +464,13 @@ function buildTareaMenuItems({
   onToggleFirmas: () => void
   permitirFisico: boolean
   permitirDigital: boolean
+  fisicoPreFirmado: boolean
+  puedeAdjuntar: boolean
+  adjuntandoPending: boolean
 }): MenuItem[] {
   const items: MenuItem[] = []
   const tieneFirmas = tarea.esFisico && !!tarea.registroId
+  const cargarRegistroLabel = fisicoPreFirmado ? "Cargar registro firmado" : "Cargar registro"
 
   // Acciones primarias por estado
   switch (tarea.estado) {
@@ -421,7 +487,7 @@ function buildTareaMenuItems({
       if (tarea.planillaId && permitirFisico) {
         items.push({
           kind: "item",
-          label: "Cargar PDF",
+          label: cargarRegistroLabel,
           icon: Upload,
           onSelect: () => onCargarPdf(tarea),
           disabled: isIniciando,
@@ -436,7 +502,7 @@ function buildTareaMenuItems({
           items.push({ kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
         }
         if (tarea.planillaId && permitirFisico) {
-          items.push({ kind: "item", label: "Cargar PDF", icon: Upload, onSelect: () => onCargarPdf(tarea) })
+          items.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea) })
         }
       }
       break
@@ -467,10 +533,22 @@ function buildTareaMenuItems({
           items.push({ kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" })
         }
         if (tarea.planillaId && permitirFisico) {
-          items.push({ kind: "item", label: "Cargar PDF", icon: Upload, onSelect: () => onCargarPdf(tarea), variant: "destructive" })
+          items.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea), variant: "destructive" })
         }
       }
       break
+  }
+
+  // Adjuntar archivo (atajo directo). Backend valida también que la planilla acepte adjuntos;
+  // si no, devuelve error que se muestra inline en la card.
+  if (puedeAdjuntar) {
+    items.push({
+      kind: "item",
+      label: "Adjuntar archivo",
+      icon: Paperclip,
+      onSelect: onAdjuntarArchivo,
+      disabled: adjuntandoPending,
+    })
   }
 
   // Acceso a la página del registro para físicos. En digital ya hay "Completar formulario" /
@@ -561,9 +639,12 @@ function triggerDownload(url: string) {
 
 function TareaMeta({ tarea }: { tarea: ElementoTarea }) {
   const fecha = fechaRelevante(tarea)
+  // En "Firmado físico" (estado 4) no hay firma digital atribuible al usuario asignado;
+  // el operador puede ser distinto al firmante del papel, así que ocultamos el campo.
+  const mostrarAsignado = tarea.asignadoNombre && tarea.estado !== 4
   return (
     <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-      {tarea.asignadoNombre && (
+      {mostrarAsignado && (
         <span>Asignado: <span className="font-medium text-gray-700">{tarea.asignadoNombre}</span></span>
       )}
       {fecha && (
@@ -627,14 +708,17 @@ const ESTADO_STYLES: Record<number, string> = {
   1: "bg-gray-100 text-gray-700",
   2: "bg-blue-100 text-blue-700",
   3: "bg-yellow-100 text-yellow-700",
-  4: "bg-teal-100 text-teal-700",   // "Físico firmado" — PDF en papel
+  4: "bg-teal-100 text-teal-700",   // "Firmado físico" — PDF en papel
   5: "bg-red-100 text-red-700",
   6: "bg-gray-50 text-gray-400",
   7: "bg-emerald-100 text-emerald-700", // "Firmado" — digitalmente
 }
 
 function EstadoBadge({ tarea }: { tarea: ElementoTarea }) {
-  const { estado, estadoTexto } = tarea
+  const { estado } = tarea
+  // El backend manda estadoTexto como el nombre crudo del enum (ej. "APROBADO"). En la UI
+  // usamos la etiqueta local de ESTADO_ELEMENTO_TAREA para tener control del wording.
+  const estadoTexto = ESTADO_ELEMENTO_TAREA[estado as keyof typeof ESTADO_ELEMENTO_TAREA] ?? tarea.estadoTexto
 
   // Cuando el registro está COMPLETADO (3) y existe configuración de firmas, ajustamos
   // el texto según el contexto del usuario actual: si te falta firmar, lo pedimos;

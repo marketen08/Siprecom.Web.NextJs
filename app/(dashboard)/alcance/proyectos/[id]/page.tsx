@@ -228,19 +228,19 @@ const FLAGS: {
   dependeDe?: string
 }[] = [
   {
-    campo: "PermitirRegistroFisico",
-    label: "Registro físico",
-    descripcion: "Permite subir planillas escaneadas en PDF en lugar de completar el formulario digital.",
-  },
-  {
     campo: "PermitirRegistroDigital",
     label: "Registro digital",
     descripcion: "Permite completar registros con formularios digitales.",
   },
   {
+    campo: "PermitirRegistroFisico",
+    label: "Registro físico",
+    descripcion: "Permite subir planillas escaneadas en PDF en lugar de completar el formulario digital.",
+  },
+  {
     campo: "RegistrosFisicosPreFirmados",
     label: "PDF físico pre-firmado",
-    descripcion: "Si está activo, los PDFs físicos cargados se asumen firmados en papel: la tarea pasa directo a 'Físico firmado' sin generar slots de firma digital. Requiere 'Registro físico'.",
+    descripcion: "Si está activo, los PDFs físicos cargados se asumen firmados en papel: la tarea pasa directo a 'Firmado físico' sin generar slots de firma digital. Requiere 'Registro físico'.",
     dependeDe: "PermitirRegistroFisico",
   },
   {
