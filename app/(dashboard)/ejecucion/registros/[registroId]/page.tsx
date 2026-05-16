@@ -299,6 +299,20 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
         {isReadOnly && (
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Descargar PDF — sólo para registros digitales. Los físicos tienen el banner
+                "Ver registro" más abajo, que linkea al escaneo real. */}
+            {!registro.esFisico && (
+              <a
+                href={`/api/registros/${registroId}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" size="sm" className="gap-1.5 h-8">
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Descargar PDF</span>
+                </Button>
+              </a>
+            )}
             {registro.estado === "COMPLETADO" && (
               <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-amber-100 text-amber-700">
                 <Clock className="h-3.5 w-3.5" /> Pendiente de firma

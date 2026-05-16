@@ -543,6 +543,22 @@ function buildTareaMenuItems({
       break
   }
 
+  // Descargar PDF — para registros DIGITALES con datos cargados (COMPLETADO, RECHAZADO,
+  // FIRMADO). El backend arma el PDF con el diseño de la planilla y los valores guardados.
+  // Para físicos la opción equivalente es "Descargar registro" (devuelve el escaneo original).
+  const puedeDescargarPdfDigital =
+    !tarea.esFisico &&
+    !!tarea.registroId &&
+    (tarea.estado === 3 || tarea.estado === 5 || tarea.estado === 7)
+  if (puedeDescargarPdfDigital) {
+    items.push({
+      kind: "item",
+      label: "Descargar PDF",
+      icon: FileDown,
+      onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`),
+    })
+  }
+
   // Adjuntar archivo (atajo directo). Backend valida también que la planilla acepte adjuntos;
   // si no, devuelve error que se muestra inline en la card.
   if (puedeAdjuntar) {
