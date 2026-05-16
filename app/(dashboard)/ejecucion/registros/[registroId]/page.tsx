@@ -44,7 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { BarraAvance } from "@/components/barra-avance"
 
 interface PageProps {
   params: Promise<{ registroId: string }>
@@ -285,15 +284,10 @@ export default function RegistroFormPage({ params }: PageProps) {
               {elemento.nombre}
             </p>
           )}
-          {/* Detalles del elemento + % completado */}
-          {(detallesElemento.length > 0 || registro.porcentajeCompletitud > 0) && (
+          {/* Detalles del elemento */}
+          {detallesElemento.length > 0 && (
             <p className="text-xs text-muted-foreground">
               {detallesElemento.join(" · ")}
-              {registro.porcentajeCompletitud > 0 && (
-                <span className={`${detallesElemento.length > 0 ? "ml-3 " : ""}font-medium text-blue-700`}>
-                  {registro.porcentajeCompletitud}% completado
-                </span>
-              )}
             </p>
           )}
         </div>
@@ -331,10 +325,6 @@ export default function RegistroFormPage({ params }: PageProps) {
           </div>
         )}
       </div>
-
-      {registro.porcentajeCompletitud > 0 && (
-        <BarraAvance porcentaje={registro.porcentajeCompletitud} />
-      )}
 
       {!isReadOnly && showToggle && (
         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
