@@ -4,7 +4,10 @@ import { useState, useRef, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import type { ElementoTarea } from "@/features/elementos-tareas/types"
+import { useBreadcrumb } from "@/components/breadcrumb-context"
+import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
+import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,13 +30,29 @@ function useGetElementoTarea(id: string) {
 function CargarPdfContent() {
   const params  = useParams()
   const router  = useRouter()
-  const planillaId      = params.planillaId as string
   const elementoTareaId = params.elementoTareaId as string
 
   const queryClient = useQueryClient()
 
   const { data: raw, isLoading, isError } = useGetElementoTarea(elementoTareaId)
   const tarea = raw?.data
+
+  // Datos del elemento (TAG, tipo, especialidad) — encadenamos al fetch de la tarea.
+  const { data: elementoRaw } = useGetElemento(tarea?.elementoId ?? null)
+  const elemento = elementoRaw?.data
+
+  // Proyecto para saber si los PDFs físicos son pre-firmados (cambia el wording).
+  const { data: proyectoRaw } = useGetProyecto(tarea?.proyectoId ?? null)
+  const proyecto = proyectoRaw?.data
+  const preFirmado = proyecto?.registrosFisicosPreFirmados ?? false
+
+  // Breadcrumb: Ejecución → Registros → Cargar planilla física
+  // (consistente con /ejecucion/registros/[id] que usa el mismo prefijo).
+  useBreadcrumb([
+    { label: "Ejecución" },
+    { label: "Registros" },
+    { label: preFirmado ? "Cargar registro firmado" : "Cargar planilla física" },
+  ])
 
   const [archivo, setArchivo]       = useState<File | null>(null)
   const [observaciones, setObs]     = useState("")
@@ -147,18 +166,32 @@ function CargarPdfContent() {
     )
   }
 
+  const estadoLabel = ESTADO_ELEMENTO_TAREA[tarea.estado as keyof typeof ESTADO_ELEMENTO_TAREA] ?? tarea.estadoTexto
+  const detallesElemento = [
+    elemento?.elementoTipoNombre,
+    elemento?.elementoTipoEspecialidad,
+  ].filter(Boolean) as string[]
+
   // Estado no permite carga
   const estadosPermitidos = [1, 2, 5] // PENDIENTE, EN_PROCESO, RECHAZADO
   if (!estadosPermitidos.includes(tarea.estado)) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
-        <FileText className="h-12 w-12 text-gray-300" />
-        <p className="text-gray-600 font-medium">
-          Esta tarea está en estado <span className="font-bold">{tarea.estadoTexto}</span> y no admite carga de PDF.
-        </p>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Volver
-        </Button>
+      <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
+        <TaskHeader
+          tarea={tarea}
+          elemento={elemento}
+          estadoLabel={estadoLabel}
+          detallesElemento={detallesElemento}
+        />
+        <div className="flex flex-col items-center justify-center gap-4 text-center py-10 rounded-xl border border-dashed bg-gray-50">
+          <FileText className="h-12 w-12 text-gray-300" />
+          <p className="text-gray-600 font-medium">
+            Esta tarea está en estado <span className="font-bold">{estadoLabel}</span> y no admite carga de planilla.
+          </p>
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+          </Button>
+        </div>
       </div>
     )
   }
@@ -166,32 +199,42 @@ function CargarPdfContent() {
   // Éxito
   if (subiendo === "ok") {
     return (
-      <div className="max-w-lg mx-auto px-4 py-10 space-y-6">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <CheckCircle2 className="h-14 w-14 text-green-500" />
-          <h2 className="text-xl font-bold text-gray-900">Planilla cargada correctamente</h2>
-          <p className="text-sm text-muted-foreground">
-            El archivo fue subido y la tarea quedó marcada como completada.
-          </p>
-          <div className="flex gap-3 flex-wrap justify-center">
-            {urlArchivo && (
-              <a href={urlArchivo} target="_blank" rel="noreferrer">
-                <Button variant="outline" className="gap-2">
-                  <FileUp className="h-4 w-4" />
-                  Ver archivo subido
-                </Button>
-              </a>
-            )}
-            <Button variant="outline" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4 mr-1" /> Volver
-            </Button>
+      <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
+        <TaskHeader
+          tarea={tarea}
+          elemento={elemento}
+          estadoLabel={estadoLabel}
+          detallesElemento={detallesElemento}
+        />
+        <div className="rounded-xl border bg-green-50 border-green-200 p-6 space-y-4">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <CheckCircle2 className="h-14 w-14 text-green-500" />
+            <h2 className="text-xl font-bold text-gray-900">Planilla cargada correctamente</h2>
+            <p className="text-sm text-muted-foreground">
+              {preFirmado
+                ? "El archivo fue subido y la tarea quedó marcada como Firmado físico."
+                : "El archivo fue subido. La tarea queda en Completado a la espera de firmas digitales."}
+            </p>
+            <div className="flex gap-3 flex-wrap justify-center pt-1">
+              {urlArchivo && (
+                <a href={urlArchivo} target="_blank" rel="noreferrer">
+                  <Button variant="outline" className="gap-2">
+                    <FileUp className="h-4 w-4" />
+                    Ver archivo subido
+                  </Button>
+                </a>
+              )}
+              <Button variant="outline" onClick={() => router.back()}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Firmas digitales — aparecen si el proyecto tiene slots configurados */}
-        {registroIdFinal && (
-          <FirmaPanel registroId={registroIdFinal} />
-        )}
+        {/* Firmas digitales — sólo si el proyecto NO es pre-firmado y hay slots configurados.
+            En pre-firmado el backend no crea slots, así que el panel sale vacío de todas formas;
+            ocultarlo evita la confusión visual. */}
+        {registroIdFinal && !preFirmado && <FirmaPanel registroId={registroIdFinal} />}
       </div>
     )
   }
@@ -199,117 +242,170 @@ function CargarPdfContent() {
   const ocupado = subiendo === "iniciando" || subiendo === "subiendo"
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-10 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
 
-      {/* Header */}
-      <div className="space-y-1">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-2"
+      <TaskHeader
+        tarea={tarea}
+        elemento={elemento}
+        estadoLabel={estadoLabel}
+        detallesElemento={detallesElemento}
+      />
+
+      {/* Card de carga */}
+      <div className="rounded-xl border bg-white p-6 space-y-5">
+        <div>
+          <h2 className="font-semibold text-gray-800">
+            {preFirmado ? "Cargar registro firmado" : "Cargar planilla física"}
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {preFirmado
+              ? "El PDF/escaneo debe contener la firma manuscrita. La tarea pasa directo a 'Firmado físico'."
+              : "Subí el PDF o imagen de la planilla. Después se firma digitalmente desde el registro."}
+          </p>
+        </div>
+
+        {/* Drop zone */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => !ocupado && inputRef.current?.click()}
+          onKeyDown={(e) => e.key === "Enter" && !ocupado && inputRef.current?.click()}
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          className={`relative rounded-xl border-2 border-dashed transition-colors cursor-pointer
+            ${archivo ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-blue-400 bg-gray-50"}
+            ${ocupado ? "pointer-events-none opacity-60" : ""}
+            p-8 flex flex-col items-center gap-3 text-center`}
         >
-          <ArrowLeft className="h-4 w-4" /> Volver
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">Cargar planilla física</h1>
-        <p className="text-sm text-muted-foreground">{tarea.tareaNombre}</p>
-        <div className="flex items-center gap-2 text-xs text-gray-500 pt-1">
-          <span className="font-mono">{tarea.codigo}</span>
-          <span>·</span>
-          <span>{tarea.elementoNombre}</span>
-          {tarea.estadoTexto && (
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+          />
+
+          {archivo ? (
             <>
-              <span>·</span>
-              <span className="font-medium text-blue-700">{tarea.estadoTexto}</span>
+              <FileUp className="h-10 w-10 text-blue-500" />
+              <div className="space-y-1">
+                <p className="font-medium text-blue-900 text-sm break-all">{archivo.name}</p>
+                <p className="text-xs text-gray-500">{(archivo.size / 1024).toFixed(1)} KB</p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setArchivo(null) }}
+                className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <Upload className="h-10 w-10 text-gray-400" />
+              <div className="space-y-1">
+                <p className="font-medium text-gray-700">Arrastrá el archivo acá o hacé clic para seleccionar</p>
+                <p className="text-xs text-gray-400">PDF, JPG o PNG</p>
+              </div>
             </>
           )}
         </div>
+
+        {/* Observaciones */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-700">
+            Observaciones <span className="font-normal text-gray-400">(opcional)</span>
+          </label>
+          <textarea
+            value={observaciones}
+            onChange={(e) => setObs(e.target.value)}
+            rows={3}
+            maxLength={1000}
+            disabled={ocupado}
+            placeholder="Ej: planilla completada con firma del supervisor de campo"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+          />
+        </div>
+
+        {/* Error */}
+        {mensajeError && (
+          <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{mensajeError}</p>
+        )}
+
+        {/* Botón subir */}
+        <Button
+          className="w-full gap-2"
+          size="lg"
+          onClick={handleSubir}
+          disabled={!archivo || ocupado}
+        >
+          {ocupado ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {subiendo === "iniciando" ? "Iniciando tarea..." : "Subiendo archivo..."}
+            </>
+          ) : (
+            <>
+              <Upload className="h-4 w-4" />
+              Subir planilla
+            </>
+          )}
+        </Button>
       </div>
 
-      {/* Drop zone */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => !ocupado && inputRef.current?.click()}
-        onKeyDown={(e) => e.key === "Enter" && !ocupado && inputRef.current?.click()}
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-        className={`relative rounded-xl border-2 border-dashed transition-colors cursor-pointer
-          ${archivo ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-blue-400 bg-gray-50"}
-          ${ocupado ? "pointer-events-none opacity-60" : ""}
-          p-8 flex flex-col items-center gap-3 text-center`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
-        />
+    </div>
+  )
+}
 
-        {archivo ? (
-          <>
-            <FileUp className="h-10 w-10 text-blue-500" />
-            <div className="space-y-1">
-              <p className="font-medium text-blue-900 text-sm break-all">{archivo.name}</p>
-              <p className="text-xs text-gray-500">{(archivo.size / 1024).toFixed(1)} KB</p>
-            </div>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setArchivo(null) }}
-              className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </>
-        ) : (
-          <>
-            <Upload className="h-10 w-10 text-gray-400" />
-            <div className="space-y-1">
-              <p className="font-medium text-gray-700">Arrastrá el archivo acá o hacé clic para seleccionar</p>
-              <p className="text-xs text-gray-400">PDF, JPG o PNG · máx. permitido por el servidor</p>
-            </div>
-          </>
+// ─── Header reutilizable: misma estructura que /ejecucion/registros/[id] ─────
+
+const ESTADO_BADGE_COLOR: Record<number, string> = {
+  1: "bg-gray-100 text-gray-700",
+  2: "bg-blue-100 text-blue-700",
+  3: "bg-yellow-100 text-yellow-700",
+  4: "bg-teal-100 text-teal-700",
+  5: "bg-red-100 text-red-700",
+  6: "bg-gray-50 text-gray-400",
+  7: "bg-emerald-100 text-emerald-700",
+}
+
+function TaskHeader({
+  tarea,
+  elemento,
+  estadoLabel,
+  detallesElemento,
+}: {
+  tarea: ElementoTarea
+  elemento: { tag: string; nombre: string } | null | undefined
+  estadoLabel: string
+  detallesElemento: string[]
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex-1 min-w-0 space-y-1">
+        {/* Título: nombre de la tarea */}
+        <h1 className="text-lg font-bold text-gray-900 truncate">
+          {tarea.tareaNombre}
+        </h1>
+        {/* Elemento: TAG + nombre */}
+        {elemento && (
+          <p className="text-sm text-gray-700 truncate">
+            <span className="font-mono font-semibold text-blue-700 mr-2">{elemento.tag}</span>
+            {elemento.nombre}
+          </p>
+        )}
+        {/* Detalles del elemento */}
+        {detallesElemento.length > 0 && (
+          <p className="text-xs text-muted-foreground">{detallesElemento.join(" · ")}</p>
         )}
       </div>
-
-      {/* Observaciones */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-700">Observaciones <span className="font-normal text-gray-400">(opcional)</span></label>
-        <textarea
-          value={observaciones}
-          onChange={(e) => setObs(e.target.value)}
-          rows={3}
-          maxLength={1000}
-          disabled={ocupado}
-          placeholder="Ej: planilla completada con firma del supervisor de campo"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-        />
-      </div>
-
-      {/* Error */}
-      {mensajeError && (
-        <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{mensajeError}</p>
-      )}
-
-      {/* Botón subir */}
-      <Button
-        className="w-full gap-2"
-        size="lg"
-        onClick={handleSubir}
-        disabled={!archivo || ocupado}
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium shrink-0 ${
+          ESTADO_BADGE_COLOR[tarea.estado] ?? "bg-gray-100 text-gray-700"
+        }`}
       >
-        {ocupado ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {subiendo === "iniciando" ? "Iniciando tarea..." : "Subiendo archivo..."}
-          </>
-        ) : (
-          <>
-            <Upload className="h-4 w-4" />
-            Subir planilla
-          </>
-        )}
-      </Button>
-
+        {estadoLabel}
+      </span>
     </div>
   )
 }

@@ -400,6 +400,19 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* ── Observaciones del registro físico (read-only) ──
+          El form digital ya muestra observaciones dentro de su card, pero en flujo físico
+          esa card no se renderiza, así que mostramos las observaciones acá para que el
+          texto cargado al subir el PDF no quede oculto. */}
+      {registro.esFisico && isReadOnly && registro.observaciones && (
+        <div className="rounded-xl border bg-white p-5 space-y-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Observaciones
+          </p>
+          <p className="text-sm text-gray-800 whitespace-pre-wrap">{registro.observaciones}</p>
+        </div>
+      )}
+
       {/* ── Registro físico (solo lectura) ── */}
       {registro.esFisico && isReadOnly && (() => {
         // El físico se guarda con posicion=0; para registros viejos cargados antes del fix
