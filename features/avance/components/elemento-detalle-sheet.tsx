@@ -9,6 +9,7 @@ import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tar
 import { useReiniciarTarea } from "@/features/elementos-tareas/api/use-reiniciar-tarea"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
+import { useDownloadProcedimiento } from "@/features/procedimientos/api/use-download-procedimiento"
 import { apiClient } from "@/lib/api-client"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import type { AvanceElementoDTO } from "@/features/avance/types"
@@ -31,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  AlertCircle, Clock, CheckCircle2, XCircle, Ban,
+  AlertCircle, Clock, CheckCircle2, XCircle, Ban, BookOpen,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
   MoreVertical, Paperclip, PenLine, RotateCcw,
 } from "lucide-react"
@@ -257,6 +258,20 @@ function TareaCard({
   const [adjuntoError, setAdjuntoError] = useState<string | null>(null)
   const [adjuntoOk, setAdjuntoOk] = useState<string | null>(null)
 
+  // Descargar procedimiento (abre el PDF en pestaña nueva). El hook hace fetch del SAS URL
+  // con la auth del usuario y abre el resultado. Errores van al state inline.
+  const downloadProcedimiento = useDownloadProcedimiento()
+  const [procedimientoError, setProcedimientoError] = useState<string | null>(null)
+  async function handleDescargarProcedimiento() {
+    if (!tarea.procedimientoId) return
+    setProcedimientoError(null)
+    try {
+      await downloadProcedimiento.mutateAsync(tarea.procedimientoId)
+    } catch (err) {
+      setProcedimientoError((err as Error).message ?? "No se pudo descargar el procedimiento.")
+    }
+  }
+
   async function handleAdjuntoFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ""
@@ -280,6 +295,7 @@ function TareaCard({
     onAbrirFormulario,
     onCargarPdf,
     onAdjuntarArchivo: () => adjuntoInputRef.current?.click(),
+    onDescargarProcedimiento: handleDescargarProcedimiento,
     onRequestReiniciar: () => setReiniciarOpen(true),
     isIniciando,
     isReiniciando,
@@ -291,9 +307,10 @@ function TareaCard({
     fisicoPreFirmado,
     puedeAdjuntar,
     adjuntandoPending: uploadAdjunto.isPending,
+    descargandoProcedimientoPending: downloadProcedimiento.isPending,
   })
 
-  const busy = isIniciando || archivoFisico.isLoading || uploadAdjunto.isPending
+  const busy = isIniciando || archivoFisico.isLoading || uploadAdjunto.isPending || downloadProcedimiento.isPending
 
   async function handleConfirmReiniciar() {
     try {
@@ -375,6 +392,11 @@ function TareaCard({
           {adjuntoError}
         </p>
       )}
+      {procedimientoError && (
+        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+          {procedimientoError}
+        </p>
+      )}
       {adjuntoOk && (
         <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1">
           {adjuntoOk}
@@ -452,12 +474,15 @@ function buildTareaMenuItems({
   fisicoPreFirmado,
   puedeAdjuntar,
   adjuntandoPending,
+  onDescargarProcedimiento,
+  descargandoProcedimientoPending,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
   onAbrirFormulario: (t: ElementoTarea) => void
   onCargarPdf: (t: ElementoTarea) => void
   onAdjuntarArchivo: () => void
+  onDescargarProcedimiento: () => void
   onRequestReiniciar: () => void
   isIniciando: boolean
   isReiniciando: boolean
@@ -469,6 +494,7 @@ function buildTareaMenuItems({
   fisicoPreFirmado: boolean
   puedeAdjuntar: boolean
   adjuntandoPending: boolean
+  descargandoProcedimientoPending: boolean
 }): MenuItem[] {
   const items: MenuItem[] = []
   // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
@@ -541,6 +567,19 @@ function buildTareaMenuItems({
         }
       }
       break
+  }
+
+  // Descargar procedimiento — disponible cuando la tarea tiene un procedimiento asignado y
+  // ese procedimiento tiene archivo cargado. El backend valida que el usuario tenga acceso
+  // al proyecto (rol asignado) antes de devolver el SAS URL.
+  if (tarea.procedimientoId && tarea.procedimientoTieneArchivo) {
+    items.push({
+      kind: "item",
+      label: "Descargar procedimiento",
+      icon: BookOpen,
+      onSelect: onDescargarProcedimiento,
+      disabled: descargandoProcedimientoPending,
+    })
   }
 
   // Descargar PDF — para registros DIGITALES con datos cargados (COMPLETADO, RECHAZADO,

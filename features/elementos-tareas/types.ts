@@ -62,6 +62,12 @@ export interface ElementoTarea {
   planillaId: string | null
   planillaNombre: string | null
 
+  // Procedimiento asociado a la Tarea (opcional). Solo mostramos "Descargar procedimiento"
+  // cuando procedimientoTieneArchivo === true.
+  procedimientoId: string | null
+  procedimientoNombre: string | null
+  procedimientoTieneArchivo: boolean
+
   // Control
   requiereInspeccion: boolean
   esCritica: boolean
