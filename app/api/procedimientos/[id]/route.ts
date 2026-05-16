@@ -11,15 +11,17 @@ export async function GET(
   return Response.json(data, { status: res.status })
 }
 
+// PUT /api/procedimientos/[id]  (multipart/form-data)
+// Reenvía el FormData al backend; Archivo es opcional (si no viene, el backend conserva el PDF actual).
 export async function PUT(
   request: NextRequest,
   context: RouteContext<"/api/procedimientos/[id]">
 ) {
   const { id } = await context.params
-  const body = await request.json()
+  const formData = await request.formData()
   const res = await backendFetch(request, `/procedimientos/${id}`, {
     method: "PUT",
-    body: JSON.stringify(body),
+    body: formData,
   })
   const data = await res.json()
   return Response.json(data, { status: res.status })
