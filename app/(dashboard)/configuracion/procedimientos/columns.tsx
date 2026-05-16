@@ -1,7 +1,7 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Pencil, Trash2 } from "lucide-react"
+import { Download, FileText, Pencil, Trash2 } from "lucide-react"
 
 import type { Procedimiento } from "@/features/procedimientos/types"
 import { useOpenProcedimiento } from "@/features/procedimientos/hooks/use-open-procedimiento"
@@ -52,13 +52,34 @@ export const columns: ColumnDef<Procedimiento>[] = [
     ),
   },
   {
-    accessorKey: "nombreArchivoId",
+    accessorKey: "nombreArchivo",
     header: "Archivo",
-    cell: ({ row }) => (
-      <span className="text-sm font-mono text-muted-foreground">
-        {row.original.nombreArchivoId || "—"}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const p = row.original
+      if (!p.nombreArchivo) {
+        return <span className="text-sm text-muted-foreground">—</span>
+      }
+      return (
+        <div className="flex items-center gap-1.5 text-sm">
+          <FileText className="h-3.5 w-3.5 text-gray-500 shrink-0" />
+          <span className="text-gray-800 truncate max-w-[18rem]" title={p.nombreArchivo}>
+            {p.nombreArchivo}
+          </span>
+          {p.archivoUrl && (
+            <a
+              href={p.archivoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-700"
+              title="Descargar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      )
+    },
   },
   {
     accessorKey: "observaciones",
