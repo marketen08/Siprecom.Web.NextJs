@@ -421,8 +421,9 @@ function ProyectoCombobox({
 // ─── Tab Rol ──────────────────────────────────────────────────────────────────
 
 const ROLES = [
-  { value: "Admin", label: "Administrador", descripcion: "Acceso completo: puede gestionar usuarios, configuración, proyectos y todos los datos." },
-  { value: "User",  label: "Usuario",       descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
+  { value: "Admin",      label: "Administrador", descripcion: "Acceso completo: puede gestionar usuarios, configuración, proyectos y todos los datos." },
+  { value: "Supervisor", label: "Supervisor",    descripcion: "Acceso intermedio: gestiona usuarios y proyectos a los que tiene acceso, pero no la configuración global del sistema." },
+  { value: "User",       label: "Usuario",       descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
 ]
 
 function TabRol({ usuarioId }: { usuarioId: string }) {
