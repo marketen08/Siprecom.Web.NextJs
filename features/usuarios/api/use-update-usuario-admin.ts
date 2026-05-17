@@ -4,8 +4,6 @@ import { apiClient } from "@/lib/api-client"
 export interface UsuarioAdminUpdateInput {
   nombre?: string
   apellido?: string
-  proyectoId?: string
-  terminalId?: string
 }
 
 export function useUpdateUsuarioAdmin(usuarioId: string) {
