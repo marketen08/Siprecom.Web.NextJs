@@ -15,3 +15,16 @@ export async function PUT(
   const data = await res.json()
   return Response.json(data, { status: res.status })
 }
+
+// DELETE /api/usuarios/[id] — baja del usuario (soft-delete vía Lockout en backend)
+export async function DELETE(
+  request: NextRequest,
+  context: RouteContext<"/api/usuarios/[id]">
+) {
+  const { id } = await context.params
+  const res = await backendFetch(request, `/auth/users/${id}`, {
+    method: "DELETE",
+  })
+  const data = await res.json().catch(() => ({}))
+  return Response.json(data, { status: res.status })
+}

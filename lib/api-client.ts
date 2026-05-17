@@ -34,21 +34,36 @@ interface ValidationErrorItem {
   errors?: string[]
 }
 
-async function parseError(res: Response): Promise<Error> {
+/**
+ * Error con info extra del backend (body, status). El consumidor puede castear
+ * el Error a este shape para leer campos custom como `existingUserId` en un 409.
+ */
+export interface ApiError extends Error {
+  body?: any
+  status?: number
+}
+
+async function parseError(res: Response): Promise<ApiError> {
   const body = await res.json().catch(() => ({ message: res.statusText }))
 
   // Si el backend devolvió errores de validación con campo, los listamos para que
   // el usuario sepa exactamente qué falló (ej. "Nombre: Ya existe...").
+  let message: string
   if (Array.isArray(body?.errors) && body.errors.length > 0) {
     const lineas = (body.errors as ValidationErrorItem[]).flatMap((e) =>
       Array.isArray(e.errors)
         ? e.errors.map((msg) => (e.field ? `${e.field}: ${msg}` : msg))
         : []
     )
-    if (lineas.length > 0) return new Error(lineas.join("\n"))
+    message = lineas.length > 0 ? lineas.join("\n") : (body?.message ?? "Error inesperado")
+  } else {
+    message = body?.message ?? "Error inesperado"
   }
 
-  return new Error(body?.message ?? "Error inesperado")
+  const err = new Error(message) as ApiError
+  err.body = body
+  err.status = res.status
+  return err
 }
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {

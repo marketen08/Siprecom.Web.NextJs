@@ -17,6 +17,13 @@ import { DataTableWrapper } from "@/components/data-table-wrapper"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -25,13 +32,26 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+type EstadoFiltro = "todos" | "activos" | "baja"
+
 export default function UsuariosPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
+  const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos")
   const pageSize = 10
 
-  const { data, isLoading, isFetching } = useGetUsuarios({ page, pageSize, nombre: search || undefined })
+  // "activos" → isLocked: false, "baja" → true, "todos" → undefined
+  const isLockedParam = estadoFiltro === "activos" ? false
+                      : estadoFiltro === "baja"    ? true
+                      : undefined
+
+  const { data, isLoading, isFetching } = useGetUsuarios({
+    page,
+    pageSize,
+    nombre: search || undefined,
+    isLocked: isLockedParam,
+  })
 
   const table = useReactTable({
     data: (data as any)?.data ?? [],
@@ -50,7 +70,7 @@ export default function UsuariosPage() {
       <NewUsuarioSheet open={newOpen} onClose={() => setNewOpen(false)} />
 
       <div className="space-y-4">
-        {/* Buscador + Nuevo */}
+        {/* Buscador + Filtro estado + Nuevo */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -61,6 +81,19 @@ export default function UsuariosPage() {
               className="pl-9"
             />
           </div>
+          <Select
+            value={estadoFiltro}
+            onValueChange={(v) => { setEstadoFiltro(v as EstadoFiltro); setPage(1) }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="activos">Activos</SelectItem>
+              <SelectItem value="baja">Dados de baja</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={() => setNewOpen(true)} className="gap-1.5 ml-auto">
             <UserPlus className="h-4 w-4" />
             Nuevo usuario

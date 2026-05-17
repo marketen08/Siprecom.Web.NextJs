@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Eye, EyeOff, Loader2, Search, X, FolderOpen, Check, Circle } from "lucide-react"
+import { Eye, EyeOff, Loader2, Search, X, FolderOpen, Check, Circle, AlertTriangle } from "lucide-react"
 
 import { useCreateUsuario } from "../api/use-create-usuario"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
@@ -330,11 +331,38 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
             )}
           </div>
 
-          {create.isError && (
-            <p className="text-sm text-destructive">
-              {(create.error as any)?.message ?? "Error al crear el usuario"}
-            </p>
-          )}
+          {create.isError && (() => {
+            const err = create.error as any
+            // 409 Conflict del backend: el email pertenece a un user dado de baja.
+            // Mostramos contexto (nombre, link al user) en lugar del error genérico.
+            const conflict = err?.status === 409 && err?.body?.existingUserId
+            if (conflict) {
+              return (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+                    <p className="text-sm">
+                      El email pertenece a <strong>{err.body.nombre} {err.body.apellido}</strong>,
+                      que fue dado de baja. Para usar este email tenés que reactivarlo
+                      o liberarlo (baja definitiva) desde su pantalla.
+                    </p>
+                  </div>
+                  <Link
+                    href={`/configuracion/usuarios/${err.body.existingUserId}`}
+                    className="inline-flex items-center text-sm text-amber-800 underline hover:text-amber-900"
+                    onClick={onClose}
+                  >
+                    Ir al usuario existente →
+                  </Link>
+                </div>
+              )
+            }
+            return (
+              <p className="text-sm text-destructive">
+                {err?.message ?? "Error al crear el usuario"}
+              </p>
+            )
+          })()}
 
           <div className="flex gap-2 pt-2">
             <Button type="submit" disabled={create.isPending} className="gap-1.5">

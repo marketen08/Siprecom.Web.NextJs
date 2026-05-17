@@ -4,6 +4,7 @@ import { use, useState, Suspense } from "react"
 import {
   Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
+  UserX, UserCheck, AlertTriangle,
 } from "lucide-react"
 import { useRef, useEffect } from "react"
 
@@ -17,6 +18,9 @@ import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
 import { useSetProyectoActivoAdmin } from "@/features/usuarios/api/use-set-proyecto-activo-admin"
+import { useDeactivateUsuario } from "@/features/usuarios/api/use-deactivate-usuario"
+import { useDeactivateUsuarioPermanent } from "@/features/usuarios/api/use-deactivate-usuario-permanent"
+import { useReactivateUsuario } from "@/features/usuarios/api/use-reactivate-usuario"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
 
 import { Button } from "@/components/ui/button"
@@ -243,6 +247,163 @@ function TabDatos({ usuario }: { usuario: any }) {
           <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
         )}
       </div>
+
+      <Separator />
+
+      {/* Estado del usuario — baja / reactivación */}
+      <EstadoUsuarioSection usuario={usuario} />
+    </div>
+  )
+}
+
+// ─── Estado de usuario (baja simple / definitiva / reactivar) ────────────────
+
+type EstadoAction = "deactivate" | "permanent" | "reactivate" | null
+
+function EstadoUsuarioSection({ usuario }: { usuario: any }) {
+  const isLocked = usuario.isLocked === true
+  // Heurística: si el email tiene formato `deleted-...@siprecom.invalid`, el
+  // user fue dado de baja DEFINITIVAMENTE (email anonimizado, no reactivable).
+  const isPermanentlyDeactivated = isLocked && typeof usuario.email === "string"
+    && usuario.email.startsWith("deleted-") && usuario.email.endsWith("@siprecom.invalid")
+
+  const deactivate = useDeactivateUsuario(usuario.id)
+  const permanent = useDeactivateUsuarioPermanent(usuario.id)
+  const reactivate = useReactivateUsuario(usuario.id)
+  const [confirming, setConfirming] = useState<EstadoAction>(null)
+
+  const mutationFor = (a: EstadoAction) => {
+    if (a === "deactivate") return deactivate
+    if (a === "permanent")  return permanent
+    if (a === "reactivate") return reactivate
+    return null
+  }
+  const activeMutation = mutationFor(confirming)
+  const isPending = !!activeMutation?.isPending
+
+  async function handleConfirm() {
+    if (!activeMutation) return
+    await activeMutation.mutateAsync()
+    setConfirming(null)
+  }
+
+  // Si está anonimizado, ya no hay nada que hacer — el user es permanente histórico.
+  if (isPermanentlyDeactivated) {
+    return (
+      <div className="space-y-2 rounded-lg border bg-gray-50 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <UserX className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-gray-700">Baja definitiva</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Este usuario fue dado de baja definitivamente — su email original fue liberado.
+          Permanece solo para preservar trazabilidad histórica (firmas, registros).
+          Si la persona vuelve, hay que crear un usuario nuevo.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        {isLocked
+          ? <UserCheck className="h-4 w-4 text-muted-foreground" />
+          : <UserX     className="h-4 w-4 text-muted-foreground" />}
+        <h3 className="text-sm font-semibold text-gray-700">
+          {isLocked ? "Reactivar o liberar email" : "Dar de baja"}
+        </h3>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {isLocked
+          ? "El usuario está dado de baja. Reactivalo si vuelve a la organización, o liberá el email (baja definitiva) si el puesto va a re-asignarse a otra persona."
+          : "Da de baja al usuario impidiéndole iniciar sesión. El email se mantiene reservado y podés reactivarlo más adelante si vuelve."}
+      </p>
+
+      {!confirming && !isLocked && (
+        <Button
+          variant="destructive"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setConfirming("deactivate")}
+          disabled={isPending}
+        >
+          <UserX className="h-4 w-4" />
+          Dar de baja
+        </Button>
+      )}
+
+      {!confirming && isLocked && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setConfirming("reactivate")}
+            disabled={isPending}
+          >
+            <UserCheck className="h-4 w-4" />
+            Reactivar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
+            onClick={() => setConfirming("permanent")}
+            disabled={isPending}
+          >
+            <UserX className="h-4 w-4" />
+            Liberar email (irreversible)
+          </Button>
+        </div>
+      )}
+
+      {confirming && (
+        <div className={`rounded-lg border px-3 py-2.5 space-y-2 ${
+          confirming === "reactivate" ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+        }`}>
+          <div className="flex items-start gap-2">
+            <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${
+              confirming === "reactivate" ? "text-green-700" : "text-red-700"
+            }`} />
+            <p className="text-sm">
+              {confirming === "reactivate" &&
+                "¿Reactivar este usuario? Recuperará acceso al sistema con sus permisos previos."}
+              {confirming === "deactivate" &&
+                "¿Confirmás la baja simple? El usuario pierde acceso (los JWTs activos expiran en unos minutos) pero el email se mantiene y podés reactivarlo después."}
+              {confirming === "permanent" &&
+                "¿Confirmás la BAJA DEFINITIVA? El email se va a liberar (anonimizado) y un usuario nuevo va a poder usarlo. La trazabilidad histórica (firmas, registros) se mantiene. ESTA ACCIÓN NO ES REVERSIBLE."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={confirming === "reactivate" ? "default" : "destructive"}
+              size="sm"
+              className="gap-1.5"
+              onClick={handleConfirm}
+              disabled={isPending}
+            >
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isPending ? "Procesando..." : "Sí, confirmar"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirming(null)}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {activeMutation?.isError && (
+        <p className="text-sm text-red-600">
+          {(activeMutation.error as Error)?.message ?? "Error al cambiar el estado"}
+        </p>
+      )}
     </div>
   )
 }
