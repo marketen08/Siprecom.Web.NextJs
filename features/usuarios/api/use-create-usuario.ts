@@ -4,6 +4,9 @@ import { apiClient } from "@/lib/api-client"
 export interface CreateUsuarioInput {
   email: string
   password: string
+  nombre?: string
+  apellido?: string
+  proyectoId?: string
 }
 
 export function useCreateUsuario() {

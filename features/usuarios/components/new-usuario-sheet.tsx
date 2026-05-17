@@ -4,11 +4,10 @@ import { useState, useRef, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Eye, EyeOff, Loader2, Search, X, FolderOpen } from "lucide-react"
+import { Eye, EyeOff, Loader2, Search, X, FolderOpen, Check, Circle } from "lucide-react"
 
 import { useCreateUsuario } from "../api/use-create-usuario"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
-import { apiClient } from "@/lib/api-client"
 
 import {
   Sheet,
@@ -24,7 +23,14 @@ import { Separator } from "@/components/ui/separator"
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Mínimo 6 caracteres"),
+  nombre: z.string().min(1, "Requerido").max(100),
+  apellido: z.string().min(1, "Requerido").max(100),
+  password: z.string()
+    .min(12, "Mínimo 12 caracteres")
+    .regex(/[a-z]/, "Debe contener al menos una minúscula")
+    .regex(/[A-Z]/, "Debe contener al menos una mayúscula")
+    .regex(/[0-9]/, "Debe contener al menos un dígito")
+    .regex(/[^A-Za-z0-9]/, "Debe contener al menos un carácter especial"),
   confirmPassword: z.string().min(1, "Requerido"),
 }).refine(d => d.password === d.confirmPassword, {
   message: "Las contraseñas no coinciden",
@@ -36,6 +42,40 @@ type FormValues = z.infer<typeof schema>
 interface Props {
   open: boolean
   onClose: () => void
+}
+
+// Requisitos de password — deben coincidir con el zod schema de arriba y con la
+// política configurada en el backend (Program.cs > AddIdentityCore).
+const PASSWORD_REQUIREMENTS = [
+  { test: (v: string) => v.length >= 12, label: "Mínimo 12 caracteres" },
+  { test: (v: string) => /[a-z]/.test(v),  label: "Al menos una minúscula" },
+  { test: (v: string) => /[A-Z]/.test(v),  label: "Al menos una mayúscula" },
+  { test: (v: string) => /[0-9]/.test(v),  label: "Al menos un dígito" },
+  { test: (v: string) => /[^A-Za-z0-9]/.test(v), label: "Al menos un carácter especial" },
+]
+
+function PasswordRequirements({ value }: { value: string }) {
+  return (
+    <ul className="mt-2 space-y-1">
+      {PASSWORD_REQUIREMENTS.map((r, i) => {
+        const ok = r.test(value)
+        return (
+          <li
+            key={i}
+            className={`flex items-center gap-1.5 text-xs transition-colors ${
+              ok ? "text-green-600" : "text-muted-foreground"
+            }`}
+          >
+            {ok
+              ? <Check className="h-3.5 w-3.5 shrink-0" />
+              : <Circle className="h-3.5 w-3.5 shrink-0" />
+            }
+            <span>{r.label}</span>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
 // ─── Combobox proyecto ────────────────────────────────────────────────────────
@@ -136,7 +176,7 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "", confirmPassword: "" },
+    defaultValues: { email: "", nombre: "", apellido: "", password: "", confirmPassword: "" },
   })
 
   async function onSubmit(values: FormValues) {
@@ -146,11 +186,15 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
     }
     setErrorProyecto("")
 
-    const result = await create.mutateAsync({ email: values.email, password: values.password })
-    const userId = (result as any)?.userId
-    if (userId) {
-      await apiClient.post(`/api/usuarios/${userId}/proyectos`, { proyectoId: proyecto.id })
-    }
+    // Single request: el backend crea el user + asigna el proyecto + setea el
+    // ProyectoId activo en una sola operación atómica.
+    await create.mutateAsync({
+      email: values.email,
+      password: values.password,
+      nombre: values.nombre,
+      apellido: values.apellido,
+      proyectoId: proyecto.id,
+    })
 
     form.reset()
     setProyecto(null)
@@ -189,6 +233,34 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
 
           <Separator />
 
+          {/* Nombre y apellido */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="nombre">Nombre</Label>
+              <Input
+                id="nombre"
+                placeholder="Juan"
+                {...form.register("nombre")}
+                disabled={create.isPending}
+              />
+              {form.formState.errors.nombre && (
+                <p className="text-xs text-destructive">{form.formState.errors.nombre.message}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="apellido">Apellido</Label>
+              <Input
+                id="apellido"
+                placeholder="Pérez"
+                {...form.register("apellido")}
+                disabled={create.isPending}
+              />
+              {form.formState.errors.apellido && (
+                <p className="text-xs text-destructive">{form.formState.errors.apellido.message}</p>
+              )}
+            </div>
+          </div>
+
           {/* Email */}
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
@@ -211,7 +283,7 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 12 caracteres"
                 {...form.register("password")}
                 className="pr-10"
                 disabled={create.isPending}
@@ -224,9 +296,13 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            {form.formState.errors.password && (
+            <PasswordRequirements value={form.watch("password") ?? ""} />
+            {form.formState.errors.password && form.formState.isSubmitted && (
               <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
             )}
+            <p className="text-xs text-muted-foreground italic">
+              El usuario podrá iniciar sesión con esta contraseña o con su cuenta de Microsoft.
+            </p>
           </div>
 
           {/* Confirmar */}
