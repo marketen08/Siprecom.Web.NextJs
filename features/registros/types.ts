@@ -141,6 +141,29 @@ export interface RegistroVerificacion {
   firmas: RegistroVerificacionFirma[]
 }
 
+/**
+ * Resultado de verificar la integridad criptográfica de un registro firmado.
+ * Distinto de RegistroVerificacion (que es info pública). Acá el backend
+ * recalcula el hash de cada firma y lo compara con el persistido — detecta
+ * tampering de los valores del registro post-firma.
+ */
+export interface FirmaIntegridad {
+  firmaId: string
+  nombreFirmante: string
+  rolFirmante: string
+  fechaFirma: string
+  integro: boolean
+  hashPersistido: string
+  hashRecalculado: string
+}
+
+export interface IntegridadRegistro {
+  integro: boolean
+  registroId: string
+  firmasVerificadas: number
+  firmas: FirmaIntegridad[]
+}
+
 export interface ApiResponse<T> {
   data: T
   message: string

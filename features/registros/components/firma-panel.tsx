@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, Loader2, PenLine, Lock } from "lucide-react"
 import { useGetFirmasStatus } from "@/features/registros/api/use-get-firmas-status"
 import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
+import { IntegridadBadge } from "@/features/registros/components/integridad-badge"
 import type { RegistroFirmaSlot } from "@/features/registros/types"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -90,14 +91,23 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
     <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 space-y-3">
 
       {/* Título */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-1.5">
           <PenLine className="h-3.5 w-3.5" />
           Firmas digitales
         </span>
-        <span className="text-xs text-gray-500">
-          {status.firmasCompletadas}/{status.totalFirmas} completadas
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Badge de integridad criptográfica: visible cuando hay al menos
+              una firma completada. Solo carga si el user es Admin/Supervisor
+              (sino el backend retorna 403 y el badge se renderiza vacío). */}
+          <IntegridadBadge
+            registroId={registroId}
+            enabled={status.firmasCompletadas > 0}
+          />
+          <span className="text-xs text-gray-500">
+            {status.firmasCompletadas}/{status.totalFirmas} completadas
+          </span>
+        </div>
       </div>
 
       {/* Lista de slots */}
