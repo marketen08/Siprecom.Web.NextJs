@@ -76,3 +76,37 @@ export interface GenerarPlanificacionResult {
   warnings: string[]
   aplicado: boolean
 }
+
+// ── Versiones (snapshots P1, P2…) ───────────────────────────────────────────
+
+export interface PlanificacionVersionListItem {
+  id: string
+  numero: number
+  nombre: string
+  descripcion: string | null
+  createdAt: string
+  createdByNombre: string | null
+  cantidadTareas: number
+}
+
+export interface PlanificacionVersionTareaSnapshot {
+  elementoTareaId: string
+  elementoTag: string | null
+  elementoNombre: string | null
+  tareaNombre: string | null
+  nivelNombre: string | null
+  subSistemaCodigo: string | null
+  especialidadNombre: string | null
+  fechaPlanificada: string
+  /** 0 = Manual, 1 = Generada. */
+  fechaPlanificadaOrigen: number
+}
+
+export interface PlanificacionVersionDetalle extends PlanificacionVersionListItem {
+  tareas: PlanificacionVersionTareaSnapshot[]
+}
+
+export interface PlanificacionVersionUpdateInput {
+  nombre: string
+  descripcion?: string | null
+}

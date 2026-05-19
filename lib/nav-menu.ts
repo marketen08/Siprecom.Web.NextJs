@@ -48,6 +48,7 @@ export const menu: MenuItem[] = [
         children: [
           { label: "Estimador",     href: "/planificacion/estimador" },
           { label: "Generador",     href: "/planificacion/generador" },
+          { label: "Versiones",     href: "/planificacion/versiones" },
           { label: "Configuración", href: "/planificacion/configuracion" },
         ],
       },
@@ -134,6 +135,7 @@ export const segmentLabels: Record<string, string> = {
   planificacion:               "Planificación",
   estimador:                   "Estimador",
   generador:                   "Generador",
+  versiones:                   "Versiones",
   "avance-subsistemas":        "Avance por subsistemas",
   "cuantitativo-subsistemas":  "Cuantitativo por subsistemas",
   "avance-programado":         "Avance programado",
