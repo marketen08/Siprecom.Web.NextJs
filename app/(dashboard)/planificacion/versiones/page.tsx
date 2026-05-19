@@ -2,9 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Eye, Loader2, Pencil, Play, Trash2 } from "lucide-react"
+import { Anchor, Eye, Loader2, Pencil, Play, Trash2 } from "lucide-react"
 
 import {
+  useCrearBaseline,
   useGetVersionDetalle,
   useGetVersiones,
   useUpdateVersion,
@@ -64,6 +65,9 @@ export default function VersionesPage() {
   const detalle = useGetVersionDetalle(detalleId)
   const update = useUpdateVersion()
   const remove = useDeleteVersion()
+  const crearBaseline = useCrearBaseline()
+
+  const baselineExistente = versiones.find((v) => v.esBaseline) ?? null
 
   async function guardarEdicion(nombre: string, descripcion: string) {
     if (!editTarget) return
@@ -91,24 +95,55 @@ export default function VersionesPage() {
     }
   }
 
+  async function generarBaseline() {
+    setOpError(null)
+    try {
+      await crearBaseline.mutateAsync()
+    } catch (e) {
+      setOpError((e as Error).message)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Versiones de planificación</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Snapshots históricos del cronograma. Cada vez que aplicás el generador se crea una
-            versión nueva (P1, P2, …). El P0 (baseline) vive aparte — viene de las ventanas{" "}
-            <code className="text-xs">SubSistemaNivel</code>.
+            Snapshots históricos del cronograma. La versión <strong>P0 (baseline)</strong> es la
+            promesa original — se congela al crearse y se usa de referencia en la curva S. Las
+            siguientes (P1, P2, …) se crean automáticamente cada vez que aplicás el generador.
           </p>
         </div>
-        <Link href="/planificacion/generador">
-          <Button variant="outline" className="gap-2 shrink-0">
-            <Play className="h-4 w-4" />
-            Ir al generador
-          </Button>
-        </Link>
+        <div className="flex gap-2 shrink-0">
+          {!isLoading && !baselineExistente && (
+            <Button
+              variant="default"
+              className="gap-2"
+              onClick={generarBaseline}
+              disabled={crearBaseline.isPending}
+            >
+              <Anchor className="h-4 w-4" />
+              {crearBaseline.isPending ? "Creando..." : "Crear baseline (P0)"}
+            </Button>
+          )}
+          <Link href="/planificacion/generador">
+            <Button variant="outline" className="gap-2">
+              <Play className="h-4 w-4" />
+              Ir al generador
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      {!isLoading && !baselineExistente && versiones.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Este proyecto todavía no tiene <strong>baseline (P0)</strong>. La curva S va a mostrar
+          solo la planificación actual y lo realizado, sin línea de comparación contra la promesa
+          original. Podés crearlo desde el botón de arriba — se deriva de las ventanas{" "}
+          <code className="text-xs">SubSistemaNivel</code>.
+        </div>
+      )}
 
       {opError && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -149,14 +184,22 @@ export default function VersionesPage() {
               </TableRow>
             ) : (
               versiones.map((v) => (
-                <TableRow key={v.id}>
+                <TableRow key={v.id} className={v.esBaseline ? "bg-blue-50/40" : undefined}>
                   <TableCell>
                     <span className="inline-flex items-center gap-1 font-mono text-sm font-medium text-blue-900">
                       P{v.numero}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{v.nombre}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">{v.nombre}</div>
+                      {v.esBaseline && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold bg-blue-100 text-blue-800 rounded uppercase tracking-wide">
+                          <Anchor className="h-3 w-3" />
+                          Baseline
+                        </span>
+                      )}
+                    </div>
                     {v.descripcion && (
                       <div className="text-xs text-muted-foreground mt-0.5">{v.descripcion}</div>
                     )}
@@ -184,9 +227,12 @@ export default function VersionesPage() {
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
-                      size="icon" variant="ghost" className="h-8 w-8 text-red-600"
+                      size="icon" variant="ghost" className="h-8 w-8 text-red-600 disabled:text-gray-300"
                       onClick={() => setConfirmDelete(v)}
-                      title="Eliminar"
+                      disabled={v.esBaseline}
+                      title={v.esBaseline
+                        ? "No se puede eliminar la baseline (es la referencia de la curva S)."
+                        : "Eliminar"}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

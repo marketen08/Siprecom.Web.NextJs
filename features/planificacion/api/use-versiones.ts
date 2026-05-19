@@ -51,3 +51,19 @@ export function useDeleteVersion() {
     onSuccess: () => qc.invalidateQueries({ queryKey: QK_LISTA }),
   })
 }
+
+export function useCrearBaseline() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<ApiResponse<PlanificacionVersionListItem>>(
+        "/api/planificacion/versiones/baseline",
+        {},
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK_LISTA })
+      // Invalidamos también la timeline porque la curva P0 ahora aparece.
+      qc.invalidateQueries({ queryKey: ["estadisticas", "avance", "timeline"] })
+    },
+  })
+}

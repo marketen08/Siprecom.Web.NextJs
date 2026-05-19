@@ -87,6 +87,8 @@ export interface PlanificacionVersionListItem {
   createdAt: string
   createdByNombre: string | null
   cantidadTareas: number
+  /** True si esta versión es el baseline (P0) del proyecto. Solo una por proyecto. */
+  esBaseline: boolean
 }
 
 export interface PlanificacionVersionTareaSnapshot {
