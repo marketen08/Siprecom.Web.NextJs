@@ -84,8 +84,9 @@ export default function GeneradorPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Generador de planificación</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Asigna automáticamente <code className="text-xs">FechaPlanificada</code> a las tareas
-            libres distribuyéndolas por capacidad. Las tareas con fecha ya cargada no se tocan.
+            Asigna <code className="text-xs">FechaPlanificada</code> distribuyendo por capacidad.
+            Respeta las fechas <strong>Manual + futuras</strong>; reasigna las <strong>Generadas</strong> y las
+            Manual vencidas.
           </p>
         </div>
         <Link href="/planificacion/configuracion">
@@ -169,10 +170,25 @@ export default function GeneradorPage() {
       {/* Resultado */}
       {preview && (
         <>
+          {/* Banner destacado: manuales vencidas que se van a sobrescribir */}
+          {preview.manualesVencidasReasignadas > 0 && (
+            <div className="rounded-lg border-2 border-red-300 bg-red-50 p-4">
+              <div className="flex items-center gap-2 text-red-900 font-semibold">
+                <AlertTriangle className="h-5 w-5" />
+                Atención: {fmt(preview.manualesVencidasReasignadas)} fechas manuales vencidas se van a sobrescribir
+              </div>
+              <p className="text-sm text-red-800 mt-1">
+                Tenías esas fechas cargadas a mano pero ya pasaron. El generador las reemplaza por
+                fechas futuras. Si alguna debe quedar fija, primero editala manualmente a una fecha
+                futura antes de aplicar.
+              </p>
+            </div>
+          )}
+
           {/* KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <KpiCard
-              label="Ya planificadas (fijas)"
+              label="Manual + futura (fijas)"
               value={fmt(preview.tareasFijas)}
               sub="No se modifican"
             />
@@ -267,9 +283,17 @@ export default function GeneradorPage() {
             <AlertDialogDescription>
               Vas a asignar <strong>FechaPlanificada</strong> a{" "}
               <strong>{fmt(preview?.tareasAsignadas ?? 0)} tareas</strong>.
-              {" "}Las tareas que ya tenían fecha cargada ({fmt(preview?.tareasFijas ?? 0)}) no se modifican.
+              {" "}Las fechas Manual + futuras ({fmt(preview?.tareasFijas ?? 0)}) no se modifican.
+              {preview && preview.manualesVencidasReasignadas > 0 && (
+                <>
+                  <br /><br />
+                  <strong className="text-red-700">{fmt(preview.manualesVencidasReasignadas)} fechas manuales vencidas se van a sobrescribir.</strong>
+                </>
+              )}
               <br /><br />
-              Para revertir, podés borrar manualmente las fechas y volver a generar.
+              Las fechas nuevas quedan marcadas como <em>Generada</em> — la próxima corrida del
+              generador las puede mover. Para fijar una tarea a un día específico, editala desde
+              su sheet de detalle (queda como <em>Manual</em>).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -315,8 +339,16 @@ function CambioRow({ cambio }: { cambio: CambioFechaPlanificada }) {
     <TableRow>
       <TableCell className="font-mono text-xs">{cambio.elementoTag ?? "—"}</TableCell>
       <TableCell className="text-sm">
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 flex-wrap">
           <span>{cambio.tareaNombre ?? "—"}</span>
+          {cambio.eraManualVencida && (
+            <span
+              className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 rounded font-medium"
+              title="Tenías una fecha manual cargada que ya pasó. El generador la reemplaza."
+            >
+              Manual vencida
+            </span>
+          )}
           {cambio.esAtrasada && (
             <span className="px-1.5 py-0.5 text-[10px] bg-amber-100 text-amber-800 rounded font-medium">
               Atrasada
@@ -326,8 +358,15 @@ function CambioRow({ cambio }: { cambio: CambioFechaPlanificada }) {
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">{cambio.nivelNombre ?? "—"}</TableCell>
       <TableCell className="text-sm text-muted-foreground">{cambio.especialidadNombre ?? "—"}</TableCell>
-      <TableCell className="text-right text-sm font-medium">
-        {fmtFecha(cambio.fechaNueva)}
+      <TableCell className="text-right text-sm">
+        {cambio.fechaAnterior ? (
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="line-through text-gray-400 text-xs">{fmtFecha(cambio.fechaAnterior)}</span>
+            <span className="font-medium">{fmtFecha(cambio.fechaNueva)}</span>
+          </span>
+        ) : (
+          <span className="font-medium">{fmtFecha(cambio.fechaNueva)}</span>
+        )}
       </TableCell>
     </TableRow>
   )

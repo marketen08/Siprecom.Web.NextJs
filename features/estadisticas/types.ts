@@ -47,6 +47,8 @@ export interface TimelineSemanaDTO {
   real: number
   programadoAcum: number
   realAcum: number
+  /** Acumulado del baseline (P0) — null si el proyecto no tiene SubSistemaNivel cargado. */
+  p0Acum: number | null
 }
 
 export interface TimelineDTO {
@@ -54,4 +56,6 @@ export interface TimelineDTO {
   totalTareas: number
   tareasSinProgramar: number
   semanaActual: string
+  /** True si el proyecto tiene al menos una ventana SubSistemaNivel cargada. */
+  tieneBaseline: boolean
 }

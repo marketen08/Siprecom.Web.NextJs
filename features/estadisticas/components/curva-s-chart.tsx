@@ -9,12 +9,14 @@ import {
 } from "@/components/ui/chart"
 import type { TimelineSemanaDTO } from "../types"
 
-const COLOR_PROG = "#94a3b8" // slate-400
-const COLOR_REAL = "#2563eb" // blue-600
+const COLOR_P0   = "#cbd5e1" // slate-300 — baseline (más claro)
+const COLOR_PROG = "#64748b" // slate-500 — programado actual (más oscuro)
+const COLOR_REAL = "#16a34a" // green-600 — real ejecutado
 
 const config = {
-  programadoAcum: { label: "Programado", color: COLOR_PROG },
-  realAcum:       { label: "Real",       color: COLOR_REAL },
+  p0Acum:          { label: "P0 (baseline)",      color: COLOR_P0 },
+  programadoAcum:  { label: "Programado actual",  color: COLOR_PROG },
+  realAcum:        { label: "Real",               color: COLOR_REAL },
 } satisfies ChartConfig
 
 /**
@@ -40,9 +42,11 @@ function lunesDeSemanaIso(label: string): string {
 interface Props {
   semanas: TimelineSemanaDTO[]
   semanaActual?: string
+  /** Si false, no se dibuja la línea P0. Default true. */
+  mostrarBaseline?: boolean
 }
 
-export function CurvaSChart({ semanas, semanaActual }: Props) {
+export function CurvaSChart({ semanas, semanaActual, mostrarBaseline = true }: Props) {
   if (semanas.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-gray-200 py-16 text-center text-sm text-muted-foreground">
@@ -51,21 +55,34 @@ export function CurvaSChart({ semanas, semanaActual }: Props) {
     )
   }
 
+  // Sólo mostramos P0 si efectivamente alguna semana trae datos (el backend devuelve null
+  // cuando el proyecto no tiene SubSistemaNivel cargado).
+  const hayBaseline =
+    mostrarBaseline && semanas.some((s) => s.p0Acum !== null && s.p0Acum !== undefined)
+
   // Sólo dibujamos la línea "Hoy" si la semana actual cae dentro del rango cargado.
-  // Si no, no aporta y termina superpuesta al borde del chart.
   const mostrarHoy =
     !!semanaActual && semanas.some((s) => s.semana === semanaActual)
 
   return (
     <div className="space-y-3">
       {/* Leyenda HTML — consistente con el resto de los charts */}
-      <div className="flex items-center gap-4 text-sm">
+      <div className="flex items-center gap-4 flex-wrap text-sm">
+        {hayBaseline && (
+          <span className="flex items-center gap-2">
+            <span
+              className="inline-block w-6"
+              style={{ borderTop: `2px dashed ${COLOR_P0}` }}
+            />
+            <span className="text-gray-700">P0 (baseline desde SubSistemaNivel)</span>
+          </span>
+        )}
         <span className="flex items-center gap-2">
           <span
-            className="inline-block h-0.5 w-6 rounded-sm"
+            className="inline-block w-6"
             style={{ borderTop: `2px dashed ${COLOR_PROG}` }}
           />
-          <span className="text-gray-700">Programado (acumulado)</span>
+          <span className="text-gray-700">Programado actual</span>
         </span>
         <span className="flex items-center gap-2">
           <span
@@ -99,6 +116,17 @@ export function CurvaSChart({ semanas, semanaActual }: Props) {
               />
             }
           />
+          {hayBaseline && (
+            <Line
+              dataKey="p0Acum"
+              type="monotone"
+              stroke={COLOR_P0}
+              strokeWidth={2}
+              strokeDasharray="2 4"
+              dot={false}
+              isAnimationActive={false}
+            />
+          )}
           <Line
             dataKey="programadoAcum"
             type="monotone"

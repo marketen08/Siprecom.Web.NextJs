@@ -8,6 +8,19 @@ export const ESTADO_ELEMENTO_TAREA = {
   7: "Firmado",
 } as const
 
+/**
+ * Origen de la FechaPlanificada actual:
+ * - Manual (0): la cargó/editó un usuario desde la UI. El generador la respeta si está
+ *   en el futuro y la reasigna con advertencia si está vencida.
+ * - Generada (1): la asignó el generador automático. Reasignable libremente.
+ */
+export const FECHA_PLANIFICADA_ORIGEN = {
+  0: "Manual",
+  1: "Generada",
+} as const
+
+export type FechaPlanificadaOrigen = keyof typeof FECHA_PLANIFICADA_ORIGEN
+
 export interface ElementoTarea {
   id: string
   elementoId: string
@@ -30,6 +43,7 @@ export interface ElementoTarea {
 
   // Planificación
   fechaPlanificada: string | null
+  fechaPlanificadaOrigen: FechaPlanificadaOrigen
   fechaInicio: string | null
   fechaFinalizacion: string | null
   fechaLimite: string | null

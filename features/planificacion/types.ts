@@ -56,15 +56,20 @@ export interface CambioFechaPlanificada {
   especialidadNombre: string | null
   nivelNombre: string | null
   subSistemaCodigo: string | null
+  /** Fecha previa de la tarea (null si no tenía). Con valor → el generador la está reemplazando. */
   fechaAnterior: string | null
   fechaNueva: string
   /** True si fue reprogramada fuera de su ventana SubSistemaNivel (estaba atrasada). */
   esAtrasada: boolean
+  /** True si la tarea tenía fecha Manual vencida que el generador está sobrescribiendo. */
+  eraManualVencida: boolean
 }
 
 export interface GenerarPlanificacionResult {
   tareasFijas: number
   tareasAsignadas: number
+  /** Subset de tareasAsignadas: cuántas eran Manual vencidas que se sobrescribieron. */
+  manualesVencidasReasignadas: number
   tareasSinAsignar: number
   fechaFinEstimada: string | null
   cambios: CambioFechaPlanificada[]

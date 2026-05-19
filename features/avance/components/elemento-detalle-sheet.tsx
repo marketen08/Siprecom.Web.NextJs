@@ -703,13 +703,29 @@ function TareaMeta({ tarea }: { tarea: ElementoTarea }) {
   // En "Firmado físico" (estado 4) no hay firma digital atribuible al usuario asignado;
   // el operador puede ser distinto al firmante del papel, así que ocultamos el campo.
   const mostrarAsignado = tarea.asignadoNombre && tarea.estado !== 4
+  // Solo mostramos el badge de origen cuando la fecha mostrada ES la planificada — para
+  // fechas reales (inicio/fin) no aplica el concepto.
+  const mostrarOrigenBadge = fecha?.label === "Planif." && tarea.fechaPlanificada
   return (
     <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
       {mostrarAsignado && (
         <span>Asignado: <span className="font-medium text-gray-700">{tarea.asignadoNombre}</span></span>
       )}
       {fecha && (
-        <span>{fecha.label}: <span className="font-medium text-gray-700">{formatFecha(fecha.value)}</span></span>
+        <span className="inline-flex items-center gap-1.5">
+          {fecha.label}: <span className="font-medium text-gray-700">{formatFecha(fecha.value)}</span>
+          {mostrarOrigenBadge && (
+            tarea.fechaPlanificadaOrigen === 1 ? (
+              <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 rounded font-medium" title="Esta fecha fue asignada por el generador automático. Editarla la convierte en Manual.">
+                Generada
+              </span>
+            ) : (
+              <span className="px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 rounded font-medium" title="Esta fecha la cargó un usuario manualmente. El generador no la modificará mientras esté en el futuro.">
+                Manual
+              </span>
+            )
+          )}
+        </span>
       )}
       {tarea.horasEstimadas != null && (
         <span>Hs. est.: <span className="font-medium text-gray-700">{tarea.horasEstimadas}</span></span>
