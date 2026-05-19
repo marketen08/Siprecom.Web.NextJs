@@ -46,6 +46,11 @@ export interface GenerarPlanificacionInput {
   dryRun: boolean
   /** Si true, reprograma tareas cuya ventana SubSistemaNivel ya terminó (atrasadas). */
   incluirAtrasadas?: boolean
+  /**
+   * Si true, cuando la capacidad dentro de la ventana SubSistemaNivel se agota el generador
+   * empuja la tarea más allá del fin de la ventana. Cada cambio lleva excedeVentana=true.
+   */
+  permitirExcederVentana?: boolean
 }
 
 export interface CambioFechaPlanificada {
@@ -63,6 +68,12 @@ export interface CambioFechaPlanificada {
   esAtrasada: boolean
   /** True si la tarea tenía fecha Manual vencida que el generador está sobrescribiendo. */
   eraManualVencida: boolean
+  /**
+   * True si la tarea fue empujada más allá del fin de su ventana SubSistemaNivel porque
+   * la capacidad dentro del rango se agotó. Distinto de esAtrasada — acá la ventana NO
+   * había terminado, simplemente se llenó.
+   */
+  excedeVentana: boolean
 }
 
 export interface GenerarPlanificacionResult {

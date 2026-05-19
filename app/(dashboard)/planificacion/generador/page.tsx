@@ -43,6 +43,7 @@ export default function GeneradorPage() {
 
   const [fechaInicio, setFechaInicio] = useState<string>(hoy)
   const [incluirAtrasadas, setIncluirAtrasadas] = useState(true)
+  const [permitirExcederVentana, setPermitirExcederVentana] = useState(true)
   const [preview, setPreview] = useState<GenerarPlanificacionResult | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [appliedMsg, setAppliedMsg] = useState<string | null>(null)
@@ -54,7 +55,9 @@ export default function GeneradorPage() {
     setError(null)
     setAppliedMsg(null)
     try {
-      const resp = await mut.mutateAsync({ fechaInicio, dryRun: true, incluirAtrasadas })
+      const resp = await mut.mutateAsync({
+        fechaInicio, dryRun: true, incluirAtrasadas, permitirExcederVentana,
+      })
       setPreview(resp.data)
     } catch (e) {
       setError((e as Error).message)
@@ -64,7 +67,9 @@ export default function GeneradorPage() {
   async function aplicar() {
     setError(null)
     try {
-      const resp = await mut.mutateAsync({ fechaInicio, dryRun: false, incluirAtrasadas })
+      const resp = await mut.mutateAsync({
+        fechaInicio, dryRun: false, incluirAtrasadas, permitirExcederVentana,
+      })
       setPreview(resp.data)
       setAppliedMsg(
         `${resp.data.tareasAsignadas} tareas asignadas. Fin estimado: ${fmtFecha(resp.data.fechaFinEstimada)}.`,
@@ -77,6 +82,7 @@ export default function GeneradorPage() {
   }
 
   const cantAtrasadas = preview?.cambios.filter((c) => c.esAtrasada).length ?? 0
+  const cantExceden = preview?.cambios.filter((c) => c.excedeVentana).length ?? 0
 
   return (
     <div className="space-y-6">
@@ -149,6 +155,30 @@ export default function GeneradorPage() {
               Si una tarea tiene su ventana <code className="text-[10px]">SubSistemaNivel</code> ya
               terminada (atrasada), se reprograma desde la fecha de inicio ignorando la ventana
               original. Aparece marcada con <span className="px-1 py-0.5 bg-amber-100 text-amber-800 rounded">Atrasada</span> en el diff.
+            </span>
+          </span>
+        </label>
+
+        {/* Toggle: empujar fuera de la ventana cuando se llena */}
+        <label className="flex items-start gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={permitirExcederVentana}
+            onChange={(e) => {
+              setPermitirExcederVentana(e.target.checked)
+              setPreview(null)
+              setAppliedMsg(null)
+            }}
+            className="mt-1 h-4 w-4 rounded border-gray-300"
+          />
+          <span className="text-sm">
+            <span className="font-medium text-gray-900">Permitir empujar fuera de la ventana</span>
+            <span className="block text-xs text-muted-foreground">
+              Si la capacidad dentro de la ventana <code className="text-[10px]">SubSistemaNivel</code> se
+              agota, las tareas restantes se empujan más allá del fin de la ventana hasta encontrar
+              capacidad. El cronograma final puede exceder la planificación oficial — aparecen marcadas
+              con <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded">Excede ventana</span>.
+              Si la dejás desactivada, esas tareas quedan sin asignar.
             </span>
           </span>
         </label>
@@ -238,6 +268,11 @@ export default function GeneradorPage() {
                   {cantAtrasadas > 0 && (
                     <span className="ml-1 text-amber-700">
                       {cantAtrasadas} de ellas estaba(n) atrasada(s) y se reprograma(n) ignorando su ventana original.
+                    </span>
+                  )}
+                  {cantExceden > 0 && (
+                    <span className="ml-1 text-orange-700">
+                      {cantExceden} se empuja(n) más allá del fin de su ventana SubSistemaNivel por falta de capacidad.
                     </span>
                   )}
                 </p>
@@ -352,6 +387,14 @@ function CambioRow({ cambio }: { cambio: CambioFechaPlanificada }) {
           {cambio.esAtrasada && (
             <span className="px-1.5 py-0.5 text-[10px] bg-amber-100 text-amber-800 rounded font-medium">
               Atrasada
+            </span>
+          )}
+          {cambio.excedeVentana && (
+            <span
+              className="px-1.5 py-0.5 text-[10px] bg-orange-100 text-orange-800 rounded font-medium"
+              title="No había capacidad dentro de la ventana SubSistemaNivel. La tarea se asignó después del fin de la ventana."
+            >
+              Excede ventana
             </span>
           )}
         </span>
