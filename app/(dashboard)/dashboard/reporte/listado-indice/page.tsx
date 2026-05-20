@@ -344,7 +344,7 @@ function ElementoRow({ el }: { el: ListadoIndiceElemento }) {
         {el.porcentajeAvance.toFixed(1)}%
       </td>
       <td className="px-2 py-1.5">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-col gap-1">
           {el.tareas.map((t) => <TareaPill key={t.elementoTareaId} t={t} />)}
         </div>
       </td>
@@ -355,10 +355,12 @@ function ElementoRow({ el }: { el: ListadoIndiceElemento }) {
 function TareaPill({ t }: { t: ListadoIndiceTarea }) {
   const cls = ESTADO_BADGE_CLASES[t.estado] ?? "bg-gray-100 text-gray-700"
   return (
-    <span className="inline-flex items-center gap-1 text-[10px]">
-      <span className="text-gray-700">{t.tareaNombre ?? "—"}</span>
-      <span className={`px-1.5 py-0.5 rounded font-semibold ${cls}`}>{t.estadoTexto ?? "—"}</span>
-    </span>
+    <div className="flex items-center justify-between gap-2 text-[11px]">
+      <span className="text-gray-700 truncate">{t.tareaNombre ?? "—"}</span>
+      <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] shrink-0 ${cls}`}>
+        {t.estadoTexto ?? "—"}
+      </span>
+    </div>
   )
 }
 
