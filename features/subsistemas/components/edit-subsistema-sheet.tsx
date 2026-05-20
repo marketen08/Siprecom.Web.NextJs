@@ -5,6 +5,7 @@ import { useGetSubSistema } from "../api/use-get-subsistema"
 import { useUpdateSubSistema } from "../api/use-update-subsistema"
 import { SubSistemaForm } from "./subsistema-form"
 import { SubSistemaNivelesEditor } from "./subsistema-niveles-editor"
+import { SubSistemaPlanoEditor } from "./subsistema-plano-editor"
 import type { SubSistemaFormValues } from "../schema"
 
 import {
@@ -49,6 +50,12 @@ export function EditSubSistemaSheet() {
                 onSubmit={onSubmit}
                 isPending={mutation.isPending}
                 onCancel={close}
+              />
+              <Separator />
+              <SubSistemaPlanoEditor
+                subSistemaId={subsistema.id}
+                nombreArchivo={subsistema.planoNombreArchivo}
+                tamanioBytes={subsistema.planoTamanioBytes}
               />
               <Separator />
               <SubSistemaNivelesEditor subSistemaId={subsistema.id} />

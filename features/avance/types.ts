@@ -23,8 +23,15 @@ export interface AvanceElementoDTO extends AvanceDTO {
   subSistemaNombre: string | null
 }
 
+export interface AvanceSubSistemaDTO extends AvanceDTO {
+  /** True si el subsistema tiene un PDF de plano cargado. */
+  tienePlano: boolean
+  /** Nombre del archivo (para tooltip). Null si no hay plano. */
+  planoNombreArchivo: string | null
+}
+
 export interface AvanceSistemaDTO extends AvanceDTO {
-  subSistemas: AvanceDTO[]
+  subSistemas: AvanceSubSistemaDTO[]
 }
 
 export interface AvanceProyectoDTO extends AvanceDTO {
