@@ -72,7 +72,7 @@ export const menu: MenuItem[] = [
     label: "Configuración",
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios" },
-      { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
+      // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
       { label: "Clientes",          href: "/configuracion/clientes" },
       { label: "Contratistas",      href: "/configuracion/contratistas" },
       { label: "Especialidades",    href: "/configuracion/especialidades" },
