@@ -51,6 +51,12 @@ export interface GenerarPlanificacionInput {
    * empuja la tarea más allá del fin de la ventana. Cada cambio lleva excedeVentana=true.
    */
   permitirExcederVentana?: boolean
+  /**
+   * Si true, las tareas con fecha Manual + futura se sobrescriben con una asignación nueva.
+   * Default false (las Manual+futuras son fijas implícitas). Cada cambio lleva
+   * eraManualFutura=true. DESTRUCTIVO — perdés las fechas cargadas a mano.
+   */
+  reasignarManualesFuturas?: boolean
 }
 
 export interface CambioFechaPlanificada {
@@ -74,6 +80,8 @@ export interface CambioFechaPlanificada {
    * había terminado, simplemente se llenó.
    */
   excedeVentana: boolean
+  /** True si la tarea venía con fecha Manual + futura y se sobrescribió. */
+  eraManualFutura: boolean
 }
 
 export interface GenerarPlanificacionResult {
@@ -81,6 +89,8 @@ export interface GenerarPlanificacionResult {
   tareasAsignadas: number
   /** Subset de tareasAsignadas: cuántas eran Manual vencidas que se sobrescribieron. */
   manualesVencidasReasignadas: number
+  /** Subset de tareasAsignadas: cuántas eran Manual + futura que se sobrescribieron. */
+  manualesFuturasReasignadas: number
   tareasSinAsignar: number
   fechaFinEstimada: string | null
   cambios: CambioFechaPlanificada[]

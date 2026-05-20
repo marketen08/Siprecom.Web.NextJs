@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, CheckCircle2, Loader2, Play, RefreshCcw, Settings2 } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Eraser, Loader2, Play, RefreshCcw, Settings2 } from "lucide-react"
 
-import { useGenerarPlanificacion } from "@/features/planificacion/api/use-planificacion"
+import {
+  useGenerarPlanificacion,
+  useLimpiarManualesFuturas,
+} from "@/features/planificacion/api/use-planificacion"
 import type {
   CambioFechaPlanificada,
   GenerarPlanificacionResult,
@@ -44,19 +47,22 @@ export default function GeneradorPage() {
   const [fechaInicio, setFechaInicio] = useState<string>(hoy)
   const [incluirAtrasadas, setIncluirAtrasadas] = useState(true)
   const [permitirExcederVentana, setPermitirExcederVentana] = useState(true)
+  const [reasignarManualesFuturas, setReasignarManualesFuturas] = useState(false)
   const [preview, setPreview] = useState<GenerarPlanificacionResult | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmLimpiarOpen, setConfirmLimpiarOpen] = useState(false)
   const [appliedMsg, setAppliedMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const mut = useGenerarPlanificacion()
+  const limpiar = useLimpiarManualesFuturas()
 
   async function previsualizar() {
     setError(null)
     setAppliedMsg(null)
     try {
       const resp = await mut.mutateAsync({
-        fechaInicio, dryRun: true, incluirAtrasadas, permitirExcederVentana,
+        fechaInicio, dryRun: true, incluirAtrasadas, permitirExcederVentana, reasignarManualesFuturas,
       })
       setPreview(resp.data)
     } catch (e) {
@@ -68,7 +74,7 @@ export default function GeneradorPage() {
     setError(null)
     try {
       const resp = await mut.mutateAsync({
-        fechaInicio, dryRun: false, incluirAtrasadas, permitirExcederVentana,
+        fechaInicio, dryRun: false, incluirAtrasadas, permitirExcederVentana, reasignarManualesFuturas,
       })
       setPreview(resp.data)
       setAppliedMsg(
@@ -81,8 +87,28 @@ export default function GeneradorPage() {
     }
   }
 
+  async function ejecutarLimpiar() {
+    setError(null)
+    setAppliedMsg(null)
+    try {
+      const resp = await limpiar.mutateAsync()
+      const n = resp.data ?? 0
+      setAppliedMsg(
+        n > 0
+          ? `Se limpiaron ${n} fechas manuales futuras. Corré el generador para reasignarlas.`
+          : "No había fechas manuales futuras para limpiar.",
+      )
+      setPreview(null)
+      setConfirmLimpiarOpen(false)
+    } catch (e) {
+      setError((e as Error).message)
+      setConfirmLimpiarOpen(false)
+    }
+  }
+
   const cantAtrasadas = preview?.cambios.filter((c) => c.esAtrasada).length ?? 0
   const cantExceden = preview?.cambios.filter((c) => c.excedeVentana).length ?? 0
+  const cantManualesFuturas = preview?.cambios.filter((c) => c.eraManualFutura).length ?? 0
 
   return (
     <div className="space-y-6">
@@ -95,12 +121,23 @@ export default function GeneradorPage() {
             Manual vencidas.
           </p>
         </div>
-        <Link href="/planificacion/configuracion">
-          <Button variant="outline" className="gap-2 shrink-0">
-            <Settings2 className="h-4 w-4" />
-            Configurar capacidad
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="outline"
+            className="gap-2 text-red-600 hover:text-red-700 hover:border-red-300"
+            onClick={() => setConfirmLimpiarOpen(true)}
+            disabled={limpiar.isPending}
+          >
+            <Eraser className="h-4 w-4" />
+            Limpiar fechas manuales
           </Button>
-        </Link>
+          <Link href="/planificacion/configuracion">
+            <Button variant="outline" className="gap-2">
+              <Settings2 className="h-4 w-4" />
+              Configurar capacidad
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Input */}
@@ -182,6 +219,29 @@ export default function GeneradorPage() {
             </span>
           </span>
         </label>
+
+        {/* Toggle: sobrescribir fechas Manual + futuras (destructivo) */}
+        <label className="flex items-start gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={reasignarManualesFuturas}
+            onChange={(e) => {
+              setReasignarManualesFuturas(e.target.checked)
+              setPreview(null)
+              setAppliedMsg(null)
+            }}
+            className="mt-1 h-4 w-4 rounded border-gray-300"
+          />
+          <span className="text-sm">
+            <span className="font-medium text-red-700">Sobrescribir fechas manuales futuras (destructivo)</span>
+            <span className="block text-xs text-muted-foreground">
+              Normalmente las tareas con fecha cargada a mano y aún por venir se respetan. Al
+              activar esto entran al pool del generador y pueden moverse — aparecen marcadas
+              con <span className="px-1 py-0.5 bg-red-100 text-red-800 rounded">Manual reasignada</span>.
+              Vas a perder esas fechas. Usalo solo si las cargaste mal o querés re-distribuir todo.
+            </span>
+          </span>
+        </label>
       </div>
 
       {error && (
@@ -211,6 +271,22 @@ export default function GeneradorPage() {
                 Tenías esas fechas cargadas a mano pero ya pasaron. El generador las reemplaza por
                 fechas futuras. Si alguna debe quedar fija, primero editala manualmente a una fecha
                 futura antes de aplicar.
+              </p>
+            </div>
+          )}
+
+          {/* Banner destacado: manuales FUTURAS que se van a sobrescribir */}
+          {preview.manualesFuturasReasignadas > 0 && (
+            <div className="rounded-lg border-2 border-red-400 bg-red-50 p-4">
+              <div className="flex items-center gap-2 text-red-900 font-semibold">
+                <AlertTriangle className="h-5 w-5" />
+                Atención: {fmt(preview.manualesFuturasReasignadas)} fechas manuales futuras se van a sobrescribir
+              </div>
+              <p className="text-sm text-red-800 mt-1">
+                Activaste <em>"Sobrescribir fechas manuales futuras"</em>. Esas tareas tenían
+                fechas cargadas a mano que aún no habían llegado — el generador las va a reemplazar
+                por una distribución por capacidad. Si alguna era importante, desactivá el toggle
+                antes de aplicar.
               </p>
             </div>
           )}
@@ -275,6 +351,11 @@ export default function GeneradorPage() {
                       {cantExceden} se empuja(n) más allá del fin de su ventana SubSistemaNivel por falta de capacidad.
                     </span>
                   )}
+                  {cantManualesFuturas > 0 && (
+                    <span className="ml-1 text-red-700">
+                      {cantManualesFuturas} tenía(n) fecha manual futura que va(n) a perderse.
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="overflow-hidden rounded-lg border">
@@ -309,6 +390,33 @@ export default function GeneradorPage() {
           )}
         </>
       )}
+
+      {/* Confirmación antes de limpiar las fechas manuales */}
+      <AlertDialog open={confirmLimpiarOpen} onOpenChange={setConfirmLimpiarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpiar fechas manuales futuras</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vas a borrar la <strong>FechaPlanificada</strong> de todas las tareas del proyecto
+              que tenían fecha cargada a mano y aún no llegó. Las fechas Manual <em>vencidas</em>
+              no se tocan.
+              <br /><br />
+              Después de esto, corré el generador para que reasigne todas esas tareas desde cero
+              según capacidad y ventanas. <strong className="text-red-700">No se puede deshacer.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={limpiar.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={limpiar.isPending}
+              onClick={(e) => { e.preventDefault(); ejecutarLimpiar() }}
+            >
+              {limpiar.isPending ? "Limpiando..." : "Limpiar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmación antes de aplicar */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -395,6 +503,14 @@ function CambioRow({ cambio }: { cambio: CambioFechaPlanificada }) {
               title="No había capacidad dentro de la ventana SubSistemaNivel. La tarea se asignó después del fin de la ventana."
             >
               Excede ventana
+            </span>
+          )}
+          {cambio.eraManualFutura && (
+            <span
+              className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 rounded font-medium"
+              title="La tarea tenía una FechaPlanificada cargada manualmente con fecha futura. El generador la sobrescribe porque activaste 'Sobrescribir fechas manuales futuras'."
+            >
+              Manual reasignada
             </span>
           )}
         </span>

@@ -62,3 +62,18 @@ export function useGenerarPlanificacion() {
     },
   })
 }
+
+// Limpia las FechaPlanificada de todas las tareas Manual + futuras del proyecto activo.
+// Después de esto el generador puede reasignarlas desde cero. Acción destructiva.
+export function useLimpiarManualesFuturas() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<ApiResponse<number>>("/api/planificacion/manuales-futuras/limpiar", {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK_EST })
+      qc.invalidateQueries({ queryKey: ["estadisticas"] })
+      qc.invalidateQueries({ queryKey: ["avance"] })
+    },
+  })
+}
