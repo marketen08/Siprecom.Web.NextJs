@@ -133,3 +133,50 @@ export interface PlanificacionVersionUpdateInput {
   nombre: string
   descripcion?: string | null
 }
+
+// ── Planificación manual (edición de FechaPlanificada en bulk) ──────────────
+
+export interface PlanificacionTareaItem {
+  elementoTareaId: string
+  elementoTag: string | null
+  elementoNombre: string | null
+  tareaNombre: string | null
+  sistemaId: string | null
+  subSistemaId: string | null
+  subSistemaCodigo: string | null
+  nivelId: string | null
+  nivelNombre: string | null
+  nivelPosicion: number | null
+  especialidadId: string | null
+  especialidadNombre: string | null
+  especialidadColor: string | null
+  /** 1=PENDIENTE, 2=EN_PROCESO, 3=COMPLETADO, 4=APROBADO, 5=RECHAZADO, 7=FIRMADO */
+  estado: number
+  fechaPlanificada: string | null
+  /** 0=Manual, 1=Generada */
+  fechaPlanificadaOrigen: number
+  ventanaInicio: string | null
+  ventanaFin: string | null
+}
+
+export interface PlanificacionTareasFiltros {
+  sistemaId?: string
+  subSistemaId?: string
+  nivelId?: string
+  especialidadId?: string
+  estado?: number
+  /** 0=Manual, 1=Generada */
+  origen?: number
+  sinFecha?: boolean
+}
+
+export interface PlanificacionFechaCambio {
+  elementoTareaId: string
+  /** null = limpiar */
+  fechaPlanificada: string | null
+}
+
+export interface PlanificacionFechasBulkResult {
+  actualizadas: number
+  noEncontradas: number
+}
