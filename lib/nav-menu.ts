@@ -130,6 +130,7 @@ export const segmentLabels: Record<string, string> = {
   clientes:      "Clientes",
   contratistas:  "Contratistas",
   reporte:       "Reporte",
+  "listado-indice": "Listado índice",
   avance:        "Avance",
   especialidades: "Especialidades",
   estadisticas:                "Estadísticas",

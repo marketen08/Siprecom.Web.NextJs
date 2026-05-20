@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
-import { FileText, MoreHorizontal } from "lucide-react"
+import { FileText, ListChecks, MoreHorizontal } from "lucide-react"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
 import { useGetAvanceSistema } from "@/features/avance/api/use-get-avance-sistema"
@@ -161,6 +161,13 @@ function AvanceSubsistemasContent() {
                         >
                           <FileText className="h-4 w-4" />
                           <span>{planoOpeningId === ss.id ? "Abriendo..." : "Ver plano"}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => router.push(`/dashboard/reporte/listado-indice?subSistemaId=${ss.id}`)}
+                          className="cursor-pointer"
+                        >
+                          <ListChecks className="h-4 w-4" />
+                          <span>Listado índice</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
