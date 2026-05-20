@@ -255,7 +255,9 @@ export default function PlanificacionManualPage() {
             <label className="text-xs font-medium text-gray-600">Estado</label>
             <Select value={estado} onValueChange={(v) => setEstado(v ?? ALL)}>
               <SelectTrigger>
-                <SelectValue placeholder="Todos" />
+                <SelectValue placeholder="Todos">
+                  {estado === ALL ? "Todos" : (ESTADO_LABELS[Number(estado)] ?? "—")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Todos</SelectItem>
@@ -269,7 +271,9 @@ export default function PlanificacionManualPage() {
             <label className="text-xs font-medium text-gray-600">Origen de la fecha</label>
             <Select value={origen} onValueChange={(v) => setOrigen(v ?? ALL)}>
               <SelectTrigger>
-                <SelectValue placeholder="Todos" />
+                <SelectValue placeholder="Todos">
+                  {origen === ALL ? "Todos" : (origen === "0" ? "Manual" : "Generada")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Todos</SelectItem>
@@ -376,7 +380,9 @@ function FiltroSelect({
         disabled={disabled}
       >
         <SelectTrigger>
-          <SelectValue placeholder="Todos" />
+          <SelectValue placeholder="Todos">
+            {value ? (opciones.find((o) => o.value === value)?.label ?? "—") : "Todos"}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>Todos</SelectItem>
