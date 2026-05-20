@@ -156,10 +156,7 @@ function AvanceSubsistemasContent() {
                       <DropdownMenuContent align="end" className="w-44">
                         <DropdownMenuItem
                           disabled={!ss.tienePlano || planoOpeningId === ss.id}
-                          onSelect={(e) => {
-                            e.preventDefault()
-                            if (ss.tienePlano) abrirPlano(ss.id)
-                          }}
+                          onClick={() => { if (ss.tienePlano) abrirPlano(ss.id) }}
                           className="cursor-pointer"
                         >
                           <FileText className="h-4 w-4" />
