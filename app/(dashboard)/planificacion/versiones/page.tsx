@@ -250,7 +250,7 @@ export default function VersionesPage() {
 
       {/* Sheet: detalle de la versión */}
       <Sheet open={!!detalleId} onOpenChange={(v) => !v && setDetalleId(null)}>
-        <SheetContent className="w-full sm:max-w-3xl! overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-4xl! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>
               {detalle.data?.data
