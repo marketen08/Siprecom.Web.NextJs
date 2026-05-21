@@ -49,7 +49,7 @@ function KpiCard({
   badge?: { text: string; className: string }
 }) {
   return (
-    <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 flex flex-col gap-1">
+    <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4 flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
@@ -73,9 +73,9 @@ function Skeleton({ className }: { className?: string }) {
 function SistemaRow({ sistema }: { sistema: AvanceSistemaDTO }) {
   const ss: AvanceDTO[] = sistema.subSistemas ?? []
   return (
-    <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
       {/* header del sistema */}
-      <div className="flex items-center justify-between gap-4 px-4 py-3 bg-gray-50 border-b border-gray-100">
+      <div className="flex items-center justify-between gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center gap-3 min-w-0">
           <span className="font-mono text-xs text-muted-foreground shrink-0">{sistema.codigo}</span>
           <span className="font-semibold text-sm text-gray-800 truncate">{sistema.nombre}</span>
@@ -249,7 +249,7 @@ export default function DashboardPage() {
             <h2 className="text-base font-semibold text-gray-800">Resumen de estados</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { label: "Pendiente",      value: avance.pendiente,  className: "bg-gray-50 text-gray-700 border-gray-200" },
+                { label: "Pendiente",      value: avance.pendiente,  className: "bg-white text-gray-700 border-gray-200" },
                 { label: "En proceso",     value: avance.enProceso,  className: "bg-blue-50 text-blue-700 border-blue-100" },
                 { label: "Completado",     value: avance.completado, className: "bg-yellow-50 text-yellow-700 border-yellow-100" },
                 { label: "Firmado",        value: avance.firmado,    className: "bg-emerald-50 text-emerald-700 border-emerald-100" },

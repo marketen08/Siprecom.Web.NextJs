@@ -444,7 +444,7 @@ export default function TareasRealizadasPage() {
 
 function Kpi({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
+    <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-3">
       <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={`text-xl font-bold tabular-nums mt-0.5 ${color ?? "text-blue-900"}`}>{value}</div>
     </div>

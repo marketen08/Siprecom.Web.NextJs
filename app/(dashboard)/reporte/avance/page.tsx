@@ -323,7 +323,7 @@ export default function AvanceProyectoPage() {
 
 function KpiCard({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
-    <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+    <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
       <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={`text-2xl font-bold tabular-nums ${valueColor ?? "text-blue-900"}`}>{value}</div>
     </div>
