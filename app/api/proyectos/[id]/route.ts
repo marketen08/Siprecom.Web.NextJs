@@ -7,9 +7,16 @@ export async function GET(
   context: RouteContext<"/api/proyectos/[id]">
 ) {
   const { id } = await context.params
-  const res = await backendFetch(request, `/proyectos/${id}`)
-  const data = await res.json()
-  return Response.json(data, { status: res.status })
+  console.log("[proyectos/GET] id:", id, "BACKEND_URL set:", !!process.env.NEXT_PUBLIC_API_URL, "len:", process.env.NEXT_PUBLIC_API_URL?.length)
+  try {
+    const res = await backendFetch(request, `/proyectos/${id}`)
+    console.log("[proyectos/GET] backend status:", res.status)
+    const data = await res.json()
+    return Response.json(data, { status: res.status })
+  } catch (err) {
+    console.error("[proyectos/GET] error:", err)
+    throw err
+  }
 }
 
 // PUT /api/proyectos/[id]
