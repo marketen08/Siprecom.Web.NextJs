@@ -27,10 +27,10 @@ export const menu: MenuItem[] = [
       {
         label: "Reporte",
         children: [
-          { label: "Avance del proyecto",   href: "/dashboard/reporte/avance" },
-          { label: "Listado índice",         href: "/dashboard/reporte/listado-indice" },
-          { label: "Tareas realizadas",      href: "/dashboard/reporte/tareas" },
-          { label: "Listado de pendientes",  href: "/dashboard/reporte/pendientes" },
+          { label: "Avance del proyecto",   href: "/reporte/avance" },
+          { label: "Listado índice",         href: "/reporte/listado-indice" },
+          { label: "Tareas realizadas",      href: "/reporte/tareas" },
+          { label: "Listado de pendientes",  href: "/reporte/pendientes" },
         ],
       },
       {

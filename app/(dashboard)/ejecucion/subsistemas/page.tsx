@@ -163,7 +163,7 @@ function AvanceSubsistemasContent() {
                           <span>{planoOpeningId === ss.id ? "Abriendo..." : "Ver plano"}</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => router.push(`/dashboard/reporte/listado-indice?subSistemaId=${ss.id}`)}
+                          onClick={() => router.push(`/reporte/listado-indice?subSistemaId=${ss.id}`)}
                           className="cursor-pointer"
                         >
                           <ListChecks className="h-4 w-4" />

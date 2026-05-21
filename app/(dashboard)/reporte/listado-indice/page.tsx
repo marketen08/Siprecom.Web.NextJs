@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
-import { ChevronDown, ChevronRight, Download, FileText, Loader2, X } from "lucide-react"
+import { useEffect, useMemo, useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react"
 
 import {
   buildListadoIndicePdfUrl,
@@ -19,18 +19,26 @@ import type {
   ListadoIndiceTarea,
 } from "@/features/reportes/types"
 
-import { useGetSistemas } from "@/features/sistemas/api/use-get-sistemas"
-import { useGetSubSistemas } from "@/features/subsistemas/api/use-get-subsistemas"
+import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
+import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
-import { useGetElementosTipos } from "@/features/elementostipos/api/use-get-elementostipos"
+import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import {
+  FiltersTrigger,
+  FiltersChips,
+  FiltersSheet,
+  FilterField,
+  type FilterChip,
+} from "@/components/ui/filters-bar"
 
-const ALL = "_all"
+const ALL = "__all__"
 
 const ESTADO_BADGE_CLASES: Record<number, string> = {
   1: "bg-gray-100 text-gray-700",       // PENDIENTE
@@ -42,30 +50,61 @@ const ESTADO_BADGE_CLASES: Record<number, string> = {
 }
 
 function ListadoIndiceContent() {
-  // Parámetros de URL: si la página se abrió desde el dropdown de /ejecucion/subsistemas
-  // con ?subSistemaId=, lo respetamos para precargar el filtro.
+  // Sincronización con URL: si la página se abre con ?subSistemaId=… (caso del dropdown
+  // de /ejecucion/subsistemas) o ?sistemaId=…, los filtros se precargan. Cambios manuales
+  // en sistema/subsistema también se reflejan en la URL para que se puedan compartir.
+  const router = useRouter()
   const sp = useSearchParams()
-  const initialSubSistemaId = sp.get("subSistemaId") ?? ""
+  const sistemaIdParam = sp.get("sistemaId") ?? ""
+  const subSistemaIdParam = sp.get("subSistemaId") ?? ""
 
   const [nivelId, setNivelId] = useState<string>("")
-  const [sistemaId, setSistemaId] = useState<string>("")
-  const [subSistemaId, setSubSistemaId] = useState<string>(initialSubSistemaId)
+  const [sistemaId, setSistemaId] = useState<string>(sistemaIdParam)
+  const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam)
   const [especialidadId, setEspecialidadId] = useState<string>("")
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
+  // Sync incoming URL params si cambian (back/forward del browser).
+  useEffect(() => {
+    if (sistemaIdParam && sistemaId !== sistemaIdParam) setSistemaId(sistemaIdParam)
+  }, [sistemaIdParam])
+  useEffect(() => {
+    if (subSistemaIdParam && subSistemaId !== subSistemaIdParam) setSubSistemaId(subSistemaIdParam)
+  }, [subSistemaIdParam])
+
+  function syncUrl(nextSistemaId: string, nextSubSistemaId: string) {
+    const qs = new URLSearchParams()
+    if (nextSistemaId) qs.set("sistemaId", nextSistemaId)
+    if (nextSubSistemaId) qs.set("subSistemaId", nextSubSistemaId)
+    const s = qs.toString()
+    router.replace(s
+      ? `/reporte/listado-indice?${s}`
+      : "/reporte/listado-indice")
+  }
+
   // Catálogos
-  const sistemas       = useGetSistemas({ pageSize: 200 }).data?.data ?? []
-  const subSistemas    = useGetSubSistemas({ pageSize: 500, sistemaId: sistemaId || undefined }).data?.data ?? []
+  const sistemas       = useGetSistemasSelect().data?.data ?? []
+  const todosSubSistemas = useGetSubSistemasSelect().data?.data ?? []
   const niveles        = (useGetNivelesSelect().data as { data?: Array<{ id: string; nombre: string; posicion: number }> })?.data ?? []
   const especialidades = useGetEspecialidades().data?.data ?? []
-  const tiposTodos     = useGetElementosTipos({ pageSize: 200 }).data?.data ?? []
+  const tipos          = useGetElementosTiposSelect().data?.data ?? []
 
-  // Si hay especialidad seleccionada, el dropdown de tipos se filtra a los de esa especialidad.
-  const tiposParaFiltro = especialidadId
-    ? tiposTodos.filter((t) => t.especialidadId === especialidadId)
-    : tiposTodos
+  const subSistemasFiltrados = sistemaId
+    ? todosSubSistemas.filter((ss) => ss.sistemaId === sistemaId)
+    : todosSubSistemas
+
+  const tipoOptions = useMemo(() => {
+    const filtrados = especialidadId
+      ? tipos.filter((t) => t.especialidadId === especialidadId)
+      : tipos
+    return [
+      { value: "", label: "Todos los tipos" },
+      ...filtrados.map((t) => ({ value: t.id, label: t.nombre })),
+    ]
+  }, [tipos, especialidadId])
 
   const filtros = useMemo<ListadoIndiceFiltros>(() => ({
     nivelId:        nivelId        || undefined,
@@ -77,11 +116,89 @@ function ListadoIndiceContent() {
 
   const { data, isLoading, isFetching } = useGetListadoIndicePreview(filtros)
   const preview = data?.data
-  const hayFiltro = !!(nivelId || sistemaId || subSistemaId || especialidadId || elementoTipoId)
 
-  function limpiarFiltros() {
-    setNivelId(""); setSistemaId(""); setSubSistemaId("")
-    setEspecialidadId(""); setElementoTipoId("")
+  // Handlers de cambio con cascading (sistema→subsistema, especialidad→tipo) y URL sync.
+  function handleNivelChange(value: string | null) {
+    setNivelId(!value || value === ALL ? "" : value)
+  }
+  function handleSistemaChange(value: string | null) {
+    const id = !value || value === ALL ? "" : value
+    setSistemaId(id)
+    // Si el subsistema actual no pertenece al nuevo sistema, lo limpiamos.
+    let nextSub = subSistemaId
+    if (id && subSistemaId) {
+      const ss = todosSubSistemas.find((s) => s.id === subSistemaId)
+      if (ss?.sistemaId !== id) {
+        nextSub = ""
+        setSubSistemaId("")
+      }
+    }
+    syncUrl(id, nextSub)
+  }
+  function handleSubSistemaChange(value: string | null) {
+    const id = !value || value === ALL ? "" : value
+    setSubSistemaId(id)
+    syncUrl(sistemaId, id)
+  }
+  function handleEspecialidadChange(value: string | null) {
+    const v = !value || value === ALL ? "" : value
+    setEspecialidadId(v)
+    if (v && elementoTipoId) {
+      const tipo = tipos.find((t) => t.id === elementoTipoId)
+      if (tipo?.especialidadId !== v) setElementoTipoId("")
+    }
+  }
+  function handleClearFiltros() {
+    setNivelId("")
+    setSistemaId("")
+    setSubSistemaId("")
+    setEspecialidadId("")
+    setElementoTipoId("")
+    syncUrl("", "")
+  }
+
+  // Activos para chips
+  const nivelSel        = niveles.find((n) => n.id === nivelId)
+  const sistemaSel      = sistemas.find((s) => s.id === sistemaId)
+  const subSistemaSel   = todosSubSistemas.find((ss) => ss.id === subSistemaId)
+  const especialidadSel = especialidades.find((e) => e.id === especialidadId)
+  const tipoSel         = tipos.find((t) => t.id === elementoTipoId)
+
+  const activeFilters: FilterChip[] = []
+  if (nivelId) {
+    activeFilters.push({
+      id: "nivel",
+      label: `Nivel: ${nivelSel?.nombre ?? "—"}`,
+      onRemove: () => setNivelId(""),
+    })
+  }
+  if (sistemaId) {
+    activeFilters.push({
+      id: "sistema",
+      label: `Sistema: ${sistemaSel ? `${sistemaSel.codigo} — ${sistemaSel.nombre}` : "—"}`,
+      onRemove: () => handleSistemaChange(ALL),
+    })
+  }
+  if (subSistemaId) {
+    activeFilters.push({
+      id: "subsistema",
+      label: `Subsistema: ${subSistemaSel ? `${subSistemaSel.codigo} — ${subSistemaSel.nombre}` : "—"}`,
+      onRemove: () => handleSubSistemaChange(ALL),
+    })
+  }
+  if (especialidadId) {
+    activeFilters.push({
+      id: "especialidad",
+      label: `Especialidad: ${especialidadSel?.nombre ?? "—"}`,
+      onRemove: () => handleEspecialidadChange(ALL),
+    })
+  }
+  if (elementoTipoId) {
+    activeFilters.push({
+      id: "tipo",
+      label: `Tipo: ${tipoSel?.nombre ?? "—"}`,
+      onRemove: () => setElementoTipoId(""),
+    })
   }
 
   async function descargar() {
@@ -97,7 +214,7 @@ function ListadoIndiceContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Listado índice de tareas</h1>
@@ -106,12 +223,19 @@ function ListadoIndiceContent() {
             Filtrá lo que necesites y descargá el PDF (vertical, A4).
           </p>
         </div>
-        <Button onClick={descargar} disabled={downloading || isLoading} className="gap-2 shrink-0">
-          {downloading
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <Download className="h-4 w-4" />}
-          {downloading ? "Generando..." : "Descargar PDF"}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button onClick={descargar} disabled={downloading || isLoading} className="gap-2">
+            {downloading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Download className="h-4 w-4" />}
+            {downloading ? "Generando..." : "Descargar PDF"}
+          </Button>
+          <FiltersTrigger
+            open={filtersOpen}
+            onOpenChange={setFiltersOpen}
+            activeCount={activeFilters.length}
+          />
+        </div>
       </div>
 
       {downloadError && (
@@ -120,48 +244,101 @@ function ListadoIndiceContent() {
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="rounded-lg border bg-white p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <FiltroSelect
-            label="Nivel"
-            value={nivelId}
-            onChange={setNivelId}
-            opciones={niveles.map((n) => ({ value: n.id, label: n.nombre }))}
-          />
-          <FiltroSelect
-            label="Sistema"
-            value={sistemaId}
-            onChange={(v) => { setSistemaId(v); setSubSistemaId("") }}
-            opciones={sistemas.map((s) => ({ value: s.id, label: `${s.codigo} · ${s.nombre}` }))}
-          />
-          <FiltroSelect
-            label="Subsistema"
-            value={subSistemaId}
-            onChange={setSubSistemaId}
-            opciones={subSistemas.map((ss) => ({ value: ss.id, label: `${ss.codigo} · ${ss.nombre}` }))}
-          />
-          <FiltroSelect
-            label="Especialidad"
-            value={especialidadId}
-            onChange={(v) => { setEspecialidadId(v); setElementoTipoId("") }}
-            opciones={especialidades.map((e) => ({ value: e.id, label: e.nombre }))}
-          />
-          <FiltroSelect
-            label="Tipo de elemento"
+      <FiltersChips activeFilters={activeFilters} onClearAll={handleClearFiltros} />
+
+      <FiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        onClearAll={handleClearFiltros}
+        hasActiveFilters={activeFilters.length > 0}
+      >
+        <FilterField label="Nivel">
+          <Select value={nivelId || ALL} onValueChange={handleNivelChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue>{nivelSel?.nombre ?? "Todos los niveles"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los niveles</SelectItem>
+              {niveles.map((n) => (
+                <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Sistema">
+          <Select value={sistemaId || ALL} onValueChange={handleSistemaChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {sistemaSel
+                  ? `${sistemaSel.codigo} — ${sistemaSel.nombre}`
+                  : "Todos los sistemas"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los sistemas</SelectItem>
+              {sistemas.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.codigo} — {s.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Subsistema">
+          <Select
+            value={subSistemaId || ALL}
+            onValueChange={handleSubSistemaChange}
+            disabled={!!sistemaId && subSistemasFiltrados.length === 0}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {subSistemaSel
+                  ? `${subSistemaSel.codigo} — ${subSistemaSel.nombre}`
+                  : "Todos los subsistemas"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los subsistemas</SelectItem>
+              {subSistemasFiltrados.map((ss) => (
+                <SelectItem key={ss.id} value={ss.id}>
+                  {ss.codigo} — {ss.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Especialidad">
+          <Select value={especialidadId || ALL} onValueChange={handleEspecialidadChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {especialidadSel?.nombre ?? "Todas las especialidades"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas las especialidades</SelectItem>
+              {especialidades.map((esp) => (
+                <SelectItem key={esp.id} value={esp.id}>
+                  {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Tipo de elemento">
+          <Combobox
+            options={tipoOptions}
             value={elementoTipoId}
-            onChange={setElementoTipoId}
-            opciones={tiposParaFiltro.map((t) => ({ value: t.id, label: t.nombre }))}
-            disabled={tiposParaFiltro.length === 0}
+            onChange={(v) => setElementoTipoId(v)}
+            placeholder="Todos los tipos"
+            searchPlaceholder="Buscar tipo..."
+            emptyMessage="Sin resultados"
           />
-          {hayFiltro && (
-            <Button variant="ghost" size="sm" onClick={limpiarFiltros} className="self-end gap-1.5 text-muted-foreground">
-              <X className="h-3.5 w-3.5" />
-              Limpiar filtros
-            </Button>
-          )}
-        </div>
-      </div>
+        </FilterField>
+      </FiltersSheet>
 
       {/* KPIs + preview */}
       {isLoading ? (
@@ -203,39 +380,6 @@ export default function ListadoIndicePage() {
 }
 
 // ─── Sub-componentes ─────────────────────────────────────────────────────────
-
-function FiltroSelect({
-  label, value, onChange, opciones, disabled,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  opciones: { value: string; label: string }[]
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-gray-600">{label}</label>
-      <Select
-        value={value || ALL}
-        onValueChange={(v) => onChange(!v || v === ALL ? "" : v)}
-        disabled={disabled}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Todos">
-            {value ? (opciones.find((o) => o.value === value)?.label ?? "—") : "Todos"}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>Todos</SelectItem>
-          {opciones.map((o) => (
-            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
 
 function NivelSection({ nivel }: { nivel: ListadoIndiceNivelGrupo }) {
   const [open, setOpen] = useState(true)
