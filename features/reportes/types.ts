@@ -7,6 +7,9 @@ export interface ListadoIndiceFiltros {
   subSistemaId?: string
   especialidadId?: string
   elementoTipoId?: string
+  /** 1=PENDIENTE, 2=EN_PROCESO, 3=COMPLETADO, 4=APROBADO (Firmado físico),
+   *  5=RECHAZADO, 7=FIRMADO. CANCELADO no aplica al reporte. */
+  estado?: number
 }
 
 export interface ListadoIndiceTarea {

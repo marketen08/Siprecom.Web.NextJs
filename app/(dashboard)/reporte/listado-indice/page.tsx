@@ -24,6 +24,8 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -49,6 +51,17 @@ const ESTADO_BADGE_CLASES: Record<number, string> = {
   7: "bg-emerald-100 text-emerald-800", // FIRMADO
 }
 
+// Opciones del filtro Estado. CANCELADO no aparece (queda excluido del reporte).
+// FIRMADO (digital, 7) y APROBADO (Firmado físico, 4) se muestran según el tipo de proyecto.
+const ESTADO_OPCIONES: Array<{ value: number; label: string; soloPreFirmado?: boolean; soloDigital?: boolean }> = [
+  { value: 1, label: "Pendiente" },
+  { value: 2, label: "En proceso" },
+  { value: 3, label: "Completado" },
+  { value: 4, label: "Firmado físico", soloPreFirmado: true },
+  { value: 5, label: "Rechazado" },
+  { value: 7, label: "Firmado",        soloDigital: true },
+]
+
 function ListadoIndiceContent() {
   // Sincronización con URL: si la página se abre con ?subSistemaId=… (caso del dropdown
   // de /ejecucion/subsistemas) o ?sistemaId=…, los filtros se precargan. Cambios manuales
@@ -63,9 +76,22 @@ function ListadoIndiceContent() {
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam)
   const [especialidadId, setEspecialidadId] = useState<string>("")
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
+  const [estado, setEstado] = useState<string>("")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  // Proyecto activo — usado para esconder opciones del filtro de estado que no aplican
+  // al tipo de proyecto (FIRMADO solo no pre-firmado; APROBADO solo pre-firmado).
+  const perfil = useGetPerfil().data
+  const proyectoActivo = useGetProyecto(perfil?.proyectoId ?? null).data?.data
+  const esPreFirmado = !!proyectoActivo?.registrosFisicosPreFirmados
+
+  const estadoOpciones = ESTADO_OPCIONES.filter((o) => {
+    if (o.soloPreFirmado) return esPreFirmado
+    if (o.soloDigital)    return !esPreFirmado
+    return true
+  })
 
   // Sync incoming URL params si cambian (back/forward del browser).
   useEffect(() => {
@@ -112,7 +138,8 @@ function ListadoIndiceContent() {
     subSistemaId:   subSistemaId   || undefined,
     especialidadId: especialidadId || undefined,
     elementoTipoId: elementoTipoId || undefined,
-  }), [nivelId, sistemaId, subSistemaId, especialidadId, elementoTipoId])
+    estado:         estado ? Number(estado) : undefined,
+  }), [nivelId, sistemaId, subSistemaId, especialidadId, elementoTipoId, estado])
 
   const { data, isLoading, isFetching } = useGetListadoIndicePreview(filtros)
   const preview = data?.data
@@ -154,6 +181,7 @@ function ListadoIndiceContent() {
     setSubSistemaId("")
     setEspecialidadId("")
     setElementoTipoId("")
+    setEstado("")
     syncUrl("", "")
   }
 
@@ -198,6 +226,14 @@ function ListadoIndiceContent() {
       id: "tipo",
       label: `Tipo: ${tipoSel?.nombre ?? "—"}`,
       onRemove: () => setElementoTipoId(""),
+    })
+  }
+  if (estado) {
+    const opcionSel = ESTADO_OPCIONES.find((o) => o.value === Number(estado))
+    activeFilters.push({
+      id: "estado",
+      label: `Estado: ${opcionSel?.label ?? "—"}`,
+      onRemove: () => setEstado(""),
     })
   }
 
@@ -337,6 +373,27 @@ function ListadoIndiceContent() {
             searchPlaceholder="Buscar tipo..."
             emptyMessage="Sin resultados"
           />
+        </FilterField>
+
+        <FilterField label="Estado">
+          <Select
+            value={estado || ALL}
+            onValueChange={(v) => setEstado(!v || v === ALL ? "" : v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {estado
+                  ? estadoOpciones.find((o) => o.value === Number(estado))?.label ?? "—"
+                  : "Todos los estados"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los estados</SelectItem>
+              {estadoOpciones.map((o) => (
+                <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FilterField>
       </FiltersSheet>
 

@@ -10,6 +10,7 @@ function buildParams(filtros: ListadoIndiceFiltros): Record<string, string> {
   if (filtros.subSistemaId)   p.subSistemaId   = filtros.subSistemaId
   if (filtros.especialidadId) p.especialidadId = filtros.especialidadId
   if (filtros.elementoTipoId) p.elementoTipoId = filtros.elementoTipoId
+  if (filtros.estado != null) p.estado         = String(filtros.estado)
   return p
 }
 

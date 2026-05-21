@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
-const PARAMS = ["nivelId", "sistemaId", "subSistemaId", "especialidadId", "elementoTipoId"] as const
+const PARAMS = ["nivelId", "sistemaId", "subSistemaId", "especialidadId", "elementoTipoId", "estado"] as const
 
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams
