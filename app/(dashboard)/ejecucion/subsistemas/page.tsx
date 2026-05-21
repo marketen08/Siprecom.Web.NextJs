@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
-import { FileText, ListChecks, MoreHorizontal } from "lucide-react"
+import { AlertCircle, FileText, ListChecks, MoreHorizontal } from "lucide-react"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
 import { useGetAvanceSistema } from "@/features/avance/api/use-get-avance-sistema"
@@ -168,6 +168,13 @@ function AvanceSubsistemasContent() {
                         >
                           <ListChecks className="h-4 w-4" />
                           <span>Listado índice</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => router.push(`/reporte/pendientes?subSistemaId=${ss.id}`)}
+                          className="cursor-pointer"
+                        >
+                          <AlertCircle className="h-4 w-4" />
+                          <span>Listado de pendientes</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

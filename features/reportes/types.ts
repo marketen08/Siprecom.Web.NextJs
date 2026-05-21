@@ -173,3 +173,63 @@ export interface TareasRealizadasPreview {
   topUsuarios: TareasRealizadasUsuarioStats[]
   tareas: TareaRealizadaItem[]
 }
+
+// ── Listado de pendientes ───────────────────────────────────────────────────
+
+export interface ListadoPendientesFiltros {
+  sistemaId?: string
+  subSistemaId?: string
+  categoriaId?: string
+  tipoId?: string
+  estadoId?: string
+  responsableId?: string
+  /** Prioridad enum: 1=Baja, 2=Media, 3=Alta, 4=Urgente (sigue Prioridad de Pendientes). */
+  prioridad?: number
+  /** Default backend: true (excluye CERRADO y CANCELADO). */
+  soloAbiertos?: boolean
+}
+
+export interface ListadoPendientesItem {
+  id: string
+  codigoFormateado: string
+  descripcion: string | null
+  elementoTag: string | null
+  elementoNombre: string | null
+  categoriaNombre: string | null
+  tipoNombre: string | null
+  prioridad: number
+  prioridadTexto: string | null
+  estadoId: string | null
+  estadoNombre: string | null
+  responsableId: string | null
+  responsableNombre: string | null
+  fechaDeteccion: string
+  fechaCierreEstimado: string
+}
+
+export interface ListadoPendientesSubSistemaGrupo {
+  subSistemaId: string | null
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
+  total: number
+  abiertos: number
+  cerrados: number
+  pendientes: ListadoPendientesItem[]
+}
+
+export interface ListadoPendientesSistemaGrupo {
+  sistemaId: string | null
+  sistemaCodigo: string | null
+  sistemaNombre: string | null
+  subSistemas: ListadoPendientesSubSistemaGrupo[]
+}
+
+export interface ListadoPendientesPreview {
+  total: number
+  abiertos: number
+  enProceso: number
+  cerrados: number
+  cancelados: number
+  criticos: number
+  sistemas: ListadoPendientesSistemaGrupo[]
+}
