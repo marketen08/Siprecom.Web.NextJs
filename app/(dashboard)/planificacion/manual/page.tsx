@@ -34,7 +34,8 @@ const ESTADO_LABELS: Record<number, string> = {
   1: "Pendiente",
   2: "En proceso",
   3: "Completado",
-  4: "Aprobado",
+  // APROBADO en backend = "Firmado físico" en UI (firma en papel, no digital).
+  4: "Firmado físico",
   5: "Rechazado",
   7: "Firmado",
 }
