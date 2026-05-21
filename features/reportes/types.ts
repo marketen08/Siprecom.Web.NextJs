@@ -62,3 +62,52 @@ export interface ListadoIndicePreview {
   totalTareas: number
   niveles: ListadoIndiceNivelGrupo[]
 }
+
+// ── Avance del proyecto ─────────────────────────────────────────────────────
+
+export interface AvanceProyectoFiltros {
+  nivelId?: string
+  sistemaId?: string
+  subSistemaId?: string
+  especialidadId?: string
+}
+
+export interface AvanceProyectoSubSistema {
+  subSistemaId: string
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
+  totalTareas: number
+  tareasCompletadas: number
+  tareasPendientes: number
+  porcentajeAvance: number
+}
+
+export interface AvanceProyectoSistema {
+  sistemaId: string | null
+  sistemaCodigo: string | null
+  sistemaNombre: string | null
+  totalTareas: number
+  tareasCompletadas: number
+  tareasPendientes: number
+  porcentajeAvance: number
+  subSistemas: AvanceProyectoSubSistema[]
+}
+
+export interface AvanceProyectoNivel {
+  nivelId: string | null
+  nivelNombre: string | null
+  nivelPosicion: number | null
+  totalTareas: number
+  tareasCompletadas: number
+  tareasPendientes: number
+  porcentajeAvance: number
+  sistemas: AvanceProyectoSistema[]
+}
+
+export interface AvanceProyectoPreview {
+  totalSubSistemas: number
+  totalTareas: number
+  tareasCompletadas: number
+  porcentajeGlobal: number
+  niveles: AvanceProyectoNivel[]
+}
