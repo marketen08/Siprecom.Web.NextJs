@@ -111,3 +111,62 @@ export interface AvanceProyectoPreview {
   porcentajeGlobal: number
   niveles: AvanceProyectoNivel[]
 }
+
+// ── Tareas realizadas ───────────────────────────────────────────────────────
+
+export interface TareasRealizadasFiltros {
+  /** ISO strings. Default backend: últimos 30 días. */
+  fechaDesde?: string
+  fechaHasta?: string
+  usuarioId?: string
+  /** 1=COMPLETADO, 4=APROBADO, 7=FIRMADO. Default: las tres. */
+  estado?: number
+  nivelId?: string
+  sistemaId?: string
+  subSistemaId?: string
+  especialidadId?: string
+}
+
+export interface TareaRealizadaFirma {
+  usuarioId: string | null
+  nombreFirmante: string | null
+  rolFirmante: string | null
+  fechaFirma: string
+}
+
+export interface TareaRealizadaItem {
+  elementoTareaId: string
+  fechaFinalizacion: string
+  elementoTag: string | null
+  elementoNombre: string | null
+  tareaNombre: string | null
+  sistemaCodigo: string | null
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
+  nivelNombre: string | null
+  especialidadNombre: string | null
+  especialidadColor: string | null
+  estado: number
+  estadoTexto: string | null
+  completadorId: string | null
+  completadorNombre: string | null
+  firmas: TareaRealizadaFirma[]
+}
+
+export interface TareasRealizadasUsuarioStats {
+  usuarioId: string
+  usuarioNombre: string | null
+  cantidad: number
+}
+
+export interface TareasRealizadasPreview {
+  fechaDesdeAplicada: string
+  fechaHastaAplicada: string
+  totalRealizadas: number
+  promedioPorDia: number
+  cantCompletado: number
+  cantFirmado: number
+  cantAprobado: number
+  topUsuarios: TareasRealizadasUsuarioStats[]
+  tareas: TareaRealizadaItem[]
+}
