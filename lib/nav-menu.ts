@@ -64,7 +64,7 @@ export const menu: MenuItem[] = [
       { label: "Elementos",    href: "/alcance/elementos" },
       { label: "Tareas",       href: "/alcance/tareas" },
       { label: "Planillas",    href: "/alcance/planillas" },
-      { label: "Importación masiva", href: "/alcance/importacion" },
+      { label: "Importar datos de proyecto", href: "/alcance/importacion" },
       { label: "Importar pendientes", href: "/alcance/importacion-pendientes" },
     ],
   },

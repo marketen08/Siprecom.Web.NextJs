@@ -106,8 +106,8 @@ Los 4 endpoints públicos están con rate limit + Identity lockout. Tests:
 | `POST /api/registros/{id}/archivos` | multipart | **30 MB** | ❌ Sin whitelist | Adjunta archivo a registro |
 | `POST /api/planillas/campos/imagen` | multipart | 5 MB | ✓ JPG, PNG, WebP, SVG, GIF | Imagen decorativa de campo |
 | `POST /api/pendientes/{id}/adjuntos` | multipart | — | ❌ | Adjunto de pendiente |
-| `POST /api/import/preview` | XLSX | — | ❌ | Preview importación masiva |
-| `POST /api/import/apply` | XLSX | — | ❌ | Aplicar importación masiva |
+| `POST /api/import/preview` | XLSX | — | ❌ | Preview importar datos del proyecto |
+| `POST /api/import/apply` | XLSX | — | ❌ | Aplicar importación datos del proyecto |
 | `POST /api/import/pendientes/preview` | XLSX | — | ❌ | Preview importar pendientes |
 | `POST /api/import/pendientes/apply` | XLSX | — | ❌ | Aplicar importación pendientes |
 

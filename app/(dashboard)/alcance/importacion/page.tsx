@@ -94,7 +94,7 @@ export default function ImportacionPage() {
   return (
     <div className="space-y-6 p-6 max-w-5xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Importación masiva</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Importar datos del proyecto</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Importá sistemas, subsistemas y elementos desde un archivo Excel. Soporta crear,
           modificar y eliminar en una sola operación.
