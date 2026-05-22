@@ -39,7 +39,7 @@ export function DonutDistribucion({ titulo, descripcion, data, loading }: Props)
   }, {})
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-white p-4 space-y-3">
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 space-y-3">
       <div>
         <h3 className="font-semibold text-gray-900">{titulo}</h3>
         {descripcion && <p className="text-xs text-muted-foreground">{descripcion}</p>}

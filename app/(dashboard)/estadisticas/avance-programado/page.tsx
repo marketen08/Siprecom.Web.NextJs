@@ -55,7 +55,7 @@ export default function AvanceProgramadoPage() {
       )}
 
       {isLoading && (
-        <div className="rounded-lg border border-gray-100 bg-white p-6 animate-pulse h-96" />
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6 animate-pulse h-96" />
       )}
 
       {!isLoading && error && (
@@ -68,7 +68,7 @@ export default function AvanceProgramadoPage() {
         <>
           {/* KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+            <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Total tareas
               </div>
@@ -78,7 +78,7 @@ export default function AvanceProgramadoPage() {
               <div className="text-xs text-muted-foreground">Excluye canceladas</div>
             </div>
 
-            <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+            <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Sin programar
               </div>
@@ -95,7 +95,7 @@ export default function AvanceProgramadoPage() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+            <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Semanas con actividad
               </div>
@@ -107,7 +107,7 @@ export default function AvanceProgramadoPage() {
           </div>
 
           {/* Curva S */}
-          <div className="rounded-lg border border-gray-100 bg-white p-4">
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
             <CurvaSChart semanas={timeline.semanas} semanaActual={timeline.semanaActual} />
           </div>
 

@@ -61,7 +61,7 @@ export default function CuantitativoSubsistemasPage() {
       )}
 
       {isLoading && (
-        <div className="rounded-lg border border-gray-100 bg-white p-6 animate-pulse h-96" />
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6 animate-pulse h-96" />
       )}
 
       {!isLoading && error && (
@@ -71,7 +71,7 @@ export default function CuantitativoSubsistemasPage() {
       )}
 
       {!isLoading && !error && (
-        <div className="rounded-lg border border-gray-100 bg-white p-4">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
           <CantidadElementosChart data={items} />
         </div>
       )}

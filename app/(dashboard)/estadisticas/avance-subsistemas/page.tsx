@@ -130,7 +130,7 @@ export default function AvanceSubsistemasPage() {
       )}
 
       {/* Barra de filtros */}
-      <div className="rounded-lg border border-gray-100 bg-white p-3 flex flex-wrap items-end gap-3">
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-3 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-44">
           <label className="text-xs font-medium text-gray-600">Sistema</label>
           <Select value={sistemaId || ALL} onValueChange={(v) => setSistemaId(v === ALL ? "" : (v ?? ""))}>
@@ -227,7 +227,7 @@ export default function AvanceSubsistemasPage() {
       {/* KPIs del subset filtrado */}
       {!isLoading && !error && items.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+          <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Subsistemas
             </div>
@@ -235,7 +235,7 @@ export default function AvanceSubsistemasPage() {
               {fmt(items.length)}
             </div>
           </div>
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+          <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Tareas
             </div>
@@ -244,7 +244,7 @@ export default function AvanceSubsistemasPage() {
             </div>
             <div className="text-xs text-muted-foreground">Completadas / totales</div>
           </div>
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+          <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               % Promedio
             </div>
@@ -258,7 +258,7 @@ export default function AvanceSubsistemasPage() {
 
       {/* Chart */}
       {isLoading && (
-        <div className="rounded-lg border border-gray-100 bg-white p-6 animate-pulse h-96" />
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6 animate-pulse h-96" />
       )}
 
       {!isLoading && error && (
@@ -268,7 +268,7 @@ export default function AvanceSubsistemasPage() {
       )}
 
       {!isLoading && !error && (
-        <div className="rounded-lg border border-gray-100 bg-white p-4">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
           <AvanceSubsistemasChart data={items} compact={compact} />
         </div>
       )}

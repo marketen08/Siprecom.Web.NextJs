@@ -43,7 +43,7 @@ export default function EstadisticasHubPage() {
           <Link
             key={href}
             href={href}
-            className="group rounded-xl border border-gray-100 bg-white p-5 transition-colors hover:border-blue-200 hover:bg-blue-50/40"
+            className="group rounded-xl border border-gray-200 bg-white shadow-sm p-5 transition-colors hover:border-blue-300 hover:bg-blue-50/40"
           >
             <div className="flex items-start gap-3">
               <span className="rounded-lg bg-blue-50 p-2 text-blue-700 group-hover:bg-blue-100">
