@@ -4,6 +4,8 @@ import { apiClient } from "@/lib/api-client"
 export interface UsuarioAdminUpdateInput {
   nombre?: string
   apellido?: string
+  /** String vacío para desasignar la empresa; null/undefined no toca el campo. */
+  clienteId?: string
 }
 
 export function useUpdateUsuarioAdmin(usuarioId: string) {

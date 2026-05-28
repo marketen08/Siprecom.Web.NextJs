@@ -1,8 +1,11 @@
 "use client"
 
+import { useState } from "react"
+
 import { useOpenCliente } from "../hooks/use-open-cliente"
 import { useGetCliente } from "../api/use-get-cliente"
 import { useUpdateCliente } from "../api/use-update-cliente"
+import { useUploadClienteLogo } from "../api/use-upload-cliente-logo"
 import { ClienteForm } from "./cliente-form"
 import type { ClienteFormValues } from "../schema"
 
@@ -17,21 +20,38 @@ import {
 export function EditClienteSheet() {
   const { id, isOpen, close } = useOpenCliente()
   const { data, isLoading } = useGetCliente(id)
-  const mutation = useUpdateCliente(id ?? "")
+  const updateMutation = useUpdateCliente(id ?? "")
+  const uploadLogoMutation = useUploadClienteLogo(id ?? "")
+  const [busy, setBusy] = useState(false)
+  const [logoWarning, setLogoWarning] = useState<string | null>(null)
 
   const cliente = data?.data
 
-  const onSubmit = (values: ClienteFormValues) => {
+  const onSubmit = async (values: ClienteFormValues, logoFile: File | null) => {
     if (!cliente) return
-    mutation.mutate(
-      {
+    setBusy(true)
+    setLogoWarning(null)
+    try {
+      await updateMutation.mutateAsync({
         nombre: values.nombre,
-        urlLogo: values.urlLogo || undefined,
-        // Tipo es read-only en edición: forzamos el valor original del backend
+        // Tipo es read-only en edición: forzamos el valor original del backend.
         esContratista: cliente.esContratista,
-      },
-      { onSuccess: close }
-    )
+      })
+
+      if (logoFile) {
+        try {
+          await uploadLogoMutation.mutateAsync(logoFile)
+        } catch (err) {
+          setLogoWarning(
+            (err as Error)?.message ?? "Los datos se guardaron pero falló la subida del logo. Reintentá."
+          )
+          return
+        }
+      }
+      close()
+    } finally {
+      setBusy(false)
+    }
   }
 
   const tipoLabel = cliente?.esContratista ? "contratista" : "cliente"
@@ -46,13 +66,18 @@ export function EditClienteSheet() {
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 px-4 pb-6">
+          {logoWarning && (
+            <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              {logoWarning}
+            </p>
+          )}
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : cliente ? (
             <ClienteForm
               defaultValues={cliente}
               onSubmit={onSubmit}
-              isPending={mutation.isPending}
+              isPending={busy || updateMutation.isPending || uploadLogoMutation.isPending}
               onCancel={close}
               readOnlyTipo
             />

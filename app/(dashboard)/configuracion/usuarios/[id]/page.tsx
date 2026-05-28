@@ -22,10 +22,12 @@ import { useDeactivateUsuario } from "@/features/usuarios/api/use-deactivate-usu
 import { useDeactivateUsuarioPermanent } from "@/features/usuarios/api/use-deactivate-usuario-permanent"
 import { useReactivateUsuario } from "@/features/usuarios/api/use-reactivate-usuario"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
+import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Combobox } from "@/components/ui/combobox"
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -116,13 +118,23 @@ function TabDatos({ usuario }: { usuario: any }) {
   const resetPassword = useResetPasswordAdmin(usuario.id)
   const [nombre, setNombre]   = useState(usuario.nombre ?? "")
   const [apellido, setApellido] = useState(usuario.apellido ?? "")
+  const [clienteId, setClienteId] = useState<string>(usuario.clienteId ?? "")
   const [saved, setSaved] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [passwordSaved, setPasswordSaved] = useState(false)
 
+  // Opciones de empresa: clientes + contratistas, con badge de rol en el label.
+  // El backend admite "" para desasignar (lo interpretamos en el handleSave).
+  const { data: empresasData, isLoading: empresasLoading } = useGetClientesSelect()
+  const empresaOptions = [
+    { value: "", label: "— Sin empresa —" },
+    ...(empresasData?.contratistas ?? []).map((c) => ({ value: c.id, label: `${c.nombre} (contratista)` })),
+    ...(empresasData?.clientes ?? []).map((c) => ({ value: c.id, label: c.nombre })),
+  ]
+
   async function handleSave() {
-    await update.mutateAsync({ nombre, apellido })
+    await update.mutateAsync({ nombre, apellido, clienteId })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -180,6 +192,22 @@ function TabDatos({ usuario }: { usuario: any }) {
               disabled={update.isPending}
             />
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-700">Empresa</label>
+          <Combobox
+            options={empresaOptions}
+            value={clienteId}
+            onChange={setClienteId}
+            placeholder={empresasLoading ? "Cargando empresas..." : "Seleccionar empresa..."}
+            searchPlaceholder="Buscar empresa..."
+            emptyMessage="Sin empresas"
+            disabled={update.isPending || empresasLoading}
+          />
+          <p className="text-xs text-muted-foreground">
+            Se muestra en el PDF de los registros que firme el usuario.
+          </p>
         </div>
 
         <Button

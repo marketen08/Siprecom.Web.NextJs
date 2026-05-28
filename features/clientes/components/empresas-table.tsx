@@ -7,7 +7,7 @@ import {
   flexRender,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { ImageIcon, Pencil, Plus, Search, Trash2 } from "lucide-react"
 
 import { useGetClientes } from "../api/use-get-clientes"
 import { useNewCliente } from "../hooks/use-new-cliente"
@@ -50,6 +50,16 @@ export function EmpresasTable({ kind }: EmpresasTableProps) {
   const { open: openNew } = useNewCliente()
 
   const columns = useMemo<ColumnDef<Cliente>[]>(() => [
+    {
+      id: "logo",
+      header: "",
+      cell: ({ row }) => (
+        <LogoCell
+          urlLogo={row.original.logoSasUrl ?? row.original.urlLogo}
+          alt={row.original.nombre}
+        />
+      ),
+    },
     {
       accessorKey: "nombre",
       header: "Nombre",
@@ -169,6 +179,29 @@ export function EmpresasTable({ kind }: EmpresasTableProps) {
         </div>
       </div>
     </>
+  )
+}
+
+function LogoCell({ urlLogo, alt }: { urlLogo: string | null | undefined; alt: string }) {
+  const [errored, setErrored] = useState(false)
+
+  if (!urlLogo || errored) {
+    return (
+      <div className="h-10 w-10 rounded-md border bg-gray-50 flex items-center justify-center">
+        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-10 w-10 rounded-md border bg-white flex items-center justify-center overflow-hidden">
+      <img
+        src={urlLogo}
+        alt={alt}
+        className="h-full w-full object-contain"
+        onError={() => setErrored(true)}
+      />
+    </div>
   )
 }
 

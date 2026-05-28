@@ -2,6 +2,8 @@ export interface Cliente {
   id: string
   nombre: string
   urlLogo: string
+  /** SAS URL temporal (~1h) para leer el logo desde el browser. Null si no hay logo. */
+  logoSasUrl?: string | null
   esContratista: boolean
   createdAt: string
   createdByNombre: string
@@ -12,12 +14,10 @@ export interface Cliente {
 
 export interface ClienteCreateInput {
   nombre: string
-  urlLogo?: string
   esContratista: boolean
 }
 
 export interface ClienteUpdateInput {
   nombre: string
-  urlLogo?: string
   esContratista: boolean
 }
