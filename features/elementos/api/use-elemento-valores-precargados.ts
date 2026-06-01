@@ -3,6 +3,8 @@ import { apiClient } from "@/lib/api-client"
 import type {
   ElementoPlanillaDisponible,
   ElementoValorPrecargado,
+  ElementoValorPrecargadoUnificado,
+  ElementoValorPrecargadoUnificadoUpsertInput,
   ElementoValorPrecargadoUpsertInput,
 } from "../types"
 
@@ -48,6 +50,39 @@ export function useUpsertElementoValoresPrecargados(elementoId: string, planilla
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: ["elementos", elementoId, "valores-precargados", planillaId],
+      })
+    },
+  })
+}
+
+// ─── Valores precargados unificados (agrupados por campoId) ───────────────────
+
+interface ValoresUnificadosResponse {
+  data: ElementoValorPrecargadoUnificado[]
+}
+
+export function useGetElementoValoresPrecargadosUnificados(elementoId: string | null) {
+  return useQuery({
+    queryKey: ["elementos", elementoId, "valores-precargados-unificados"],
+    queryFn: () =>
+      apiClient.get<ValoresUnificadosResponse>(
+        `/api/elementos/${elementoId}/valores-precargados-unificados`,
+      ),
+    enabled: !!elementoId,
+  })
+}
+
+export function useUpsertElementoValoresPrecargadosUnificados(elementoId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (items: ElementoValorPrecargadoUnificadoUpsertInput[]) =>
+      apiClient.put<ValoresUnificadosResponse>(
+        `/api/elementos/${elementoId}/valores-precargados-unificados`,
+        items,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["elementos", elementoId, "valores-precargados-unificados"],
       })
     },
   })

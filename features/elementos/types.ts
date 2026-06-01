@@ -104,3 +104,35 @@ export interface ElementoValorPrecargadoUpsertInput {
   valorFecha: string | null
   valorBit: boolean | null
 }
+
+export interface OpcionListaSimple {
+  valor: string
+  etiqueta: string
+  orden: number
+}
+
+/** Valor precargado unificado a nivel Elemento (agrupado por campoId, no por planilla). */
+export interface ElementoValorPrecargadoUnificado {
+  campoId: string
+  campoCodigo: string | null
+  campoEtiqueta: string
+  /** 1=Texto, 2=Numero, 3=Fecha, 4=Boolean, 5=Lista, 8=Imagen */
+  campoTipoDato: number
+  campoUnidad: string | null
+  /** PlanillaCampos donde aparece este Campo (se replica el valor a todas al guardar). */
+  planillaCamposIds: string[]
+  planillas: ElementoPlanillaDisponible[]
+  valorTexto: string | null
+  valorNumero: number | null
+  valorFecha: string | null
+  valorBit: boolean | null
+  opciones: OpcionListaSimple[]
+}
+
+export interface ElementoValorPrecargadoUnificadoUpsertInput {
+  campoId: string
+  valorTexto: string | null
+  valorNumero: number | null
+  valorFecha: string | null
+  valorBit: boolean | null
+}
