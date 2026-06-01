@@ -38,3 +38,17 @@ export interface ImportPendientesResultado {
   preview: ImportPendientesPreview
   mensaje: string
 }
+
+/** Preview de importación de valores precargados a nivel elemento. */
+export interface ImportValoresPrecargadosPreview {
+  valoresPrecargados: ImportEntidadResumen
+  elementosAfectados: number
+  errores: ImportError[]
+  esAplicable: boolean
+}
+
+export interface ImportValoresPrecargadosResultado {
+  aplicado: boolean
+  preview: ImportValoresPrecargadosPreview
+  mensaje: string
+}
