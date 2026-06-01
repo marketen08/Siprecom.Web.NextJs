@@ -2,7 +2,6 @@
 
 import { useRef, useState, type ComponentType } from "react"
 import { useRouter } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
@@ -10,7 +9,6 @@ import { useReiniciarTarea } from "@/features/elementos-tareas/api/use-reiniciar
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
 import { useDownloadProcedimiento } from "@/features/procedimientos/api/use-download-procedimiento"
-import { apiClient } from "@/lib/api-client"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import type { AvanceElementoDTO } from "@/features/avance/types"
 import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
@@ -47,17 +45,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-// ─── Tipo archivo ─────────────────────────────────────────────────────────────
-
-interface RegistroArchivo {
-  id: string
-  nombreArchivo: string
-  contentType: string
-  tamanioBytes: number
-  url: string
-  urlExpiraEn: string
-}
-
 interface Props {
   elementoId: string | null
   avance: AvanceElementoDTO | null
@@ -87,10 +74,12 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
 
   async function handleIniciar(tarea: ElementoTarea) {
     const result = await iniciarMutation.mutateAsync(tarea.id) as any
-    // El backend devuelve la ET actualizada con registroId — navegamos al form
+    // El backend devuelve la ET actualizada con registroId — navegamos al form.
+    // No llamamos onClose() antes: la navegación desmonta el sheet naturalmente,
+    // y conservamos el ?elementoId en la URL para que el back del browser reabra
+    // el sheet con el contexto intacto.
     const registroId = result?.data?.registroId ?? result?.registroId
     if (registroId) {
-      onClose()
       router.push(`/ejecucion/registros/${registroId}`)
     }
   }
@@ -101,13 +90,11 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
 
   function handleAbrirFormulario(tarea: ElementoTarea) {
     if (!tarea.registroId) return
-    onClose()
     router.push(`/ejecucion/registros/${tarea.registroId}`)
   }
 
   function handleCargarPdf(tarea: ElementoTarea) {
     if (!tarea.planillaId) return
-    onClose()
     router.push(`/checklist/${tarea.planillaId}/${tarea.id}`)
   }
 
@@ -249,8 +236,6 @@ function TareaCard({
   // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
   // y los registros sin firma requerida tienen firmasTotal === 0, así que quedan excluidos.
   const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
-  const archivoFisico = useArchivoFisico(tarea.esFisico ? tarea.registroId : null)
-
   // Adjuntar archivo a la tarea (al registro asociado). El hook necesita un string
   // no-nullable; usamos "" cuando no hay registro todavía (la opción no se muestra).
   const adjuntoInputRef = useRef<HTMLInputElement>(null)
@@ -299,7 +284,6 @@ function TareaCard({
     onRequestReiniciar: () => setReiniciarOpen(true),
     isIniciando,
     isReiniciando,
-    archivoFisico,
     showFirmas,
     onToggleFirmas: () => setShowFirmas((s) => !s),
     permitirFisico,
@@ -310,7 +294,7 @@ function TareaCard({
     descargandoProcedimientoPending: downloadProcedimiento.isPending,
   })
 
-  const busy = isIniciando || archivoFisico.isLoading || uploadAdjunto.isPending || downloadProcedimiento.isPending
+  const busy = isIniciando || uploadAdjunto.isPending || downloadProcedimiento.isPending
 
   async function handleConfirmReiniciar() {
     try {
@@ -466,7 +450,6 @@ function buildTareaMenuItems({
   onRequestReiniciar,
   isIniciando,
   isReiniciando,
-  archivoFisico,
   showFirmas,
   onToggleFirmas,
   permitirFisico,
@@ -486,7 +469,6 @@ function buildTareaMenuItems({
   onRequestReiniciar: () => void
   isIniciando: boolean
   isReiniciando: boolean
-  archivoFisico: { abrir: () => Promise<void>; isLoading: boolean }
   showFirmas: boolean
   onToggleFirmas: () => void
   permitirFisico: boolean
@@ -527,7 +509,7 @@ function buildTareaMenuItems({
     case 2: // EN_PROCESO
       if (tarea.registroId) {
         if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading })
+          items.push({ kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
         } else if (permitirDigital) {
           items.push({ kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
         }
@@ -540,7 +522,7 @@ function buildTareaMenuItems({
       if (tarea.registroId) {
         items.push(
           tarea.esFisico
-            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
+            ? { kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
             : { kind: "item", label: "Ver y firmar", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
         )
       }
@@ -550,7 +532,7 @@ function buildTareaMenuItems({
       if (tarea.registroId) {
         items.push(
           tarea.esFisico
-            ? { kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading }
+            ? { kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
             : { kind: "item", label: "Ver registro", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
         )
       }
@@ -558,7 +540,7 @@ function buildTareaMenuItems({
     case 5: // RECHAZADO
       if (tarea.registroId) {
         if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar registro", icon: FileDown, onSelect: () => archivoFisico.abrir(), disabled: archivoFisico.isLoading })
+          items.push({ kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
         } else if (permitirDigital) {
           items.push({ kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" })
         }
@@ -661,27 +643,6 @@ function buildTareaMenuItems({
   }
 
   return items
-}
-
-// ─── Hook: archivo físico subido (carga on-demand y abre en nueva pestaña) ───
-
-function useArchivoFisico(registroId: string | null) {
-  const query = useQuery({
-    queryKey: ["registro-archivos", registroId],
-    queryFn: () => apiClient.get<{ data: RegistroArchivo[] }>(`/api/registros/${registroId}/archivos`),
-    enabled: false, // carga on-demand
-    staleTime: 1000 * 50, // un poco menos que los 60 min de la SAS
-  })
-
-  async function abrir() {
-    if (!registroId) return
-    const result = await query.refetch()
-    const lista = (result.data as any)?.data as RegistroArchivo[] | undefined
-    const primero = lista?.[0]
-    if (primero?.url) window.open(primero.url, "_blank", "noreferrer")
-  }
-
-  return { abrir, isLoading: query.isLoading }
 }
 
 function triggerDownload(url: string) {

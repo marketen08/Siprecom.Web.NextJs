@@ -3,7 +3,7 @@
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, Eye, PenLine, Clock, Check, FileImage, Lock } from "lucide-react"
+import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, Lock } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 
@@ -293,20 +293,19 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
         {isReadOnly && (
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Descargar PDF — sólo para registros digitales. Los físicos tienen el banner
-                "Ver registro" más abajo, que linkea al escaneo real. */}
-            {!registro.esFisico && (
-              <a
-                href={`/api/registros/${registroId}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button variant="outline" size="sm" className="gap-1.5 h-8">
-                  <Download className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Descargar PDF</span>
-                </Button>
-              </a>
-            )}
+            {/* Descargar PDF: para digitales devuelve la planilla renderizada con
+                valores; para físicos devuelve el escaneo (envuelto en PDF si era
+                imagen) + página final de certificado si hay firma electrónica. */}
+            <a
+              href={`/api/registros/${registroId}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button variant="outline" size="sm" className="gap-1.5 h-8">
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Descargar PDF</span>
+              </Button>
+            </a>
             {registro.estado === "COMPLETADO" && (
               <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-amber-100 text-amber-700">
                 <Clock className="h-3.5 w-3.5" /> Pendiente de firma
@@ -403,38 +402,7 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── Registro físico (solo lectura) ── */}
-      {registro.esFisico && isReadOnly && (() => {
-        // El físico se guarda con posicion=0; para registros viejos cargados antes del fix
-        // podía quedar como el primer archivo (posicion=1) — caemos al primero si no hay 0.
-        const fisicoArchivo =
-          registro.archivos.find((a) => a.posicion === 0) ?? registro.archivos[0]
-        const verUrl = fisicoArchivo?.url
-        return (
-          <div className="rounded-xl border bg-orange-50 border-orange-200 p-5 flex items-center gap-4">
-            <FileImage className="h-8 w-8 text-orange-400 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-orange-800">Registro cargado como planilla física</p>
-              <p className="text-xs text-orange-600 mt-0.5">Este registro fue completado con un documento escaneado.</p>
-            </div>
-            {verUrl ? (
-              <a href={verUrl} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" size="sm" className="gap-1.5 shrink-0 border-orange-300 text-orange-700 hover:bg-orange-100">
-                  <Eye className="h-3.5 w-3.5" />
-                  Ver registro
-                </Button>
-              </a>
-            ) : (
-              <Button variant="outline" size="sm" className="gap-1.5 shrink-0 border-orange-300 text-orange-400" disabled title="Archivo no disponible">
-                <Eye className="h-3.5 w-3.5" />
-                Ver registro
-              </Button>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* ── Modo formulario digital ──
+{/* ── Modo formulario digital ──
           Se muestra cuando: el registro es de solo lectura digital (para visualizar),
           o cuando es editable y el proyecto permite completar digitalmente. */}
       {!registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital)) && (

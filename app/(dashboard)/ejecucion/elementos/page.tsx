@@ -60,6 +60,7 @@ function AvanceElementosContent() {
   const searchParams = useSearchParams()
   const sistemaIdParam = searchParams.get("sistemaId") ?? undefined
   const subSistemaIdParam = searchParams.get("subSistemaId") ?? undefined
+  const elementoIdParam = searchParams.get("elementoId") ?? undefined
 
   const [sistemaId, setSistemaId] = useState<string>(sistemaIdParam ?? "")
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam ?? "")
@@ -98,6 +99,24 @@ function AvanceElementosContent() {
     const qs = new URLSearchParams()
     if (nextSistemaId) qs.set("sistemaId", nextSistemaId)
     if (nextSubSistemaId) qs.set("subSistemaId", nextSubSistemaId)
+    const s = qs.toString()
+    router.replace(s ? `/ejecucion/elementos?${s}` : "/ejecucion/elementos")
+  }
+
+  function handleOpenElemento(e: AvanceElementoDTO) {
+    setSelectedElemento({ id: e.id, avance: e })
+    // push (no replace) para que el back del browser desde la página del registro
+    // vuelva a esta URL con elementoId y el useEffect de arriba reabra el sheet.
+    const qs = new URLSearchParams(searchParams.toString())
+    qs.set("elementoId", e.id)
+    router.push(`/ejecucion/elementos?${qs.toString()}`)
+  }
+
+  function handleCloseSheet() {
+    setSelectedElemento(null)
+    // replace para no contaminar history con cierres manuales del sheet.
+    const qs = new URLSearchParams(searchParams.toString())
+    qs.delete("elementoId")
     const s = qs.toString()
     router.replace(s ? `/ejecucion/elementos?${s}` : "/ejecucion/elementos")
   }
@@ -154,6 +173,19 @@ function AvanceElementosContent() {
   const elementos = raw?.data ?? []
   const total = raw?.total ?? 0
   const totalPages = Math.ceil(total / pageSize)
+
+  // Abre el sheet desde la URL (?elementoId=...) — para que el back del browser
+  // desde la página del registro reabra el sheet con el contexto intacto.
+  // Espera a que `elementos` cargue para tener el `avance` del elemento.
+  useEffect(() => {
+    if (!elementoIdParam) {
+      if (selectedElemento) setSelectedElemento(null)
+      return
+    }
+    if (selectedElemento?.id === elementoIdParam) return
+    const found = elementos.find((e) => e.id === elementoIdParam)
+    if (found) setSelectedElemento({ id: found.id, avance: found })
+  }, [elementoIdParam, elementos])
 
   function handleSistemaChange(value: string | null) {
     const id = !value || value === ALL ? "" : value
@@ -475,7 +507,7 @@ function AvanceElementosContent() {
                 <TableRow
                   key={e.id}
                   className="cursor-pointer hover:bg-blue-50 transition-colors"
-                  onClick={() => setSelectedElemento({ id: e.id, avance: e })}
+                  onClick={() => handleOpenElemento(e)}
                 >
                   <TableCell className="font-mono text-sm text-gray-600">{e.codigo}</TableCell>
                   <TableCell className="font-medium">{e.nombre}</TableCell>
@@ -547,7 +579,7 @@ function AvanceElementosContent() {
         elementoId={selectedElemento?.id ?? null}
         avance={selectedElemento?.avance ?? null}
         open={!!selectedElemento}
-        onClose={() => setSelectedElemento(null)}
+        onClose={handleCloseSheet}
       />
 
       <ObtenerPlanillasDialog
