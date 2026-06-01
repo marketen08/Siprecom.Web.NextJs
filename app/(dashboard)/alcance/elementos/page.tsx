@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,6 +11,7 @@ import { Plus, Search } from "lucide-react"
 
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
 import { useNewElemento } from "@/features/elementos/hooks/use-new-elemento"
+import { useOpenElemento } from "@/features/elementos/hooks/use-open-elemento"
 import { NewElementoSheet } from "@/features/elementos/components/new-elemento-sheet"
 import { EditElementoSheet } from "@/features/elementos/components/edit-elemento-sheet"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
@@ -48,7 +50,7 @@ import {
 
 const ALL = "__all__"
 
-export default function ElementosPage() {
+function ElementosPageContent() {
   const [search, setSearch] = useState("")
   const [sistemaId, setSistemaId] = useState<string>(ALL)
   const [subSistemaId, setSubSistemaId] = useState<string>(ALL)
@@ -70,6 +72,55 @@ export default function ElementosPage() {
     prioridad: prioridad !== ALL ? Number(prioridad) : undefined,
   })
   const { open } = useNewElemento()
+
+  // ── Sync del sheet de edición con la URL (?elementoId=...) ───────────────────
+  // Permite que el back del browser (ej. desde el detalle del registro) reabra el
+  // sheet de edición del elemento con el contexto intacto, y que el link sea
+  // compartible. El estado del sheet vive en zustand; acá hacemos el puente.
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const elementoIdParam = searchParams.get("elementoId") ?? undefined
+  const {
+    id: openElementoId,
+    isOpen: openElementoIsOpen,
+    open: openElemento,
+    close: closeElemento,
+  } = useOpenElemento()
+
+  // URL → store
+  useEffect(() => {
+    if (elementoIdParam && elementoIdParam !== openElementoId) {
+      openElemento(elementoIdParam)
+    } else if (!elementoIdParam && openElementoIsOpen) {
+      closeElemento()
+    }
+  }, [elementoIdParam])
+
+  // Store → URL (cuando se abre/cierra desde un click de la tabla).
+  // En el mount inicial el effect "URL → store" todavía no terminó de propagar el
+  // estado, así que skipeamos el primer disparo para evitar un race: si la URL
+  // viene con elementoId=X y el store arranca vacío, sin este guard este effect
+  // haría `replace` sacando el elementoId antes de que el otro abra el store.
+  const isHydrated = useRef(false)
+  useEffect(() => {
+    if (!isHydrated.current) {
+      isHydrated.current = true
+      return
+    }
+    const currentInUrl = searchParams.get("elementoId")
+    if (openElementoIsOpen && openElementoId && openElementoId !== currentInUrl) {
+      // push para que el back del browser desde otra pantalla vuelva al sheet abierto.
+      const qs = new URLSearchParams(searchParams.toString())
+      qs.set("elementoId", openElementoId)
+      router.push(`/alcance/elementos?${qs.toString()}`)
+    } else if (!openElementoIsOpen && currentInUrl) {
+      // replace en cierre — no contamina history.
+      const qs = new URLSearchParams(searchParams.toString())
+      qs.delete("elementoId")
+      const s = qs.toString()
+      router.replace(s ? `/alcance/elementos?${s}` : "/alcance/elementos")
+    }
+  }, [openElementoIsOpen, openElementoId])
 
   // Catálogos para los selects
   const { data: sistemasRaw } = useGetSistemasSelect()
@@ -387,5 +438,13 @@ export default function ElementosPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function ElementosPage() {
+  return (
+    <Suspense>
+      <ElementosPageContent />
+    </Suspense>
   )
 }
