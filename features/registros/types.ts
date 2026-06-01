@@ -37,6 +37,10 @@ export const ESTADO_REGISTRO_LABEL: Record<string, string> = {
 export interface RegistroDetalle {
   id: string
   elementoTareaId: string
+  /** Datos del elemento y tarea asociados, para breadcrumb / contexto en UI. */
+  elementoId?: string | null
+  elementoNombre?: string | null
+  tareaNombre?: string | null
   planillaId: string
   proyectoId: string
   terminalId: string

@@ -150,15 +150,26 @@ export default function RegistroFormPage({ params }: PageProps) {
   const isLoading = loadingDetalle || loadingEstructura
   const isReadOnly = registro?.estado === "COMPLETADO" || registro?.estado === "FIRMADO" || registro?.estado === "APROBADO"
 
-  // Breadcrumb dinámico: Ejecución → Registros → {nombre planilla}
-  // "Registros" es texto (no tiene página listing), pero da contexto.
+  // Breadcrumb dinámico: Ejecución → Registros → {Elemento (link)} → {Tarea}
+  // El nombre del elemento es link a la pantalla de elementos con el sheet
+  // abierto (?elementoId=...), para volver con el contexto intacto.
+  // Si todavía no tenemos elemento/tarea, caemos al nombre de la planilla.
+  const elementoNombre = registro?.elementoNombre ?? null
+  const elementoIdReg = registro?.elementoId ?? null
+  const tareaNombre = registro?.tareaNombre ?? null
   const planillaNombre = (estructura as any)?.planilla?.nombre ?? null
   useBreadcrumb(
-    planillaNombre
+    elementoNombre || tareaNombre || planillaNombre
       ? [
           { label: "Ejecución" },
           { label: "Registros" },
-          { label: planillaNombre },
+          ...(elementoNombre
+            ? [{
+                label: elementoNombre,
+                href: elementoIdReg ? `/ejecucion/elementos?elementoId=${elementoIdReg}` : undefined,
+              }]
+            : []),
+          { label: tareaNombre ?? planillaNombre ?? "—" },
         ]
       : null
   )
