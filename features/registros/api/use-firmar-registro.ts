@@ -13,6 +13,9 @@ export function useFirmarRegistro(registroId: string) {
       queryClient.invalidateQueries({ queryKey: ["registros", registroId, "firmas"] })
       queryClient.invalidateQueries({ queryKey: ["elementos-tareas"] })
       queryClient.invalidateQueries({ queryKey: ["avance"] })
+      // Tras firmar, el registro puede haberse cerrado y los slots cambian:
+      // refrescar tanto "Pendientes" como "Firmados por mí".
+      queryClient.invalidateQueries({ queryKey: ["mis-firmas"] })
     },
   })
 }
