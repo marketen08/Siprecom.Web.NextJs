@@ -11,23 +11,28 @@ export interface MiFirmaPendiente {
   estado: string
   fechaTerminado: string | null
   esFisico: boolean
+  /** Semántica según modo: en "pendientes" = roles que falta firmar; en "firmados" = roles ya firmados. */
   slotsParaFirmar: string[]
+  /** Fecha de la firma más reciente del usuario en este registro. Solo en modo "firmados". */
+  fechaFirma: string | null
 }
+
+export type MisFirmasModo = "pendientes" | "firmados"
 
 interface Params {
   proyectoId: string | undefined
   page?: number
   pageSize?: number
-  estado?: string | null
+  modo?: MisFirmasModo
 }
 
-export function useGetMisFirmas({ proyectoId, page = 1, pageSize = 20, estado }: Params) {
+export function useGetMisFirmas({ proyectoId, page = 1, pageSize = 20, modo = "pendientes" }: Params) {
   return useQuery({
-    queryKey: ["mis-firmas", { proyectoId, page, pageSize, estado }],
+    queryKey: ["mis-firmas", { proyectoId, page, pageSize, modo }],
     queryFn: () =>
       apiClient.get<{ data: MiFirmaPendiente[]; total: number; page: number; pageSize: number }>(
         "/api/registros/mis-firmas",
-        { proyectoId: proyectoId ?? "", page, pageSize, ...(estado ? { estado } : {}) }
+        { proyectoId: proyectoId ?? "", page, pageSize, modo }
       ),
     enabled: !!proyectoId,
   })

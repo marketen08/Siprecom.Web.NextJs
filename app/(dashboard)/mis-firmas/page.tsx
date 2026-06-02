@@ -2,25 +2,20 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { PenLine, Loader2, CheckCircle2, ChevronLeft, ChevronRight, Tag, Layers, FileImage } from "lucide-react"
+import {
+  PenLine, Loader2, CheckCircle2, ChevronLeft, ChevronRight,
+  Tag, Layers, FileImage, Eye,
+} from "lucide-react"
 
-import { useGetMisFirmas } from "@/features/registros/api/use-get-mis-firmas"
+import { useGetMisFirmas, type MisFirmasModo } from "@/features/registros/api/use-get-mis-firmas"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { Button, buttonVariants } from "@/components/ui/button"
 
-const ESTADO_COLOR: Record<string, string> = {
-  COMPLETADO: "bg-blue-100 text-blue-700",
-  FIRMADO:    "bg-purple-100 text-purple-700",
-}
-
 const PAGE_SIZE = 20
-
-const ESTADOS = ["COMPLETADO", "FIRMADO"] as const
-type EstadoFiltro = typeof ESTADOS[number] | null
 
 export default function MisFirmasPage() {
   const [page, setPage] = useState(1)
-  const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>(null)
+  const [modo, setModo] = useState<MisFirmasModo>("pendientes")
   const { data: perfil } = useGetPerfil()
   const proyectoId = perfil?.proyectoId
 
@@ -28,11 +23,12 @@ export default function MisFirmasPage() {
     proyectoId,
     page,
     pageSize: PAGE_SIZE,
-    estado: estadoFiltro,
+    modo,
   })
 
-  function handleEstadoFiltro(estado: EstadoFiltro) {
-    setEstadoFiltro(estado)
+  function handleModo(nuevoModo: MisFirmasModo) {
+    if (modo === nuevoModo) return
+    setModo(nuevoModo)
     setPage(1)
   }
 
@@ -46,37 +42,34 @@ export default function MisFirmasPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Mis firmas</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Registros pendientes de firma según tus roles asignados
+          {modo === "pendientes"
+            ? "Registros pendientes de firma según tus roles asignados"
+            : "Registros que ya firmaste en este proyecto"}
         </p>
       </div>
 
-      {/* Filtro de estado */}
-      <div className="flex items-center gap-2">
+      {/* Toggle Pendientes / Firmados por mí */}
+      <div className="inline-flex gap-1 p-1 rounded-lg bg-gray-100">
         <button
-          onClick={() => handleEstadoFiltro(null)}
-          className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-            estadoFiltro === null
-              ? "bg-gray-900 text-white border-gray-900"
-              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+          onClick={() => handleModo("pendientes")}
+          className={`text-sm px-4 py-1.5 rounded-md font-medium transition-colors ${
+            modo === "pendientes"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          Todos
+          Pendientes
         </button>
-        {ESTADOS.map(e => (
-          <button
-            key={e}
-            onClick={() => handleEstadoFiltro(e)}
-            className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-              estadoFiltro === e
-                ? e === "COMPLETADO"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-purple-600 text-white border-purple-600"
-                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            {e}
-          </button>
-        ))}
+        <button
+          onClick={() => handleModo("firmados")}
+          className={`text-sm px-4 py-1.5 rounded-md font-medium transition-colors ${
+            modo === "firmados"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          Firmados por mí
+        </button>
       </div>
 
       {/* Contenido */}
@@ -89,15 +82,24 @@ export default function MisFirmasPage() {
           <Loader2 className="h-5 w-5 animate-spin" /> Cargando...
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-lg border bg-white p-10 text-center space-y-2">
-          <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto" />
-          <p className="font-medium text-gray-700">Todo al día</p>
-          <p className="text-sm text-muted-foreground">No tenés registros pendientes de firma.</p>
-        </div>
+        modo === "pendientes" ? (
+          <div className="rounded-lg border bg-white p-10 text-center space-y-2">
+            <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto" />
+            <p className="font-medium text-gray-700">Todo al día</p>
+            <p className="text-sm text-muted-foreground">No tenés registros pendientes de firma.</p>
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-white p-10 text-center space-y-2">
+            <PenLine className="h-10 w-10 text-gray-400 mx-auto" />
+            <p className="font-medium text-gray-700">Sin firmas aún</p>
+            <p className="text-sm text-muted-foreground">Todavía no firmaste ningún registro en este proyecto.</p>
+          </div>
+        )
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {total} registro{total !== 1 ? "s" : ""} pendiente{total !== 1 ? "s" : ""}
+            {total} registro{total !== 1 ? "s" : ""}
+            {modo === "pendientes" ? " pendiente" : " firmado"}{total !== 1 ? "s" : ""}
             {isFetching && !isLoading && <span className="ml-2 text-xs">(actualizando...)</span>}
           </p>
 
@@ -107,7 +109,7 @@ export default function MisFirmasPage() {
                 key={item.registroId}
                 className="rounded-lg border bg-white px-4 py-4 space-y-3 hover:shadow-sm transition-shadow"
               >
-                {/* Fila superior: info + estado */}
+                {/* Fila superior: info + estado físico */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -128,17 +130,20 @@ export default function MisFirmasPage() {
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Layers className="h-3 w-3 shrink-0" />
                       <span>{item.subsistemaNombre}</span>
-                      {item.fechaTerminado && (
+                      {modo === "pendientes" && item.fechaTerminado && (
                         <>
                           <span className="text-gray-300">·</span>
                           <span>Completado {new Date(item.fechaTerminado).toLocaleDateString("es-AR")}</span>
                         </>
                       )}
+                      {modo === "firmados" && item.fechaFirma && (
+                        <>
+                          <span className="text-gray-300">·</span>
+                          <span>Firmado {new Date(item.fechaFirma).toLocaleDateString("es-AR")}</span>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <span className={`shrink-0 text-xs px-2 py-1 rounded font-medium ${ESTADO_COLOR[item.estado] ?? "bg-gray-100 text-gray-600"}`}>
-                    {item.estado}
-                  </span>
                 </div>
 
                 {/* Fila inferior: roles + botón */}
@@ -147,19 +152,32 @@ export default function MisFirmasPage() {
                     {item.slotsParaFirmar.map(rol => (
                       <span
                         key={rol}
-                        className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5"
+                        className={`inline-flex items-center gap-1 text-xs border rounded px-1.5 py-0.5 ${
+                          modo === "pendientes"
+                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                            : "bg-green-50 text-green-700 border-green-200"
+                        }`}
                       >
-                        <PenLine className="h-3 w-3" />
+                        {modo === "pendientes" ? <PenLine className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
                         {rol}
                       </span>
                     ))}
                   </div>
                   <Link
                     href={`/ejecucion/registros/${item.registroId}`}
-                    className={buttonVariants({ size: "sm" }) + " shrink-0 whitespace-nowrap gap-1.5"}
+                    className={buttonVariants({ size: "sm", variant: modo === "pendientes" ? "default" : "outline" }) + " shrink-0 whitespace-nowrap gap-1.5"}
                   >
-                    <PenLine className="h-4 w-4" />
-                    Ir a firmar
+                    {modo === "pendientes" ? (
+                      <>
+                        <PenLine className="h-4 w-4" />
+                        Ir a firmar
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        Ver registro
+                      </>
+                    )}
                   </Link>
                 </div>
               </div>
