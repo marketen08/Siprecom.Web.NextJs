@@ -21,9 +21,11 @@ export function Navbar() {
 
       {/* Logo */}
       <div className="flex items-center gap-2">
-        <span className="text-blue-900 font-bold text-xl tracking-wide">
-          SIPRECOM
-        </span>
+        <img
+          src="/logosiprecom.png"
+          alt="Siprecom"
+          className="h-7 w-auto"
+        />
       </div>
 
       {/* Spacer */}
