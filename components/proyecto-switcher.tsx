@@ -2,6 +2,7 @@
 
 import { Loader2, FolderOpen, Check, ChevronDown } from "lucide-react"
 import { useIsFetching } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useCambiarProyectoActivo } from "@/features/auth/api/use-cambiar-proyecto-activo"
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function ProyectoSwitcher() {
+  const router = useRouter()
   const { data: proyectos, isLoading: loadingProyectos } = useGetMisProyectos()
   const mutation = useCambiarProyectoActivo()
   const isFetching = useIsFetching()
@@ -63,7 +65,15 @@ export function ProyectoSwitcher() {
           <DropdownMenuItem
             key={proyecto.id}
             disabled={proyecto.esActivo}
-            onClick={() => !proyecto.esActivo && mutation.mutate(proyecto.id)}
+            onClick={() => {
+              if (proyecto.esActivo) return
+              // Tras cambiar el proyecto activo, redirigimos a la pantalla de avance
+              // por sistemas para que el usuario vea inmediatamente datos del nuevo
+              // proyecto en lugar de quedarse en una pantalla con datos del anterior.
+              mutation.mutate(proyecto.id, {
+                onSuccess: () => router.push("/ejecucion/sistemas"),
+              })
+            }}
             className="flex items-center justify-between gap-2 cursor-pointer"
           >
             <span className="truncate">{proyecto.nombre}</span>

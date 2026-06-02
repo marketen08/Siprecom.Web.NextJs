@@ -1,6 +1,7 @@
 "use client"
 
-import { Menu } from "lucide-react"
+import Link from "next/link"
+import { LayoutGrid, Menu } from "lucide-react"
 import { UserMenu } from "@/components/user-menu"
 import { ProyectoSwitcher } from "@/components/proyecto-switcher"
 import { useSidebar } from "@/components/sidebar-context"
@@ -13,7 +14,7 @@ export function Navbar() {
       {/* Hamburger — solo mobile */}
       <button
         onClick={toggle}
-        className="md:hidden mr-3 p-2 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
+        className="md:hidden -ml-1 p-2 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
         aria-label="Abrir menú"
       >
         <Menu className="h-5 w-5" />
@@ -24,7 +25,7 @@ export function Navbar() {
         <img
           src="/logosiprecom.png"
           alt="Siprecom"
-          className="h-7 w-auto"
+          className="h-5 w-auto"
         />
       </div>
 
@@ -34,6 +35,14 @@ export function Navbar() {
       {/* Project switcher + User menu */}
       <div className="flex items-center gap-3">
         <ProyectoSwitcher />
+        <Link
+          href="/ejecucion/proyectos"
+          className="flex items-center justify-center h-8 w-8 rounded-md border border-gray-200 bg-white text-blue-900 hover:bg-gray-50 transition-colors"
+          aria-label="Ver avance de todos los proyectos"
+          title="Avance por proyectos"
+        >
+          <LayoutGrid className="h-4 w-4" />
+        </Link>
         <UserMenu />
       </div>
     </header>
