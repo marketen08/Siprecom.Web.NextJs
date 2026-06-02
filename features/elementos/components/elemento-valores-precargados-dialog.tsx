@@ -134,11 +134,12 @@ export function ElementoValoresPrecargadosDialog({ elementoId, open, onClose }: 
   if (!open || !mounted) return null
 
   // Portal al document.body para escapar del stacking context del Sheet padre.
-  // z-60 queda por encima del z-50 del Sheet/Overlay.
+  // Mismo z-50 que Sheet y Select: quedamos arriba por orden DOM (este modal se
+  // monta después que el Sheet, y el SelectContent se monta después que esto).
   return createPortal(
     // Overlay
     <div
-      className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget && !upsert.isPending) onClose() }}
     >
       <div className="relative w-full max-w-3xl mx-4 h-[85vh] flex flex-col rounded-xl bg-white shadow-xl border border-gray-200">
