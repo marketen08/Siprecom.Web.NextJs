@@ -44,7 +44,40 @@ export default function AvanceSistemasPage() {
         />
       )}
 
-      <div className="rounded-lg border bg-white overflow-hidden">
+      {/* Cards (solo mobile) */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            Cargando...
+          </div>
+        ) : sistemas.length === 0 ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            No hay sistemas con datos de avance.
+          </div>
+        ) : (
+          sistemas.map((s) => (
+            <div
+              key={s.id}
+              className="rounded-lg border bg-white p-3 space-y-2 active:bg-blue-50 transition-colors"
+              onClick={() => router.push(`/ejecucion/subsistemas?sistemaId=${s.id}`)}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-gray-500">{s.codigo}</p>
+                  <p className="font-medium truncate">{s.nombre}</p>
+                </div>
+                <div onClick={(ev) => ev.stopPropagation()} className="shrink-0">
+                  <EstadosPopover avance={s} />
+                </div>
+              </div>
+              <BarraAvance porcentaje={s.porcentajeAvance} />
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Tabla (solo desktop) */}
+      <div className="hidden md:block rounded-lg border bg-white overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>

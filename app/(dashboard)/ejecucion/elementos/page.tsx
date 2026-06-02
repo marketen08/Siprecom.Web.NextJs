@@ -467,8 +467,59 @@ function AvanceElementosContent() {
         </FilterField>
       </FiltersSheet>
 
-      {/* Tabla */}
-      <div className="rounded-lg border bg-white overflow-hidden">
+      {/* Cards (solo mobile) */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            Cargando...
+          </div>
+        ) : elementos.length === 0 ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            {search
+              ? "No hay elementos que coincidan con la búsqueda."
+              : subSistemaId
+                ? "No hay elementos en este subsistema."
+                : sistemaId
+                  ? "No hay elementos en este sistema."
+                  : "No hay elementos en el proyecto."}
+          </div>
+        ) : (
+          elementos.map((e) => (
+            <div
+              key={e.id}
+              className="rounded-lg border bg-white p-3 space-y-2 active:bg-blue-50 transition-colors"
+              onClick={() => handleOpenElemento(e)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-mono text-xs text-gray-500">{e.codigo}</p>
+                  <p className="font-medium truncate">{e.nombre}</p>
+                  {(e.subSistemaNombre || e.subSistemaCodigo) && (
+                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                      {e.subSistemaNombre ?? e.subSistemaCodigo}
+                    </p>
+                  )}
+                  {e.elementoTipoNombre && (
+                    <p className="text-xs text-gray-500 truncate">
+                      {e.elementoTipoNombre}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div onClick={(ev) => ev.stopPropagation()}>
+                    <EstadosPopover avance={e} />
+                  </div>
+                  <PrioridadBadge prioridad={e.prioridadTexto} />
+                </div>
+              </div>
+              <BarraAvance porcentaje={e.porcentajeAvance} />
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Tabla (solo desktop) */}
+      <div className="hidden md:block rounded-lg border bg-white overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>

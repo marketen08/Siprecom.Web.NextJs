@@ -100,7 +100,75 @@ function AvanceSubsistemasContent() {
         </div>
       )}
 
-      <div className="rounded-lg border bg-white overflow-hidden">
+      {/* Cards (solo mobile) */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            Cargando...
+          </div>
+        ) : subsistemas.length === 0 ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            No hay subsistemas con datos de avance.
+          </div>
+        ) : (
+          subsistemas.map((ss) => (
+            <div
+              key={ss.id}
+              className="rounded-lg border bg-white p-3 space-y-2 active:bg-blue-50 transition-colors"
+              onClick={() => router.push(`/ejecucion/elementos?subSistemaId=${ss.id}`)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-gray-500">{ss.codigo}</p>
+                  <p className="font-medium truncate">{ss.nombre}</p>
+                  {!sistemaId && (ss as any).sistemaNombre && (
+                    <p className="text-xs text-gray-500 truncate">{(ss as any).sistemaNombre}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0" onClick={(ev) => ev.stopPropagation()}>
+                  <EstadosPopover avance={ss} />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      title="Acciones"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer bg-transparent border-0 p-0"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem
+                        disabled={!ss.tienePlano || planoOpeningId === ss.id}
+                        onClick={() => { if (ss.tienePlano) abrirPlano(ss.id) }}
+                        className="cursor-pointer"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>{planoOpeningId === ss.id ? "Abriendo..." : "Ver plano"}</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push(`/reporte/listado-indice?subSistemaId=${ss.id}`)}
+                        className="cursor-pointer"
+                      >
+                        <ListChecks className="h-4 w-4" />
+                        <span>Listado índice</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push(`/reporte/pendientes?subSistemaId=${ss.id}`)}
+                        className="cursor-pointer"
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        <span>Listado de pendientes</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <BarraAvance porcentaje={ss.porcentajeAvance} />
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Tabla (solo desktop) */}
+      <div className="hidden md:block rounded-lg border bg-white overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>

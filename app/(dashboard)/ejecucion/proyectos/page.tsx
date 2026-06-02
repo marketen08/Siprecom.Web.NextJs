@@ -47,7 +47,44 @@ export default function AvanceProyectosPage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-white overflow-hidden">
+      {/* Cards (solo mobile) */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+            Cargando proyectos...
+          </div>
+        ) : proyectos.length === 0 ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            No tenés proyectos asignados.
+          </div>
+        ) : (
+          proyectos.map((p) => {
+            const esActivo = p.id === proyectoActivoId
+            return (
+              <div
+                key={p.id}
+                className="rounded-lg border bg-white p-3 space-y-2 active:bg-blue-50 transition-colors"
+                onClick={() => handleSelectProyecto(p.id)}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {esActivo && <Check className="h-4 w-4 text-blue-700 shrink-0" />}
+                    <p className="font-medium truncate">{p.nombre}</p>
+                  </div>
+                  <div onClick={(ev) => ev.stopPropagation()} className="shrink-0">
+                    <EstadosPopover avance={p} />
+                  </div>
+                </div>
+                <BarraAvance porcentaje={p.porcentajeAvance} />
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Tabla (solo desktop) */}
+      <div className="hidden md:block rounded-lg border bg-white overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
