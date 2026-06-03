@@ -2,10 +2,11 @@
 
 import { useRef, useEffect, useState, Suspense } from "react"
 import { useParams } from "next/navigation"
+import Link from "next/link"
 import {
   Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
-  Users, Search, User as UserIcon, CalendarRange,
+  Users, Search, User as UserIcon, CalendarRange, Box,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -82,6 +83,17 @@ function ProyectoDetailContent() {
 
   return (
     <div className="space-y-6 max-w-3xl">
+
+      {/* Acciones */}
+      <div className="flex items-center justify-end">
+        <Link
+          href={`/alcance/proyectos/${id}/modelo-3d`}
+          className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+        >
+          <Box className="h-4 w-4" />
+          Modelo 3D
+        </Link>
+      </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

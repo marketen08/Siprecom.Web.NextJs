@@ -150,4 +150,5 @@ export const segmentLabels: Record<string, string> = {
   pendientes:    "Pendientes",
   "pendientes-categorias": "Categorías de pendientes",
   "pendientes-tipos":      "Tipos de pendientes",
+  "modelo-3d":             "Modelo 3D",
 }

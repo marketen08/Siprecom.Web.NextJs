@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { FileUp, Loader2 } from "lucide-react"
+import { Download, FileUp, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 interface LoadStats {
   fileName: string
@@ -26,6 +27,7 @@ export default function ModeloPoCPage() {
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<LoadStats | null>(null)
   const [phase, setPhase] = useState<string>("")
+  const [url, setUrl] = useState<string>("")
 
   // Init del viewer al montar; cleanup al desmontar. Dynamic import para que
   // el bundle de @thatopen/components no se evalúe en SSR ni en otras rutas.
@@ -52,24 +54,16 @@ export default function ModeloPoCPage() {
     }
   }, [])
 
-  async function onFileSelected(file: File) {
+  /** Helper compartido por la carga local y la carga remota — recibe el buffer ya leído. */
+  async function loadBuffer(buffer: Uint8Array, fileName: string, sizeBytes: number) {
     if (!viewerRef.current) {
       setError("El viewer todavía no terminó de inicializar.")
       return
     }
-    setError(null)
-    setStats(null)
-    setLoading(true)
-    setPhase("Leyendo archivo…")
-
     try {
-      // Leemos como Uint8Array para pasárselo a IfcLoader.
-      const ab = await file.arrayBuffer()
-      const buffer = new Uint8Array(ab)
-
       setPhase("Parseando IFC (puede tardar varios segundos)…")
       const t0 = performance.now()
-      const { totalItems } = await viewerRef.current.loadIfc(buffer)
+      const { totalItems } = await viewerRef.current.loadIfc(buffer, fileName)
       const tParse = performance.now()
 
       setPhase("Renderizando…")
@@ -84,8 +78,8 @@ export default function ModeloPoCPage() {
       const memMb = typeof mem === "number" ? Math.round(mem / (1024 * 1024)) : null
 
       setStats({
-        fileName:        file.name,
-        fileSizeMb:      Math.round(file.size / (1024 * 1024) * 100) / 100,
+        fileName,
+        fileSizeMb:      Math.round(sizeBytes / (1024 * 1024) * 100) / 100,
         parseSecs:       Math.round((tParse - t0) / 100) / 10,
         renderSecs:      Math.round((tRender - tParse) / 100) / 10,
         totalItems,
@@ -95,6 +89,43 @@ export default function ModeloPoCPage() {
     } catch (e) {
       setError((e as Error).message)
       setPhase("")
+    }
+  }
+
+  async function onFileSelected(file: File) {
+    setError(null)
+    setStats(null)
+    setLoading(true)
+    setPhase("Leyendo archivo…")
+    try {
+      const ab = await file.arrayBuffer()
+      await loadBuffer(new Uint8Array(ab), file.name, file.size)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function onLoadFromUrl() {
+    const trimmed = url.trim()
+    if (!trimmed) return
+    setError(null)
+    setStats(null)
+    setLoading(true)
+    setPhase("Descargando IFC…")
+    try {
+      const res = await fetch(trimmed)
+      if (!res.ok) throw new Error(`HTTP ${res.status} al descargar el archivo.`)
+      const ab = await res.arrayBuffer()
+      const name = trimmed.split("/").pop() || "modelo.ifc"
+      await loadBuffer(new Uint8Array(ab), name, ab.byteLength)
+    } catch (e) {
+      // CORS también cae acá: el fetch lanza TypeError ("Failed to fetch") cuando el
+      // server remoto no permite el origen.
+      const msg = (e as Error).message
+      setError(msg.includes("Failed to fetch")
+        ? `No se pudo descargar: ${msg}. Puede ser CORS — probá un origen que lo permita (ej. github raw, unpkg).`
+        : msg)
+      setPhase("")
     } finally {
       setLoading(false)
     }
@@ -102,34 +133,83 @@ export default function ModeloPoCPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Modelo 3D — PoC</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Carga local de un archivo <code className="text-xs">.ifc</code> para validar
-            performance del visor antes de meter la persistencia en backend.
-            Nada se sube al servidor.
-          </p>
-        </div>
-        <label className="inline-flex items-center">
-          <input
-            type="file"
-            accept=".ifc"
-            className="hidden"
-            disabled={loading}
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) onFileSelected(f)
-              e.target.value = ""
-            }}
-          />
-          <Button asChild disabled={loading} className="gap-2">
-            <span className="cursor-pointer">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
-              {loading ? "Cargando…" : "Elegir archivo IFC"}
-            </span>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Modelo 3D — PoC</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Carga local o remota de un archivo <code className="text-xs">.ifc</code> para validar
+          performance del visor antes de meter la persistencia en backend.
+          Nada se sube al servidor.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 space-y-3">
+        <div className="flex items-end gap-3 flex-wrap">
+          {/* Carga local desde el filesystem. */}
+          <label className="inline-flex items-center">
+            <input
+              type="file"
+              accept=".ifc"
+              className="hidden"
+              disabled={loading}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onFileSelected(f)
+                e.target.value = ""
+              }}
+            />
+            <Button asChild disabled={loading} variant="outline" className="gap-2">
+              <span className="cursor-pointer">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                Elegir archivo local
+              </span>
+            </Button>
+          </label>
+
+          {/* Carga desde URL pública. CORS-dependiente: el origen tiene que permitir
+              el fetch cross-origin (raw.githubusercontent.com lo permite). */}
+          <div className="flex-1 min-w-72">
+            <label className="text-xs font-medium text-gray-600">o URL pública del .ifc</label>
+            <Input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://…/modelo.ifc"
+              disabled={loading}
+              className="mt-1"
+            />
+          </div>
+          <Button
+            onClick={onLoadFromUrl}
+            disabled={loading || !url.trim()}
+            className="gap-2"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Cargar desde URL
           </Button>
-        </label>
+        </div>
+
+        {/* Sugerencias rápidas: archivos públicos para probar. */}
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <span className="text-muted-foreground">Probar con:</span>
+          <SuggestionButton
+            disabled={loading}
+            onPick={setUrl}
+            url="https://raw.githubusercontent.com/IFCjs/test-ifc-files/main/Others/small.ifc"
+            label="small.ifc (~1 MB)"
+          />
+          <SuggestionButton
+            disabled={loading}
+            onPick={setUrl}
+            url="https://raw.githubusercontent.com/IFCjs/test-ifc-files/main/Others/medium.ifc"
+            label="medium.ifc (~10 MB)"
+          />
+          <SuggestionButton
+            disabled={loading}
+            onPick={setUrl}
+            url="https://raw.githubusercontent.com/buildingSMART/Sample-Test-Files/master/IFC%202x3/Duplex%20Apartment/Duplex_A_20110907_optimized.ifc"
+            label="Duplex (~3 MB, IFC2x3)"
+          />
+        </div>
       </div>
 
       {error && (
@@ -178,9 +258,30 @@ function Kpi({ label, value, small }: { label: string; value: string; small?: bo
   )
 }
 
+/** Chip clickeable que rellena el input de URL con un IFC público. */
+function SuggestionButton({
+  url, label, disabled, onPick,
+}: {
+  url: string
+  label: string
+  disabled?: boolean
+  onPick: (u: string) => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onPick(url)}
+      className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {label}
+    </button>
+  )
+}
+
 // Tipo del handle exportado por features/modelo-3d/viewer.ts. Importarlo acá
 // generaría carga en SSR, así que solo dejamos el contrato.
 interface ViewerHandle {
-  loadIfc: (buffer: Uint8Array) => Promise<{ totalItems: number }>
+  loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   dispose: () => void
 }
