@@ -26,6 +26,7 @@ export interface ProyectoIfcArchivo {
   entidadesDetectadas: number | null
   entidadesVinculadas: number | null
   ultimoProcesamientoAt: string | null
+  esArchivoBootstrap: boolean
 }
 
 export interface ProyectoIfcArchivoCreateInput {
@@ -61,3 +62,16 @@ export interface ProyectoIfcEntidadesPage {
 }
 
 export type EntidadFiltro = "todas" | "vinculadas" | "no-vinculadas"
+
+export interface CrearProyectoDesdeIfcInput {
+  nombre: string
+  clienteId: string
+  nombreArchivo?: string
+  disciplina?: string
+  archivo: File
+}
+
+export interface CrearProyectoDesdeIfcOutput {
+  proyectoId: string
+  proyectoIfcArchivoId: string
+}

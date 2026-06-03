@@ -6,12 +6,13 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import { Box, Plus, Search } from "lucide-react"
 
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
 import { useNewProyecto } from "@/features/proyectos/hooks/use-new-proyecto"
 import { NewProyectoSheet } from "@/features/proyectos/components/new-proyecto-sheet"
 import { EditProyectoSheet } from "@/features/proyectos/components/edit-proyecto-sheet"
+import { CrearProyectoDesdeIfcSheet } from "@/features/modelo-3d/components/crear-proyecto-desde-ifc-sheet"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 import { columns } from "./columns"
@@ -51,6 +52,7 @@ export default function ProyectosPage() {
   const [contratistaId, setContratistaId] = useState<string>(ALL)
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [openCrearDesdeIfc, setOpenCrearDesdeIfc] = useState(false)
   const pageSize = 10
 
   const { data, isLoading, isFetching } = useGetProyectos({
@@ -118,6 +120,10 @@ export default function ProyectosPage() {
     <>
       <NewProyectoSheet />
       <EditProyectoSheet />
+      <CrearProyectoDesdeIfcSheet
+        open={openCrearDesdeIfc}
+        onClose={() => setOpenCrearDesdeIfc(false)}
+      />
 
       <div className="space-y-4">
         {/* Buscador + Nuevo + Filtros */}
@@ -132,6 +138,10 @@ export default function ProyectosPage() {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button onClick={() => setOpenCrearDesdeIfc(true)} variant="outline" className="gap-2">
+              <Box className="h-4 w-4" />
+              Crear desde IFC
+            </Button>
             <Button onClick={open} className="gap-2">
               <Plus className="h-4 w-4" />
               Nuevo proyecto

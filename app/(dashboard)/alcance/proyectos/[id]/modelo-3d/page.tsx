@@ -288,17 +288,20 @@ function ArchivoCard({
 }
 
 function EstadoProcesamientoBadge({ archivo }: { archivo: ProyectoIfcArchivo }) {
+  const accionLabel = archivo.esArchivoBootstrap
+    ? "Bootstrap (creando proyecto)"
+    : "Procesando con xbim"
   switch (archivo.estadoProcesamiento) {
     case EstadoProcesamientoIfc.Pendiente:
       return (
         <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
-          <Loader2 className="h-3 w-3 animate-spin" /> En cola para procesar…
+          <Loader2 className="h-3 w-3 animate-spin" /> En cola para {archivo.esArchivoBootstrap ? "bootstrap" : "procesar"}…
         </div>
       )
     case EstadoProcesamientoIfc.Procesando:
       return (
         <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 rounded-md px-2 py-1">
-          <Loader2 className="h-3 w-3 animate-spin" /> Procesando con xbim…
+          <Loader2 className="h-3 w-3 animate-spin" /> {accionLabel}…
         </div>
       )
     case EstadoProcesamientoIfc.Error:
