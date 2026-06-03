@@ -1,73 +1,29 @@
-import { NextRequest, NextResponse } from "next/server"
-import type { BackendAuthResponse } from "@/types/auth"
+import { NextRequest } from "next/server"
+import { backendFetch } from "@/lib/server/backend-fetch"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL
-
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  path: "/",
-}
-
-// POST /api/proyectos/crear-desde-ifc  (multipart/form-data)
+// POST /api/crear-proyecto-desde-ifc  (multipart/form-data)
 //
-// Proxy hacia el backend .NET. Implementación manual del refresh-token (no usa
-// backendFetch) porque el body es multipart streaming — backendFetch convierte
-// el body a text() en el flujo de retry, lo que rompería el archivo binario.
+// Crea un Proyecto nuevo a partir de un archivo IFC. Campos del form:
+//   - nombre        (string, requerido)
+//   - clienteId     (string, requerido)
+//   - nombreArchivo (string, opcional)
+//   - disciplina    (string, opcional)
+//   - archivo       (File, requerido)
+//
+// El path NO va bajo /api/proyectos/... a propósito: chocaría con el ruteo
+// dinámico /api/proyectos/[id]/route.ts y devolvería 405.
+//
+// Reusamos `backendFetch` pasándole el FormData parseado — Node re-serializa
+// el multipart con su propio boundary (igual que el upload de IFC normal en
+// /api/proyectos/[id]/ifc, que sí funciona).
 export async function POST(request: NextRequest) {
-  const accessToken = request.cookies.get("accessToken")?.value
-  const refreshToken = request.cookies.get("refreshToken")?.value
-
-  if (!accessToken) {
-    return NextResponse.json({ message: "No autenticado" }, { status: 401 })
-  }
-
-  const body = await request.arrayBuffer()
-  const contentType = request.headers.get("content-type") ?? "application/octet-stream"
-
-  let res = await fetch(`${BACKEND_URL}/proyectos/crear-desde-ifc`, {
+  const formData = await request.formData()
+  // Backend route: /ifc/crear-proyecto. NO /proyectos/... — chocaba con
+  // ProyectosController.{id} y devolvía 405 a nivel ASP.NET.
+  const res = await backendFetch(request, `/ifc/crear-proyecto`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": contentType,
-    },
-    body,
+    body: formData,
   })
-
-  let newTokens: BackendAuthResponse | null = null
-  if (res.status === 401 && refreshToken) {
-    const refreshRes = await fetch(`${BACKEND_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken, refreshToken }),
-    })
-    if (refreshRes.ok) {
-      newTokens = await refreshRes.json()
-      res = await fetch(`${BACKEND_URL}/proyectos/crear-desde-ifc`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${newTokens!.accessToken}`,
-          "Content-Type": contentType,
-        },
-        body,
-      })
-    } else {
-      const response = NextResponse.json({ message: "Sesión expirada" }, { status: 401 })
-      response.cookies.delete("accessToken")
-      response.cookies.delete("refreshToken")
-      return response
-    }
-  }
-
-  const responseBody = await res.text()
-  const nextRes = new NextResponse(responseBody, {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
-  })
-  if (newTokens) {
-    nextRes.cookies.set("accessToken", newTokens.accessToken, { ...COOKIE_OPTS, maxAge: 60 * 60 })
-    nextRes.cookies.set("refreshToken", newTokens.refreshToken, { ...COOKIE_OPTS, maxAge: 60 * 60 * 24 * 15 })
-  }
-  return nextRes
+  const data = await res.json().catch(() => ({ message: "Error creando proyecto desde IFC" }))
+  return Response.json(data, { status: res.status })
 }

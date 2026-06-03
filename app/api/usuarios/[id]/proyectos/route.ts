@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const { id } = await context.params
   const res = await backendFetch(request, `/auth/users/${id}/proyectos`)
-  const data = await res.json()
+  const data = await parseJsonOrEmpty(res, "Error al obtener proyectos")
   return Response.json(data, { status: res.status })
 }
 
@@ -23,6 +23,26 @@ export async function POST(
     method: "POST",
     body: JSON.stringify(body),
   })
-  const data = await res.json()
+  // El backend puede devolver body vacío (ej. 403 Forbid()). Sin esto el
+  // proxy rompe con "Unexpected end of JSON input" → 500 al cliente.
+  const data = await parseJsonOrEmpty(res, statusMessage(res.status))
   return Response.json(data, { status: res.status })
+}
+
+async function parseJsonOrEmpty(res: Response, fallbackMessage: string): Promise<unknown> {
+  const text = await res.text()
+  if (!text) return { message: fallbackMessage }
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text || fallbackMessage }
+  }
+}
+
+function statusMessage(status: number): string {
+  if (status === 403) return "No tenés permiso para esta acción."
+  if (status === 404) return "Recurso no encontrado."
+  if (status >= 500) return "Error interno del servidor."
+  if (status >= 400) return "Error en la solicitud."
+  return "OK"
 }
