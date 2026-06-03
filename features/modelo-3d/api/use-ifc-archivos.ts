@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
-import type {
-  ProyectoIfcArchivo,
-  ProyectoIfcArchivoCreateInput,
-  ProyectoIfcArchivoUrl,
+import {
+  EstadoProcesamientoIfc,
+  type ProyectoIfcArchivo,
+  type ProyectoIfcArchivoCreateInput,
+  type ProyectoIfcArchivoUrl,
 } from "../types"
 
 const QK = (proyectoId: string | null | undefined) =>
@@ -18,6 +19,16 @@ export function useGetIfcArchivos(proyectoId: string | null | undefined) {
         `/api/proyectos/${proyectoId}/ifc`,
       ),
     enabled: !!proyectoId,
+    // Polling cada 3s mientras haya un archivo en Pendiente o Procesando,
+    // para que el UI se actualice automáticamente cuando el worker termine.
+    refetchInterval: (query) => {
+      const items = query.state.data?.data ?? []
+      const enProgreso = items.some(
+        (a) => a.estadoProcesamiento === EstadoProcesamientoIfc.Pendiente
+            || a.estadoProcesamiento === EstadoProcesamientoIfc.Procesando,
+      )
+      return enProgreso ? 3000 : false
+    },
   })
 }
 
