@@ -92,7 +92,17 @@ function ModeloPageContent() {
     setActualId(archivo.id)
     try {
       setPhase("Descargando archivo…")
-      const ab = await downloadIfcBuffer(id, archivo.id)
+      const ab = await downloadIfcBuffer(id, archivo.id, (p) => {
+        const mb = Math.round((p.loaded / (1024 * 1024)) * 10) / 10
+        const totalMb = p.total ? Math.round((p.total / (1024 * 1024)) * 10) / 10 : null
+        const pct = p.total ? Math.round((p.loaded / p.total) * 100) : null
+        const via = p.via === "direct" ? "directo de Azure" : "via proxy"
+        setPhase(
+          totalMb !== null
+            ? `Descargando archivo (${via})… ${mb} / ${totalMb} MB (${pct}%)`
+            : `Descargando archivo (${via})… ${mb} MB`
+        )
+      })
 
       setPhase("Parseando IFC (puede tardar varios segundos)…")
       await viewerRef.current.loadIfc(new Uint8Array(ab), archivo.nombre)

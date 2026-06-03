@@ -73,6 +73,15 @@ export async function fetchIfcDownloadUrl(
   return resp.data
 }
 
+export interface DownloadProgress {
+  /** Bytes descargados hasta ahora. */
+  loaded: number
+  /** Bytes totales si el server lo informa con Content-Length, sino null. */
+  total: number | null
+  /** "direct" = SAS al blob, "proxy" = stream via backend. */
+  via: "direct" | "proxy"
+}
+
 /**
  * Descarga el IFC como ArrayBuffer.
  *
@@ -81,21 +90,22 @@ export async function fetchIfcDownloadUrl(
  *  2. Si el browser bloquea por CORS (típicamente `TypeError: Failed to fetch`
  *     cuando el storage account no tiene reglas CORS), reintenta vía el proxy
  *     `/api/proyectos/.../ifc/.../stream`, que stream-ea desde el backend.
+ *
+ * Acepta un `onProgress` opcional para mostrar bytes recibidos en el UI.
  */
 export async function downloadIfcBuffer(
   proyectoId: string,
   archivoId: string,
+  onProgress?: (p: DownloadProgress) => void,
 ): Promise<ArrayBuffer> {
   // 1) Intento directo al blob (SAS).
   try {
     const url = await fetchIfcDownloadUrl(proyectoId, archivoId)
     const res = await fetch(url.url)
     if (!res.ok) throw new Error(`HTTP ${res.status} al descargar el archivo.`)
-    return await res.arrayBuffer()
+    return await readWithProgress(res, "direct", onProgress)
   } catch (e) {
     const msg = (e as Error).message ?? ""
-    // CORS / red caída cae acá como TypeError("Failed to fetch"). Reintentamos
-    // vía proxy. Cualquier otro error lo dejamos pasar para no enmascarar bugs.
     const esCors = msg.includes("Failed to fetch") || msg.includes("NetworkError")
     if (!esCors) throw e
   }
@@ -106,7 +116,45 @@ export async function downloadIfcBuffer(
     const body = await proxyRes.json().catch(() => ({}))
     throw new Error(body?.message ?? `HTTP ${proxyRes.status} al descargar el archivo (proxy).`)
   }
-  return await proxyRes.arrayBuffer()
+  return await readWithProgress(proxyRes, "proxy", onProgress)
+}
+
+/** Lee el body por chunks reportando progreso. Si no hay onProgress, atajo directo a arrayBuffer(). */
+async function readWithProgress(
+  res: Response,
+  via: "direct" | "proxy",
+  onProgress?: (p: DownloadProgress) => void,
+): Promise<ArrayBuffer> {
+  if (!onProgress || !res.body) return res.arrayBuffer()
+
+  const totalHeader = res.headers.get("content-length")
+  const total = totalHeader ? parseInt(totalHeader, 10) : null
+
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let loaded = 0
+  // Throttle: reportamos cada 64KB para no saturar el ciclo de render.
+  let lastReportAt = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    loaded += value.byteLength
+    if (loaded - lastReportAt >= 64 * 1024) {
+      onProgress({ loaded, total, via })
+      lastReportAt = loaded
+    }
+  }
+  onProgress({ loaded, total, via })
+
+  // Concatenamos los chunks en un único ArrayBuffer.
+  const out = new Uint8Array(loaded)
+  let offset = 0
+  for (const c of chunks) {
+    out.set(c, offset)
+    offset += c.byteLength
+  }
+  return out.buffer
 }
 
 function formatError(body: any): string {
