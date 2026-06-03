@@ -13,12 +13,17 @@ import {
   useDeleteIfcArchivo,
   useGetIfcArchivos,
 } from "@/features/modelo-3d/api/use-ifc-archivos"
-import { useProcesarIfcArchivo } from "@/features/modelo-3d/api/use-ifc-entidades"
+import {
+  resolverEntidadesPorGuids,
+  useProcesarIfcArchivo,
+} from "@/features/modelo-3d/api/use-ifc-entidades"
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
+import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import {
   EstadoProcesamientoIfc,
   type ProyectoIfcArchivo,
+  type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
 
 import { Button } from "@/components/ui/button"
@@ -26,6 +31,7 @@ import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 interface ViewerHandle {
   loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
+  highlightByGuid: (guid: string | null) => Promise<void>
   dispose: () => void
 }
 
@@ -62,9 +68,18 @@ function ModeloPageContent() {
   const [phase, setPhase] = useState<string>("")
   const [actualId, setActualId] = useState<string | null>(null)
 
+  // Detalle de la entidad seleccionada (por click en 3D o desde el panel).
+  const [entidadSeleccionada, setEntidadSeleccionada] = useState<ProyectoIfcEntidad | null>(null)
+  const [resolviendoPick, setResolviendoPick] = useState(false)
+
   const archivoActual = actualId
     ? archivos.find((a) => a.id === actualId) ?? null
     : null
+
+  // Ref para usar el archivo activo dentro del closure del onPick (sin re-crear
+  // el viewer cada vez que cambia el archivo).
+  const actualIdRef = useRef<string | null>(null)
+  actualIdRef.current = actualId
 
   useEffect(() => {
     let cancelled = false
@@ -74,7 +89,25 @@ function ModeloPageContent() {
     ;(async () => {
       const { createViewer } = await import("@/features/modelo-3d/viewer")
       if (cancelled) return
-      const handle = await createViewer(container)
+      const handle = await createViewer(container, {
+        onPick: async (guid) => {
+          if (guid === null) {
+            setEntidadSeleccionada(null)
+            return
+          }
+          const archivoActivo = actualIdRef.current
+          if (!archivoActivo) return
+          setResolviendoPick(true)
+          try {
+            const entidades = await resolverEntidadesPorGuids(id, archivoActivo, [guid])
+            setEntidadSeleccionada(entidades[0] ?? null)
+          } catch (e) {
+            setViewError((e as Error).message)
+          } finally {
+            setResolviendoPick(false)
+          }
+        },
+      })
       if (cancelled) { handle.dispose(); return }
       viewerRef.current = handle
       setViewerReady(true)
@@ -85,7 +118,14 @@ function ModeloPageContent() {
       viewerRef.current?.dispose()
       viewerRef.current = null
     }
-  }, [])
+  }, [id])
+
+  // Cuando se selecciona una entidad desde el panel inferior, sincronizamos el
+  // highlight del viewer.
+  async function seleccionarEntidadDesdeListado(entidad: ProyectoIfcEntidad) {
+    setEntidadSeleccionada(entidad)
+    await viewerRef.current?.highlightByGuid(entidad.ifcGuid)
+  }
 
   async function handleVisualizar(archivo: ProyectoIfcArchivo) {
     if (!viewerRef.current) {
@@ -180,23 +220,50 @@ function ModeloPageContent() {
         </div>
       )}
 
-      {/* Canvas del viewer */}
-      <div
-        ref={containerRef}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden relative"
-        style={{ height: "70vh", minHeight: 480 }}
-      >
-        {!actualId && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-muted-foreground pointer-events-none">
-            <Box className="h-10 w-10 mb-2 opacity-30" />
-            {viewerReady ? "Elegí un archivo para visualizar." : "Inicializando visor…"}
-          </div>
+      {/* Canvas del viewer + sidebar de detalle al costado */}
+      <div className="flex gap-4" style={{ height: "70vh", minHeight: 480 }}>
+        <div
+          ref={containerRef}
+          className="flex-1 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden relative"
+        >
+          {!actualId && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-muted-foreground pointer-events-none">
+              <Box className="h-10 w-10 mb-2 opacity-30" />
+              {viewerReady ? "Elegí un archivo para visualizar." : "Inicializando visor…"}
+            </div>
+          )}
+          {actualId && !entidadSeleccionada && !resolviendoPick && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none rounded-full bg-black/70 text-white text-xs px-3 py-1">
+              Click sobre una entidad para ver su Elemento vinculado
+            </div>
+          )}
+          {resolviendoPick && (
+            <div className="absolute top-3 right-3 rounded-md bg-white/95 border border-gray-200 px-2 py-1 text-xs text-gray-700 flex items-center gap-1.5 shadow-sm">
+              <Loader2 className="h-3 w-3 animate-spin" /> Resolviendo…
+            </div>
+          )}
+        </div>
+
+        {entidadSeleccionada && (
+          <EntidadDetalleSidebar
+            proyectoId={id}
+            entidad={entidadSeleccionada}
+            onClose={async () => {
+              setEntidadSeleccionada(null)
+              await viewerRef.current?.highlightByGuid(null)
+            }}
+          />
         )}
       </div>
 
       {/* Panel de entidades del archivo activo (solo cuando hay procesamiento Completado) */}
       {archivoActual && archivoActual.estadoProcesamiento === EstadoProcesamientoIfc.Completado && (
-        <EntidadesPanel proyectoId={id} archivoId={archivoActual.id} />
+        <EntidadesPanel
+          proyectoId={id}
+          archivoId={archivoActual.id}
+          onSeleccionar={seleccionarEntidadDesdeListado}
+          entidadSeleccionadaId={entidadSeleccionada?.id ?? null}
+        />
       )}
 
       <UploadIfcSheet

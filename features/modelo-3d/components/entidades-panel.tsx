@@ -17,13 +17,19 @@ import type { EntidadFiltro, ProyectoIfcEntidad } from "../types"
 interface Props {
   proyectoId: string
   archivoId: string
+  /** Disparado al clickear una fila — el caller resalta en el visor 3D. */
+  onSeleccionar?: (entidad: ProyectoIfcEntidad) => void
+  /** Id de la entidad actualmente resaltada (para feedback visual en la fila). */
+  entidadSeleccionadaId?: string | null
 }
 
 /**
  * Panel de entidades parseadas del IFC. Permite filtrar, buscar y vincular/desvincular
  * manualmente cada entidad a un Elemento del proyecto. Se muestra debajo del visor.
  */
-export function EntidadesPanel({ proyectoId, archivoId }: Props) {
+export function EntidadesPanel({
+  proyectoId, archivoId, onSeleccionar, entidadSeleccionadaId,
+}: Props) {
   const [filtro, setFiltro] = useState<EntidadFiltro>("todas")
   const [busqueda, setBusqueda] = useState("")
   const [page, setPage] = useState(1)
@@ -111,7 +117,17 @@ export function EntidadesPanel({ proyectoId, archivoId }: Props) {
             </thead>
             <tbody>
               {items.map((it) => (
-                <tr key={it.id} className="border-b last:border-b-0 hover:bg-gray-50/50">
+                <tr
+                  key={it.id}
+                  onClick={() => onSeleccionar?.(it)}
+                  className={`border-b last:border-b-0 transition-colors ${
+                    onSeleccionar ? "cursor-pointer" : ""
+                  } ${
+                    entidadSeleccionadaId === it.id
+                      ? "bg-blue-50/70 hover:bg-blue-50"
+                      : "hover:bg-gray-50/50"
+                  }`}
+                >
                   <td className="px-3 py-1.5 font-medium text-gray-800">
                     {it.tagDetectado ?? <span className="text-gray-400">—</span>}
                   </td>
@@ -139,7 +155,7 @@ export function EntidadesPanel({ proyectoId, archivoId }: Props) {
                     {it.elementoId ? (
                       <button
                         type="button"
-                        onClick={() => desvincular.mutate(it.id)}
+                        onClick={(e) => { e.stopPropagation(); desvincular.mutate(it.id) }}
                         disabled={desvincular.isPending}
                         className="text-xs text-gray-500 hover:text-red-600 inline-flex items-center gap-1"
                         title="Desvincular"
@@ -149,7 +165,7 @@ export function EntidadesPanel({ proyectoId, archivoId }: Props) {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setVinculando(it)}
+                        onClick={(e) => { e.stopPropagation(); setVinculando(it) }}
                         className="text-xs text-blue-700 hover:text-blue-800 inline-flex items-center gap-1"
                       >
                         <LinkIcon className="h-3.5 w-3.5" /> Vincular
