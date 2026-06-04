@@ -56,6 +56,39 @@ export function useUploadIfcArchivo(proyectoId: string) {
   })
 }
 
+export function useMarcarIfcPrincipal(proyectoId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (archivoId: string) =>
+      apiClient.put<ApiResponse<ProyectoIfcArchivo>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/principal`,
+        {},
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK(proyectoId) }),
+  })
+}
+
+/** Trae el IFC principal del proyecto, o null si no hay. */
+export function useGetIfcPrincipal(proyectoId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["proyectos", proyectoId, "ifc", "principal"],
+    enabled: !!proyectoId,
+    queryFn: () =>
+      apiClient.get<ApiResponse<ProyectoIfcArchivo>>(
+        `/api/proyectos/${proyectoId}/ifc/principal`,
+      ),
+    // El visor llama a este endpoint cada N segundos mientras el archivo todavía
+    // se está procesando, para reflejar el progreso.
+    refetchInterval: (query) => {
+      const archivo = query.state.data?.data
+      if (!archivo) return false
+      const enProgreso = archivo.estadoProcesamiento === EstadoProcesamientoIfc.Pendiente
+        || archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
+      return enProgreso ? 3000 : false
+    },
+  })
+}
+
 export function useDeleteIfcArchivo(proyectoId: string) {
   const qc = useQueryClient()
   return useMutation({

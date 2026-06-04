@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Eye, FileUp, Loader2, RefreshCw, Trash2,
+  AlertTriangle, Box, CheckCircle2, Eye, FileUp, Loader2, RefreshCw, Star, Trash2,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -12,6 +12,7 @@ import {
   downloadIfcBuffer,
   useDeleteIfcArchivo,
   useGetIfcArchivos,
+  useMarcarIfcPrincipal,
 } from "@/features/modelo-3d/api/use-ifc-archivos"
 import {
   resolverEntidadesPorGuids,
@@ -45,6 +46,7 @@ function ModeloPageContent() {
 
   const eliminar = useDeleteIfcArchivo(id)
   const procesar = useProcesarIfcArchivo(id)
+  const marcarPrincipal = useMarcarIfcPrincipal(id)
 
   const [openUpload, setOpenUpload] = useState(false)
 
@@ -199,8 +201,10 @@ function ModeloPageContent() {
               loading={loadingView && actualId === a.id}
               disabledVisualizar={loadingView || !viewerReady}
               procesando={procesar.isPending && procesar.variables === a.id}
+              marcandoPrincipal={marcarPrincipal.isPending && marcarPrincipal.variables === a.id}
               onVisualizar={() => handleVisualizar(a)}
               onProcesar={() => procesar.mutateAsync(a.id)}
+              onMarcarPrincipal={() => marcarPrincipal.mutateAsync(a.id)}
               onEliminar={() => eliminar.mutateAsync(a.id)}
             />
           ))}
@@ -278,16 +282,18 @@ function ModeloPageContent() {
 // ─── Card de archivo IFC ───────────────────────────────────────────────────
 
 function ArchivoCard({
-  archivo, activo, loading, disabledVisualizar, procesando,
-  onVisualizar, onProcesar, onEliminar,
+  archivo, activo, loading, disabledVisualizar, procesando, marcandoPrincipal,
+  onVisualizar, onProcesar, onMarcarPrincipal, onEliminar,
 }: {
   archivo: ProyectoIfcArchivo
   activo: boolean
   loading: boolean
   disabledVisualizar: boolean
   procesando: boolean
+  marcandoPrincipal: boolean
   onVisualizar: () => void
   onProcesar: () => Promise<unknown>
+  onMarcarPrincipal: () => Promise<unknown>
   onEliminar: () => Promise<unknown>
 }) {
   const mb = archivo.tamanioBytes
@@ -300,10 +306,18 @@ function ArchivoCard({
       }`}
     >
       <div className="space-y-0.5">
-        <p className="text-sm font-semibold text-gray-900 truncate" title={archivo.nombre}>
+        <p className="text-sm font-semibold text-gray-900 truncate flex items-center gap-1.5" title={archivo.nombre}>
+          {archivo.esPrincipal && (
+            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400 shrink-0" aria-label="Principal" />
+          )}
           {archivo.nombre}
         </p>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+          {archivo.esPrincipal && (
+            <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 font-medium">
+              Principal
+            </span>
+          )}
           {archivo.disciplina && (
             <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 font-medium">
               {archivo.disciplina}
@@ -326,6 +340,21 @@ function ArchivoCard({
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
           {loading ? "Cargando…" : activo ? "En visor" : "Visualizar"}
         </Button>
+        <button
+          type="button"
+          onClick={onMarcarPrincipal}
+          disabled={marcandoPrincipal || archivo.esPrincipal}
+          className={`inline-flex items-center justify-center h-8 w-8 rounded-md border transition-colors disabled:opacity-50 ${
+            archivo.esPrincipal
+              ? "border-amber-200 bg-amber-50 text-amber-600 cursor-default"
+              : "border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+          }`}
+          title={archivo.esPrincipal ? "Es el IFC principal del proyecto" : "Marcar como principal"}
+        >
+          {marcandoPrincipal
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Star className={`h-3.5 w-3.5 ${archivo.esPrincipal ? "fill-amber-400" : ""}`} />}
+        </button>
         <button
           type="button"
           onClick={onProcesar}

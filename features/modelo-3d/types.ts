@@ -27,6 +27,7 @@ export interface ProyectoIfcArchivo {
   entidadesVinculadas: number | null
   ultimoProcesamientoAt: string | null
   esArchivoBootstrap: boolean
+  esPrincipal: boolean
 }
 
 export interface ProyectoIfcArchivoCreateInput {

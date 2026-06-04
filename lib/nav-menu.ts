@@ -18,6 +18,7 @@ export const menu: MenuItem[] = [
       { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
       { label: "Avance por elementos",    href: "/ejecucion/elementos" },
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
+      { label: "Modelo 3D",               href: "/ejecucion/modelo-3d" },
       { label: "Mis firmas",              href: "/mis-firmas" },
     ],
   },
