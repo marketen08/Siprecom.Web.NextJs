@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle, Box, Eye, Loader2, Settings, Star,
+  AlertTriangle, Box, Eye, Filter, Loader2, Settings, Star,
 } from "lucide-react"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
@@ -14,6 +14,8 @@ import {
 import { resolverEntidadesPorGuids } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
+import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor-panel"
+import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import {
   EstadoProcesamientoIfc,
   type ProyectoIfcArchivo,
@@ -23,6 +25,7 @@ import {
 interface ViewerHandle {
   loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
+  applyGhost: (visibleGuids: string[] | null) => Promise<void>
   dispose: () => void
 }
 
@@ -52,6 +55,14 @@ function ModeloEjecucionContent() {
   const [resolviendoPick, setResolviendoPick] = useState(false)
   // Toggle del panel de entidades (escondido por default — la página es para "visualizar").
   const [mostrarPanelEntidades, setMostrarPanelEntidades] = useState(false)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
+
+  const filtroVisor = useFiltroVisor({
+    proyectoId: proyectoActivo?.id ?? null,
+    archivoId: archivo?.id ?? null,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
+    applyGhost: (guids) => viewerRef.current?.applyGhost(guids) ?? Promise.resolve(),
+  })
 
   const archivoActualIdRef = useRef<string | null>(null)
   archivoActualIdRef.current = archivo?.id ?? null
@@ -241,6 +252,23 @@ function ModeloEjecucionContent() {
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            onClick={() => setMostrarFiltros((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
+              mostrarFiltros || filtroVisor.activo
+                ? "text-blue-700 bg-blue-50 border-blue-200"
+                : "text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filtros
+            {filtroVisor.activo && filtroVisor.resultado && (
+              <span className="ml-1 rounded-full bg-blue-600 text-white px-1.5 text-[10px] font-bold">
+                {filtroVisor.resultado.totalCoinciden}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => setMostrarPanelEntidades((v) => !v)}
             className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
               mostrarPanelEntidades ? "text-blue-700 bg-blue-50 border-blue-200" : "text-gray-600 hover:bg-gray-50"
@@ -271,9 +299,19 @@ function ModeloEjecucionContent() {
         </div>
       )}
 
-      {/* Cuerpo: viewer + sidebar */}
-      <div className="flex-1 flex min-h-0">
-        <div className="relative flex-1 bg-white">
+      {/* Cuerpo: panel de filtros (izquierda) + viewer + sidebar de detalle (derecha) */}
+      <div className="flex-1 flex min-h-0 gap-3 p-3">
+        {mostrarFiltros && (
+          <FiltrosVisorPanel
+            filtro={filtroVisor.filtro}
+            onChange={filtroVisor.setFiltro}
+            totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
+            totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
+            loading={filtroVisor.loading}
+            onClose={() => setMostrarFiltros(false)}
+          />
+        )}
+        <div className="relative flex-1 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
           <div ref={containerRef} className="absolute inset-0" />
           {actualHintVisible(viewerReady, archivoCargadoId, entidadSeleccionada, resolviendoPick) && (
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none rounded-full bg-black/70 text-white text-xs px-3 py-1">
@@ -288,16 +326,14 @@ function ModeloEjecucionContent() {
         </div>
 
         {entidadSeleccionada && (
-          <div className="w-80 shrink-0 border-l border-gray-200 bg-gray-50/50 p-3 overflow-y-auto">
-            <EntidadDetalleSidebar
-              proyectoId={proyectoActivo.id}
-              entidad={entidadSeleccionada}
-              onClose={async () => {
-                setEntidadSeleccionada(null)
-                await viewerRef.current?.highlightByGuid(null)
-              }}
-            />
-          </div>
+          <EntidadDetalleSidebar
+            proyectoId={proyectoActivo.id}
+            entidad={entidadSeleccionada}
+            onClose={async () => {
+              setEntidadSeleccionada(null)
+              await viewerRef.current?.highlightByGuid(null)
+            }}
+          />
         )}
       </div>
 

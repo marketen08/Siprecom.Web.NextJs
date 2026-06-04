@@ -23,6 +23,13 @@ export interface ViewerHandle {
    * limpia el highlight actual. Si el GUID no está en el modelo, no hace nada.
    */
   highlightByGuid: (guid: string | null) => Promise<void>
+  /**
+   * Aplica un "ghost" sobre el modelo: las entidades cuyos GUIDs NO estén en
+   * la lista quedan grises y transparentes; las que SÍ están quedan con su
+   * material original. Pasá null para limpiar el ghost (todo vuelve a colores
+   * originales).
+   */
+  applyGhost: (visibleGuids: string[] | null) => Promise<void>
   dispose: () => void
 }
 
@@ -172,6 +179,45 @@ export async function createViewer(
     await applyHighlight(valid)
   }
 
+  // ─── Ghost mode (filtros visuales) ───────────────────────────────────────
+  // Para que el filtro sea instantáneo, mantenemos los IDs visibles en una ref.
+  // Cuando el filtro cambia, primero "pintamos" TODO de gris+transparente, y
+  // después "destransparentamos" solo los visibles.
+
+  // Color y opacidad del ghost (modo "fuera de foco").
+  const GHOST_COLOR = new THREE.Color(0xcbd5e1) // tailwind slate-300
+  const GHOST_OPACITY = 0.15
+  let ghostActive = false
+
+  async function applyGhost(visibleGuids: string[] | null): Promise<void> {
+    if (!currentModel || disposed) return
+
+    // null o lista vacía con flag "sin filtro" → limpiar ghost.
+    if (visibleGuids === null) {
+      if (ghostActive) {
+        await currentModel.resetColor(undefined)
+        await currentModel.resetOpacity(undefined)
+        ghostActive = false
+      }
+      return
+    }
+
+    // 1. Aplicar gris + transparencia a TODOS los items.
+    await currentModel.setColor(undefined, GHOST_COLOR)
+    await currentModel.setOpacity(undefined, GHOST_OPACITY)
+    ghostActive = true
+
+    // 2. Restaurar color/opacidad solo en los IDs visibles.
+    if (visibleGuids.length > 0) {
+      const ids = await currentModel.getLocalIdsByGuids(visibleGuids)
+      const valid = ids.filter((id): id is number => typeof id === "number")
+      if (valid.length > 0) {
+        await currentModel.resetColor(valid)
+        await currentModel.resetOpacity(valid)
+      }
+    }
+  }
+
   // ─── Load IFC ────────────────────────────────────────────────────────────
 
   async function loadIfc(buffer: Uint8Array, name = "model"): Promise<{ totalItems: number }> {
@@ -186,6 +232,7 @@ export async function createViewer(
       world.scene.three.remove(currentModel.object)
       currentModel = null
       highlightedIds = []
+      ghostActive = false
     }
 
     // coordinate=true alinea el modelo al sistema de coordenadas global del kernel.
@@ -224,5 +271,5 @@ export async function createViewer(
     }
   }
 
-  return { loadIfc, highlightByGuid, dispose }
+  return { loadIfc, highlightByGuid, applyGhost, dispose }
 }

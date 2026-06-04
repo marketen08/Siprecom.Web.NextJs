@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Eye, FileUp, Loader2, RefreshCw, Star, Trash2,
+  AlertTriangle, Box, CheckCircle2, Eye, FileUp, Filter, Loader2, RefreshCw, Star, Trash2,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -21,6 +21,8 @@ import {
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
+import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor-panel"
+import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import {
   EstadoProcesamientoIfc,
   type ProyectoIfcArchivo,
@@ -33,6 +35,7 @@ import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 interface ViewerHandle {
   loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
+  applyGhost: (visibleGuids: string[] | null) => Promise<void>
   dispose: () => void
 }
 
@@ -73,6 +76,16 @@ function ModeloPageContent() {
   // Detalle de la entidad seleccionada (por click en 3D o desde el panel).
   const [entidadSeleccionada, setEntidadSeleccionada] = useState<ProyectoIfcEntidad | null>(null)
   const [resolviendoPick, setResolviendoPick] = useState(false)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  // Cuál archivo está cargado en el visor (para el hook de filtros saber si puede aplicar ghost).
+  const [archivoCargadoId, setArchivoCargadoId] = useState<string | null>(null)
+
+  const filtroVisor = useFiltroVisor({
+    proyectoId: id,
+    archivoId: actualId,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === actualId,
+    applyGhost: (guids) => viewerRef.current?.applyGhost(guids) ?? Promise.resolve(),
+  })
 
   const archivoActual = actualId
     ? archivos.find((a) => a.id === actualId) ?? null
@@ -153,11 +166,13 @@ function ModeloPageContent() {
 
       setPhase("Parseando IFC (puede tardar varios segundos)…")
       await viewerRef.current.loadIfc(new Uint8Array(ab), archivo.nombre)
+      setArchivoCargadoId(archivo.id)
       setPhase("Listo.")
     } catch (e) {
       setViewError((e as Error).message)
       setPhase("")
       setActualId(null)
+      setArchivoCargadoId(null)
     } finally {
       setLoadingView(false)
     }
@@ -176,10 +191,27 @@ function ModeloPageContent() {
             y trata de vincularlas con los Elementos del proyecto por TAG.
           </p>
         </div>
-        <Button onClick={() => setOpenUpload(true)} className="gap-2">
-          <FileUp className="h-4 w-4" />
-          Cargar IFC
-        </Button>
+        <div className="flex items-center gap-2">
+          {actualId && (
+            <Button
+              variant={mostrarFiltros || filtroVisor.activo ? "default" : "outline"}
+              onClick={() => setMostrarFiltros((v) => !v)}
+              className="gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Filtros
+              {filtroVisor.activo && filtroVisor.resultado && (
+                <span className="rounded-full bg-white/30 text-current px-1.5 text-[10px] font-bold">
+                  {filtroVisor.resultado.totalCoinciden}
+                </span>
+              )}
+            </Button>
+          )}
+          <Button onClick={() => setOpenUpload(true)} className="gap-2">
+            <FileUp className="h-4 w-4" />
+            Cargar IFC
+          </Button>
+        </div>
       </div>
 
       {/* Listado de archivos */}
@@ -226,6 +258,16 @@ function ModeloPageContent() {
 
       {/* Canvas del viewer + sidebar de detalle al costado */}
       <div className="flex gap-4" style={{ height: "70vh", minHeight: 480 }}>
+        {mostrarFiltros && actualId && (
+          <FiltrosVisorPanel
+            filtro={filtroVisor.filtro}
+            onChange={filtroVisor.setFiltro}
+            totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
+            totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
+            loading={filtroVisor.loading}
+            onClose={() => setMostrarFiltros(false)}
+          />
+        )}
         <div
           ref={containerRef}
           className="flex-1 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden relative"

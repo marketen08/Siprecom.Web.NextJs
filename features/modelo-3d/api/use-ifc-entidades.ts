@@ -3,6 +3,8 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   EntidadFiltro,
+  FiltroResultado,
+  FiltroVisor,
   ProyectoIfcEntidad,
   ProyectoIfcEntidadesPage,
 } from "../types"
@@ -91,4 +93,21 @@ export async function resolverEntidadesPorGuids(
     { ifcGuids },
   )
   return resp?.data ?? []
+}
+
+/**
+ * Resuelve los IfcGuids que cumplen los filtros visuales (sistema/subsistema/
+ * especialidad). El visor los usa para aplicar el modo "ghost": las entidades
+ * fuera del filtro quedan grises/transparentes.
+ */
+export async function filtrarEntidades(
+  proyectoId: string,
+  archivoId: string,
+  filtro: FiltroVisor,
+): Promise<FiltroResultado> {
+  const resp = await apiClient.post<ApiResponse<FiltroResultado>>(
+    `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/filtrar`,
+    filtro,
+  )
+  return resp?.data ?? { guidsCoinciden: [], totalCoinciden: 0, totalEntidades: 0 }
 }

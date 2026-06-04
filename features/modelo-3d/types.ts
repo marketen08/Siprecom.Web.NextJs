@@ -64,6 +64,40 @@ export interface ProyectoIfcEntidadesPage {
 
 export type EntidadFiltro = "todas" | "vinculadas" | "no-vinculadas"
 
+/**
+ * Filtros visuales para el visor 3D. Cada categoría es multi-select; vacías
+ * significan "no filtrar por esta dimensión". Las dimensiones combinan con AND.
+ */
+export interface FiltroVisor {
+  sistemaIds: string[]
+  subSistemaIds: string[]
+  especialidadIds: string[]
+  /** Si es true, también deja "en foco" las entidades sin Elemento vinculado. */
+  incluirSinVincular: boolean
+}
+
+export interface FiltroResultado {
+  guidsCoinciden: string[]
+  totalCoinciden: number
+  totalEntidades: number
+}
+
+export function isFiltroVacio(f: FiltroVisor): boolean {
+  return f.sistemaIds.length === 0
+    && f.subSistemaIds.length === 0
+    && f.especialidadIds.length === 0
+    && !f.incluirSinVincular
+}
+
+export function filtroVacio(): FiltroVisor {
+  return {
+    sistemaIds: [],
+    subSistemaIds: [],
+    especialidadIds: [],
+    incluirSinVincular: false,
+  }
+}
+
 export interface CrearProyectoDesdeIfcInput {
   nombre: string
   clienteId: string
