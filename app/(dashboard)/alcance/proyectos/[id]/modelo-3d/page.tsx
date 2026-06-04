@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, Star, Trash2,
+  AlertTriangle, Box, CheckCircle2, Cloud, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, Star, Trash2,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -19,6 +19,7 @@ import {
   useProcesarIfcArchivo,
 } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
+import { ImportarDesdeApsSheet } from "@/features/aps/components/importar-desde-aps-sheet"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor-panel"
@@ -56,6 +57,7 @@ function ModeloPageContent() {
   const marcarPrincipal = useMarcarIfcPrincipal(id)
 
   const [openUpload, setOpenUpload] = useState(false)
+  const [openAps, setOpenAps] = useState(false)
 
   useBreadcrumb(
     proyecto
@@ -233,6 +235,10 @@ function ModeloPageContent() {
               Colores por estado
             </Button>
           )}
+          <Button onClick={() => setOpenAps(true)} variant="outline" className="gap-2">
+            <Cloud className="h-4 w-4" />
+            Importar de Autodesk
+          </Button>
           <Button onClick={() => setOpenUpload(true)} className="gap-2">
             <FileUp className="h-4 w-4" />
             Cargar IFC
@@ -348,6 +354,11 @@ function ModeloPageContent() {
         proyectoId={id}
         open={openUpload}
         onClose={() => setOpenUpload(false)}
+      />
+      <ImportarDesdeApsSheet
+        proyectoId={id}
+        open={openAps}
+        onClose={() => setOpenAps(false)}
       />
     </div>
   )
