@@ -340,6 +340,7 @@ function ModeloPageContent() {
           archivoId={archivoActual.id}
           onSeleccionar={seleccionarEntidadDesdeListado}
           entidadSeleccionadaId={entidadSeleccionada?.id ?? null}
+          filtroVisor={filtroVisor.filtro}
         />
       )}
 

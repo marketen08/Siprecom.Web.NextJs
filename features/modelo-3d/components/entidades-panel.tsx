@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link as LinkIcon, Loader2, Search, Unlink, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import {
   useGetIfcEntidades,
   useVincularIfcEntidad,
 } from "../api/use-ifc-entidades"
-import type { EntidadFiltro, ProyectoIfcEntidad } from "../types"
+import { isFiltroVacio, type EntidadFiltro, type FiltroVisor, type ProyectoIfcEntidad } from "../types"
 
 interface Props {
   proyectoId: string
@@ -21,6 +21,12 @@ interface Props {
   onSeleccionar?: (entidad: ProyectoIfcEntidad) => void
   /** Id de la entidad actualmente resaltada (para feedback visual en la fila). */
   entidadSeleccionadaId?: string | null
+  /**
+   * Filtros visuales del visor (Sistema/SubSistema/Especialidad). Si vienen
+   * con datos, la lista se restringe a las entidades que cumplen — así la
+   * tabla y el visor muestran el mismo subconjunto.
+   */
+  filtroVisor?: FiltroVisor | null
 }
 
 /**
@@ -28,7 +34,7 @@ interface Props {
  * manualmente cada entidad a un Elemento del proyecto. Se muestra debajo del visor.
  */
 export function EntidadesPanel({
-  proyectoId, archivoId, onSeleccionar, entidadSeleccionadaId,
+  proyectoId, archivoId, onSeleccionar, entidadSeleccionadaId, filtroVisor,
 }: Props) {
   const [filtro, setFiltro] = useState<EntidadFiltro>("todas")
   const [busqueda, setBusqueda] = useState("")
@@ -40,8 +46,18 @@ export function EntidadesPanel({
   function handleFiltro(f: EntidadFiltro) { setFiltro(f); setPage(1) }
   function handleBusqueda(v: string) { setBusqueda(v); setPage(1) }
 
+  // Si el filtro del visor cambia, reseteamos página.
+  const filtroVisorActivo = filtroVisor && !isFiltroVacio(filtroVisor)
+  useEffect(() => { setPage(1) }, [
+    filtroVisor?.sistemaIds.join(","),
+    filtroVisor?.subSistemaIds.join(","),
+    filtroVisor?.especialidadIds.join(","),
+    filtroVisor?.incluirSinVincular,
+  ])
+
   const { data, isLoading, isFetching } = useGetIfcEntidades(
     proyectoId, archivoId, filtro, busqueda, page, pageSize,
+    filtroVisorActivo ? filtroVisor : null,
   )
   const desvincular = useDesvincularIfcEntidad(proyectoId, archivoId)
 

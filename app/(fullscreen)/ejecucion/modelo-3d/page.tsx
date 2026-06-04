@@ -390,6 +390,7 @@ function ModeloEjecucionContent() {
             archivoId={archivo.id}
             onSeleccionar={seleccionarEntidadDesdeListado}
             entidadSeleccionadaId={entidadSeleccionada?.id ?? null}
+            filtroVisor={filtroVisor.filtro}
           />
         </div>
       )}

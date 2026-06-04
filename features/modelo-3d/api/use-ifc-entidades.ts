@@ -10,8 +10,14 @@ import type {
   ProyectoIfcEntidadesPage,
 } from "../types"
 
-const QK_PAGE = (archivoId: string | null, filtro: EntidadFiltro, busqueda: string, page: number) =>
-  ["ifc", archivoId, "entidades", filtro, busqueda, page] as const
+const QK_PAGE = (
+  archivoId: string | null,
+  filtro: EntidadFiltro,
+  busqueda: string,
+  page: number,
+  dimensiones: FiltroVisor | null,
+) =>
+  ["ifc", archivoId, "entidades", filtro, busqueda, page, dimensiones] as const
 
 const QK_ARCHIVO = (proyectoId: string | null) =>
   ["proyectos", proyectoId, "ifc"] as const
@@ -23,14 +29,23 @@ export function useGetIfcEntidades(
   busqueda: string,
   page: number,
   pageSize = 50,
+  /** Filtro de dimensiones del visor (Sistema/SubSistema/Especialidad). */
+  dimensiones?: FiltroVisor | null,
 ) {
   return useQuery({
-    queryKey: QK_PAGE(archivoId, filtro, busqueda, page),
+    queryKey: QK_PAGE(archivoId, filtro, busqueda, page, dimensiones ?? null),
     enabled: !!archivoId,
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
       if (filtro !== "todas") params.set("filtro", filtro)
       if (busqueda.trim()) params.set("busqueda", busqueda.trim())
+      // .NET espera multiples valores como `?key=a&key=b` — no como CSV.
+      if (dimensiones) {
+        dimensiones.sistemaIds.forEach((id) => params.append("sistemaIds", id))
+        dimensiones.subSistemaIds.forEach((id) => params.append("subSistemaIds", id))
+        dimensiones.especialidadIds.forEach((id) => params.append("especialidadIds", id))
+        if (dimensiones.incluirSinVincular) params.set("incluirSinVincular", "true")
+      }
       return apiClient.get<ApiResponse<ProyectoIfcEntidadesPage>>(
         `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades?${params.toString()}`,
       )
