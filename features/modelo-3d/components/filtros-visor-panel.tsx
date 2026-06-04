@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronRight, Filter, X } from "lucide-react"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
-import { filtroVacio, isFiltroVacio, type FiltroVisor } from "../types"
+import { EstadoVisualIds, filtroVacio, isFiltroVacio, type FiltroVisor } from "../types"
 
 interface Props {
   filtro: FiltroVisor
@@ -136,6 +136,22 @@ export function FiltrosVisorPanel({
           />
         </Seccion>
 
+        <Seccion
+          titulo="Estado del Elemento"
+          selectedCount={filtro.estadosVisuales.length}
+        >
+          <ChecklistMultiNum
+            items={ESTADO_OPTIONS}
+            selectedIds={filtro.estadosVisuales}
+            onToggle={(id) => {
+              const set = new Set(filtro.estadosVisuales)
+              if (set.has(id)) set.delete(id)
+              else set.add(id)
+              onChange({ ...filtro, estadosVisuales: Array.from(set) })
+            }}
+          />
+        </Seccion>
+
         <Seccion titulo="Opciones">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
@@ -151,6 +167,14 @@ export function FiltrosVisorPanel({
     </div>
   )
 }
+
+// Opciones de filtro por estado — color + label coherentes con la leyenda.
+const ESTADO_OPTIONS: { id: number; label: string; color: string }[] = [
+  { id: EstadoVisualIds.Completado, label: "Completado",  color: "#10b981" },
+  { id: EstadoVisualIds.EnCurso,    label: "En curso",    color: "#f59e0b" },
+  { id: EstadoVisualIds.NoIniciado, label: "No iniciado", color: "#94a3b8" },
+  { id: EstadoVisualIds.Rechazado,  label: "Rechazado",   color: "#ef4444" },
+]
 
 // ─── Sección colapsable ────────────────────────────────────────────────────
 
@@ -186,6 +210,45 @@ function Seccion({
 }
 
 // ─── Checklist multi-select ────────────────────────────────────────────────
+
+function ChecklistMultiNum({
+  items, selectedIds, onToggle,
+}: {
+  items: { id: number; label: string; color: string }[]
+  selectedIds: number[]
+  onToggle: (id: number) => void
+}) {
+  const selectedSet = new Set(selectedIds)
+  return (
+    <ul className="-mx-1 space-y-0.5">
+      {items.map((it) => {
+        const checked = selectedSet.has(it.id)
+        return (
+          <li key={it.id}>
+            <button
+              type="button"
+              onClick={() => onToggle(it.id)}
+              className={`w-full text-left flex items-center gap-2 px-1.5 py-1 rounded text-xs transition-colors ${
+                checked ? "bg-blue-50 text-blue-800" : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className={`flex items-center justify-center h-4 w-4 rounded border ${
+                checked ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300 bg-white"
+              }`}>
+                {checked && <Check className="h-3 w-3" />}
+              </span>
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm border border-black/10"
+                style={{ backgroundColor: it.color }}
+              />
+              <span>{it.label}</span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
 
 function ChecklistMulti({
   items, selectedIds, onToggle, empty = "Sin opciones.",

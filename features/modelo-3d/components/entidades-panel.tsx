@@ -52,6 +52,7 @@ export function EntidadesPanel({
     filtroVisor?.sistemaIds.join(","),
     filtroVisor?.subSistemaIds.join(","),
     filtroVisor?.especialidadIds.join(","),
+    filtroVisor?.estadosVisuales.join(","),
     filtroVisor?.incluirSinVincular,
   ])
 

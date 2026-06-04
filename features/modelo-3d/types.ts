@@ -72,9 +72,19 @@ export interface FiltroVisor {
   sistemaIds: string[]
   subSistemaIds: string[]
   especialidadIds: string[]
+  /** Estados visuales del Elemento (1..4) — ver EstadoVisualIds. */
+  estadosVisuales: number[]
   /** Si es true, también deja "en foco" las entidades sin Elemento vinculado. */
   incluirSinVincular: boolean
 }
+
+/** Valores del enum EstadoVisualElemento del backend. */
+export const EstadoVisualIds = {
+  NoIniciado: 1,
+  EnCurso:    2,
+  Completado: 3,
+  Rechazado:  4,
+} as const
 
 export interface FiltroResultado {
   guidsCoinciden: string[]
@@ -86,6 +96,7 @@ export function isFiltroVacio(f: FiltroVisor): boolean {
   return f.sistemaIds.length === 0
     && f.subSistemaIds.length === 0
     && f.especialidadIds.length === 0
+    && f.estadosVisuales.length === 0
     && !f.incluirSinVincular
 }
 
@@ -94,6 +105,7 @@ export function filtroVacio(): FiltroVisor {
     sistemaIds: [],
     subSistemaIds: [],
     especialidadIds: [],
+    estadosVisuales: [],
     incluirSinVincular: false,
   }
 }
