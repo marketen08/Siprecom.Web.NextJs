@@ -7,6 +7,7 @@ import {
   type ProyectoIfcArchivoCreateInput,
   type ProyectoIfcArchivoUrl,
 } from "../types"
+import { clearCachedIfc, getCachedIfc, setCachedIfc } from "../ifc-cache"
 
 const QK = (proyectoId: string | null | undefined) =>
   ["proyectos", proyectoId, "ifc"] as const
@@ -92,10 +93,14 @@ export function useGetIfcPrincipal(proyectoId: string | null | undefined) {
 export function useDeleteIfcArchivo(proyectoId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (archivoId: string) =>
-      apiClient.delete<ApiResponse<boolean>>(
+    mutationFn: async (archivoId: string) => {
+      const r = await apiClient.delete<ApiResponse<boolean>>(
         `/api/proyectos/${proyectoId}/ifc/${archivoId}`,
-      ),
+      )
+      // Liberar la entrada del cache local — el archivo ya no existe.
+      void clearCachedIfc(archivoId)
+      return r
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: QK(proyectoId) }),
   })
 }
@@ -122,45 +127,65 @@ export interface DownloadProgress {
   loaded: number
   /** Bytes totales si el server lo informa con Content-Length, sino null. */
   total: number | null
-  /** "direct" = SAS al blob, "proxy" = stream via backend. */
-  via: "direct" | "proxy"
+  /** "cache" = IndexedDB local, "direct" = SAS al blob, "proxy" = stream via backend. */
+  via: "cache" | "direct" | "proxy"
 }
 
 /**
  * Descarga el IFC como ArrayBuffer.
  *
- * Estrategia:
- *  1. Intenta fetch directo a la SAS URL (sin tocar la API → menos latencia + bandwidth).
+ * Estrategia (en orden):
+ *  0. Cache local (IndexedDB) — si el archivo ya fue descargado antes en este
+ *     browser, lo trae instantáneo sin tocar la red.
+ *  1. Fetch directo a la SAS URL (sin tocar la API → menos latencia + bandwidth).
  *  2. Si el browser bloquea por CORS (típicamente `TypeError: Failed to fetch`
  *     cuando el storage account no tiene reglas CORS), reintenta vía el proxy
  *     `/api/proyectos/.../ifc/.../stream`, que stream-ea desde el backend.
  *
- * Acepta un `onProgress` opcional para mostrar bytes recibidos en el UI.
+ * Después de descargar (1 o 2), el buffer queda guardado en IndexedDB para
+ * próximas visitas. Acepta `expectedSize` para validar el cache contra el
+ * tamaño actual del archivo (si cambia, se ignora el cache stale).
  */
 export async function downloadIfcBuffer(
   proyectoId: string,
   archivoId: string,
   onProgress?: (p: DownloadProgress) => void,
+  expectedSize?: number | null,
 ): Promise<ArrayBuffer> {
+  // 0) Cache local — instantáneo si ya está.
+  const cached = await getCachedIfc(archivoId, expectedSize)
+  if (cached) {
+    onProgress?.({ loaded: cached.byteLength, total: cached.byteLength, via: "cache" })
+    return cached
+  }
+
   // 1) Intento directo al blob (SAS).
+  let buffer: ArrayBuffer | null = null
   try {
     const url = await fetchIfcDownloadUrl(proyectoId, archivoId)
     const res = await fetch(url.url)
     if (!res.ok) throw new Error(`HTTP ${res.status} al descargar el archivo.`)
-    return await readWithProgress(res, "direct", onProgress)
+    buffer = await readWithProgress(res, "direct", onProgress)
   } catch (e) {
     const msg = (e as Error).message ?? ""
     const esCors = msg.includes("Failed to fetch") || msg.includes("NetworkError")
     if (!esCors) throw e
   }
 
-  // 2) Fallback proxy backend.
-  const proxyRes = await fetch(`/api/proyectos/${proyectoId}/ifc/${archivoId}/stream`)
-  if (!proxyRes.ok) {
-    const body = await proxyRes.json().catch(() => ({}))
-    throw new Error(body?.message ?? `HTTP ${proxyRes.status} al descargar el archivo (proxy).`)
+  // 2) Fallback proxy backend si SAS falló por CORS.
+  if (buffer === null) {
+    const proxyRes = await fetch(`/api/proyectos/${proyectoId}/ifc/${archivoId}/stream`)
+    if (!proxyRes.ok) {
+      const body = await proxyRes.json().catch(() => ({}))
+      throw new Error(body?.message ?? `HTTP ${proxyRes.status} al descargar el archivo (proxy).`)
+    }
+    buffer = await readWithProgress(proxyRes, "proxy", onProgress)
   }
-  return await readWithProgress(proxyRes, "proxy", onProgress)
+
+  // Best-effort: guardar en cache para próximas visitas. Si IndexedDB falla
+  // (modo incógnito, quota, etc) silenciamos — no rompe la descarga.
+  void setCachedIfc(archivoId, buffer)
+  return buffer
 }
 
 /** Lee el body por chunks reportando progreso. Si no hay onProgress, atajo directo a arrayBuffer(). */

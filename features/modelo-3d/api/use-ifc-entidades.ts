@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
+  ColoresPorEstado,
   EntidadFiltro,
   FiltroResultado,
   FiltroVisor,
@@ -93,6 +94,28 @@ export async function resolverEntidadesPorGuids(
     { ifcGuids },
   )
   return resp?.data ?? []
+}
+
+/**
+ * Trae los GUIDs particionados por estado del Elemento vinculado. El visor los
+ * usa para pintar cada bucket de un color semáforo. Las entidades sin vínculo
+ * no aparecen — mantienen su color IFC original.
+ */
+export function useColoresPorEstado(
+  proyectoId: string | null,
+  archivoId: string | null,
+  activo: boolean,
+) {
+  return useQuery({
+    queryKey: ["ifc", archivoId, "colores-por-estado"],
+    enabled: activo && !!proyectoId && !!archivoId,
+    // No staleTime — al activar el toggle queremos data fresca; los estados de
+    // ElementoTarea pueden cambiar mucho durante la jornada.
+    queryFn: () =>
+      apiClient.get<ApiResponse<ColoresPorEstado>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-estado`,
+      ),
+  })
 }
 
 /**

@@ -30,7 +30,22 @@ export interface ViewerHandle {
    * originales).
    */
   applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  /**
+   * Pinta el modelo con colores semáforo según el estado del Elemento vinculado:
+   * verde=completado, amarillo=en curso, gris=no iniciado, rojo=rechazado. Las
+   * entidades sin vínculo quedan con su color IFC original. Pasá null para
+   * volver a los colores originales.
+   */
+  applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   dispose: () => void
+}
+
+/** Buckets de IfcGuids por estado del Elemento — el viewer pinta cada bucket. */
+export interface BucketsPorEstado {
+  noIniciados: string[]
+  enCurso: string[]
+  completados: string[]
+  rechazados: string[]
 }
 
 export interface CreateViewerOptions {
@@ -189,6 +204,54 @@ export async function createViewer(
   const GHOST_OPACITY = 0.15
   let ghostActive = false
 
+  // Paleta de estados — tailwind colors para coherencia con la UI.
+  const ESTADO_COLORS = {
+    completado: new THREE.Color(0x10b981), // emerald-500
+    enCurso:    new THREE.Color(0xf59e0b), // amber-500
+    noIniciado: new THREE.Color(0x94a3b8), // slate-400
+    rechazado:  new THREE.Color(0xef4444), // red-500
+  }
+  let colorPorEstadoActive = false
+
+  async function applyColorPorEstado(buckets: BucketsPorEstado | null): Promise<void> {
+    if (!currentModel || disposed) return
+
+    if (buckets === null) {
+      if (colorPorEstadoActive) {
+        await currentModel.resetColor(undefined)
+        colorPorEstadoActive = false
+      }
+      return
+    }
+
+    // Resolución de GUIDs → localIds en paralelo por bucket. Cada llamada al
+    // model devuelve un array correlativo con `null` para los que no encuentre.
+    async function resolverIds(guids: string[]): Promise<number[]> {
+      if (guids.length === 0) return []
+      const ids = await currentModel!.getLocalIdsByGuids(guids)
+      return ids.filter((id): id is number => typeof id === "number")
+    }
+
+    const [noIniciados, enCurso, completados, rechazados] = await Promise.all([
+      resolverIds(buckets.noIniciados),
+      resolverIds(buckets.enCurso),
+      resolverIds(buckets.completados),
+      resolverIds(buckets.rechazados),
+    ])
+
+    // Aplicamos los colores por bucket. Antes reseteamos por si veníamos de un
+    // applyColorPorEstado anterior — el reset es por-id, no afecta a los items
+    // sin vínculo (que mantienen su color IFC original durante toda la sesión).
+    if (colorPorEstadoActive) {
+      await currentModel.resetColor(undefined)
+    }
+    if (noIniciados.length > 0) await currentModel.setColor(noIniciados, ESTADO_COLORS.noIniciado)
+    if (enCurso.length > 0)    await currentModel.setColor(enCurso,    ESTADO_COLORS.enCurso)
+    if (completados.length > 0) await currentModel.setColor(completados, ESTADO_COLORS.completado)
+    if (rechazados.length > 0) await currentModel.setColor(rechazados, ESTADO_COLORS.rechazado)
+    colorPorEstadoActive = true
+  }
+
   async function applyGhost(visibleGuids: string[] | null): Promise<void> {
     if (!currentModel || disposed) return
 
@@ -233,6 +296,7 @@ export async function createViewer(
       currentModel = null
       highlightedIds = []
       ghostActive = false
+      colorPorEstadoActive = false
     }
 
     // coordinate=true alinea el modelo al sistema de coordenadas global del kernel.
@@ -271,5 +335,5 @@ export async function createViewer(
     }
   }
 
-  return { loadIfc, highlightByGuid, applyGhost, dispose }
+  return { loadIfc, highlightByGuid, applyGhost, applyColorPorEstado, dispose }
 }

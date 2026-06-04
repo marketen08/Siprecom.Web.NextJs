@@ -1,9 +1,9 @@
 "use client"
 
-import { Suspense, useEffect, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle, Box, Eye, Filter, Loader2, Settings, Star,
+  AlertTriangle, Box, Eye, Filter, Loader2, Palette, Settings, Star,
 } from "lucide-react"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
@@ -15,9 +15,12 @@ import { resolverEntidadesPorGuids } from "@/features/modelo-3d/api/use-ifc-enti
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor-panel"
+import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-colores-estado"
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
+import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
 import {
   EstadoProcesamientoIfc,
+  type ColoresPorEstado,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
@@ -26,6 +29,7 @@ interface ViewerHandle {
   loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
   applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   dispose: () => void
 }
 
@@ -43,7 +47,18 @@ function ModeloEjecucionContent() {
   const archivo = ifcRaw?.data ?? null
 
   // ─── Viewer ────────────────────────────────────────────────────────────────
-  const containerRef = useRef<HTMLDivElement>(null)
+  // Usamos un callback ref + estado para que el effect de init se dispare
+  // *cuando el contenedor realmente se monta en el DOM* — no solo cuando el
+  // proyecto está listo. Esto evita una race en hard-reload donde el effect
+  // se dispara antes de que el JSX del viewer se haya renderizado (los early
+  // returns por loading/empty/etc. impiden que se monte el div).
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node
+    setContainerEl(node)
+  }, [])
+
   const viewerRef = useRef<ViewerHandle | null>(null)
   const [viewerReady, setViewerReady] = useState(false)
   const [loadingView, setLoadingView] = useState(false)
@@ -64,18 +79,26 @@ function ModeloEjecucionContent() {
     applyGhost: (guids) => viewerRef.current?.applyGhost(guids) ?? Promise.resolve(),
   })
 
+  const coloresEstado = useColoresPorEstadoToggle({
+    proyectoId: proyectoActivo?.id ?? null,
+    archivoId: archivo?.id ?? null,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
+    applyColorPorEstado: (b) => viewerRef.current?.applyColorPorEstado(b) ?? Promise.resolve(),
+  })
+
   const archivoActualIdRef = useRef<string | null>(null)
   archivoActualIdRef.current = archivo?.id ?? null
 
   const proyectoIdRef = useRef<string | null>(null)
   proyectoIdRef.current = proyectoActivo?.id ?? null
 
-  // Init del viewer (una sola vez por proyecto).
+  // Init del viewer — depende de proyectoActivo Y de que el contenedor esté
+  // efectivamente montado en el DOM. Ambas condiciones triggerean el effect.
   useEffect(() => {
     if (!proyectoActivo) return
+    if (!containerEl) return
     let cancelled = false
-    const container = containerRef.current
-    if (!container) return
+    const container = containerEl
 
     ;(async () => {
       const { createViewer } = await import("@/features/modelo-3d/viewer")
@@ -112,7 +135,7 @@ function ModeloEjecucionContent() {
       setViewerReady(false)
       setArchivoCargadoId(null)
     }
-  }, [proyectoActivo?.id])
+  }, [proyectoActivo?.id, containerEl])
 
   // Auto-cargar el archivo principal cuando ya está listo y el viewer también.
   useEffect(() => {
@@ -132,6 +155,10 @@ function ModeloEjecucionContent() {
     try {
       setPhase("Descargando archivo…")
       const ab = await downloadIfcBuffer(proyectoActivo.id, a.id, (p) => {
+        if (p.via === "cache") {
+          setPhase("Cargando desde caché local…")
+          return
+        }
         const mb = Math.round((p.loaded / (1024 * 1024)) * 10) / 10
         const totalMb = p.total ? Math.round((p.total / (1024 * 1024)) * 10) / 10 : null
         const pct = p.total ? Math.round((p.loaded / p.total) * 100) : null
@@ -140,7 +167,7 @@ function ModeloEjecucionContent() {
             ? `Descargando archivo… ${mb} / ${totalMb} MB (${pct}%)`
             : `Descargando archivo… ${mb} MB`
         )
-      })
+      }, a.tamanioBytes)
 
       setPhase("Parseando IFC (puede tardar varios segundos)…")
       await viewerRef.current.loadIfc(new Uint8Array(ab), a.nombre)
@@ -269,6 +296,19 @@ function ModeloEjecucionContent() {
           </button>
           <button
             type="button"
+            onClick={() => coloresEstado.setActivo((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
+              coloresEstado.activo
+                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                : "text-gray-600 hover:bg-gray-50"
+            }`}
+            title="Pintar entidades con color según el estado del Elemento"
+          >
+            <Palette className="h-3.5 w-3.5" />
+            Colores por estado
+          </button>
+          <button
+            type="button"
             onClick={() => setMostrarPanelEntidades((v) => !v)}
             className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
               mostrarPanelEntidades ? "text-blue-700 bg-blue-50 border-blue-200" : "text-gray-600 hover:bg-gray-50"
@@ -312,7 +352,12 @@ function ModeloEjecucionContent() {
           />
         )}
         <div className="relative flex-1 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div ref={containerRef} className="absolute inset-0" />
+          <div ref={setContainerRef} className="absolute inset-0" />
+          {coloresEstado.activo && (
+            <div className="absolute top-3 left-3 z-10">
+              <LeyendaColoresEstado buckets={coloresEstado.buckets} loading={coloresEstado.loading} />
+            </div>
+          )}
           {actualHintVisible(viewerReady, archivoCargadoId, entidadSeleccionada, resolviendoPick) && (
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none rounded-full bg-black/70 text-white text-xs px-3 py-1">
               Click sobre una entidad para ver su Elemento vinculado

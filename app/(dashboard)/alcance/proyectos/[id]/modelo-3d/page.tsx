@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Eye, FileUp, Filter, Loader2, RefreshCw, Star, Trash2,
+  AlertTriangle, Box, CheckCircle2, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, Star, Trash2,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -22,9 +22,12 @@ import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor-panel"
+import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-colores-estado"
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
+import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
 import {
   EstadoProcesamientoIfc,
+  type ColoresPorEstado,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
@@ -36,6 +39,7 @@ interface ViewerHandle {
   loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
   applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   dispose: () => void
 }
 
@@ -85,6 +89,13 @@ function ModeloPageContent() {
     archivoId: actualId,
     archivoCargado: archivoCargadoId !== null && archivoCargadoId === actualId,
     applyGhost: (guids) => viewerRef.current?.applyGhost(guids) ?? Promise.resolve(),
+  })
+
+  const coloresEstado = useColoresPorEstadoToggle({
+    proyectoId: id,
+    archivoId: actualId,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === actualId,
+    applyColorPorEstado: (b) => viewerRef.current?.applyColorPorEstado(b) ?? Promise.resolve(),
   })
 
   const archivoActual = actualId
@@ -153,6 +164,10 @@ function ModeloPageContent() {
     try {
       setPhase("Descargando archivo…")
       const ab = await downloadIfcBuffer(id, archivo.id, (p) => {
+        if (p.via === "cache") {
+          setPhase("Cargando desde caché local…")
+          return
+        }
         const mb = Math.round((p.loaded / (1024 * 1024)) * 10) / 10
         const totalMb = p.total ? Math.round((p.total / (1024 * 1024)) * 10) / 10 : null
         const pct = p.total ? Math.round((p.loaded / p.total) * 100) : null
@@ -162,7 +177,7 @@ function ModeloPageContent() {
             ? `Descargando archivo (${via})… ${mb} / ${totalMb} MB (${pct}%)`
             : `Descargando archivo (${via})… ${mb} MB`
         )
-      })
+      }, archivo.tamanioBytes)
 
       setPhase("Parseando IFC (puede tardar varios segundos)…")
       await viewerRef.current.loadIfc(new Uint8Array(ab), archivo.nombre)
@@ -205,6 +220,17 @@ function ModeloPageContent() {
                   {filtroVisor.resultado.totalCoinciden}
                 </span>
               )}
+            </Button>
+          )}
+          {actualId && (
+            <Button
+              variant={coloresEstado.activo ? "default" : "outline"}
+              onClick={() => coloresEstado.setActivo((v) => !v)}
+              className="gap-2"
+              title="Pintar entidades con color según el estado del Elemento vinculado"
+            >
+              <Palette className="h-4 w-4" />
+              Colores por estado
             </Button>
           )}
           <Button onClick={() => setOpenUpload(true)} className="gap-2">
@@ -272,6 +298,11 @@ function ModeloPageContent() {
           ref={containerRef}
           className="flex-1 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden relative"
         >
+          {coloresEstado.activo && (
+            <div className="absolute top-3 left-3 z-10">
+              <LeyendaColoresEstado buckets={coloresEstado.buckets} loading={coloresEstado.loading} />
+            </div>
+          )}
           {!actualId && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-muted-foreground pointer-events-none">
               <Box className="h-10 w-10 mb-2 opacity-30" />

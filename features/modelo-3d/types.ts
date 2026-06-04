@@ -98,6 +98,15 @@ export function filtroVacio(): FiltroVisor {
   }
 }
 
+/** Buckets de IfcGuids por estado visual del Elemento vinculado. */
+export interface ColoresPorEstado {
+  noIniciados: string[]
+  enCurso: string[]
+  completados: string[]
+  rechazados: string[]
+  totalConVinculo: number
+}
+
 export interface CrearProyectoDesdeIfcInput {
   nombre: string
   clienteId: string
