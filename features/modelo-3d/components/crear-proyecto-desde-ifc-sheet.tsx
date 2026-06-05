@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation"
 import { Box, Loader2 } from "lucide-react"
 
 import { useCrearProyectoDesdeIfc } from "../api/use-crear-proyecto-desde-ifc"
+import { useCrearProyectoDesdeNwd } from "../api/use-crear-proyecto-desde-nwd"
 import { useGetClientes } from "@/features/clientes/api/use-get-clientes"
 import type { Cliente } from "@/features/clientes/types"
+
+// Extensiones soportadas. .ifc va por el pipeline xbim (sincronico) y .nwd por
+// APS Model Derivative → SVF2 (background, puede tardar minutos).
+const EXTENSIONES_ACEPTADAS = [".ifc", ".nwd"]
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,7 +42,12 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
   const { data: clientesRaw } = useGetClientes({ pageSize: 200 })
   const clientes: Cliente[] = clientesRaw?.data ?? []
 
-  const crear = useCrearProyectoDesdeIfc()
+  const crearIfc = useCrearProyectoDesdeIfc()
+  const crearNwd = useCrearProyectoDesdeNwd()
+  const enviando = crearIfc.isPending || crearNwd.isPending
+  // Extensión del archivo elegido — define qué pipeline usar al submit.
+  const ext = archivo?.name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? null
+  const esNwd = ext === ".nwd"
 
   function reset() {
     setNombre("")
@@ -49,7 +59,7 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
   }
 
   function closeAndReset() {
-    if (crear.isPending) return // no cerrar durante el upload
+    if (enviando) return // no cerrar durante el upload
     reset()
     onClose()
   }
@@ -57,11 +67,11 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!archivo) { setError("Elegí un archivo .ifc."); return }
+    if (!archivo) { setError(`Elegí un archivo ${EXTENSIONES_ACEPTADAS.join(" o ")}.`); return }
     if (!nombre.trim()) { setError("Ponele un nombre al proyecto."); return }
     if (!clienteId) { setError("Elegí un cliente."); return }
-    if (!archivo.name.toLowerCase().endsWith(".ifc")) {
-      setError("El archivo debe tener extensión .ifc.")
+    if (!ext || !EXTENSIONES_ACEPTADAS.includes(ext)) {
+      setError(`El archivo debe tener extensión ${EXTENSIONES_ACEPTADAS.join(" o ")}.`)
       return
     }
     if (archivo.size > 500 * 1024 * 1024) {
@@ -69,7 +79,8 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
       return
     }
     try {
-      const out = await crear.mutateAsync({
+      const mutator = esNwd ? crearNwd : crearIfc
+      const out = await mutator.mutateAsync({
         nombre: nombre.trim(),
         clienteId,
         nombreArchivo: nombreArchivo.trim() || undefined,
@@ -88,11 +99,18 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
     <Sheet open={open} onOpenChange={(o) => !o && closeAndReset()}>
       <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Crear proyecto desde IFC</SheetTitle>
+          <SheetTitle>Crear proyecto desde archivo 3D</SheetTitle>
           <SheetDescription>
-            Subí un archivo IFC y el sistema crea el proyecto, los Sistemas (por <code>IfcBuilding</code>),
-            los SubSistemas (por <code>IfcBuildingStorey</code>) y los Elementos automáticamente.
-            El bootstrap corre en background — vas a ver el progreso en la página del modelo 3D.
+            Subí un archivo IFC o NWD y el sistema crea el proyecto, Sistemas,
+            SubSistemas y Elementos automáticamente. El bootstrap corre en
+            background — vas a ver el progreso en la página del modelo 3D.
+            <br />
+            <span className="block mt-1 text-[11px] text-muted-foreground">
+              <b>IFC</b>: jerarquía por <code>IfcBuilding</code> / <code>IfcBuildingStorey</code>.
+              <b className="ml-1">NWD</b>: agrupación por archivo origen + categoría AutoCAD
+              (Plant 3D). Equipment con <code>AutoCad.Tag</code> se vinculan como Elementos.
+              La traducción APS puede tardar varios minutos.
+            </span>
           </SheetDescription>
         </SheetHeader>
 
@@ -125,7 +143,7 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Nombre del archivo IFC</label>
+            <label className="text-sm font-medium">Nombre del archivo</label>
             <Input
               value={nombreArchivo}
               onChange={(e) => setNombreArchivo(e.target.value)}
@@ -150,10 +168,10 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Archivo .ifc</label>
+            <label className="text-sm font-medium">Archivo (.ifc o .nwd)</label>
             <Input
               type="file"
-              accept=".ifc"
+              accept=".ifc,.nwd"
               className="mt-1"
               onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
               required
@@ -161,6 +179,7 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
             {archivo && (
               <p className="text-xs text-muted-foreground mt-1">
                 {archivo.name} · {Math.round(archivo.size / (1024 * 1024) * 10) / 10} MB
+                {esNwd && <span className="ml-2 text-amber-700">— pipeline APS (~5-30 min)</span>}
               </p>
             )}
           </div>
@@ -171,19 +190,21 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
             </div>
           )}
 
-          {crear.isPending && (
+          {enviando && (
             <div className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-700 flex items-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Subiendo IFC y creando el proyecto…
+              {esNwd
+                ? "Subiendo NWD a Autodesk y creando el proyecto…"
+                : "Subiendo IFC y creando el proyecto…"}
             </div>
           )}
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={crear.isPending} className="flex-1 gap-2">
-              {crear.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Box className="h-4 w-4" />}
-              {crear.isPending ? "Creando…" : "Crear proyecto"}
+            <Button type="submit" disabled={enviando} className="flex-1 gap-2">
+              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Box className="h-4 w-4" />}
+              {enviando ? "Creando…" : "Crear proyecto"}
             </Button>
-            <Button type="button" variant="outline" onClick={closeAndReset} className="flex-1" disabled={crear.isPending}>
+            <Button type="button" variant="outline" onClick={closeAndReset} className="flex-1" disabled={enviando}>
               Cancelar
             </Button>
           </div>

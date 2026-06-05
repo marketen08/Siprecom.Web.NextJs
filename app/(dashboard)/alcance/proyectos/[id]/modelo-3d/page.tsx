@@ -27,7 +27,9 @@ import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-co
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
 import {
+  ApsTranslationStatus,
   EstadoProcesamientoIfc,
+  FormatoArchivo3d,
   type ColoresPorEstado,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
@@ -443,7 +445,10 @@ function ArchivoCard({
         <button
           type="button"
           onClick={onProcesar}
-          disabled={procesando || archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando}
+          disabled={procesando
+            || archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
+            || archivo.apsTranslationStatus === ApsTranslationStatus.EnProceso
+            || archivo.apsTranslationStatus === ApsTranslationStatus.Pendiente}
           className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors disabled:opacity-50"
           title="Re-procesar"
         >
@@ -469,6 +474,12 @@ function ArchivoCard({
 }
 
 function EstadoProcesamientoBadge({ archivo }: { archivo: ProyectoIfcArchivo }) {
+  // Para archivos NWD el procesamiento real corre por APS (Model Derivative +
+  // bootstrap), no por xbim. El estadoProcesamiento queda en Completado por
+  // construcción — el badge muestra el ApsTranslationStatus en su lugar.
+  if (archivo.formatoArchivo === FormatoArchivo3d.Nwd) {
+    return <ApsTranslationBadge archivo={archivo} />
+  }
   const accionLabel = archivo.esArchivoBootstrap
     ? "Bootstrap (creando proyecto)"
     : "Procesando con xbim"
@@ -498,6 +509,59 @@ function EstadoProcesamientoBadge({ archivo }: { archivo: ProyectoIfcArchivo }) 
         </div>
       )
     case EstadoProcesamientoIfc.Completado: {
+      const det = archivo.entidadesDetectadas ?? 0
+      const vin = archivo.entidadesVinculadas ?? 0
+      const pct = det > 0 ? Math.round((vin / det) * 100) : 0
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 rounded-md px-2 py-1">
+          <CheckCircle2 className="h-3 w-3" />
+          {vin.toLocaleString("es-AR")} de {det.toLocaleString("es-AR")} vinculadas ({pct}%)
+        </div>
+      )
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * Badge para el pipeline APS (NWD). Se muestra en lugar del badge de IFC cuando
+ * el archivo es NWD. El "Completado" de NWD significa que la translation a SVF2
+ * terminó + las entidades están vinculadas con Elementos.
+ */
+function ApsTranslationBadge({ archivo }: { archivo: ProyectoIfcArchivo }) {
+  const accionLabel = archivo.esArchivoBootstrap
+    ? "Bootstrap NWD (creando proyecto)"
+    : "Traduciendo a SVF2"
+  switch (archivo.apsTranslationStatus) {
+    case ApsTranslationStatus.Pendiente:
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> En cola para APS…
+        </div>
+      )
+    case ApsTranslationStatus.EnProceso: {
+      const pct = archivo.apsTranslationProgress ?? null
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 rounded-md px-2 py-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> {accionLabel}
+          {pct !== null && ` (${pct}%)`}…
+        </div>
+      )
+    }
+    case ApsTranslationStatus.Error:
+      return (
+        <div
+          className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1"
+          title={archivo.apsTranslationError ?? undefined}
+        >
+          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+          <span className="truncate">
+            Error APS: {archivo.apsTranslationError ?? "fallo al traducir"}
+          </span>
+        </div>
+      )
+    case ApsTranslationStatus.Completado: {
       const det = archivo.entidadesDetectadas ?? 0
       const vin = archivo.entidadesVinculadas ?? 0
       const pct = det > 0 ? Math.round((vin / det) * 100) : 0
