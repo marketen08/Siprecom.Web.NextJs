@@ -149,6 +149,14 @@ export async function createApsViewer(
             guidToDbId.set(externalId, dbId)
             dbIdToGuid.set(dbId, externalId)
           }
+          // Debug: muestreamos para que se pueda comparar contra los IfcGuid
+          // persistidos en DB (deberían tener exactamente el mismo formato).
+          const sample = Array.from(guidToDbId.entries()).slice(0, 5)
+          // eslint-disable-next-line no-console
+          console.log(
+            `[APS viewer] externalIdMapping: ${guidToDbId.size} entries. Sample:`,
+            sample,
+          )
           resolve()
         },
         () => resolve(),
@@ -196,18 +204,51 @@ export async function createApsViewer(
     if (!currentModel) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
+
+    // Sin filtro: limpiar isolation + theming, mostrar todo.
     if (visibleGuids === null) {
-      viewer.showAll()
       m.clearThemingColors?.()
+      viewer.isolate([])
+      viewer.impl.invalidate(true, true, true)
       return
     }
+
     const dbIds = guidsToIds(visibleGuids)
+    // eslint-disable-next-line no-console
+    console.log(
+      `[APS viewer] applyGhost: ${visibleGuids.length} guids pedidos → ${dbIds.length} dbIds resueltos`,
+    )
+
     if (dbIds.length === 0) {
-      viewer.hideAll()
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[APS viewer] applyGhost: ninguna entidad mapeada — mostrando modelo completo.",
+      )
+      m.clearThemingColors?.()
+      viewer.isolate([])
+      viewer.impl.invalidate(true, true, true)
       return
     }
-    // `isolate` muestra solo los pasados, atenúa el resto — equivalente al ghost.
+
+    // Usamos viewer.isolate(dbIds) — método nativo de Autodesk Viewer que:
+    //   - Muestra los dbIds con su color original
+    //   - Atenúa todo lo demás vía el ghosting interno del viewer
+    //   - Es O(1) en lugar de O(N) — vs. pintar 800K objetos uno a uno con
+    //     setThemingColor, que es prohibitivo en modelos grandes.
+    //
+    // Adicionalmente pintamos los visibles con un highlight amarillo claro para
+    // que destaquen visualmente en un modelo de cientos de miles de primitivas
+    // CAD (sino los pocos vessels se pierden en el océano de líneas/arcos).
+    m.clearThemingColors?.()
     viewer.isolate(dbIds)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
+    const highlightVec = new THREE.Vector4(
+      COLOR_HIGHLIGHT[0], COLOR_HIGHLIGHT[1], COLOR_HIGHLIGHT[2], 0.6,
+    )
+    for (const dbId of dbIds) m.setThemingColor(dbId, highlightVec)
+    viewer.impl.invalidate(true, true, true)
   }
 
   async function applyColorPorEstado(buckets: BucketsPorEstado | null): Promise<void> {
