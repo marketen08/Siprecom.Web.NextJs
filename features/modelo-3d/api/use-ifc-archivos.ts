@@ -26,7 +26,9 @@ export function useGetIfcArchivos(proyectoId: string | null | undefined) {
       const items = query.state.data?.data ?? []
       const enProgreso = items.some(
         (a) => a.estadoProcesamiento === EstadoProcesamientoIfc.Pendiente
-            || a.estadoProcesamiento === EstadoProcesamientoIfc.Procesando,
+            || a.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
+            || a.apsTranslationStatus === 1 /* Pendiente */
+            || a.apsTranslationStatus === 2 /* EnProceso */,
       )
       return enProgreso ? 3000 : false
     },
@@ -79,13 +81,16 @@ export function useGetIfcPrincipal(proyectoId: string | null | undefined) {
         `/api/proyectos/${proyectoId}/ifc/principal`,
       ),
     // El visor llama a este endpoint cada N segundos mientras el archivo todavía
-    // se está procesando, para reflejar el progreso.
+    // se está procesando, para reflejar el progreso. Incluye tanto el pipeline
+    // de xbim (IFC) como el de Model Derivative (NWD).
     refetchInterval: (query) => {
       const archivo = query.state.data?.data
       if (!archivo) return false
-      const enProgreso = archivo.estadoProcesamiento === EstadoProcesamientoIfc.Pendiente
+      const ifcEnProgreso = archivo.estadoProcesamiento === EstadoProcesamientoIfc.Pendiente
         || archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
-      return enProgreso ? 3000 : false
+      const apsEnProgreso = archivo.apsTranslationStatus === 1 /* Pendiente */
+        || archivo.apsTranslationStatus === 2 /* EnProceso */
+      return (ifcEnProgreso || apsEnProgreso) ? 3000 : false
     },
   })
 }

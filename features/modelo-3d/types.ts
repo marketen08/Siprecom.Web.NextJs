@@ -10,6 +10,25 @@ export const EstadoProcesamientoIfc = {
 export type EstadoProcesamientoIfcValue =
   (typeof EstadoProcesamientoIfc)[keyof typeof EstadoProcesamientoIfc]
 
+/** Formato del archivo 3D — define qué viewer renderiza. */
+export const FormatoArchivo3d = {
+  Ifc: 1,
+  Nwd: 2,
+} as const
+export type FormatoArchivo3dValue =
+  (typeof FormatoArchivo3d)[keyof typeof FormatoArchivo3d]
+
+/** Estado del job de Model Derivative en APS (NWD/RVT). */
+export const ApsTranslationStatus = {
+  NoAplica:  0,
+  Pendiente: 1,
+  EnProceso: 2,
+  Completado: 3,
+  Error:      4,
+} as const
+export type ApsTranslationStatusValue =
+  (typeof ApsTranslationStatus)[keyof typeof ApsTranslationStatus]
+
 export interface ProyectoIfcArchivo {
   id: string
   proyectoId: string
@@ -28,6 +47,11 @@ export interface ProyectoIfcArchivo {
   ultimoProcesamientoAt: string | null
   esArchivoBootstrap: boolean
   esPrincipal: boolean
+  formatoArchivo: FormatoArchivo3dValue
+  apsUrn: string | null
+  apsTranslationStatus: ApsTranslationStatusValue
+  apsTranslationProgress: number | null
+  apsTranslationError: string | null
 }
 
 export interface ProyectoIfcArchivoCreateInput {

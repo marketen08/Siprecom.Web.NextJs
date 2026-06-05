@@ -7,10 +7,7 @@ import {
 } from "lucide-react"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
-import {
-  downloadIfcBuffer,
-  useGetIfcPrincipal,
-} from "@/features/modelo-3d/api/use-ifc-archivos"
+import { useGetIfcPrincipal } from "@/features/modelo-3d/api/use-ifc-archivos"
 import { resolverEntidadesPorGuids } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
@@ -19,14 +16,15 @@ import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-co
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
 import {
+  ApsTranslationStatus,
   EstadoProcesamientoIfc,
+  FormatoArchivo3d,
   type ColoresPorEstado,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
 
 interface ViewerHandle {
-  loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
   applyGhost: (visibleGuids: string[] | null) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
@@ -92,40 +90,61 @@ function ModeloEjecucionContent() {
   const proyectoIdRef = useRef<string | null>(null)
   proyectoIdRef.current = proyectoActivo?.id ?? null
 
-  // Init del viewer — depende de proyectoActivo Y de que el contenedor esté
-  // efectivamente montado en el DOM. Ambas condiciones triggerean el effect.
+  // Init + carga del viewer — todo en una sola effect. Cuando cambia el archivo
+  // disponemos el viewer viejo y montamos uno nuevo del formato correcto.
+  // IFC → @thatopen/components; NWD → Autodesk Viewer.
   useEffect(() => {
-    if (!proyectoActivo) return
-    if (!containerEl) return
+    if (!proyectoActivo || !archivo || !containerEl) return
+    // Esperar a que cada pipeline esté listo según el formato.
+    if (archivo.formatoArchivo === FormatoArchivo3d.Ifc
+        && archivo.estadoProcesamiento !== EstadoProcesamientoIfc.Completado) return
+    if (archivo.formatoArchivo === FormatoArchivo3d.Nwd
+        && archivo.apsTranslationStatus !== ApsTranslationStatus.Completado) return
+
     let cancelled = false
-    const container = containerEl
+    setViewError(null)
+    setLoadingView(true)
 
     ;(async () => {
-      const { createViewer } = await import("@/features/modelo-3d/viewer")
-      if (cancelled) return
-      const handle = await createViewer(container, {
-        onPick: async (guid) => {
-          if (guid === null) {
-            setEntidadSeleccionada(null)
-            return
-          }
-          const archivoActivo = archivoActualIdRef.current
-          const proyId = proyectoIdRef.current
-          if (!archivoActivo || !proyId) return
-          setResolviendoPick(true)
-          try {
-            const entidades = await resolverEntidadesPorGuids(proyId, archivoActivo, [guid])
-            setEntidadSeleccionada(entidades[0] ?? null)
-          } catch (e) {
-            setViewError((e as Error).message)
-          } finally {
-            setResolviendoPick(false)
-          }
-        },
-      })
-      if (cancelled) { handle.dispose(); return }
-      viewerRef.current = handle
-      setViewerReady(true)
+      try {
+        // Dispose viewer previo.
+        viewerRef.current?.dispose()
+        viewerRef.current = null
+        setViewerReady(false)
+        setArchivoCargadoId(null)
+
+        const { createUnifiedViewer } = await import("@/features/modelo-3d/unified-viewer")
+        if (cancelled) return
+        const handle = await createUnifiedViewer(containerEl, archivo, proyectoActivo.id, {
+          onPick: async (guid) => {
+            if (guid === null) { setEntidadSeleccionada(null); return }
+            const archivoActivo = archivoActualIdRef.current
+            const proyId = proyectoIdRef.current
+            if (!archivoActivo || !proyId) return
+            setResolviendoPick(true)
+            try {
+              const entidades = await resolverEntidadesPorGuids(proyId, archivoActivo, [guid])
+              setEntidadSeleccionada(entidades[0] ?? null)
+            } catch (e) {
+              setViewError((e as Error).message)
+            } finally {
+              setResolviendoPick(false)
+            }
+          },
+          onProgress: (msg) => { if (!cancelled) setPhase(msg) },
+        })
+        if (cancelled) { handle.dispose(); return }
+        viewerRef.current = handle
+        setViewerReady(true)
+        setArchivoCargadoId(archivo.id)
+      } catch (e) {
+        if (!cancelled) {
+          setViewError((e as Error).message)
+          setPhase("")
+        }
+      } finally {
+        if (!cancelled) setLoadingView(false)
+      }
     })()
 
     return () => {
@@ -135,51 +154,10 @@ function ModeloEjecucionContent() {
       setViewerReady(false)
       setArchivoCargadoId(null)
     }
-  }, [proyectoActivo?.id, containerEl])
-
-  // Auto-cargar el archivo principal cuando ya está listo y el viewer también.
-  useEffect(() => {
-    if (!viewerReady || !archivo) return
-    if (archivo.estadoProcesamiento !== EstadoProcesamientoIfc.Completado) return
-    if (archivoCargadoId === archivo.id) return
-    if (loadingView) return
-
-    void cargarArchivo(archivo)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewerReady, archivo, archivoCargadoId])
-
-  async function cargarArchivo(a: ProyectoIfcArchivo) {
-    if (!viewerRef.current || !proyectoActivo) return
-    setViewError(null)
-    setLoadingView(true)
-    try {
-      setPhase("Descargando archivo…")
-      const ab = await downloadIfcBuffer(proyectoActivo.id, a.id, (p) => {
-        if (p.via === "cache") {
-          setPhase("Cargando desde caché local…")
-          return
-        }
-        const mb = Math.round((p.loaded / (1024 * 1024)) * 10) / 10
-        const totalMb = p.total ? Math.round((p.total / (1024 * 1024)) * 10) / 10 : null
-        const pct = p.total ? Math.round((p.loaded / p.total) * 100) : null
-        setPhase(
-          totalMb !== null
-            ? `Descargando archivo… ${mb} / ${totalMb} MB (${pct}%)`
-            : `Descargando archivo… ${mb} MB`
-        )
-      }, a.tamanioBytes)
-
-      setPhase("Parseando IFC (puede tardar varios segundos)…")
-      await viewerRef.current.loadIfc(new Uint8Array(ab), a.nombre)
-      setPhase("")
-      setArchivoCargadoId(a.id)
-    } catch (e) {
-      setViewError((e as Error).message)
-      setPhase("")
-    } finally {
-      setLoadingView(false)
-    }
-  }
+  }, [
+    proyectoActivo?.id, containerEl, archivo?.id, archivo?.formatoArchivo,
+    archivo?.estadoProcesamiento, archivo?.apsTranslationStatus,
+  ])
 
   async function seleccionarEntidadDesdeListado(entidad: ProyectoIfcEntidad) {
     setEntidadSeleccionada(entidad)
@@ -234,20 +212,36 @@ function ModeloEjecucionContent() {
     )
   }
 
-  // Si el IFC principal todavía se está procesando, mostramos progreso.
-  if (archivo.estadoProcesamiento !== EstadoProcesamientoIfc.Completado) {
+  // Si el archivo principal todavía se está procesando (xbim para IFC, APS
+  // Model Derivative para NWD), mostramos progreso.
+  const procesandoIfc = archivo.formatoArchivo === FormatoArchivo3d.Ifc
+    && archivo.estadoProcesamiento !== EstadoProcesamientoIfc.Completado
+  const procesandoAps = archivo.formatoArchivo === FormatoArchivo3d.Nwd
+    && archivo.apsTranslationStatus !== ApsTranslationStatus.Completado
+  const enError = (archivo.formatoArchivo === FormatoArchivo3d.Ifc
+        && archivo.estadoProcesamiento === EstadoProcesamientoIfc.Error)
+    || (archivo.formatoArchivo === FormatoArchivo3d.Nwd
+        && archivo.apsTranslationStatus === ApsTranslationStatus.Error)
+
+  if (procesandoIfc || procesandoAps) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4">
         <div className="max-w-md w-full rounded-lg border border-blue-200 bg-blue-50 p-6 text-center space-y-3">
           <div className="flex items-center justify-center">
-            {archivo.estadoProcesamiento === EstadoProcesamientoIfc.Error
+            {enError
               ? <AlertTriangle className="h-10 w-10 text-red-500" />
               : <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />}
           </div>
           <h2 className="text-base font-semibold text-gray-800">{archivo.nombre}</h2>
-          {archivo.estadoProcesamiento === EstadoProcesamientoIfc.Error ? (
+          {enError ? (
             <p className="text-sm text-red-700">
-              {archivo.errorProcesamiento ?? "El procesamiento falló."}
+              {archivo.errorProcesamiento ?? archivo.apsTranslationError ?? "El procesamiento falló."}
+            </p>
+          ) : archivo.formatoArchivo === FormatoArchivo3d.Nwd ? (
+            <p className="text-sm text-blue-700">
+              Traduciendo NWD a SVF2 con Autodesk
+              {archivo.apsTranslationProgress != null && ` (${archivo.apsTranslationProgress}%)`} —
+              puede tardar varios minutos. La página se actualiza sola cuando termina.
             </p>
           ) : (
             <p className="text-sm text-blue-700">

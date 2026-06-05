@@ -88,3 +88,44 @@ export function startApsLogin(returnTo?: string) {
   const url = `/api/aps/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`
   window.location.href = url
 }
+
+export interface UploadNwdInput {
+  proyectoId: string
+  nombre: string
+  disciplina?: string
+  marcarComoPrincipal: boolean
+  archivo: File
+}
+
+export function useUploadNwd(proyectoId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: UploadNwdInput) => {
+      const fd = new FormData()
+      fd.append("proyectoId", input.proyectoId)
+      fd.append("nombre", input.nombre)
+      if (input.disciplina) fd.append("disciplina", input.disciplina)
+      fd.append("marcarComoPrincipal", String(input.marcarComoPrincipal))
+      fd.append("archivo", input.archivo)
+      const res = await fetch(`/api/aps/upload-nwd`, { method: "POST", body: fd })
+      const body = await res.json().catch(() => ({ message: "Error al subir NWD" }))
+      if (!res.ok) throw new Error(body?.message ?? `HTTP ${res.status}`)
+      return body
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["proyectos", proyectoId, "ifc"] })
+    },
+  })
+}
+
+/**
+ * Trae el token para el Autodesk Viewer. Lo llama el viewer en runtime para
+ * refrescar cuando está por vencer. Devuelve { token, expiresIn }.
+ */
+export async function fetchViewerToken(): Promise<{ token: string; expiresIn: number }> {
+  const res = await apiClient.get<ApiResponse<{ token: string; expiresIn: number }>>(
+    "/api/aps/viewer-token",
+  )
+  if (!res?.data?.token) throw new Error("No se pudo obtener el token del viewer.")
+  return res.data
+}
