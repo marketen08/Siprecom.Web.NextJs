@@ -157,7 +157,7 @@ export function FiltrosVisorPanel({
             modo={resolverModoNoVinculadas(filtro)}
             onChange={(modo) => onChange({
               ...filtro,
-              incluirSinVincular: modo === "mostrar",
+              incluirSinVincular: false,
               ocultarNoVinculadas: modo === "ocultar",
             })}
           />
@@ -250,21 +250,17 @@ function ChecklistMultiNum({
 }
 
 // ─── Radio "Entidades sin vincular" ────────────────────────────────────────
-// Las 3 opciones son mutuamente excluyentes y mapean al par de flags del DTO
-// (incluirSinVincular, ocultarNoVinculadas).
+// Sólo 2 modos: atenuar (default) u ocultar.
 
-type ModoNoVinculadas = "mostrar" | "atenuar" | "ocultar"
+type ModoNoVinculadas = "atenuar" | "ocultar"
 
 function resolverModoNoVinculadas(f: FiltroVisor): ModoNoVinculadas {
-  if (f.ocultarNoVinculadas) return "ocultar"
-  if (f.incluirSinVincular) return "mostrar"
-  return "atenuar"
+  return f.ocultarNoVinculadas ? "ocultar" : "atenuar"
 }
 
 const OPCIONES_NO_VINCULADAS: { id: ModoNoVinculadas; label: string; hint: string }[] = [
-  { id: "atenuar", label: "Atenuar",  hint: "Default — semi-transparentes" },
-  { id: "mostrar", label: "Mostrar",  hint: "Visibles a color completo" },
-  { id: "ocultar", label: "Ocultar",  hint: "Invisibles totalmente" },
+  { id: "atenuar", label: "Atenuar", hint: "Default — semi-transparentes" },
+  { id: "ocultar", label: "Ocultar", hint: "Invisibles totalmente" },
 ]
 
 function RadioNoVinculadas({
