@@ -26,7 +26,7 @@ import {
 
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
-  applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   dispose: () => void
 }
@@ -74,7 +74,7 @@ function ModeloEjecucionContent() {
     proyectoId: proyectoActivo?.id ?? null,
     archivoId: archivo?.id ?? null,
     archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
-    applyGhost: (guids) => viewerRef.current?.applyGhost(guids) ?? Promise.resolve(),
+    applyGhost: (guids, opts) => viewerRef.current?.applyGhost(guids, opts) ?? Promise.resolve(),
   })
 
   const coloresEstado = useColoresPorEstadoToggle({

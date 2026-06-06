@@ -41,7 +41,7 @@ import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 interface ViewerHandle {
   loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
-  applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   dispose: () => void
 }
@@ -92,7 +92,7 @@ function ModeloPageContent() {
     proyectoId: id,
     archivoId: actualId,
     archivoCargado: archivoCargadoId !== null && archivoCargadoId === actualId,
-    applyGhost: (guids) => viewerRef.current?.applyGhost(guids) ?? Promise.resolve(),
+    applyGhost: (guids, opts) => viewerRef.current?.applyGhost(guids, opts) ?? Promise.resolve(),
   })
 
   const coloresEstado = useColoresPorEstadoToggle({

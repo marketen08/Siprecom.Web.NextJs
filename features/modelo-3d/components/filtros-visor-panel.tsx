@@ -152,34 +152,15 @@ export function FiltrosVisorPanel({
           />
         </Seccion>
 
-        <Seccion titulo="Opciones" defaultOpen>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={filtro.ocultarNoVinculadas}
-              onChange={(e) => onChange({
-                ...filtro,
-                ocultarNoVinculadas: e.target.checked,
-                // Mutuamente excluyentes: si ocultamos las no-vinculadas,
-                // no tiene sentido también "mantenerlas en foco".
-                incluirSinVincular: e.target.checked ? false : filtro.incluirSinVincular,
-              })}
-              className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-xs text-gray-700">Ocultar entidades sin vincular</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm cursor-pointer mt-1.5">
-            <input
-              type="checkbox"
-              checked={filtro.incluirSinVincular}
-              disabled={filtro.ocultarNoVinculadas}
-              onChange={(e) => onChange({ ...filtro, incluirSinVincular: e.target.checked })}
-              className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
-            />
-            <span className={`text-xs ${filtro.ocultarNoVinculadas ? "text-gray-400" : "text-gray-700"}`}>
-              Mantener en foco las entidades sin vincular
-            </span>
-          </label>
+        <Seccion titulo="Entidades sin vincular" defaultOpen>
+          <RadioNoVinculadas
+            modo={resolverModoNoVinculadas(filtro)}
+            onChange={(modo) => onChange({
+              ...filtro,
+              incluirSinVincular: modo === "mostrar",
+              ocultarNoVinculadas: modo === "ocultar",
+            })}
+          />
         </Seccion>
       </div>
     </div>
@@ -260,6 +241,60 @@ function ChecklistMultiNum({
                 style={{ backgroundColor: it.color }}
               />
               <span>{it.label}</span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+// ─── Radio "Entidades sin vincular" ────────────────────────────────────────
+// Las 3 opciones son mutuamente excluyentes y mapean al par de flags del DTO
+// (incluirSinVincular, ocultarNoVinculadas).
+
+type ModoNoVinculadas = "mostrar" | "atenuar" | "ocultar"
+
+function resolverModoNoVinculadas(f: FiltroVisor): ModoNoVinculadas {
+  if (f.ocultarNoVinculadas) return "ocultar"
+  if (f.incluirSinVincular) return "mostrar"
+  return "atenuar"
+}
+
+const OPCIONES_NO_VINCULADAS: { id: ModoNoVinculadas; label: string; hint: string }[] = [
+  { id: "atenuar", label: "Atenuar",  hint: "Default — semi-transparentes" },
+  { id: "mostrar", label: "Mostrar",  hint: "Visibles a color completo" },
+  { id: "ocultar", label: "Ocultar",  hint: "Invisibles totalmente" },
+]
+
+function RadioNoVinculadas({
+  modo, onChange,
+}: {
+  modo: ModoNoVinculadas
+  onChange: (m: ModoNoVinculadas) => void
+}) {
+  return (
+    <ul className="-mx-1 space-y-0.5">
+      {OPCIONES_NO_VINCULADAS.map((opt) => {
+        const checked = modo === opt.id
+        return (
+          <li key={opt.id}>
+            <button
+              type="button"
+              onClick={() => onChange(opt.id)}
+              className={`w-full text-left flex items-center gap-2 px-1.5 py-1 rounded text-xs transition-colors ${
+                checked ? "bg-blue-50 text-blue-800" : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className={`flex items-center justify-center h-4 w-4 rounded-full border ${
+                checked ? "border-blue-600" : "border-gray-300"
+              }`}>
+                {checked && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+              </span>
+              <span className="flex flex-col">
+                <span className="font-medium">{opt.label}</span>
+                <span className="text-[10px] text-gray-500">{opt.hint}</span>
+              </span>
             </button>
           </li>
         )

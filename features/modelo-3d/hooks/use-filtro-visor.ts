@@ -14,8 +14,12 @@ interface Options {
    * quedar visibles. Pasale `null` para limpiar el ghost (todo vuelve a su
    * color original). La función puede retornar null/undefined si el viewer
    * aún no está disponible — el hook ignora el error.
+   *
+   * El segundo argumento `opts.hide` controla cómo se ven las entidades fuera
+   * del filtro: true = invisibles, false (default) = semi-transparentes.
+   * El hook lo deriva de `filtro.ocultarNoVinculadas`.
    */
-  applyGhost: (visibleGuids: string[] | null) => Promise<void> | void
+  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void> | void
 }
 
 /**
@@ -58,7 +62,10 @@ export function useFiltroVisor({
         const r = await filtrarEntidades(proyectoId, archivoId, filtro)
         if (cancelled) return
         setResultado(r)
-        await applyGhost(r.guidsCoinciden)
+        // Cuando el modo "ocultar no vinculadas" está activo, le pedimos al
+        // viewer que oculte los no-isolated en vez de atenuarlos. El backend
+        // ya excluye las no-vinculadas de los GUIDs cuando ese flag está set.
+        await applyGhost(r.guidsCoinciden, { hide: filtro.ocultarNoVinculadas })
       } catch (e) {
         if (!cancelled) setError((e as Error).message)
       } finally {

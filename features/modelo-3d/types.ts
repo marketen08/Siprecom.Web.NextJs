@@ -124,11 +124,15 @@ export interface FiltroResultado {
 }
 
 export function isFiltroVacio(f: FiltroVisor): boolean {
+  // Nota: incluirSinVincular NO cuenta como filtro por sí solo. Por sí mismo no
+  // restringe nada (mostrar las sin-vincular = mostrar todo). Solo tiene efecto
+  // cuando hay otra dimensión activa (ahí decide si las sin-vincular se incluyen
+  // al set de resultados o no). En cambio ocultarNoVinculadas SÍ es un filtro:
+  // si está activo, oculta entidades aunque no haya otra dimensión.
   return f.sistemaIds.length === 0
     && f.subSistemaIds.length === 0
     && f.especialidadIds.length === 0
     && f.estadosVisuales.length === 0
-    && !f.incluirSinVincular
     && !f.ocultarNoVinculadas
 }
 

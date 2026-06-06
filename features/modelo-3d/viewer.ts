@@ -29,7 +29,11 @@ export interface ViewerHandle {
    * material original. Pasá null para limpiar el ghost (todo vuelve a colores
    * originales).
    */
-  applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  // El parámetro `opts.hide` lo respeta el viewer APS (oculta vs atenúa). El
+  // IFC ignora ese flag por ahora — su ghost siempre se ve atenuado (color
+  // gris + opacidad). Si en el futuro queremos "ocultar" en IFC, se cambia
+  // setOpacity a 0 o se usa visibility de @thatopen/components.
+  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   /**
    * Pinta el modelo con colores semáforo según el estado del Elemento vinculado:
    * verde=completado, amarillo=en curso, gris=no iniciado, rojo=rechazado. Las
@@ -252,7 +256,10 @@ export async function createViewer(
     colorPorEstadoActive = true
   }
 
-  async function applyGhost(visibleGuids: string[] | null): Promise<void> {
+  async function applyGhost(
+    visibleGuids: string[] | null,
+    _opts?: { hide?: boolean },  // IFC ignora — siempre atenúa con gris+opacidad
+  ): Promise<void> {
     if (!currentModel || disposed) return
 
     // null o lista vacía con flag "sin filtro" → limpiar ghost.

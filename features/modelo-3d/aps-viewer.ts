@@ -45,7 +45,7 @@ function loadSdk(): Promise<void> {
 export interface ApsViewerHandle {
   loadModel: (urn: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
-  applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   dispose: () => void
 }
@@ -204,17 +204,24 @@ export async function createApsViewer(
     viewer.fitToView([dbId])
   }
 
-  async function applyGhost(visibleGuids: string[] | null): Promise<void> {
+  async function applyGhost(
+    visibleGuids: string[] | null,
+    opts?: { hide?: boolean },
+  ): Promise<void> {
     if (!currentModel) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
+    // Si hide=true → los no-isolated quedan invisibles. Si false (default) →
+    // quedan en ghost (semi-transparentes) por el comportamiento nativo del viewer.
+    const hideMode = opts?.hide === true
 
     // Sin filtro: limpiar isolation + theming, mostrar todo.
     if (visibleGuids === null) {
       m.clearThemingColors?.()
+      // Restaurar ghosting al default (true) → sin filtro el viewer vuelve a
+      // su estado normal con todos los elementos en su color.
+      try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
       viewer.isolate([])
-      // Si los colores por estado están activos, re-pintarlos sobre TODO el
-      // modelo (sin isolate ya).
       if (lastBuckets) {
         await aplicarBucketsRespetandoIsolate(lastBuckets)
       } else {
@@ -235,15 +242,21 @@ export async function createApsViewer(
         "[APS viewer] applyGhost: ninguna entidad mapeada — mostrando modelo completo.",
       )
       m.clearThemingColors?.()
+      try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
       viewer.isolate([])
       if (lastBuckets) await aplicarBucketsRespetandoIsolate(lastBuckets)
       else viewer.impl.invalidate(true, true, true)
       return
     }
 
-    // 1) Aislar lo filtrado. `viewer.isolate(dbIds)` atenúa el resto vía el
-    //    ghosting nativo del viewer — no los oculta, los deja semi-transparentes.
+    // 1) Aislar lo filtrado.
+    //    - hide=true  → setGhosting(false): los no-isolated quedan INVISIBLES.
+    //    - hide=false → setGhosting(true): los no-isolated quedan en ghost
+    //      (semi-transparentes/atenuados) — el comportamiento nativo del viewer.
     m.clearThemingColors?.()
+    try {
+      (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(!hideMode)
+    } catch { /* ignore */ }
     viewer.isolate(dbIds)
 
     // 2) Aplicar colores:

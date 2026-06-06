@@ -26,7 +26,12 @@ import {
  */
 export interface UnifiedViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
-  applyGhost: (visibleGuids: string[] | null) => Promise<void>
+  /**
+   * Aplica el ghost a las entidades visibles. Si `opts.hide` es true, las no
+   * visibles quedan completamente invisibles. Si es false (default), quedan
+   * semi-transparentes (efecto fantasma del viewer).
+   */
+  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   dispose: () => void
 }
