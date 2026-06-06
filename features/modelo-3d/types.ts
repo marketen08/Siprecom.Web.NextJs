@@ -100,6 +100,13 @@ export interface FiltroVisor {
   estadosVisuales: number[]
   /** Si es true, también deja "en foco" las entidades sin Elemento vinculado. */
   incluirSinVincular: boolean
+  /**
+   * Si es true, oculta las entidades sin Elemento vinculado, independiente del
+   * resto del filtro. Sirve para limpiar "ruido" CAD (líneas, agrupadores) que
+   * no son items de tracking. Cuando es true, isFiltroVacio devuelve false →
+   * el viewer aplica el ghost aunque no haya otros criterios.
+   */
+  ocultarNoVinculadas: boolean
 }
 
 /** Valores del enum EstadoVisualElemento del backend. */
@@ -122,6 +129,7 @@ export function isFiltroVacio(f: FiltroVisor): boolean {
     && f.especialidadIds.length === 0
     && f.estadosVisuales.length === 0
     && !f.incluirSinVincular
+    && !f.ocultarNoVinculadas
 }
 
 export function filtroVacio(): FiltroVisor {
@@ -131,6 +139,7 @@ export function filtroVacio(): FiltroVisor {
     especialidadIds: [],
     estadosVisuales: [],
     incluirSinVincular: false,
+    ocultarNoVinculadas: false,
   }
 }
 

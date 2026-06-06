@@ -109,6 +109,10 @@ export async function createApsViewer(
   // property tables en cada operación.
   const guidToDbId = new Map<string, number>()
   const dbIdToGuid = new Map<number, string>()
+  // Último set de buckets de colores por estado aplicado. Lo guardamos para
+  // poder re-aplicarlo cuando el filtro (isolate) cambia — sino los colores
+  // pintados antes del filtro se pierden o quedan en dbIds incorrectos.
+  let lastBuckets: BucketsPorEstado | null = null
 
   async function loadModel(urn: string): Promise<{ totalItems: number }> {
     if (disposed) throw new Error("Viewer dispuesto.")
@@ -209,7 +213,13 @@ export async function createApsViewer(
     if (visibleGuids === null) {
       m.clearThemingColors?.()
       viewer.isolate([])
-      viewer.impl.invalidate(true, true, true)
+      // Si los colores por estado están activos, re-pintarlos sobre TODO el
+      // modelo (sin isolate ya).
+      if (lastBuckets) {
+        await aplicarBucketsRespetandoIsolate(lastBuckets)
+      } else {
+        viewer.impl.invalidate(true, true, true)
+      }
       return
     }
 
@@ -226,51 +236,88 @@ export async function createApsViewer(
       )
       m.clearThemingColors?.()
       viewer.isolate([])
-      viewer.impl.invalidate(true, true, true)
+      if (lastBuckets) await aplicarBucketsRespetandoIsolate(lastBuckets)
+      else viewer.impl.invalidate(true, true, true)
       return
     }
 
-    // Usamos viewer.isolate(dbIds) — método nativo de Autodesk Viewer que:
-    //   - Muestra los dbIds con su color original
-    //   - Atenúa todo lo demás vía el ghosting interno del viewer
-    //   - Es O(1) en lugar de O(N) — vs. pintar 800K objetos uno a uno con
-    //     setThemingColor, que es prohibitivo en modelos grandes.
-    //
-    // Adicionalmente pintamos los visibles con un highlight amarillo claro para
-    // que destaquen visualmente en un modelo de cientos de miles de primitivas
-    // CAD (sino los pocos vessels se pierden en el océano de líneas/arcos).
+    // 1) Aislar lo filtrado. `viewer.isolate(dbIds)` atenúa el resto vía el
+    //    ghosting nativo del viewer — no los oculta, los deja semi-transparentes.
     m.clearThemingColors?.()
     viewer.isolate(dbIds)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
-    const highlightVec = new THREE.Vector4(
-      COLOR_HIGHLIGHT[0], COLOR_HIGHLIGHT[1], COLOR_HIGHLIGHT[2], 0.6,
-    )
-    for (const dbId of dbIds) m.setThemingColor(dbId, highlightVec)
-    viewer.impl.invalidate(true, true, true)
+    // 2) Aplicar colores:
+    //    - Si los colores por estado están ACTIVOS, re-pintar SOLO los dbIds
+    //      que están dentro del isolate (los de los buckets se filtran por
+    //      ese set). Así no quedan colores "fantasma" en los dbIds atenuados.
+    //    - Si NO están activos, pintar los filtrados con highlight amarillo
+    //      para que destaquen en modelos grandes (muchísimas primitivas CAD).
+    if (lastBuckets) {
+      await aplicarBucketsRespetandoIsolate(lastBuckets)
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
+      const highlightVec = new THREE.Vector4(
+        COLOR_HIGHLIGHT[0], COLOR_HIGHLIGHT[1], COLOR_HIGHLIGHT[2], 0.6,
+      )
+      for (const dbId of dbIds) m.setThemingColor(dbId, highlightVec)
+      viewer.impl.invalidate(true, true, true)
+    }
   }
 
   async function applyColorPorEstado(buckets: BucketsPorEstado | null): Promise<void> {
     if (!currentModel) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
+    lastBuckets = buckets
+
     if (buckets === null) {
       m.clearThemingColors?.()
       viewer.impl.invalidate(true, true, true)
       return
     }
+    await aplicarBucketsRespetandoIsolate(buckets)
+  }
+
+  /**
+   * Pinta los 4 buckets de colores por estado, restringiendo a los dbIds que
+   * están dentro del isolate activo (si lo hay). Si no hay isolate activo,
+   * pinta todos los dbIds de cada bucket.
+   *
+   * Esto es lo que evita que cuando filtrás por "Completados" veas también
+   * colores "amarillo" y "rojo" de los atenuados — esos no se pintan porque
+   * NO están en el set isolated.
+   */
+  async function aplicarBucketsRespetandoIsolate(buckets: BucketsPorEstado): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = currentModel
+    if (!m) return
+
+    // Sondear el isolate activo. Si está vacío o no hay isolate, pintamos todo.
+    let isolatedSet: Set<number> | null = null
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const isolated = (viewer as any).getIsolatedNodes?.() ?? []
+      if (Array.isArray(isolated) && isolated.length > 0) {
+        isolatedSet = new Set(isolated as number[])
+      }
+    } catch { /* best-effort */ }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
-    const set = (ids: number[], color: number[]) => {
+    const setColor = (ids: number[], color: number[]) => {
+      const filteredIds = isolatedSet
+        ? ids.filter((id) => isolatedSet!.has(id))
+        : ids
       const v4 = new THREE.Vector4(color[0], color[1], color[2], color[3])
-      for (const id of ids) m.setThemingColor(id, v4)
+      for (const id of filteredIds) m.setThemingColor(id, v4)
     }
+
     m.clearThemingColors?.()
-    set(guidsToIds(buckets.noIniciados), COLOR_NO_INICIADO)
-    set(guidsToIds(buckets.enCurso),     COLOR_EN_CURSO)
-    set(guidsToIds(buckets.completados), COLOR_COMPLETADO)
-    set(guidsToIds(buckets.rechazados),  COLOR_RECHAZADO)
+    setColor(guidsToIds(buckets.noIniciados), COLOR_NO_INICIADO)
+    setColor(guidsToIds(buckets.enCurso),     COLOR_EN_CURSO)
+    setColor(guidsToIds(buckets.completados), COLOR_COMPLETADO)
+    setColor(guidsToIds(buckets.rechazados),  COLOR_RECHAZADO)
     viewer.impl.invalidate(true, true, true)
   }
 
@@ -286,6 +333,7 @@ export async function createApsViewer(
   function dispose() {
     if (disposed) return
     disposed = true
+    lastBuckets = null
     try {
       viewer.removeEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, onSelectionChanged)
       viewer.finish()

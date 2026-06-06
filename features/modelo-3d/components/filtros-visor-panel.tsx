@@ -152,15 +152,33 @@ export function FiltrosVisorPanel({
           />
         </Seccion>
 
-        <Seccion titulo="Opciones">
+        <Seccion titulo="Opciones" defaultOpen>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
-              checked={filtro.incluirSinVincular}
-              onChange={(e) => onChange({ ...filtro, incluirSinVincular: e.target.checked })}
+              checked={filtro.ocultarNoVinculadas}
+              onChange={(e) => onChange({
+                ...filtro,
+                ocultarNoVinculadas: e.target.checked,
+                // Mutuamente excluyentes: si ocultamos las no-vinculadas,
+                // no tiene sentido también "mantenerlas en foco".
+                incluirSinVincular: e.target.checked ? false : filtro.incluirSinVincular,
+              })}
               className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
-            <span className="text-xs text-gray-700">Mantener en foco las entidades sin vincular</span>
+            <span className="text-xs text-gray-700">Ocultar entidades sin vincular</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer mt-1.5">
+            <input
+              type="checkbox"
+              checked={filtro.incluirSinVincular}
+              disabled={filtro.ocultarNoVinculadas}
+              onChange={(e) => onChange({ ...filtro, incluirSinVincular: e.target.checked })}
+              className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
+            />
+            <span className={`text-xs ${filtro.ocultarNoVinculadas ? "text-gray-400" : "text-gray-700"}`}>
+              Mantener en foco las entidades sin vincular
+            </span>
           </label>
         </Seccion>
       </div>
