@@ -55,6 +55,7 @@ export function ProyectoForm({
       contratistaId: defaultValues?.contratistaId ?? "",
       estado: defaultValues?.estado ?? 1,
       observaciones: defaultValues?.observaciones ?? "",
+      apsTagProperties: defaultValues?.apsTagProperties ?? "",
       proyectoPlantillaId: "",
       clonar: {
         tareas: true,
@@ -144,6 +145,35 @@ export function ProyectoForm({
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="apsTagProperties"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Property names para matching de TAG (modelos APS)
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="AutoCad.Tag,CADWorx.Line Number,AutoCad.Line Number"
+                    disabled={isPending}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  CSV de property names del modelo NWD/RVT a usar para extraer el TAG
+                  del Elemento. El extractor prueba en orden y usa el primero con
+                  valor. Dejar vacío para usar los defaults Plant 3D.
+                </p>
                 <FormMessage />
               </FormItem>
             )}

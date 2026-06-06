@@ -157,7 +157,6 @@ export function FiltrosVisorPanel({
             modo={resolverModoNoVinculadas(filtro)}
             onChange={(modo) => onChange({
               ...filtro,
-              incluirSinVincular: false,
               ocultarNoVinculadas: modo === "ocultar",
             })}
           />

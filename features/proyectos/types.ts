@@ -36,6 +36,12 @@ export interface Proyecto {
   /** Calendario laboral: lun-vie son siempre laborables. Estos flags habilitan sábado y/o domingo. */
   incluirSabado: boolean
   incluirDomingo: boolean
+  /**
+   * Lista CSV de property names a probar como TAG al procesar archivos APS
+   * (NWD/RVT). Solo aplica si el proyecto importó un modelo Plant 3D. Si está
+   * vacío, el extractor usa el default: "AutoCad.Tag,CADWorx.Line Number,AutoCad.Line Number".
+   */
+  apsTagProperties: string | null
   createdAt: string
   createdByNombre: string
   updatedAt: string
@@ -67,6 +73,7 @@ export interface ProyectoUpdateInput {
   contratistaId: string
   estado: EstadoProyecto
   observaciones: string
+  apsTagProperties?: string | null
 }
 
 export interface PagedResponse<T> {

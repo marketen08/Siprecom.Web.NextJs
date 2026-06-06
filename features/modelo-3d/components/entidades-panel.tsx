@@ -53,7 +53,7 @@ export function EntidadesPanel({
     filtroVisor?.subSistemaIds.join(","),
     filtroVisor?.especialidadIds.join(","),
     filtroVisor?.estadosVisuales.join(","),
-    filtroVisor?.incluirSinVincular,
+    filtroVisor?.ocultarNoVinculadas,
   ])
 
   const { data, isLoading, isFetching } = useGetIfcEntidades(

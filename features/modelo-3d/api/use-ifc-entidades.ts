@@ -45,7 +45,6 @@ export function useGetIfcEntidades(
         dimensiones.subSistemaIds.forEach((id) => params.append("subSistemaIds", id))
         dimensiones.especialidadIds.forEach((id) => params.append("especialidadIds", id))
         dimensiones.estadosVisuales.forEach((s) => params.append("estadosVisuales", String(s)))
-        if (dimensiones.incluirSinVincular) params.set("incluirSinVincular", "true")
       }
       return apiClient.get<ApiResponse<ProyectoIfcEntidadesPage>>(
         `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades?${params.toString()}`,

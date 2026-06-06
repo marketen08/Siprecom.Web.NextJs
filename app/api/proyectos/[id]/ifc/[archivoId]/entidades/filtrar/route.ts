@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
 // POST /api/proyectos/[id]/ifc/[archivoId]/entidades/filtrar
-// Body: { sistemaIds: [], subSistemaIds: [], especialidadIds: [], incluirSinVincular }
+// Body: { sistemaIds: [], subSistemaIds: [], especialidadIds: [], estadosVisuales: [], ocultarNoVinculadas }
 //
 // Tipo de context sin RouteContext<> porque la ruta es nueva y los types
 // generados por Next no la tienen todavía. Cuando el dev server la registre,

@@ -98,8 +98,6 @@ export interface FiltroVisor {
   especialidadIds: string[]
   /** Estados visuales del Elemento (1..4) — ver EstadoVisualIds. */
   estadosVisuales: number[]
-  /** Si es true, también deja "en foco" las entidades sin Elemento vinculado. */
-  incluirSinVincular: boolean
   /**
    * Si es true, oculta las entidades sin Elemento vinculado, independiente del
    * resto del filtro. Sirve para limpiar "ruido" CAD (líneas, agrupadores) que
@@ -124,11 +122,6 @@ export interface FiltroResultado {
 }
 
 export function isFiltroVacio(f: FiltroVisor): boolean {
-  // Nota: incluirSinVincular NO cuenta como filtro por sí solo. Por sí mismo no
-  // restringe nada (mostrar las sin-vincular = mostrar todo). Solo tiene efecto
-  // cuando hay otra dimensión activa (ahí decide si las sin-vincular se incluyen
-  // al set de resultados o no). En cambio ocultarNoVinculadas SÍ es un filtro:
-  // si está activo, oculta entidades aunque no haya otra dimensión.
   return f.sistemaIds.length === 0
     && f.subSistemaIds.length === 0
     && f.especialidadIds.length === 0
@@ -142,7 +135,6 @@ export function filtroVacio(): FiltroVisor {
     subSistemaIds: [],
     especialidadIds: [],
     estadosVisuales: [],
-    incluirSinVincular: false,
     ocultarNoVinculadas: false,
   }
 }
