@@ -33,6 +33,12 @@ export interface UnifiedViewerHandle {
    */
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
+  /**
+   * Notifica al viewer que su contenedor cambió de tamaño. Lo llaman las
+   * páginas vía ResizeObserver para evitar que el click se desfase cuando
+   * un panel lateral empuja el canvas.
+   */
+  resize: () => void
   dispose: () => void
 }
 

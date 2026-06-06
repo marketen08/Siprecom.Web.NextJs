@@ -28,6 +28,7 @@ interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
+  resize: () => void
   dispose: () => void
 }
 
@@ -158,6 +159,21 @@ function ModeloEjecucionContent() {
     proyectoActivo?.id, containerEl, archivo?.id, archivo?.formatoArchivo,
     archivo?.estadoProcesamiento, archivo?.apsTranslationStatus,
   ])
+
+  // ResizeObserver: cuando el contenedor del viewer cambia de tamaño (por
+  // ejemplo si se abre/cierra el panel de filtros o algún sidebar), notificamos
+  // al viewer para que recalcule su viewport. Sin esto el click queda
+  // desfasado en el eje X — el cursor aparenta apuntar a un objeto pero el
+  // raycast cae sobre otro que está a X píxeles a la derecha (= ancho del
+  // panel que apareció).
+  useEffect(() => {
+    if (!containerEl) return
+    const ro = new ResizeObserver(() => {
+      viewerRef.current?.resize?.()
+    })
+    ro.observe(containerEl)
+    return () => ro.disconnect()
+  }, [containerEl])
 
   async function seleccionarEntidadDesdeListado(entidad: ProyectoIfcEntidad) {
     setEntidadSeleccionada(entidad)

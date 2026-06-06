@@ -43,6 +43,7 @@ interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
+  resize: () => void
   dispose: () => void
 }
 
@@ -149,6 +150,17 @@ function ModeloPageContent() {
       viewerRef.current = null
     }
   }, [id])
+
+  // ResizeObserver: si el contenedor cambia de tamaño (ej. se abre el panel
+  // lateral de filtros), avisarle al viewer que recalcule. Sin esto el click
+  // queda desfasado en el eje X.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => { viewerRef.current?.resize?.() })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [viewerReady])
 
   // Cuando se selecciona una entidad desde el panel inferior, sincronizamos el
   // highlight del viewer.

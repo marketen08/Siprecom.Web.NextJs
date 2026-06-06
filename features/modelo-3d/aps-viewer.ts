@@ -47,6 +47,12 @@ export interface ApsViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
+  /**
+   * Notifica al viewer que su contenedor cambió de tamaño. Recalcula offset y
+   * dimensiones internas — sin esto, los clicks se desfasan cuando el panel
+   * de filtros u otro elemento del layout empuja el canvas.
+   */
+  resize: () => void
   dispose: () => void
 }
 
@@ -395,7 +401,17 @@ export async function createApsViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadModel, highlightByGuid, applyGhost, applyColorPorEstado, dispose }
+  function resize() {
+    if (disposed) return
+    try {
+      // Autodesk Viewer 7+: viewer.resize() recalcula viewport, offset y
+      // proyección. Si por alguna razón ese método no está en esta versión,
+      // el optional chaining lo hace no-op (mejor que romper).
+      (viewer as { resize?: () => void }).resize?.()
+    } catch { /* best-effort */ }
+  }
+
+  return { loadModel, highlightByGuid, applyGhost, applyColorPorEstado, resize, dispose }
 }
 
 /** Convierte un GUID sintético "aps-{dbId}" a dbId numérico. Si no matchea, null. */

@@ -41,6 +41,12 @@ export interface ViewerHandle {
    * volver a los colores originales.
    */
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
+  /**
+   * Notifica al viewer que su contenedor cambió de tamaño. En @thatopen +
+   * three.js esto fuerza al renderer/camera a re-leer las dimensiones del
+   * container (sin esto el click se desfasa cuando un sidebar empuja el canvas).
+   */
+  resize: () => void
   dispose: () => void
 }
 
@@ -342,5 +348,24 @@ export async function createViewer(
     }
   }
 
-  return { loadIfc, highlightByGuid, applyGhost, applyColorPorEstado, dispose }
+  function resize() {
+    if (disposed) return
+    try {
+      // SimpleRenderer escucha el resize de la ventana via su propio listener
+      // interno, pero NO se entera cuando el container cambia de tamaño por
+      // un cambio de layout (sidebar que aparece). Forzamos update leyendo el
+      // tamaño actual y actualizando renderer + cámara.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r: any = world.renderer
+      r?.three?.setSize?.(container.clientWidth, container.clientHeight)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const c: any = world.camera
+      if (c?.three) {
+        c.three.aspect = container.clientWidth / Math.max(container.clientHeight, 1)
+        c.three.updateProjectionMatrix?.()
+      }
+    } catch { /* best-effort */ }
+  }
+
+  return { loadIfc, highlightByGuid, applyGhost, applyColorPorEstado, resize, dispose }
 }
