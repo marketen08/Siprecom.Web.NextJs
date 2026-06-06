@@ -101,6 +101,7 @@ function ModeloPageContent() {
     archivoId: actualId,
     archivoCargado: archivoCargadoId !== null && archivoCargadoId === actualId,
     applyColorPorEstado: (b) => viewerRef.current?.applyColorPorEstado(b) ?? Promise.resolve(),
+    filtro: filtroVisor.filtro,
   })
 
   const archivoActual = actualId

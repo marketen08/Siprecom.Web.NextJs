@@ -83,6 +83,9 @@ function ModeloEjecucionContent() {
     archivoId: archivo?.id ?? null,
     archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
     applyColorPorEstado: (b) => viewerRef.current?.applyColorPorEstado(b) ?? Promise.resolve(),
+    // Si hay filtro de Nivel activo, el backend respeta ese filtro al calcular
+    // el estado de cada Elemento (cuenta solo las tareas de esos niveles).
+    filtro: filtroVisor.filtro,
   })
 
   const archivoActualIdRef = useRef<string | null>(null)

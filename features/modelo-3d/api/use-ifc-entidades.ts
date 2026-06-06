@@ -115,20 +115,30 @@ export async function resolverEntidadesPorGuids(
  * Trae los GUIDs particionados por estado del Elemento vinculado. El visor los
  * usa para pintar cada bucket de un color semáforo. Las entidades sin vínculo
  * no aparecen — mantienen su color IFC original.
+ *
+ * Si se pasa `filtro` con NivelIds poblado, el estado del elemento se calcula
+ * contando SOLO las tareas vinculadas a Tareas de esos niveles. Sirve para que
+ * "Colores por estado" + filtro de Nivel reflejen el avance de la fase filtrada
+ * (ej: precomisionado en verde aunque las de comisionado sigan pendientes).
  */
 export function useColoresPorEstado(
   proyectoId: string | null,
   archivoId: string | null,
   activo: boolean,
+  filtro?: FiltroVisor | null,
 ) {
+  // Solo los nivelIds son lo que cambia la lógica del cálculo en backend hoy.
+  // Si en el futuro respetamos también Sistema/SubSistema/etc, agregar acá.
+  const nivelIds = filtro?.nivelIds ?? []
   return useQuery({
-    queryKey: ["ifc", archivoId, "colores-por-estado"],
+    queryKey: ["ifc", archivoId, "colores-por-estado", nivelIds.join(",")],
     enabled: activo && !!proyectoId && !!archivoId,
     // No staleTime — al activar el toggle queremos data fresca; los estados de
     // ElementoTarea pueden cambiar mucho durante la jornada.
     queryFn: () =>
-      apiClient.get<ApiResponse<ColoresPorEstado>>(
+      apiClient.post<ApiResponse<ColoresPorEstado>>(
         `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-estado`,
+        nivelIds.length > 0 ? { nivelIds } : {},
       ),
   })
 }

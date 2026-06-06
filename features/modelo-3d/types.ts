@@ -96,6 +96,8 @@ export interface FiltroVisor {
   sistemaIds: string[]
   subSistemaIds: string[]
   especialidadIds: string[]
+  /** IDs de Niveles (PRECOMISIONADO/COMISIONADO). Filtra Elementos que tienen al menos una ElementoTarea de esos niveles. */
+  nivelIds: string[]
   /** Estados visuales del Elemento (1..4) — ver EstadoVisualIds. */
   estadosVisuales: number[]
   /**
@@ -125,6 +127,7 @@ export function isFiltroVacio(f: FiltroVisor): boolean {
   return f.sistemaIds.length === 0
     && f.subSistemaIds.length === 0
     && f.especialidadIds.length === 0
+    && f.nivelIds.length === 0
     && f.estadosVisuales.length === 0
     && !f.ocultarNoVinculadas
 }
@@ -134,6 +137,7 @@ export function filtroVacio(): FiltroVisor {
     sistemaIds: [],
     subSistemaIds: [],
     especialidadIds: [],
+    nivelIds: [],
     estadosVisuales: [],
     ocultarNoVinculadas: false,
   }

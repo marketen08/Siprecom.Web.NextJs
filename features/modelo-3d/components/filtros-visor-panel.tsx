@@ -5,6 +5,7 @@ import { Check, ChevronDown, ChevronRight, Filter, X } from "lucide-react"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { EstadoVisualIds, filtroVacio, isFiltroVacio, type FiltroVisor } from "../types"
 
 interface Props {
@@ -28,10 +29,19 @@ export function FiltrosVisorPanel({
   const { data: sistemasData } = useGetSistemasSelect()
   const { data: subsistemasData } = useGetSubSistemasSelect()
   const { data: especialidadesData } = useGetEspecialidades()
+  const { data: nivelesRaw } = useGetNivelesSelect()
 
   const sistemas = sistemasData?.data ?? []
   const todosSubsistemas = subsistemasData?.data ?? []
   const especialidades = especialidadesData?.data ?? []
+  // El endpoint /api/niveles devuelve el array directo (no envuelto en {data}).
+  // Lo soportamos por compat por si alguna versión lo envuelve.
+  const niveles: Array<{ id: string; nombre: string; posicion?: number }> =
+    (Array.isArray(nivelesRaw)
+      ? nivelesRaw
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      : (nivelesRaw as any)?.data ?? []) as Array<{ id: string; nombre: string; posicion?: number }>
+  const nivelesOrdenados = [...niveles].sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0))
 
   // Si hay sistemas seleccionados, mostramos solo los subsistemas que les pertenecen.
   const subsistemasVisibles = useMemo(() => {
@@ -88,6 +98,19 @@ export function FiltrosVisorPanel({
       </header>
 
       <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+        <Seccion
+          titulo="Niveles"
+          selectedCount={filtro.nivelIds.length}
+          defaultOpen
+        >
+          <ChecklistMulti
+            items={nivelesOrdenados.map((n) => ({ id: n.id, label: n.nombre }))}
+            selectedIds={filtro.nivelIds}
+            onToggle={(id) => toggleSet(filtro.nivelIds, id, (next) => ({ nivelIds: next }))}
+            empty="No hay niveles definidos."
+          />
+        </Seccion>
+
         <Seccion
           titulo="Sistemas"
           selectedCount={filtro.sistemaIds.length}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useColoresPorEstado as useGetColoresPorEstado } from "../api/use-ifc-entidades"
-import type { ColoresPorEstado } from "../types"
+import type { ColoresPorEstado, FiltroVisor } from "../types"
 
 interface Options {
   proyectoId: string | null
@@ -14,6 +14,12 @@ interface Options {
    * (volver al color IFC original).
    */
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void> | void
+  /**
+   * Filtro actual del visor. Si tiene NivelIds, el cálculo de estado del
+   * elemento en backend respeta ese filtro (cuenta solo las tareas de esos
+   * niveles). Sin filtro o sin NivelIds → comportamiento global.
+   */
+  filtro?: FiltroVisor | null
 }
 
 /**
@@ -24,7 +30,7 @@ interface Options {
  *  - Se desactiva automáticamente al cambiar de archivo
  */
 export function useColoresPorEstadoToggle({
-  proyectoId, archivoId, archivoCargado, applyColorPorEstado,
+  proyectoId, archivoId, archivoCargado, applyColorPorEstado, filtro,
 }: Options) {
   const [activo, setActivo] = useState(false)
 
@@ -32,7 +38,7 @@ export function useColoresPorEstadoToggle({
   useEffect(() => { setActivo(false) }, [archivoId])
 
   const habilitado = activo && archivoCargado
-  const query = useGetColoresPorEstado(proyectoId, archivoId, habilitado)
+  const query = useGetColoresPorEstado(proyectoId, archivoId, habilitado, filtro)
   const buckets = query.data?.data ?? null
 
   // Aplicar al viewer cuando llegan los datos. Si se apaga, limpiar.
