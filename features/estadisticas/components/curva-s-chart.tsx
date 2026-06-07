@@ -44,9 +44,25 @@ interface Props {
   semanaActual?: string
   /** Si false, no se dibuja la línea P0. Default true. */
   mostrarBaseline?: boolean
+  /** Proyecto finalizado — esconde la línea "Hoy" (no aporta en proyectos cerrados). */
+  proyectoTerminado?: boolean
+  /** Última semana con FechaFinalizacion cargada. */
+  semanaUltimoRegistro?: string | null
+  /** Fin programado actual (Pn) — MAX(FechaPlanificada, ventanas SSN). */
+  semanaFinProgramadoActual?: string | null
+  /** Fin programado baseline (P0) — MAX del snapshot. Solo si difiere del actual. */
+  semanaFinProgramadoBaseline?: string | null
 }
 
-export function CurvaSChart({ semanas, semanaActual, mostrarBaseline = true }: Props) {
+export function CurvaSChart({
+  semanas,
+  semanaActual,
+  mostrarBaseline = true,
+  proyectoTerminado = false,
+  semanaUltimoRegistro = null,
+  semanaFinProgramadoActual = null,
+  semanaFinProgramadoBaseline = null,
+}: Props) {
   if (semanas.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-gray-200 py-16 text-center text-sm text-muted-foreground">
@@ -60,9 +76,26 @@ export function CurvaSChart({ semanas, semanaActual, mostrarBaseline = true }: P
   const hayBaseline =
     mostrarBaseline && semanas.some((s) => s.p0Acum !== null && s.p0Acum !== undefined)
 
-  // Sólo dibujamos la línea "Hoy" si la semana actual cae dentro del rango cargado.
-  const mostrarHoy =
-    !!semanaActual && semanas.some((s) => s.semana === semanaActual)
+  // Helper: una semana ISO está dentro del rango de datos del chart.
+  const enRango = (sem: string | null | undefined) =>
+    !!sem && semanas.some((s) => s.semana === sem)
+
+  // Línea "Hoy": solo si NO está terminado y la semana actual cae en el rango.
+  const mostrarHoy = !proyectoTerminado && enRango(semanaActual)
+
+  // Línea "Último registro": solo si difiere de la semana actual (sino se
+  // superpondría con la línea Hoy y no se ve).
+  const mostrarUltimoRegistro =
+    enRango(semanaUltimoRegistro) && semanaUltimoRegistro !== semanaActual
+
+  // Línea "Fin programado actual": siempre que esté en rango.
+  const mostrarFinActual = enRango(semanaFinProgramadoActual)
+
+  // Línea "Fin programado baseline": solo si difiere del actual (sino se
+  // superpondría) y está en rango.
+  const mostrarFinBaseline =
+    enRango(semanaFinProgramadoBaseline)
+    && semanaFinProgramadoBaseline !== semanaFinProgramadoActual
 
   return (
     <div className="space-y-3">
@@ -144,18 +177,44 @@ export function CurvaSChart({ semanas, semanaActual, mostrarBaseline = true }: P
             dot={{ r: 2 }}
             isAnimationActive={false}
           />
+          {/* Fin programado baseline (P0) — slate-300 dasheado, atrás de todo */}
+          {mostrarFinBaseline && (
+            <ReferenceLine
+              x={semanaFinProgramadoBaseline!}
+              stroke={COLOR_P0}
+              strokeDasharray="4 3"
+              strokeWidth={1.5}
+              label={{ value: "Fin P0", position: "top", fill: COLOR_P0, fontSize: 11 }}
+            />
+          )}
+          {/* Fin programado actual (Pn) — slate-500 */}
+          {mostrarFinActual && (
+            <ReferenceLine
+              x={semanaFinProgramadoActual!}
+              stroke={COLOR_PROG}
+              strokeDasharray="4 3"
+              strokeWidth={1.5}
+              label={{ value: "Fin programado", position: "top", fill: COLOR_PROG, fontSize: 11 }}
+            />
+          )}
+          {/* Último registro — verde (color de la serie Real) */}
+          {mostrarUltimoRegistro && (
+            <ReferenceLine
+              x={semanaUltimoRegistro!}
+              stroke={COLOR_REAL}
+              strokeDasharray="4 3"
+              strokeWidth={1.5}
+              label={{ value: "Último registro", position: "top", fill: COLOR_REAL, fontSize: 11 }}
+            />
+          )}
+          {/* Hoy — rojo, solo si proyecto NO terminado */}
           {mostrarHoy && (
             <ReferenceLine
               x={semanaActual}
               stroke="#dc2626"
               strokeDasharray="4 3"
               strokeWidth={1.5}
-              label={{
-                value: "Hoy",
-                position: "top",
-                fill: "#dc2626",
-                fontSize: 11,
-              }}
+              label={{ value: "Hoy", position: "top", fill: "#dc2626", fontSize: 11 }}
             />
           )}
         </LineChart>

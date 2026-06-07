@@ -65,4 +65,16 @@ export interface TimelineDTO {
   semanaActual: string
   /** True si el proyecto tiene al menos una ventana SubSistemaNivel cargada. */
   tieneBaseline: boolean
+  /**
+   * True si el proyecto está finalizado — por estado (COMPLETADO/CERRADO/
+   * EN_CIERRE/CANCELADO) o por cálculo automático (todas las tareas terminales).
+   * El front lo usa para esconder la línea vertical "Hoy".
+   */
+  proyectoTerminado: boolean
+  /** Semana ISO del último FechaFinalizacion. Null si no hay registros. */
+  semanaUltimoRegistro: string | null
+  /** Semana ISO del fin de la planificación actual (Pn). Null si no hay planificación. */
+  semanaFinProgramadoActual: string | null
+  /** Semana ISO del fin del baseline (P0). Null si no hay baseline. */
+  semanaFinProgramadoBaseline: string | null
 }
