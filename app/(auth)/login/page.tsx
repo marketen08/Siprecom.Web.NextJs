@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -9,11 +10,11 @@ import { useMsal } from "@azure/msal-react"
 import { useAuthStore } from "@/store/auth-store"
 import type { LoginRequest, LoginApiResponse } from "@/types/auth"
 import { loginRequest as msalLoginRequest } from "@/lib/msal-config"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 
 function MicrosoftIcon({ className }: { className?: string }) {
@@ -105,18 +106,78 @@ export default function LoginPage() {
   const isAnyPending = mutation.isPending || redirectingToMicrosoft
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">
-          Bienvenido
-        </CardTitle>
-        <CardDescription className="text-center">
-          Ingresá con tu email y contraseña
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Card className="grid w-full max-w-4xl gap-0 overflow-hidden border-0 p-0 shadow-2xl lg:grid-cols-5">
+      {/* Panel de branding — solo visible en desktop. Reusa los azules
+          corporativos del resto de la app (blue-900/800/700). */}
+      <aside className="relative hidden flex-col justify-between bg-linear-to-br from-blue-900 via-blue-800 to-blue-700 p-10 text-white lg:col-span-2 lg:flex">
+        {/* Pattern decorativo sutil de fondo */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-10"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 20% 20%, white 1px, transparent 1px), radial-gradient(circle at 80% 70%, white 1px, transparent 1px)",
+            backgroundSize: "32px 32px, 48px 48px",
+          }}
+        />
+
+        <div className="relative flex items-center gap-3">
+          <div className="rounded-lg bg-white/95 p-2.5 shadow-md">
+            <Image
+              src="/logosiprecom.png"
+              alt="Siprecom"
+              width={120}
+              height={36}
+              priority
+              className="h-8 w-auto"
+            />
+          </div>
+        </div>
+
+        <div className="relative space-y-3">
+          <h2 className="text-2xl font-semibold leading-tight">
+            Plataforma de commissioning
+          </h2>
+          <p className="text-sm leading-relaxed text-blue-100">
+            Gestión integral de proyectos de precomisionado, comisionado y puesta
+            en marcha — para industrias del petróleo, gas y petroquímica.
+          </p>
+        </div>
+
+        <p className="relative text-xs text-blue-200/80">
+          © Siprecom · Todos los derechos reservados
+        </p>
+      </aside>
+
+      {/* Panel del formulario */}
+      <div className="bg-card p-6 sm:p-8 lg:col-span-3 lg:p-10">
+        {/* Logo arriba — solo en mobile (en desktop ya está en el panel azul). */}
+        <div className="mb-6 flex justify-center lg:hidden">
+          <Image
+            src="/logosiprecom.png"
+            alt="Siprecom"
+            width={140}
+            height={42}
+            priority
+            className="h-10 w-auto"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            Iniciar sesión
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Ingresá con tu cuenta para continuar
+          </p>
+        </div>
+
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            noValidate
+            className="mt-6 space-y-4"
+          >
             <FormField
               control={form.control}
               name="email"
@@ -126,7 +187,8 @@ export default function LoginPage() {
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="ejemplo@dominio.com"
+                      placeholder="nombre@empresa.com"
+                      autoComplete="email"
                       disabled={isAnyPending}
                       {...field}
                     />
@@ -146,6 +208,7 @@ export default function LoginPage() {
                     <div className="relative">
                       <Input
                         type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
                         disabled={isAnyPending}
                         className="pr-10"
                         {...field}
@@ -167,16 +230,17 @@ export default function LoginPage() {
             />
 
             {form.formState.errors.root?.serverError && (
-              <p className="text-sm text-destructive">
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 {form.formState.errors.root.serverError.message}
-              </p>
+              </div>
             )}
 
             <Button
               type="submit"
-              className="w-full"
+              className="w-full bg-blue-900 hover:bg-blue-800"
               disabled={isAnyPending}
             >
+              {mutation.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
               {mutation.isPending ? "Iniciando sesión..." : "Iniciar sesión"}
             </Button>
           </form>
@@ -198,10 +262,16 @@ export default function LoginPage() {
           disabled={isAnyPending}
           onClick={handleMicrosoftLogin}
         >
-          <MicrosoftIcon className="h-4 w-4" />
-          {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Iniciar sesión con Microsoft"}
+          {redirectingToMicrosoft
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <MicrosoftIcon className="h-4 w-4" />}
+          {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Continuar con Microsoft"}
         </Button>
-      </CardContent>
+
+        <p className="mt-6 text-center text-xs text-muted-foreground lg:hidden">
+          © Siprecom
+        </p>
+      </div>
     </Card>
   )
 }
