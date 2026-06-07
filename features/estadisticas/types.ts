@@ -44,9 +44,16 @@ export interface ElementosPorSubsistemaDTO {
 export interface TimelineSemanaDTO {
   semana: string
   programado: number
-  real: number
+  /**
+   * Tareas completadas en esta semana. Null en semanas posteriores al corte
+   * — la curva real se grafica hasta MAX(hoy, último FechaFinalizacion). Las
+   * semanas futuras devuelven null para que Recharts interrumpa la línea
+   * verde en el punto correcto en lugar de extender una recta plana.
+   */
+  real: number | null
   programadoAcum: number
-  realAcum: number
+  /** Acumulado de real. Null en semanas posteriores al corte (ver real). */
+  realAcum: number | null
   /** Acumulado del baseline (P0) — null si el proyecto no tiene SubSistemaNivel cargado. */
   p0Acum: number | null
 }
