@@ -143,13 +143,24 @@ export function filtroVacio(): FiltroVisor {
   }
 }
 
-/** Buckets de IfcGuids por estado visual del Elemento vinculado. */
+/**
+ * Buckets de IfcGuids por estado visual del Elemento vinculado + métricas
+ * agregadas del subset filtrado. Las métricas (% y conteos) reflejan el filtro
+ * activo del visor: Sistema/SubSistema/Especialidad acotan QUÉ elementos
+ * entran; NivelIds acota QUÉ tareas se cuentan.
+ */
 export interface ColoresPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
   rechazados: string[]
   totalConVinculo: number
+  /** Avance de tareas — `(tareasCompletadas / tareasTotal) * 100`. 0 si no hay tareas. */
+  porcentajeAvance: number
+  /** ElementoTarea consideradas (excluye CANCELADO). */
+  tareasTotal: number
+  /** ElementoTarea en estado terminal (COMPLETADO / FIRMADO / APROBADO). */
+  tareasCompletadas: number
 }
 
 export interface CrearProyectoDesdeIfcInput {

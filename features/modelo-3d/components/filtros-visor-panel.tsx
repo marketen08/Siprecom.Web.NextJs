@@ -4,8 +4,8 @@ import { useMemo, useState } from "react"
 import { Check, ChevronDown, ChevronRight, Filter, X } from "lucide-react"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
-import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
-import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
+import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
+import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { EstadoVisualIds, filtroVacio, isFiltroVacio, type FiltroVisor } from "../types"
 
 interface Props {
@@ -28,8 +28,12 @@ export function FiltrosVisorPanel({
 }: Props) {
   const { data: sistemasData } = useGetSistemasSelect()
   const { data: subsistemasData } = useGetSubSistemasSelect()
-  const { data: especialidadesData } = useGetEspecialidades()
-  const { data: nivelesRaw } = useGetNivelesSelect()
+  // Solo las Especialidades usadas por el proyecto activo — evita ofrecer
+  // opciones en el filtro que dejarían 0 elementos al seleccionarlas.
+  const { data: especialidadesData } = useGetEspecialidadesUsadas()
+  // Solo los Niveles que el proyecto activo atraviesa — evita ofrecer en el
+  // filtro un nivel sin tareas (lo cual dejaría 0 elementos al seleccionarlo).
+  const { data: nivelesRaw } = useGetNivelesUsadosSelect()
 
   const sistemas = sistemasData?.data ?? []
   const todosSubsistemas = subsistemasData?.data ?? []

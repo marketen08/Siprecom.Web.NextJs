@@ -13,6 +13,23 @@ export function useGetEspecialidades() {
   })
 }
 
+/**
+ * Solo las Especialidades que el proyecto activo del user realmente usa — las
+ * que tienen al menos un Elemento activo cuyo ElementoTipo apunta a ellas.
+ * Para selects "en contexto" como el filtro del visor 3D, donde ofrecer una
+ * especialidad sin elementos dejaría 0 al seleccionarla.
+ *
+ * El backend resuelve el ProyectoId del user logueado — el frontend no manda
+ * nada.
+ */
+export function useGetEspecialidadesUsadas() {
+  return useQuery({
+    queryKey: ["especialidades", "usadas-en-proyecto"],
+    queryFn: () => apiClient.get<ApiResponse<Especialidad[]>>("/api/especialidades/usadas"),
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
 export function useCreateEspecialidad() {
   const qc = useQueryClient()
   return useMutation({

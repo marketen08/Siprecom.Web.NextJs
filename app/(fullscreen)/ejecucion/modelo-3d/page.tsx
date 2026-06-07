@@ -334,7 +334,7 @@ function ModeloEjecucionContent() {
             href={`/alcance/proyectos/${proyectoActivo.id}/modelo-3d`}
             className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            <Settings className="h-3.5 w-3.5" /> Gestionar IFCs
+            <Settings className="h-3.5 w-3.5" /> Gestionar Modelo 3D
           </Link>
         </div>
       </div>

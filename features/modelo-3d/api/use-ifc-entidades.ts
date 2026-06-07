@@ -112,14 +112,16 @@ export async function resolverEntidadesPorGuids(
 }
 
 /**
- * Trae los GUIDs particionados por estado del Elemento vinculado. El visor los
- * usa para pintar cada bucket de un color semáforo. Las entidades sin vínculo
- * no aparecen — mantienen su color IFC original.
+ * Trae los GUIDs particionados por estado del Elemento vinculado + métricas
+ * agregadas (% avance, conteos de tareas). El visor los usa para pintar cada
+ * bucket de un color semáforo. Las entidades sin vínculo no aparecen —
+ * mantienen su color IFC original.
  *
- * Si se pasa `filtro` con NivelIds poblado, el estado del elemento se calcula
- * contando SOLO las tareas vinculadas a Tareas de esos niveles. Sirve para que
- * "Colores por estado" + filtro de Nivel reflejen el avance de la fase filtrada
- * (ej: precomisionado en verde aunque las de comisionado sigan pendientes).
+ * El cuadro respeta el filtro visual: Sistema/SubSistema/Especialidad acotan
+ * QUÉ elementos entran al cómputo; NivelIds acota QUÉ tareas se cuentan tanto
+ * para clasificar el estado del elemento como para el %. Si se filtra solo
+ * PRECOMISIONADO, los elementos con toda esa fase terminada se ven en verde
+ * aunque tengan tareas COM pendientes — y el % es el avance de PRECOM.
  */
 export function useColoresPorEstado(
   proyectoId: string | null,
@@ -127,18 +129,29 @@ export function useColoresPorEstado(
   activo: boolean,
   filtro?: FiltroVisor | null,
 ) {
-  // Solo los nivelIds son lo que cambia la lógica del cálculo en backend hoy.
-  // Si en el futuro respetamos también Sistema/SubSistema/etc, agregar acá.
-  const nivelIds = filtro?.nivelIds ?? []
+  // EstadosVisuales y OcultarNoVinculadas son del ghost del visor — no afectan
+  // los buckets de color, así que no los mandamos.
+  const body = {
+    sistemaIds:      filtro?.sistemaIds      ?? [],
+    subSistemaIds:   filtro?.subSistemaIds   ?? [],
+    especialidadIds: filtro?.especialidadIds ?? [],
+    nivelIds:        filtro?.nivelIds        ?? [],
+  }
   return useQuery({
-    queryKey: ["ifc", archivoId, "colores-por-estado", nivelIds.join(",")],
+    queryKey: [
+      "ifc", archivoId, "colores-por-estado",
+      body.sistemaIds.join(","),
+      body.subSistemaIds.join(","),
+      body.especialidadIds.join(","),
+      body.nivelIds.join(","),
+    ],
     enabled: activo && !!proyectoId && !!archivoId,
     // No staleTime — al activar el toggle queremos data fresca; los estados de
     // ElementoTarea pueden cambiar mucho durante la jornada.
     queryFn: () =>
       apiClient.post<ApiResponse<ColoresPorEstado>>(
         `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-estado`,
-        nivelIds.length > 0 ? { nivelIds } : {},
+        body,
       ),
   })
 }
