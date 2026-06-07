@@ -9,7 +9,11 @@ import { DonutDistribucion } from "@/features/estadisticas/components/donut-dist
 import { Button } from "@/components/ui/button"
 
 export default function EstadoPendientesPage() {
-  const porEstado = useGetDistribucionPendientes("estado")
+  // Por estado: incluimos TODOS (incluye cerrados/cancelados) — la idea del
+  // donut es ver la foto completa del proyecto, no solo lo pendiente.
+  // Por especialidad/categoría: solo abiertos — interesa qué disciplinas y qué
+  // tipos de hallazgo siguen pendientes de resolución.
+  const porEstado = useGetDistribucionPendientes("estado", { soloAbiertos: false })
   const porEspecialidad = useGetDistribucionPendientes("especialidad")
   const porCategoria = useGetDistribucionPendientes("categoria")
 
@@ -41,7 +45,8 @@ export default function EstadoPendientesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Estado de pendientes</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Distribución de pendientes abiertos del proyecto activo (excluye cerrados y cancelados).
+            Distribución de pendientes del proyecto. Por estado incluye todos; por especialidad y
+            categoría solo los pendientes de resolución.
           </p>
         </div>
         <Button variant="outline" onClick={exportarPdf} disabled={downloading} className="gap-2 shrink-0">
@@ -67,19 +72,19 @@ export default function EstadoPendientesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <DonutDistribucion
           titulo="Por estado"
-          descripcion="Abierto · En proceso · Pendiente aprobación"
+          descripcion="Incluye cerrados y cancelados"
           data={porEstado.data?.data ?? []}
           loading={porEstado.isLoading}
         />
         <DonutDistribucion
           titulo="Por especialidad"
-          descripcion="Disciplina afectada por el pendiente"
+          descripcion="Disciplina · solo pendientes de resolución"
           data={porEspecialidad.data?.data ?? []}
           loading={porEspecialidad.isLoading}
         />
         <DonutDistribucion
           titulo="Por categoría"
-          descripcion="Tipo de hallazgo según catálogo"
+          descripcion="Tipo de hallazgo · solo pendientes de resolución"
           data={porCategoria.data?.data ?? []}
           loading={porCategoria.isLoading}
         />

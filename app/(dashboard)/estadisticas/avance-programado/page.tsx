@@ -91,7 +91,7 @@ export default function AvanceProgramadoPage() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                Sin FechaPlanificada ni ventana de nivel
+                Sin fecha planificada ni ventana de nivel en subsistema
               </div>
             </div>
 
