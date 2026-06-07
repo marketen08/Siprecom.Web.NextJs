@@ -1,6 +1,6 @@
 "use client"
 
-import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
 import {
   type ChartConfig,
   ChartContainer,
@@ -18,6 +18,37 @@ const config = {
   programadoAcum:  { label: "Programado actual",  color: COLOR_PROG },
   realAcum:        { label: "Real",               color: COLOR_REAL },
 } satisfies ChartConfig
+
+/** Extrae el año del label ISO "YYYY-Www". Devuelve null si el formato no matchea. */
+function anioDeSemanaIso(label: string): number | null {
+  const m = label.match(/^(\d{4})-W(\d{1,2})$/)
+  return m ? parseInt(m[1], 10) : null
+}
+
+/**
+ * Agrupa las semanas en bandas contiguas por año, devolviendo la primera y
+ * última semana de cada grupo. Sirve para dibujar ReferenceArea por año en el
+ * eje X. Si todas las semanas son del mismo año, devuelve una sola banda.
+ */
+function bandasPorAnio(
+  semanas: TimelineSemanaDTO[],
+): Array<{ anio: number; primeraSemana: string; ultimaSemana: string }> {
+  if (semanas.length === 0) return []
+  const out: Array<{ anio: number; primeraSemana: string; ultimaSemana: string }> = []
+  let actual: { anio: number; primeraSemana: string; ultimaSemana: string } | null = null
+  for (const s of semanas) {
+    const a = anioDeSemanaIso(s.semana)
+    if (a === null) continue
+    if (actual === null || actual.anio !== a) {
+      if (actual) out.push(actual)
+      actual = { anio: a, primeraSemana: s.semana, ultimaSemana: s.semana }
+    } else {
+      actual.ultimaSemana = s.semana
+    }
+  }
+  if (actual) out.push(actual)
+  return out
+}
 
 /**
  * Devuelve el lunes de la semana ISO formateado dd/mm.
@@ -97,6 +128,11 @@ export function CurvaSChart({
     enRango(semanaFinProgramadoBaseline)
     && semanaFinProgramadoBaseline !== semanaFinProgramadoActual
 
+  // Bandas alternantes por año — solo dibujamos relleno cuando hay más de un
+  // año en el rango (sino la banda única no aporta info).
+  const bandas = bandasPorAnio(semanas)
+  const multiAnio = bandas.length > 1
+
   return (
     <div className="space-y-3">
       {/* Leyenda HTML — consistente con el resto de los charts */}
@@ -131,8 +167,27 @@ export function CurvaSChart({
         className="aspect-auto w-full"
         style={{ height: 360 }}
       >
-        <LineChart data={semanas} margin={{ left: 8, right: 24, top: 16, bottom: 8 }}>
+        <LineChart data={semanas} margin={{ left: 8, right: 24, top: 32, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          {/* Bandas alternantes por año + label centrado arriba. Solo se rellena
+              cuando hay 2+ años (sino la banda única no aporta información). */}
+          {multiAnio && bandas.map((b, idx) => (
+            <ReferenceArea
+              key={b.anio}
+              x1={b.primeraSemana}
+              x2={b.ultimaSemana}
+              fill={idx % 2 === 0 ? "#f1f5f9" : "transparent"}
+              fillOpacity={0.6}
+              ifOverflow="visible"
+              label={{
+                value: String(b.anio),
+                position: "insideTop",
+                fill: "#475569",
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            />
+          ))}
           <XAxis
             dataKey="semana"
             tickFormatter={(v) => lunesDeSemanaIso(String(v))}
