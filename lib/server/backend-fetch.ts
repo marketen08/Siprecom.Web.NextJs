@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server"
 import type { BackendAuthResponse } from "@/types/auth"
+import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -8,6 +8,20 @@ const COOKIE_OPTS = {
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   path: "/",
+}
+
+/**
+ * Garantiza que la respuesta siempre tenga un body JSON parseable.
+ * Evita "Unexpected end of JSON input" en rutas proxy cuando el backend
+ * devuelve body vacío (204, 403 sin body, errores de red, etc).
+ */
+async function ensureJsonBody(res: Response): Promise<Response> {
+  const text = await res.text()
+  const body = text.trim() || "null"
+  return new Response(body, {
+    status: res.status,
+    headers: { "Content-Type": "application/json" },
+  })
 }
 
 /**
@@ -54,7 +68,7 @@ export async function backendFetch(
   const res = await callBackend(path, accessToken, options)
 
   // Caso feliz: no es 401
-  if (res.status !== 401) return res
+  if (res.status !== 401) return ensureJsonBody(res)
 
   // Token expirado — intentar renovar
   if (!refreshToken) {
@@ -81,7 +95,7 @@ export async function backendFetch(
 
   // Construir NextResponse para poder setear las nuevas cookies
   const body = await retryRes.text()
-  const nextRes = new NextResponse(body, {
+  const nextRes = new NextResponse(body.trim() || "null", {
     status: retryRes.status,
     headers: { "Content-Type": "application/json" },
   })
