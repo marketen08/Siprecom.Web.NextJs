@@ -50,7 +50,7 @@ export interface BucketsPorEstado {
 }
 
 export interface CreateUnifiedViewerOptions {
-  onPick?: (guid: string | null) => void
+  onPick?: (guids: string[] | null) => void
   /**
    * Callback para reportar progreso de la carga: usado para el indicador de
    * "Descargando IFC… X MB" o "Cargando NWD desde APS…" en la UI.

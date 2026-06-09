@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Cloud, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, Star, Trash2,
+  AlertTriangle, Box, CheckCircle2, Cloud, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, Star, Trash2, Wrench,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -17,6 +17,7 @@ import {
 import {
   resolverEntidadesPorGuids,
   useProcesarIfcArchivo,
+  useReBootstrapIfcArchivo,
 } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
 import { ImportarDesdeApsSheet } from "@/features/aps/components/importar-desde-aps-sheet"
@@ -57,6 +58,7 @@ function ModeloPageContent() {
 
   const eliminar = useDeleteIfcArchivo(id)
   const procesar = useProcesarIfcArchivo(id)
+  const reBootstrap = useReBootstrapIfcArchivo(id)
   const marcarPrincipal = useMarcarIfcPrincipal(id)
 
   const [openUpload, setOpenUpload] = useState(false)
@@ -122,8 +124,8 @@ function ModeloPageContent() {
       const { createViewer } = await import("@/features/modelo-3d/viewer")
       if (cancelled) return
       const handle = await createViewer(container, {
-        onPick: async (guid) => {
-          if (guid === null) {
+        onPick: async (guids) => {
+          if (guids === null || guids.length === 0) {
             setEntidadSeleccionada(null)
             return
           }
@@ -131,8 +133,12 @@ function ModeloPageContent() {
           if (!archivoActivo) return
           setResolviendoPick(true)
           try {
-            const entidades = await resolverEntidadesPorGuids(id, archivoActivo, [guid])
-            setEntidadSeleccionada(entidades[0] ?? null)
+            // guids = cadena hoja→raíz (APS) o un único guid (IFC). Elegimos la
+            // entidad que matchea el guid más profundo.
+            const entidades = await resolverEntidadesPorGuids(id, archivoActivo, guids)
+            const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
+            const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+            setEntidadSeleccionada(elegida)
           } catch (e) {
             setViewError((e as Error).message)
           } finally {
@@ -280,9 +286,11 @@ function ModeloPageContent() {
               loading={loadingView && actualId === a.id}
               disabledVisualizar={loadingView || !viewerReady}
               procesando={procesar.isPending && procesar.variables === a.id}
+              reBootstrapeando={reBootstrap.isPending && reBootstrap.variables === a.id}
               marcandoPrincipal={marcarPrincipal.isPending && marcarPrincipal.variables === a.id}
               onVisualizar={() => handleVisualizar(a)}
               onProcesar={() => procesar.mutateAsync(a.id)}
+              onReBootstrap={() => reBootstrap.mutateAsync(a.id)}
               onMarcarPrincipal={() => marcarPrincipal.mutateAsync(a.id)}
               onEliminar={() => eliminar.mutateAsync(a.id)}
             />
@@ -382,17 +390,19 @@ function ModeloPageContent() {
 // ─── Card de archivo IFC ───────────────────────────────────────────────────
 
 function ArchivoCard({
-  archivo, activo, loading, disabledVisualizar, procesando, marcandoPrincipal,
-  onVisualizar, onProcesar, onMarcarPrincipal, onEliminar,
+  archivo, activo, loading, disabledVisualizar, procesando, reBootstrapeando, marcandoPrincipal,
+  onVisualizar, onProcesar, onReBootstrap, onMarcarPrincipal, onEliminar,
 }: {
   archivo: ProyectoIfcArchivo
   activo: boolean
   loading: boolean
   disabledVisualizar: boolean
   procesando: boolean
+  reBootstrapeando: boolean
   marcandoPrincipal: boolean
   onVisualizar: () => void
   onProcesar: () => Promise<unknown>
+  onReBootstrap: () => Promise<unknown>
   onMarcarPrincipal: () => Promise<unknown>
   onEliminar: () => Promise<unknown>
 }) {
@@ -467,6 +477,30 @@ function ArchivoCard({
         >
           {procesando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
         </button>
+        <ConfirmActionDialog
+          trigger={reBootstrapeando
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Wrench className="h-3.5 w-3.5" />}
+          triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition-colors disabled:opacity-50"
+          title="¿Re-armar la estructura desde cero?"
+          description={
+            <>
+              Esto <strong>borra todos los Sistemas, SubSistemas y Elementos</strong> del
+              proyecto (más tareas, pendientes y planificación) y vuelve a correr el
+              bootstrap de <strong>{archivo.nombre}</strong> con la config de
+              «property names» actual. No se puede deshacer.
+              <br />
+              <span className="text-xs text-muted-foreground">
+                Si el proyecto ya tiene registros de avance cargados, la operación se
+                rechaza para no perder ese trabajo.
+              </span>
+            </>
+          }
+          confirmText="Re-armar"
+          pendingText="Re-armando…"
+          variant="destructive"
+          onConfirm={onReBootstrap}
+        />
         <ConfirmActionDialog
           trigger={<Trash2 className="h-3.5 w-3.5" />}
           triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"

@@ -20,8 +20,10 @@ export function useCrearProyectoDesdeNwd() {
       const fd = new FormData()
       fd.append("nombre", input.nombre)
       fd.append("clienteId", input.clienteId)
+      if (input.contratistaId) fd.append("contratistaId", input.contratistaId)
       if (input.nombreArchivo) fd.append("nombreArchivo", input.nombreArchivo)
       if (input.disciplina) fd.append("disciplina", input.disciplina)
+      if (input.apsTagProperties) fd.append("apsTagProperties", input.apsTagProperties)
       fd.append("archivo", input.archivo)
 
       const res = await fetch(`/api/aps/crear-proyecto-desde-nwd`, {

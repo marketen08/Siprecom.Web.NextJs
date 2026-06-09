@@ -60,12 +60,13 @@ export interface BucketsPorEstado {
 
 export interface CreateViewerOptions {
   /**
-   * Callback al hacer click sobre una entidad del modelo. El parámetro es el
-   * IfcGuid (string 22 chars) o null si se clickeó vacío. El viewer también
-   * resalta automáticamente la entidad clickeada — el caller solo tiene que
-   * resolverlo a un Elemento si quiere mostrar info.
+   * Callback al hacer click sobre una entidad del modelo. Recibe un array de
+   * candidatos (para IFC siempre un solo elemento: el IfcGuid de 22 chars), o
+   * null si se clickeó vacío. El array unifica el contrato con el viewer APS,
+   * donde la selección devuelve la cadena de ancestros. El viewer también
+   * resalta automáticamente la entidad clickeada.
    */
-  onPick?: (guid: string | null) => void
+  onPick?: (guids: string[] | null) => void
 }
 
 // Material amarillo de selección para el highlight (preset).
@@ -169,7 +170,7 @@ export async function createViewer(
     const guid = guids[0] ?? null
 
     await applyHighlight([result.localId])
-    opts.onPick?.(guid)
+    opts.onPick?.(guid === null ? null : [guid])
   }
 
   container.addEventListener("pointerdown", onPointerDown)

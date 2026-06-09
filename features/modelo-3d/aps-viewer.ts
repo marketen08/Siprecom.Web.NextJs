@@ -65,12 +65,14 @@ export interface BucketsPorEstado {
 
 export interface CreateApsViewerOptions {
   /**
-   * Callback al hacer click sobre una entidad del modelo. El "guid" para APS es
-   * el externalId del objeto (si existe), o un sintético "aps-{dbId}" — lo
-   * mismo que guardó el extractor del backend. Sirve para que el caller llame
-   * al endpoint `/entidades/resolver` con ese GUID.
+   * Callback al hacer click sobre una entidad del modelo. Recibe la CADENA de
+   * externalId desde la hoja clickeada hasta la raíz (hoja primero). El caller
+   * resuelve contra el backend cuál de esos guids corresponde a un Elemento — en
+   * modelos Navisworks el TAG vive en un nodo padre (la línea), no en la hoja de
+   * geometría que el usuario realmente clickea. Cada guid es el externalId del
+   * objeto o un sintético "aps-{dbId}". null = se deseleccionó.
    */
-  onPick?: (guid: string | null) => void
+  onPick?: (guids: string[] | null) => void
 }
 
 // Paleta semáforo coherente con el viewer IFC.
@@ -178,24 +180,45 @@ export async function createApsViewer(
     })
   }
 
+  /**
+   * Cadena de externalId desde un dbId hasta la raíz (hoja → raíz). En Navisworks
+   * el TAG/Elemento suele estar en un nodo ANCESTRO (la línea), no en la hoja de
+   * geometría clickeada, así que mandamos todos los candidatos y el backend
+   * resuelve cuál es entidad. Cada nivel: su externalId, o "aps-{dbId}" sintético.
+   */
+  function ancestorGuids(dbId: number): string[] {
+    const out: string[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = currentModel
+    const tree = m?.getInstanceTree?.()
+    let id: number | undefined = dbId
+    let guard = 0
+    while (id !== undefined && id !== null && guard++ < 64) {
+      out.push(dbIdToGuid.get(id) ?? `aps-${id}`)
+      const parent: number | undefined = tree?.getNodeParentId?.(id)
+      if (parent === undefined || parent === null || parent === id || parent === 0) break
+      id = parent
+    }
+    return out
+  }
+
   // Click handler — Autodesk Viewer emite SELECTION_CHANGED al hacer click.
-  let lastSelectionGuid: string | null = null
+  let lastSelectionKey: string | null = null
   const onSelectionChanged = (e: { dbIdArray: number[] }) => {
     if (!opts.onPick) return
     const dbId = e.dbIdArray?.[0]
     if (dbId === undefined) {
-      if (lastSelectionGuid !== null) {
-        lastSelectionGuid = null
+      if (lastSelectionKey !== null) {
+        lastSelectionKey = null
         opts.onPick(null)
       }
       return
     }
-    // Si todavía no tenemos mapping, usamos sintético "aps-{dbId}" como hace
-    // el backend. Coincide con lo persistido en ProyectoIfcEntidad.IfcGuid.
-    const guid = dbIdToGuid.get(dbId) ?? `aps-${dbId}`
-    if (guid !== lastSelectionGuid) {
-      lastSelectionGuid = guid
-      opts.onPick(guid)
+    const chain = ancestorGuids(dbId)
+    const key = chain.join("|")
+    if (key !== lastSelectionKey) {
+      lastSelectionKey = key
+      opts.onPick(chain)
     }
   }
   viewer.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, onSelectionChanged)
@@ -289,7 +312,7 @@ export async function createApsViewer(
       const highlightVec = new THREE.Vector4(
         COLOR_HIGHLIGHT[0], COLOR_HIGHLIGHT[1], COLOR_HIGHLIGHT[2], 0.6,
       )
-      for (const dbId of dbIds) m.setThemingColor(dbId, highlightVec)
+      for (const dbId of dbIds) m.setThemingColor(dbId, highlightVec, true)
       viewer.impl.invalidate(true, true, true)
     }
   }
@@ -370,7 +393,10 @@ export async function createApsViewer(
         ? ids.filter((id) => isolatedSet!.has(id))
         : ids
       const v4 = new THREE.Vector4(color[0], color[1], color[2], color[3])
-      for (const id of filteredIds) m.setThemingColor(id, v4)
+      // recursive=true: un guid de entidad puede ser un nodo Group (la línea),
+      // cuya geometría vive en los hijos. Sin recursión, setThemingColor no pinta
+      // nada visible. Con recursión, colorea el nodo y todos sus descendientes.
+      for (const id of filteredIds) m.setThemingColor(id, v4, true)
     }
 
     m.clearThemingColors?.()

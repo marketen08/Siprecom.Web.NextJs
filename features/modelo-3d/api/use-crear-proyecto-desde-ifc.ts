@@ -20,8 +20,11 @@ export function useCrearProyectoDesdeIfc() {
       const fd = new FormData()
       fd.append("nombre", input.nombre)
       fd.append("clienteId", input.clienteId)
+      if (input.contratistaId) fd.append("contratistaId", input.contratistaId)
       if (input.nombreArchivo) fd.append("nombreArchivo", input.nombreArchivo)
       if (input.disciplina) fd.append("disciplina", input.disciplina)
+      // apsTagProperties NO se envía para IFC — el pipeline xbim no usa matching
+      // por property de APS, así que no aplica.
       fd.append("archivo", input.archivo)
 
       // Endpoint top-level (no bajo /api/proyectos/...) para evitar el conflicto

@@ -120,15 +120,20 @@ function ModeloEjecucionContent() {
         const { createUnifiedViewer } = await import("@/features/modelo-3d/unified-viewer")
         if (cancelled) return
         const handle = await createUnifiedViewer(containerEl, archivo, proyectoActivo.id, {
-          onPick: async (guid) => {
-            if (guid === null) { setEntidadSeleccionada(null); return }
+          onPick: async (guids) => {
+            if (guids === null || guids.length === 0) { setEntidadSeleccionada(null); return }
             const archivoActivo = archivoActualIdRef.current
             const proyId = proyectoIdRef.current
             if (!archivoActivo || !proyId) return
             setResolviendoPick(true)
             try {
-              const entidades = await resolverEntidadesPorGuids(proyId, archivoActivo, [guid])
-              setEntidadSeleccionada(entidades[0] ?? null)
+              // guids viene como cadena hoja→raíz. El backend devuelve las
+              // entidades que existen; elegimos la que matchea el guid más
+              // profundo (la más cercana a lo clickeado).
+              const entidades = await resolverEntidadesPorGuids(proyId, archivoActivo, guids)
+              const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
+              const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              setEntidadSeleccionada(elegida)
             } catch (e) {
               setViewError((e as Error).message)
             } finally {

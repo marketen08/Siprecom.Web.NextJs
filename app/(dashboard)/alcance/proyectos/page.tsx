@@ -140,7 +140,7 @@ export default function ProyectosPage() {
           <div className="ml-auto flex items-center gap-2">
             <Button onClick={() => setOpenCrearDesdeIfc(true)} variant="outline" className="gap-2">
               <Box className="h-4 w-4" />
-              Crear desde IFC
+              Crear desde IFC o NWD
             </Button>
             <Button onClick={open} className="gap-2">
               <Plus className="h-4 w-4" />

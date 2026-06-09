@@ -6,8 +6,7 @@ import { Box, Loader2 } from "lucide-react"
 
 import { useCrearProyectoDesdeIfc } from "../api/use-crear-proyecto-desde-ifc"
 import { useCrearProyectoDesdeNwd } from "../api/use-crear-proyecto-desde-nwd"
-import { useGetClientes } from "@/features/clientes/api/use-get-clientes"
-import type { Cliente } from "@/features/clientes/types"
+import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 
 // Extensiones soportadas. .ifc va por el pipeline xbim (sincronico) y .nwd por
 // APS Model Derivative → SVF2 (background, puede tardar minutos).
@@ -34,13 +33,18 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
   const router = useRouter()
   const [nombre, setNombre] = useState("")
   const [clienteId, setClienteId] = useState("")
+  const [contratistaId, setContratistaId] = useState("")
   const [nombreArchivo, setNombreArchivo] = useState("")
   const [disciplina, setDisciplina] = useState("")
+  const [apsTagProperties, setApsTagProperties] = useState("")
   const [archivo, setArchivo] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const { data: clientesRaw } = useGetClientes({ pageSize: 200 })
-  const clientes: Cliente[] = clientesRaw?.data ?? []
+  // Mismas listas filtradas que el formulario original de crear proyecto:
+  // clientes (esContratista=false) y contratistas (esContratista=true).
+  const { data: clientesData, isLoading: loadingClientes } = useGetClientesSelect()
+  const clientes = clientesData?.clientes ?? []
+  const contratistas = clientesData?.contratistas ?? []
 
   const crearIfc = useCrearProyectoDesdeIfc()
   const crearNwd = useCrearProyectoDesdeNwd()
@@ -52,8 +56,10 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
   function reset() {
     setNombre("")
     setClienteId("")
+    setContratistaId("")
     setNombreArchivo("")
     setDisciplina("")
+    setApsTagProperties("")
     setArchivo(null)
     setError(null)
   }
@@ -83,8 +89,11 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
       const out = await mutator.mutateAsync({
         nombre: nombre.trim(),
         clienteId,
+        contratistaId: contratistaId || undefined,
         nombreArchivo: nombreArchivo.trim() || undefined,
         disciplina: disciplina.trim() || undefined,
+        // apsTagProperties solo aplica al pipeline NWD/APS.
+        apsTagProperties: esNwd ? (apsTagProperties.trim() || undefined) : undefined,
         archivo,
       })
       reset()
@@ -108,7 +117,8 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
             <span className="block mt-1 text-[11px] text-muted-foreground">
               <b>IFC</b>: jerarquía por <code>IfcBuilding</code> / <code>IfcBuildingStorey</code>.
               <b className="ml-1">NWD</b>: agrupación por archivo origen + categoría AutoCAD
-              (Plant 3D). Equipment con <code>AutoCad.Tag</code> se vinculan como Elementos.
+              (Plant 3D). Equipment con <code>AutoCAD.Tag</code> y líneas con{" "}
+              <code>Line Number</code> se vinculan como Elementos.
               La traducción APS puede tardar varios minutos.
             </span>
           </SheetDescription>
@@ -133,13 +143,32 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
               value={clienteId}
               onChange={(e) => setClienteId(e.target.value)}
               className="mt-1 w-full h-9 rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loadingClientes}
               required
             >
-              <option value="">Seleccionar cliente…</option>
+              <option value="">{loadingClientes ? "Cargando clientes…" : "Seleccionar cliente…"}</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Contratista</label>
+            <select
+              value={contratistaId}
+              onChange={(e) => setContratistaId(e.target.value)}
+              className="mt-1 w-full h-9 rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loadingClientes}
+            >
+              <option value="">{loadingClientes ? "Cargando contratistas…" : "Seleccionar contratista…"}</option>
+              {contratistas.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Opcional. Si lo dejás vacío, se usa el mismo cliente como contratista.
+            </p>
           </div>
 
           <div>
@@ -165,6 +194,40 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
               className="mt-1"
               maxLength={100}
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">
+              Property names para matching de TAG (APS / NWD)
+            </label>
+            <Input
+              value={apsTagProperties}
+              onChange={(e) => setApsTagProperties(e.target.value)}
+              placeholder="Componente.IfcName,Componente.IfcTag,Item.Name"
+              className="mt-1"
+              maxLength={500}
+              disabled={!esNwd}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {esNwd ? (
+                <>
+                  CSV de property names del NWD a probar como TAG, en orden (primera
+                  con valor gana). Ignora mayúsculas. Vacío = defaults Plant 3D
+                  (<code>AutoCad.Tag</code> + Line Number).
+                  <br />
+                  Podés filtrar por patrón con <code>Prop~regex</code>: solo cuenta si
+                  el valor matchea. Ej. líneas tipo <code>10-PF-4000</code>:{" "}
+                  <code>Item.Name~^\d+-[A-Z]+-\d+$</code> (descarta contenedores como
+                  «PIPING» y spools «2&quot;-…»).
+                  <br />
+                  SmartPlant 3D/IFC: <code>Componente.IfcName,Componente.IfcTag</code>.
+                  <code>Item.Name</code> solo matchea nodos Group/Composite, no
+                  geometría suelta.
+                </>
+              ) : (
+                <>Solo aplica a archivos NWD (pipeline APS). Elegí un .nwd para habilitarlo.</>
+              )}
+            </p>
           </div>
 
           <div>

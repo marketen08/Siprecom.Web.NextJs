@@ -170,9 +170,12 @@ export function ProyectoForm({
                   />
                 </FormControl>
                 <p className="text-xs text-muted-foreground">
-                  CSV de property names del modelo NWD/RVT a usar para extraer el TAG
-                  del Elemento. El extractor prueba en orden y usa el primero con
-                  valor. Dejar vacío para usar los defaults Plant 3D.
+                  CSV de property names del modelo NWD/RVT a probar como TAG, en orden
+                  (primero con valor gana). Vacío = defaults Plant 3D. Podés filtrar por
+                  patrón con <code>Prop~regex</code> — ej.{" "}
+                  <code>Item.Name~^\d+-[A-Z]+-\d+$</code> matchea líneas «10-PF-4000» y
+                  descarta contenedores/spools. <code>Item.Name</code> solo aplica a
+                  nodos Group/Composite.
                 </p>
                 <FormMessage />
               </FormItem>

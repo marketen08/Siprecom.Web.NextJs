@@ -95,6 +95,23 @@ export function useProcesarIfcArchivo(proyectoId: string) {
 }
 
 /**
+ * Re-bootstrap LIMPIO: borra toda la estructura del proyecto (Sistemas,
+ * SubSistemas, Elementos, etc.) y vuelve a correr el bootstrap con la config
+ * de ApsTagProperties actual. Destructivo — el caller debe confirmar.
+ */
+export function useReBootstrapIfcArchivo(proyectoId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (archivoId: string) =>
+      apiClient.post<ApiResponse<unknown>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/re-bootstrap`,
+        {},
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK_ARCHIVO(proyectoId) }),
+  })
+}
+
+/**
  * Resuelve un set de IfcGuid → datos del Elemento vinculado.
  * Lo usa el viewer cuando el usuario clickea en una entidad 3D.
  */

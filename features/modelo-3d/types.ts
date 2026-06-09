@@ -166,8 +166,15 @@ export interface ColoresPorEstado {
 export interface CrearProyectoDesdeIfcInput {
   nombre: string
   clienteId: string
+  /** Opcional — si se omite, el backend usa el mismo cliente como contratista. */
+  contratistaId?: string
   nombreArchivo?: string
   disciplina?: string
+  /**
+   * CSV de property names a usar como TAG en el matching APS (NWD). Solo aplica
+   * al pipeline NWD/APS — el procesamiento IFC lo ignora.
+   */
+  apsTagProperties?: string
   archivo: File
 }
 

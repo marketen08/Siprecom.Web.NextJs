@@ -55,6 +55,10 @@ function Button({
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      // Con asChild renderizamos un elemento ajeno (típicamente un <Link>/<a>),
+      // así que avisamos a Base UI que NO es un <button> nativo — sino tira el
+      // warning "expected a native <button>". El caller puede overridearlo via props.
+      nativeButton={asChild ? false : undefined}
       render={asChild ? (children as React.ReactElement) : undefined}
       {...props}
     >
