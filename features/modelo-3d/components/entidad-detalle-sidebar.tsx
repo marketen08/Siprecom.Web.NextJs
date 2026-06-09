@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowUpRight, Hash, Layers, Link2, Link2Off, Loader2, Tag, X } from "lucide-react"
+import { useState } from "react"
+import { ArrowUpRight, Hash, Layers, Link2, Link2Off, ListChecks, Loader2, Tag, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useGetAvanceElemento } from "@/features/avance/api/use-get-avance-elemento"
+import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
 import type { AvanceElementoDTO } from "@/features/avance/types"
 import type { ProyectoIfcEntidad } from "../types"
 
@@ -23,6 +25,10 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
   // skip — no hay nada que mostrar de tareas / subsistema / avance.
   const avanceQuery = useGetAvanceElemento(entidad.elementoId ?? null)
   const avance = avanceQuery.data?.data ?? null
+
+  // Sheet de tareas del Elemento — el mismo de /ejecucion/elementos. Lo abrimos
+  // inline desde "Ver avance del Elemento" en vez de navegar.
+  const [avanceOpen, setAvanceOpen] = useState(false)
 
   return (
     <aside className="w-80 shrink-0 rounded-lg border border-gray-200 bg-white shadow-sm overflow-y-auto">
@@ -112,11 +118,14 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
             {avance && <AvanceResumen avance={avance} />}
 
             <div className="pt-2 space-y-1.5">
-              <Button asChild size="sm" variant="outline" className="w-full justify-between gap-2">
-                <Link href={`/ejecucion/elementos?elementoId=${entidad.elementoId}`}>
-                  Ver avance del Elemento
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-between gap-2"
+                onClick={() => setAvanceOpen(true)}
+              >
+                Ver avance del Elemento
+                <ListChecks className="h-3.5 w-3.5" />
               </Button>
               <Button asChild size="sm" variant="outline" className="w-full justify-between gap-2">
                 <Link href={`/ejecucion/pendientes?elementoId=${entidad.elementoId}`}>
@@ -125,12 +134,19 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
                 </Link>
               </Button>
               <Button asChild size="sm" variant="outline" className="w-full justify-between gap-2">
-                <Link href={`/alcance/elementos/${entidad.elementoId}`}>
+                <Link href={`/ejecucion/elementos?elementoId=${entidad.elementoId}`}>
                   Ir al Elemento
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>
               </Button>
             </div>
+
+            <ElementoDetalleSheet
+              elementoId={entidad.elementoId}
+              avance={avance}
+              open={avanceOpen}
+              onClose={() => setAvanceOpen(false)}
+            />
           </div>
         ) : (
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">

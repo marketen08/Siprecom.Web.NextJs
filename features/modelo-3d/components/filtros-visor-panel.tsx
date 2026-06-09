@@ -35,7 +35,9 @@ export function FiltrosVisorPanel({
   // filtro un nivel sin tareas (lo cual dejaría 0 elementos al seleccionarlo).
   const { data: nivelesRaw } = useGetNivelesUsadosSelect()
 
-  const sistemas = sistemasData?.data ?? []
+  // Ordenado por código (numérico natural: S1, S2, … S10), no alfabético por nombre.
+  const sistemas = [...(sistemasData?.data ?? [])].sort((a, b) =>
+    (a.codigo ?? "").localeCompare(b.codigo ?? "", undefined, { numeric: true, sensitivity: "base" }))
   const todosSubsistemas = subsistemasData?.data ?? []
   const especialidades = especialidadesData?.data ?? []
   // El endpoint /api/niveles devuelve el array directo (no envuelto en {data}).
@@ -48,10 +50,13 @@ export function FiltrosVisorPanel({
   const nivelesOrdenados = [...niveles].sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0))
 
   // Si hay sistemas seleccionados, mostramos solo los subsistemas que les pertenecen.
+  // Ordenados por código (numérico natural: SS1, SS2, … SS10), no alfabético por nombre.
   const subsistemasVisibles = useMemo(() => {
-    if (filtro.sistemaIds.length === 0) return todosSubsistemas
-    const setIds = new Set(filtro.sistemaIds)
-    return todosSubsistemas.filter((s) => setIds.has(s.sistemaId))
+    const base = filtro.sistemaIds.length === 0
+      ? todosSubsistemas
+      : todosSubsistemas.filter((s) => new Set(filtro.sistemaIds).has(s.sistemaId))
+    return [...base].sort((a, b) =>
+      (a.codigo ?? "").localeCompare(b.codigo ?? "", undefined, { numeric: true, sensitivity: "base" }))
   }, [todosSubsistemas, filtro.sistemaIds])
 
   const vacio = isFiltroVacio(filtro)
