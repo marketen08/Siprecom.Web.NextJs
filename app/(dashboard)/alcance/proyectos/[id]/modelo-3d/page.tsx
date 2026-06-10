@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Cloud, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, Star, Trash2, Wrench,
+  AlertTriangle, Box, CheckCircle2, Cloud, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, ScanSearch, Star, Trash2, Wrench,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -21,6 +21,7 @@ import {
   useReBootstrapIfcArchivo,
 } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
+import { CodificacionesSheet } from "@/features/modelo-3d/components/codificaciones-sheet"
 import { ImportarDesdeApsSheet } from "@/features/aps/components/importar-desde-aps-sheet"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
@@ -417,6 +418,10 @@ function ArchivoCard({
   const mb = archivo.tamanioBytes
     ? Math.round((archivo.tamanioBytes / (1024 * 1024)) * 10) / 10
     : null
+  const [codisOpen, setCodisOpen] = useState(false)
+  // Analizar TAGs solo aplica a NWD ya traducido (usa properties APS).
+  const puedeAnalizar = archivo.formatoArchivo === FormatoArchivo3d.Nwd
+    && archivo.apsTranslationStatus === ApsTranslationStatus.Completado
   return (
     <div
       className={`rounded-lg border bg-white p-3 space-y-2 transition-colors ${
@@ -485,6 +490,16 @@ function ArchivoCard({
         >
           {procesando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
         </button>
+        {puedeAnalizar && (
+          <button
+            type="button"
+            onClick={() => setCodisOpen(true)}
+            className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+            title="Analizar codificaciones de TAG"
+          >
+            <ScanSearch className="h-3.5 w-3.5" />
+          </button>
+        )}
         <ConfirmActionDialog
           trigger={reBootstrapeando
             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -524,6 +539,16 @@ function ArchivoCard({
           onConfirm={onEliminar}
         />
       </div>
+
+      {puedeAnalizar && (
+        <CodificacionesSheet
+          open={codisOpen}
+          onClose={() => setCodisOpen(false)}
+          proyectoId={archivo.proyectoId}
+          archivoId={archivo.id}
+          archivoNombre={archivo.nombre}
+        />
+      )}
     </div>
   )
 }

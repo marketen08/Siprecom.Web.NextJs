@@ -182,3 +182,15 @@ export interface CrearProyectoDesdeIfcOutput {
   proyectoId: string
   proyectoIfcArchivoId: string
 }
+
+/** Una codificación de TAG detectada en el modelo (forma del Item.Name). */
+export interface ApsCodificacion {
+  /** Forma regex del nombre, ej. `\d+-[A-Z]+-\d+`. */
+  patron: string
+  /** Entrada lista para apsTagProperties, ej. `Item.Name~^\d+-[A-Z]+-\d+$`. */
+  propTagSugerida: string
+  /** Cantidad de nodos lógicos con esta forma. */
+  cantidad: number
+  /** Un Item.Name de ejemplo. */
+  ejemplo: string
+}

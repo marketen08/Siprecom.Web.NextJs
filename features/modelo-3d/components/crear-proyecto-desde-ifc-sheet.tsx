@@ -35,7 +35,6 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
   const [clienteId, setClienteId] = useState("")
   const [contratistaId, setContratistaId] = useState("")
   const [nombreArchivo, setNombreArchivo] = useState("")
-  const [disciplina, setDisciplina] = useState("")
   const [apsTagProperties, setApsTagProperties] = useState("")
   const [archivo, setArchivo] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +57,6 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
     setClienteId("")
     setContratistaId("")
     setNombreArchivo("")
-    setDisciplina("")
     setApsTagProperties("")
     setArchivo(null)
     setError(null)
@@ -91,7 +89,6 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
         clienteId,
         contratistaId: contratistaId || undefined,
         nombreArchivo: nombreArchivo.trim() || undefined,
-        disciplina: disciplina.trim() || undefined,
         // apsTagProperties solo aplica al pipeline NWD/APS.
         apsTagProperties: esNwd ? (apsTagProperties.trim() || undefined) : undefined,
         archivo,
@@ -183,17 +180,6 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
             <p className="text-xs text-muted-foreground mt-1">
               Opcional. Si lo dejás vacío, se usa el nombre del proyecto.
             </p>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Disciplina</label>
-            <Input
-              value={disciplina}
-              onChange={(e) => setDisciplina(e.target.value)}
-              placeholder="Eléctrico, Mecánico, Civil, …"
-              className="mt-1"
-              maxLength={100}
-            />
           </div>
 
           <div>
