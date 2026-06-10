@@ -38,6 +38,9 @@ export function useImportApply() {
         qc.invalidateQueries({ queryKey: ["sistemas"] })
         qc.invalidateQueries({ queryKey: ["subsistemas"] })
         qc.invalidateQueries({ queryKey: ["elementos"] })
+        // La importación vincula/desvincula entidades del modelo 3D por TAG —
+        // refrescamos el visor (entidades + colores por estado).
+        qc.invalidateQueries({ queryKey: ["ifc"] })
       }
     },
   })

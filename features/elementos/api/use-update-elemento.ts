@@ -10,6 +10,9 @@ export function useUpdateElemento(id: string) {
       apiClient.put(`/api/elementos/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["elementos"] })
+      // El cambio de TAG puede re-vincular entidades del modelo 3D — refrescamos
+      // las queries del visor para reflejarlo sin recargar la maqueta.
+      queryClient.invalidateQueries({ queryKey: ["ifc"] })
     },
   })
 }

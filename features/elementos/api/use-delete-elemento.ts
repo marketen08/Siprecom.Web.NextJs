@@ -8,6 +8,8 @@ export function useDeleteElemento() {
     mutationFn: (id: string) => apiClient.delete(`/api/elementos/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["elementos"] })
+      // Al borrar se desvinculan las entidades del modelo 3D — refrescamos el visor.
+      queryClient.invalidateQueries({ queryKey: ["ifc"] })
     },
   })
 }

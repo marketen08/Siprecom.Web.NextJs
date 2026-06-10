@@ -10,6 +10,10 @@ export function useCreateElemento() {
       apiClient.post("/api/elementos", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["elementos"] })
+      // El backend auto-vincula entidades del modelo 3D por TAG al crear, así que
+      // refrescamos las queries del visor (entidades + colores por estado) para
+      // que el vínculo nuevo se vea sin recargar la maqueta.
+      queryClient.invalidateQueries({ queryKey: ["ifc"] })
     },
   })
 }
