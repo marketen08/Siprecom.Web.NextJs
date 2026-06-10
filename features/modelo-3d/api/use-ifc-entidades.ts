@@ -112,6 +112,22 @@ export function useReBootstrapIfcArchivo(proyectoId: string) {
 }
 
 /**
+ * Devuelve todos los IfcGuid del archivo vinculados a un mismo Elemento. El visor
+ * lo usa para seleccionar la línea/equipo COMPLETO al clickear una de sus piezas
+ * (varias entidades comparten Elemento porque el bootstrap las agrupó por nombre).
+ */
+export async function getGuidsPorElemento(
+  proyectoId: string,
+  archivoId: string,
+  elementoId: string,
+): Promise<string[]> {
+  const resp = await apiClient.get<ApiResponse<string[]>>(
+    `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/por-elemento/${elementoId}`,
+  )
+  return resp?.data ?? []
+}
+
+/**
  * Resuelve un set de IfcGuid → datos del Elemento vinculado.
  * Lo usa el viewer cuando el usuario clickea en una entidad 3D.
  */

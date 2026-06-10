@@ -16,6 +16,7 @@ import {
 } from "@/features/modelo-3d/api/use-ifc-archivos"
 import {
   resolverEntidadesPorGuids,
+  getGuidsPorElemento,
   useProcesarIfcArchivo,
   useReBootstrapIfcArchivo,
 } from "@/features/modelo-3d/api/use-ifc-entidades"
@@ -42,6 +43,7 @@ import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 interface ViewerHandle {
   loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
+  selectByGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   resize: () => void
@@ -139,6 +141,12 @@ function ModeloPageContent() {
             const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
             const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
             setEntidadSeleccionada(elegida)
+
+            // Seleccionar TODAS las piezas del Elemento (línea/equipo completo).
+            if (elegida?.elementoId) {
+              const guidsElemento = await getGuidsPorElemento(id, archivoActivo, elegida.elementoId)
+              if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+            }
           } catch (e) {
             setViewError((e as Error).message)
           } finally {

@@ -27,6 +27,12 @@ import {
 export interface UnifiedViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   /**
+   * Selecciona en el visor TODAS las entidades indicadas (por guid/externalId)
+   * sin re-disparar onPick. Se usa para resaltar la línea/equipo completo al
+   * clickear una de sus piezas.
+   */
+  selectByGuids: (guids: string[]) => void
+  /**
    * Aplica el ghost a las entidades visibles. Si `opts.hide` es true, las no
    * visibles quedan completamente invisibles. Si es false (default), quedan
    * semi-transparentes (efecto fantasma del viewer).

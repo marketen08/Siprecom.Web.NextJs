@@ -8,7 +8,7 @@ import {
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useGetIfcPrincipal } from "@/features/modelo-3d/api/use-ifc-archivos"
-import { resolverEntidadesPorGuids } from "@/features/modelo-3d/api/use-ifc-entidades"
+import { resolverEntidadesPorGuids, getGuidsPorElemento } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor-panel"
@@ -26,6 +26,7 @@ import {
 
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
+  selectByGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   resize: () => void
@@ -134,6 +135,14 @@ function ModeloEjecucionContent() {
               const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
               const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
               setEntidadSeleccionada(elegida)
+
+              // Si la entidad está vinculada a un Elemento, seleccionamos en el
+              // visor TODAS las piezas de ese Elemento (toda la línea/equipo), no
+              // solo la hoja clickeada.
+              if (elegida?.elementoId) {
+                const guidsElemento = await getGuidsPorElemento(proyId, archivoActivo, elegida.elementoId)
+                if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+              }
             } catch (e) {
               setViewError((e as Error).message)
             } finally {

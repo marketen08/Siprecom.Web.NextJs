@@ -24,6 +24,11 @@ export interface ViewerHandle {
    */
   highlightByGuid: (guid: string | null) => Promise<void>
   /**
+   * Resalta TODAS las entidades indicadas (por guid) — para seleccionar la
+   * línea/equipo completo al clickear una pieza. Mismo contrato que el viewer APS.
+   */
+  selectByGuids: (guids: string[]) => void
+  /**
    * Aplica un "ghost" sobre el modelo: las entidades cuyos GUIDs NO estén en
    * la lista quedan grises y transparentes; las que SÍ están quedan con su
    * material original. Pasá null para limpiar el ghost (todo vuelve a colores
@@ -205,6 +210,17 @@ export async function createViewer(
     await applyHighlight(valid)
   }
 
+  // Resalta TODAS las entidades indicadas (por guid) — usado para seleccionar
+  // la línea/equipo completo al clickear una pieza. En IFC el "select" es el
+  // highlight; no hay loop de evento (el click es un handler manual).
+  async function selectByGuids(guids: string[]): Promise<void> {
+    if (!currentModel || disposed || guids.length === 0) return
+    const ids = await currentModel.getLocalIdsByGuids(guids)
+    const valid = ids.filter((id): id is number => typeof id === "number")
+    if (valid.length === 0) return
+    await applyHighlight(valid)
+  }
+
   // ─── Ghost mode (filtros visuales) ───────────────────────────────────────
   // Para que el filtro sea instantáneo, mantenemos los IDs visibles en una ref.
   // Cuando el filtro cambia, primero "pintamos" TODO de gris+transparente, y
@@ -368,5 +384,5 @@ export async function createViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadIfc, highlightByGuid, applyGhost, applyColorPorEstado, resize, dispose }
+  return { loadIfc, highlightByGuid, selectByGuids, applyGhost, applyColorPorEstado, resize, dispose }
 }

@@ -45,6 +45,12 @@ function loadSdk(): Promise<void> {
 export interface ApsViewerHandle {
   loadModel: (urn: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
+  /**
+   * Selecciona en el visor TODAS las entidades indicadas (por externalId), sin
+   * disparar el callback onPick. Se usa para resaltar la línea/equipo completo
+   * cuando se clickea una de sus piezas.
+   */
+  selectByGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   /**
@@ -202,10 +208,28 @@ export async function createApsViewer(
     return out
   }
 
+  // Selección programática (selectByGuids) — guardamos el set de dbIds que
+  // seleccionamos nosotros para NO re-disparar onPick cuando llega su
+  // SELECTION_CHANGED (sino haríamos un ida y vuelta innecesario al backend).
+  let lastProgrammaticKey: string | null = null
+  const keyDeDbIds = (ids: number[]) => ids.slice().sort((a, b) => a - b).join(",")
+
+  function selectByGuids(guids: string[]): void {
+    const dbIds = guidsToIds(guids)
+    if (dbIds.length === 0) return
+    lastProgrammaticKey = keyDeDbIds(dbIds)
+    viewer.select(dbIds)
+  }
+
   // Click handler — Autodesk Viewer emite SELECTION_CHANGED al hacer click.
   let lastSelectionKey: string | null = null
   const onSelectionChanged = (e: { dbIdArray: number[] }) => {
     if (!opts.onPick) return
+    // Si esta selección la disparamos nosotros (selectByGuids), no re-pickear.
+    if (e.dbIdArray && e.dbIdArray.length > 0 && keyDeDbIds(e.dbIdArray) === lastProgrammaticKey) {
+      lastProgrammaticKey = null
+      return
+    }
     const dbId = e.dbIdArray?.[0]
     if (dbId === undefined) {
       if (lastSelectionKey !== null) {
@@ -437,7 +461,7 @@ export async function createApsViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadModel, highlightByGuid, applyGhost, applyColorPorEstado, resize, dispose }
+  return { loadModel, highlightByGuid, selectByGuids, applyGhost, applyColorPorEstado, resize, dispose }
 }
 
 /** Convierte un GUID sintético "aps-{dbId}" a dbId numérico. Si no matchea, null. */
