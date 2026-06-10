@@ -1,20 +1,21 @@
 "use client"
 
+import { loginRequest as msalLoginRequest } from "@/lib/msal-config"
+import { useAuthStore } from "@/store/auth-store"
+import type { LoginApiResponse, LoginRequest } from "@/types/auth"
+import { useMsal } from "@azure/msal-react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation } from "@tanstack/react-query"
+import { Eye, EyeOff } from "lucide-react"
+import { signIn } from "next-auth/react"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useMutation } from "@tanstack/react-query"
-import { useMsal } from "@azure/msal-react"
-import { useAuthStore } from "@/store/auth-store"
-import type { LoginRequest, LoginApiResponse } from "@/types/auth"
-import { loginRequest as msalLoginRequest } from "@/lib/msal-config"
-import { Eye, EyeOff } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
 
 function MicrosoftIcon({ className }: { className?: string }) {
   return (
@@ -79,6 +80,7 @@ export default function LoginPage() {
   })
 
   const [redirectingToMicrosoft, setRedirectingToMicrosoft] = useState(false)
+  const [redirectingToIbmVerify, setRedirectingToIbmVerify] = useState(false)
 
   const handleMicrosoftLogin = async () => {
     form.clearErrors("root.serverError")
@@ -102,7 +104,41 @@ export default function LoginPage() {
     mutation.mutate(values)
   }
 
-  const isAnyPending = mutation.isPending || redirectingToMicrosoft
+  /**
+   * Inicia el flujo OIDC con IBM Security Verify via NextAuth.
+   *
+   * signIn('ibm-verify') hace:
+   *  1. Genera PKCE code_verifier + challenge y los almacena en una cookie temporal.
+   *  2. Genera state + nonce contra CSRF y replay attacks.
+   *  3. Redirige el navegador al authorization endpoint de IBM Verify.
+   *  4. IBM Verify autentica al usuario (puede incluir MFA, SSO con AD, etc.).
+   *  5. IBM Verify redirige a /api/auth/callback/ibm-verify con el code.
+   *  6. NextAuth intercambia el code + code_verifier por tokens.
+   *  7. El callback jwt llama al backend Siprecom para obtener el JWT interno.
+   *  8. NextAuth redirige a callbackUrl (/api/auth/ibm-verify-finalize).
+   *  9. ibm-verify-finalize setea las cookies httpOnly y redirige al dashboard.
+   */
+  const handleIbmVerifyLogin = async () => {
+    form.clearErrors("root.serverError")
+    setRedirectingToIbmVerify(true)
+    try {
+      // callbackUrl: después del flujo OIDC, NextAuth redirige aquí.
+      // ibm-verify-finalize extrae los tokens de la sesión NextAuth y los
+      // setea como cookies httpOnly para el proxy existente (backend-fetch.ts).
+      await signIn("ibm-verify", {
+        callbackUrl: "/api/auth/ibm-verify-finalize",
+      })
+    } catch (err: unknown) {
+      setRedirectingToIbmVerify(false)
+      const e = err as { message?: string }
+      form.setError("root.serverError", {
+        type: "server",
+        message: e?.message ?? "No se pudo iniciar sesión con IBM Verify",
+      })
+    }
+  }
+
+  const isAnyPending = mutation.isPending || redirectingToMicrosoft || redirectingToIbmVerify
 
   return (
     <Card className="w-full max-w-md">
@@ -201,6 +237,42 @@ export default function LoginPage() {
           <MicrosoftIcon className="h-4 w-4" />
           {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Iniciar sesión con Microsoft"}
         </Button>
+
+        {/* Botón de IBM Security Verify — SSO empresarial con federación de directorio corporativo.
+            Solo se muestra si está configurado (IBM_VERIFY_CLIENT_ID en las variables de entorno). */}
+        {process.env.NEXT_PUBLIC_IBM_VERIFY_ENABLED === "true" && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2 mt-3"
+            disabled={isAnyPending}
+            onClick={handleIbmVerifyLogin}
+          >
+            {/* Logo de IBM Verify: escudo azul corporativo */}
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6L12 2z"
+                fill="#006699"
+              />
+              <path
+                d="M10 11l2 2 4-4"
+                stroke="white"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {redirectingToIbmVerify
+              ? "Redirigiendo a IBM Verify..."
+              : "Iniciar sesión con IBM Verify"}
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
