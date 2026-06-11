@@ -183,6 +183,14 @@ export interface CrearProyectoDesdeIfcOutput {
   proyectoIfcArchivoId: string
 }
 
+/** Respuesta de POST /api/aps/nwd-upload-sas — SAS para subir el NWD directo al blob. */
+export interface NwdUploadSas {
+  archivoId: string
+  blobName: string
+  uploadUrl: string
+  expiraEnMinutos: number
+}
+
 /** Una codificación de TAG detectada en el modelo (forma del Item.Name). */
 export interface ApsCodificacion {
   /** Forma regex del nombre, ej. `\d+-[A-Z]+-\d+`. */
