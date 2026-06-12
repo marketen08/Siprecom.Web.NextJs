@@ -79,7 +79,11 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
   }
 
   const handleRenderModeChange = (value: CampoListaRenderMode) => {
-    updateMutation.mutate(buildUpdatePayload({ renderMode: value }))
+    // Checklist (3) se renderiza siempre como tabla a ancho completo: forzamos
+    // tamano=12 en el mismo update para que la config no quede inconsistente.
+    updateMutation.mutate(
+      buildUpdatePayload(value === 3 ? { renderMode: value, tamano: 12 } : { renderMode: value }),
+    )
   }
 
   const handleTamanoChange = (n: number) => {
@@ -285,7 +289,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
                     handleTamanoChange(num)
                   }
                 }}
-                disabled={updateMutation.isPending}
+                disabled={updateMutation.isPending || campo.renderMode === 3}
               >
                 <SelectTrigger className="h-8 text-sm flex-1">
                   <SelectValue>

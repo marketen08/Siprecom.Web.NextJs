@@ -147,7 +147,8 @@ export function AddCampoModal({
         visible: true,
         soloLectura: false,
         renderMode: isListaExistente ? renderMode : undefined,
-        tamano,
+        // Checklist siempre ocupa ancho completo (12), independiente del control.
+        tamano: isListaExistente && renderMode === 3 ? 12 : tamano,
       },
       { onSuccess: handleClose }
     )
@@ -186,7 +187,8 @@ export function AddCampoModal({
         visible: true,
         soloLectura: false,
         renderMode: values.tipoDato === 5 ? renderMode : undefined,
-        tamano,
+        // Checklist siempre ocupa ancho completo (12), independiente del control.
+        tamano: values.tipoDato === 5 && renderMode === 3 ? 12 : tamano,
       })
       handleClose()
     } catch {
@@ -211,6 +213,10 @@ export function AddCampoModal({
   // (solo aplica al tab "Nuevo"; en "Existente" las opciones ya están definidas en el Campo).
   const handleRenderModeChange = (next: CampoListaRenderMode) => {
     setRenderMode(next)
+    // Checklist (3) se renderiza siempre como tabla a ancho completo (ignora el
+    // Tamano en el PDF/web). Forzamos el ancho a 12 para que la config refleje la
+    // realidad y no quede, p.ej., en un tercio.
+    if (next === 3) setTamano(12)
     if (tab === "new" && next === 3 && tempOpciones.length === 0) {
       // Sí/No/NA es un orden semántico explícito, no alfabético: activamos manual.
       setTempOpciones([
@@ -302,6 +308,7 @@ export function AddCampoModal({
             <Label>Ancho del campo</Label>
             <div className="flex items-center gap-2">
               <Select
+                disabled={renderMode === 3}
                 value={(() => {
                   const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
                   return String(match?.value ?? -1)
@@ -345,7 +352,9 @@ export function AddCampoModal({
               )}
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Grilla de 12. Los campos consecutivos se agrupan automáticamente.
+              {renderMode === 3
+                ? "El modo Checklist (tabla) siempre ocupa el ancho completo (12)."
+                : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
 
