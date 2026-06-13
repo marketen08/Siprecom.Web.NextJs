@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -85,6 +85,13 @@ export function AddCampoModal({
   // Imagen pre-cargada para campo nuevo de tipo Imagen (sube primero, recibe URL).
   const [imagenUrl, setImagenUrl] = useState<string | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // El initializer de useState sólo corre en el primer montaje (cuando aún no hay
+  // sección activa), así que re-sincronizamos cada vez que el modal se abre para que
+  // venga preseleccionada la sección sobre la que está posicionado el usuario.
+  useEffect(() => {
+    if (open) setSeccionId(selectedSeccionId ?? "__none__")
+  }, [open, selectedSeccionId])
 
   const { data: camposResult } = useGetCamposSelect()
   const campos: Array<{ id: string; etiqueta: string; codigo: string } & Record<string, any>> = (camposResult as any)?.data ?? []

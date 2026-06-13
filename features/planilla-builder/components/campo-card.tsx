@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { ArrowDown, ArrowUp, Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 
-import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode } from "@/features/planillas/types"
+import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode, PlanillaSeccion } from "@/features/planillas/types"
 import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_TAMANO_OPCIONES } from "@/features/planillas/types"
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
@@ -28,13 +28,17 @@ import { cn } from "@/lib/utils"
 interface CampoCardProps {
   campo: PlanillaCampoDetalle
   planillaId: string
+  /** Todas las secciones de la planilla (para el selector "mover de sección"). */
+  secciones: PlanillaSeccion[]
+  /** Todos los campos de la planilla (para calcular el orden al final de la sección destino). */
+  allCampos: PlanillaCampoDetalle[]
   /** Vecino anterior en la sección (para reordenar arriba). null si es el primero. */
   previousCampo?: PlanillaCampoDetalle | null
   /** Vecino siguiente en la sección (para reordenar abajo). null si es el último. */
   nextCampo?: PlanillaCampoDetalle | null
 }
 
-export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: CampoCardProps) {
+export function CampoCard({ campo, planillaId, secciones, allCampos, previousCampo, nextCampo }: CampoCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [newOpcionValor, setNewOpcionValor] = useState("")
   const [newOpcionEtiqueta, setNewOpcionEtiqueta] = useState("")
@@ -59,6 +63,7 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
     renderMode: CampoListaRenderMode
     orden: number
     tamano: number
+    planillaSeccionId?: string
   }> = {}) => ({
     id: campo.id,
     planillaId,
@@ -114,6 +119,21 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
 
   const handleMoveUp = () => { if (previousCampo) swapOrden(previousCampo) }
   const handleMoveDown = () => { if (nextCampo) swapOrden(nextCampo) }
+
+  // Valor del select de sección: "__none__" representa "Sin sección".
+  const seccionValue = campo.planillaSeccionId ?? "__none__"
+
+  // Mueve el campo a otra sección. Lo ubicamos al final de la sección destino
+  // (max(orden)+1) para que no colisione el orden con campos ya presentes.
+  const handleMoveToSeccion = (value: string) => {
+    const destino = value === "__none__" ? undefined : value
+    if (destino === campo.planillaSeccionId) return
+    const enDestino = allCampos.filter((c) =>
+      destino == null ? !c.planillaSeccionId : c.planillaSeccionId === destino
+    )
+    const nextOrden = enDestino.reduce((m, c) => Math.max(m, c.orden), 0) + 1
+    updateMutation.mutate(buildUpdatePayload({ planillaSeccionId: destino, orden: nextOrden }))
+  }
 
   // Reorder atómico vía endpoint bulk: el backend asigna orden = index+1 a todas las opciones.
   // Inmune a colisiones de orden previas (legacy o creación con length+1 tras un delete).
@@ -220,6 +240,35 @@ export function CampoCard({ campo, planillaId, previousCampo, nextCampo }: Campo
       {/* Expanded options */}
       {expanded && (
         <div className="border-t px-3 py-3 space-y-3 bg-gray-50 rounded-b-lg">
+          {/* Mover de sección */}
+          {secciones.length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs">Sección</Label>
+              <Select
+                value={seccionValue}
+                onValueChange={handleMoveToSeccion}
+                disabled={updateMutation.isPending}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue>
+                    {seccionValue === "__none__"
+                      ? "Sin sección"
+                      : secciones.find((s) => s.id === seccionValue)?.nombre ?? "Sin sección"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin sección</SelectItem>
+                  {secciones.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Al mover, el campo se ubica al final de la sección destino.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input

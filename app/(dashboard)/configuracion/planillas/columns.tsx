@@ -91,6 +91,15 @@ function formatFecha(iso?: string) {
 
 export const columns: ColumnDef<Planilla>[] = [
   {
+    accessorKey: "codigo",
+    header: "Código",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm text-muted-foreground">
+        {row.original.codigo || "—"}
+      </span>
+    ),
+  },
+  {
     accessorKey: "nombre",
     header: "Nombre",
     cell: ({ row }) => (

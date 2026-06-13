@@ -208,6 +208,8 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
                       key={campo.id}
                       campo={campo}
                       planillaId={id}
+                      secciones={secciones}
+                      allCampos={campos}
                       previousCampo={idx > 0 ? ordenados[idx - 1] : null}
                       nextCampo={idx < ordenados.length - 1 ? ordenados[idx + 1] : null}
                     />
