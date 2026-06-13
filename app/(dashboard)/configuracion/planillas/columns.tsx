@@ -37,7 +37,7 @@ function RowActions({ planilla }: { planilla: Planilla }) {
         title="Diseñar planilla"
         asChild
       >
-        <Link href={`/alcance/planillas/${planilla.id}`}>
+        <Link href={`/configuracion/planillas/${planilla.id}`}>
           <Settings className="h-4 w-4" />
         </Link>
       </Button>

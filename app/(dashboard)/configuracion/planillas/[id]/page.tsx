@@ -32,12 +32,12 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
   const estructura = (estructuraResult as any)?.data ?? estructuraResult
   const planillaNombre = (estructura as any)?.planilla?.nombre ?? null
 
-  // Breadcrumb dinámico: Alcance → Planillas (link) → {nombre planilla}
+  // Breadcrumb dinámico: Configuración → Planillas (link) → {nombre planilla}
   useBreadcrumb(
     planillaNombre
       ? [
-          { label: "Alcance" },
-          { label: "Planillas", href: "/alcance/planillas" },
+          { label: "Configuración" },
+          { label: "Planillas", href: "/configuracion/planillas" },
           { label: planillaNombre },
         ]
       : null
