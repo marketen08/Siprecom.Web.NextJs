@@ -7,7 +7,18 @@ import {
 
 const clientId = process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID ?? ""
 const tenantId = process.env.NEXT_PUBLIC_MICROSOFT_TENANT_ID ?? "common"
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+
+// El redirectUri tiene que ser el dominio real del sitio. Como un único build se
+// despliega en varias webs (multi-sitio), NO lo tomamos de una env var horneada en
+// el build: lo derivamos de window.location.origin en RUNTIME, así cada dominio usa
+// el suyo. En SSR/build no hay window → caemos a la env var (o localhost), pero es
+// irrelevante porque MSAL sólo se instancia en el browser.
+// IMPORTANTE: cada dominio nuevo debe registrarse como redirect URI (plataforma SPA)
+// en la App Registration de Azure AD, sino Microsoft rechaza el login (AADSTS50011).
+const appUrl =
+  typeof window !== "undefined"
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
 
 // MSAL navega internamente despues de procesar el redirect. En la pagina
 // de callback queremos manejar la navegacion nosotros (al dashboard despues

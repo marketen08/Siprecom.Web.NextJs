@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { BackendAuthResponse } from "@/types/auth"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL
+const BACKEND_URL = process.env.API_URL
 
 const COOKIE_OPTS = {
   httpOnly: true,

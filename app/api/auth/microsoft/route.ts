@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { decodeJWT } from "@/lib/utils"
 import type { BackendAuthResponse } from "@/types/auth"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+const API_URL = process.env.API_URL
 
 export async function POST(request: NextRequest) {
   const { idToken } = await request.json()

@@ -30,7 +30,9 @@ jobs:
           NEXT_PUBLIC_MICROSOFT_CLIENT_ID: ${{ vars.NEXT_PUBLIC_MICROSOFT_CLIENT_ID }}
           NEXT_PUBLIC_MICROSOFT_TENANT_ID: ${{ vars.NEXT_PUBLIC_MICROSOFT_TENANT_ID }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          # API_URL ya NO va acá: se usa sólo server-side, así que se lee en runtime.
+          # Cada Static Web App define su propia "API_URL" en Application settings del
+          # portal → un único build sirve para múltiples sitios apuntando a distintas APIs.
           # Server-side (runtime SSR) — secreto, va por Secrets.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:

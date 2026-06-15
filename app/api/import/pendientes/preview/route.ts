@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL
+const BACKEND_URL = process.env.API_URL
 
 export async function POST(request: NextRequest) {
   const accessToken = request.cookies.get("accessToken")?.value

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL
+const BACKEND_URL = process.env.API_URL
 
 // POST /api/import/valores-precargados/apply  (multipart/form-data)
 export async function POST(request: NextRequest) {
