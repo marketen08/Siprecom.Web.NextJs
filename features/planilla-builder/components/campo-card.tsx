@@ -246,7 +246,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               <Label className="text-xs">Sección</Label>
               <Select
                 value={seccionValue}
-                onValueChange={handleMoveToSeccion}
+                onValueChange={(v) => handleMoveToSeccion(v ?? "__none__")}
                 disabled={updateMutation.isPending}
               >
                 <SelectTrigger className="h-8 text-sm">

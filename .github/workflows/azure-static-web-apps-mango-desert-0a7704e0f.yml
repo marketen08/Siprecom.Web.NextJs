@@ -30,11 +30,10 @@ jobs:
           NEXT_PUBLIC_MICROSOFT_CLIENT_ID: ${{ vars.NEXT_PUBLIC_MICROSOFT_CLIENT_ID }}
           NEXT_PUBLIC_MICROSOFT_TENANT_ID: ${{ vars.NEXT_PUBLIC_MICROSOFT_TENANT_ID }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
-          # API_URL ya NO va acá: se usa sólo server-side, así que se lee en runtime.
-          # Cada Static Web App define su propia "API_URL" en Application settings del
-          # portal → un único build sirve para múltiples sitios apuntando a distintas APIs.
-          # Server-side (runtime SSR) — secreto, va por Secrets.
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # API_URL y ANTHROPIC_API_KEY ya NO van acá: se usan sólo server-side y se
+          # leen en RUNTIME. En SWA el env del build NO llega al runtime SSR, así que
+          # van como Application settings del portal (por sitio). Un único build sirve
+          # para múltiples webs apuntando a distintas APIs.
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_DESERT_0A7704E0F }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)

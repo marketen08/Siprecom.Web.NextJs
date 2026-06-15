@@ -2,9 +2,19 @@ import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest } from "next/server"
 import type { ExcelParsePayload, PlanillaImportada } from "@/features/planillas/import-types"
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+// Instanciación lazy: el cliente se crea en la request, no al cargar el módulo.
+// Así el build nunca depende de ANTHROPIC_API_KEY. En producción la key es un
+// Application setting de runtime de la Static Web App (NO una var de build: el env
+// del build de SWA no llega al runtime SSR). En local sale de .env.local.
+function getAnthropic() {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY no está configurada. En Azure agregala como Application setting de la Static Web App.",
+    )
+  }
+  return new Anthropic({ apiKey })
+}
 
 const SYSTEM_PROMPT = `Eres un experto en análisis de planillas industriales de precomisionamiento.
 Recibirás el contenido de un archivo Excel (como matriz de filas/columnas) y debes convertirlo en una estructura de planilla digital.
@@ -66,6 +76,7 @@ export async function POST(request: NextRequest) {
 Contenido:
 ${tablaTexto}`
 
+    const client = getAnthropic()
     const message = await client.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 4096,
