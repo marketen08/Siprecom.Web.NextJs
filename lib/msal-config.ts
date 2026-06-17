@@ -5,21 +5,6 @@ import {
   type RedirectRequest,
 } from "@azure/msal-browser"
 
-const clientId = process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID ?? ""
-const tenantId = process.env.NEXT_PUBLIC_MICROSOFT_TENANT_ID ?? "common"
-
-// El redirectUri tiene que ser el dominio real del sitio. Como un único build se
-// despliega en varias webs (multi-sitio), NO lo tomamos de una env var horneada en
-// el build: lo derivamos de window.location.origin en RUNTIME, así cada dominio usa
-// el suyo. En SSR/build no hay window → caemos a la env var (o localhost), pero es
-// irrelevante porque MSAL sólo se instancia en el browser.
-// IMPORTANTE: cada dominio nuevo debe registrarse como redirect URI (plataforma SPA)
-// en la App Registration de Azure AD, sino Microsoft rechaza el login (AADSTS50011).
-const appUrl =
-  typeof window !== "undefined"
-    ? window.location.origin
-    : (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
-
 // MSAL navega internamente despues de procesar el redirect. En la pagina
 // de callback queremos manejar la navegacion nosotros (al dashboard despues
 // de validar con el backend), no que MSAL nos lleve de vuelta a /login.
@@ -38,19 +23,36 @@ class NoBouncebackNavigationClient extends NavigationClient {
   }
 }
 
-export const msalConfig: Configuration = {
-  auth: {
-    clientId,
-    authority: `https://login.microsoftonline.com/${tenantId}`,
-    redirectUri: `${appUrl}/auth-callback`,
-    postLogoutRedirectUri: `${appUrl}/login`,
-  },
-  cache: {
-    cacheLocation: "sessionStorage",
-  },
-  system: {
-    navigationClient: new NoBouncebackNavigationClient(),
-  },
+/**
+ * Arma la Configuration de MSAL con el clientId/tenantId resueltos en RUNTIME
+ * (vienen del endpoint /api/config/auth, que los lee de las App Settings del SWA
+ * por sitio — sin NEXT_PUBLIC, sin re-buildear).
+ *
+ * El redirectUri se deriva de window.location.origin: un único build sirve N
+ * dominios y cada uno usa el suyo. Solo se llama en el browser (desde el
+ * MsalProvider), por eso asumimos window disponible con fallback a localhost.
+ * IMPORTANTE: cada dominio nuevo debe registrarse como redirect URI (plataforma
+ * SPA) en la App Registration de Azure AD, sino Microsoft rechaza el login
+ * (AADSTS50011).
+ */
+export function buildMsalConfig(clientId: string, tenantId: string): Configuration {
+  const appUrl =
+    typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"
+
+  return {
+    auth: {
+      clientId,
+      authority: `https://login.microsoftonline.com/${tenantId || "common"}`,
+      redirectUri: `${appUrl}/auth-callback`,
+      postLogoutRedirectUri: `${appUrl}/login`,
+    },
+    cache: {
+      cacheLocation: "sessionStorage",
+    },
+    system: {
+      navigationClient: new NoBouncebackNavigationClient(),
+    },
+  }
 }
 
 export const loginRequest: RedirectRequest = {

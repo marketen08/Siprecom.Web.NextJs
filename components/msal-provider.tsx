@@ -8,7 +8,7 @@ import {
   type AuthenticationResult,
 } from "@azure/msal-browser"
 import { MsalProvider as MsalProviderLib } from "@azure/msal-react"
-import { msalConfig } from "@/lib/msal-config"
+import { buildMsalConfig } from "@/lib/msal-config"
 
 // Singleton: una sola PCA por carga de la app, fuera del componente.
 // StrictMode hace que useEffect corra dos veces en dev; sin singleton se crearian
@@ -21,7 +21,22 @@ function getInitPromise(): Promise<void> {
   if (initPromise) return initPromise
 
   initPromise = (async () => {
-    msalInstance = new PublicClientApplication(msalConfig)
+    // Config (clientId/tenantId) resuelta en RUNTIME desde el server, no horneada
+    // en el build. Así un único build sirve a N sitios (cada SWA define sus App
+    // Settings) sin tocar GitHub ni re-buildear.
+    const res = await fetch("/api/config/auth", { cache: "no-store" })
+    if (!res.ok)
+      throw new Error(`No se pudo cargar la config de auth (HTTP ${res.status}).`)
+    const { clientId, tenantId } = (await res.json()) as {
+      clientId?: string
+      tenantId?: string
+    }
+    if (!clientId)
+      throw new Error(
+        "MICROSOFT_CLIENT_ID no está configurado en el servidor (App Settings del SWA).",
+      )
+
+    msalInstance = new PublicClientApplication(buildMsalConfig(clientId, tenantId ?? "common"))
     await msalInstance.initialize()
 
     const response = await msalInstance.handleRedirectPromise()
