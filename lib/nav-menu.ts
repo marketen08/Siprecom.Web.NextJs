@@ -31,7 +31,6 @@ export const menu: MenuItem[] = [
   },
   {
     label: "Análisis",
-    minRole: "Supervisor",
     children: [
       {
         label: "Reporte",
@@ -54,6 +53,7 @@ export const menu: MenuItem[] = [
       },
       {
         label: "Planificación",
+        minRole: "Supervisor",
         children: [
           { label: "Estimador",     href: "/planificacion/estimador" },
           { label: "Generador",     href: "/planificacion/generador" },
@@ -79,13 +79,20 @@ export const menu: MenuItem[] = [
     ],
   },
   {
-    label: "Configuración",
+    // Gestión de usuarios y empresas — separada de la config de catálogos.
+    label: "Administración",
     minRole: "Admin",
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios" },
       // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
       { label: "Clientes",          href: "/configuracion/clientes" },
       { label: "Contratistas",      href: "/configuracion/contratistas" },
+    ],
+  },
+  {
+    label: "Configuración",
+    minRole: "Admin",
+    children: [
       { label: "Especialidades",    href: "/configuracion/especialidades" },
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
       { label: "Campos",            href: "/configuracion/campos" },
