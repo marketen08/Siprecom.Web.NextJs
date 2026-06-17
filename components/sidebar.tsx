@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/sidebar-context"
+import { useAuthStore } from "@/store/auth-store"
+import { useMounted } from "@/lib/use-mounted"
+import { meetsRole, type AppRole } from "@/lib/roles"
 import { menu, type MenuItem } from "@/lib/nav-menu"
 
 function NavLink({ href, label, depth, onNavigate }: { href: string; label: string; depth: number; onNavigate: () => void }) {
@@ -34,9 +37,22 @@ function hasActiveChild(item: MenuItem, pathname: string): boolean {
   return item.children?.some((child) => hasActiveChild(child, pathname)) ?? false
 }
 
-function SidebarItem({ item, depth = 0, onNavigate }: { item: MenuItem; depth?: number; onNavigate: () => void }) {
+function SidebarItem({
+  item, depth = 0, onNavigate, roles, inheritedMin,
+}: {
+  item: MenuItem
+  depth?: number
+  onNavigate: () => void
+  roles: string[]
+  inheritedMin?: AppRole
+}) {
   const pathname = usePathname()
   const [open, setOpen] = useState(() => hasActiveChild(item, pathname))
+
+  // Rol mínimo efectivo: el propio o el heredado del ancestro. Si el usuario no
+  // lo alcanza, el item (y su subárbol) no se renderiza.
+  const effectiveMin = item.minRole ?? inheritedMin
+  if (effectiveMin && !meetsRole(roles, effectiveMin)) return null
 
   if (item.href && !item.children) {
     return <NavLink href={item.href} label={item.label} depth={depth} onNavigate={onNavigate} />
@@ -71,7 +87,14 @@ function SidebarItem({ item, depth = 0, onNavigate }: { item: MenuItem; depth?: 
         <div className="overflow-hidden">
           <div className="mt-0.5 space-y-0.5 pb-1">
             {item.children?.map((child) => (
-              <SidebarItem key={child.label} item={child} depth={depth + 1} onNavigate={onNavigate} />
+              <SidebarItem
+                key={child.label}
+                item={child}
+                depth={depth + 1}
+                onNavigate={onNavigate}
+                roles={roles}
+                inheritedMin={effectiveMin}
+              />
             ))}
           </div>
         </div>
@@ -88,6 +111,14 @@ function SidebarItem({ item, depth = 0, onNavigate }: { item: MenuItem; depth?: 
  */
 export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   const { open, close } = useSidebar()
+  const userRoles = useAuthStore((s) => s.user?.roles)
+
+  // Antes de montar (SSR + primer render cliente) tratamos los roles como vacíos
+  // para que el HTML del server y el del cliente coincidan; tras la hidratación
+  // del store (persist) mostramos las secciones según el rol real. Evita el
+  // hydration mismatch y oculta lo elevado por default.
+  const mounted = useMounted()
+  const roles = mounted ? (userRoles ?? []) : []
 
   return (
     <>
@@ -112,7 +143,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
       >
         <nav className="py-4 space-y-1">
           {menu.map((section) => (
-            <SidebarItem key={section.label} item={section} depth={0} onNavigate={close} />
+            <SidebarItem key={section.label} item={section} depth={0} onNavigate={close} roles={roles} />
           ))}
         </nav>
       </aside>

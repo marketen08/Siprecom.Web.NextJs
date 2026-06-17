@@ -1,7 +1,14 @@
+import type { AppRole } from "@/lib/roles"
+
 export type MenuItem = {
   label: string
   href?: string
   children?: MenuItem[]
+  /**
+   * Rol mínimo para ver/entrar a este item (y sus hijos, salvo que el hijo
+   * defina uno propio). Si se omite, hereda del ancestro; default "User".
+   */
+  minRole?: AppRole
 }
 
 export const menu: MenuItem[] = [
@@ -24,6 +31,7 @@ export const menu: MenuItem[] = [
   },
   {
     label: "Análisis",
+    minRole: "Supervisor",
     children: [
       {
         label: "Reporte",
@@ -58,6 +66,7 @@ export const menu: MenuItem[] = [
   },
   {
     label: "Alcance",
+    minRole: "Supervisor",
     children: [
       { label: "Proyectos",    href: "/alcance/proyectos" },
       { label: "Sistemas",     href: "/alcance/sistemas" },
@@ -71,6 +80,7 @@ export const menu: MenuItem[] = [
   },
   {
     label: "Configuración",
+    minRole: "Admin",
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios" },
       // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
@@ -111,6 +121,40 @@ function flatten(items: MenuItem[], trail: BreadcrumbItem[]): Map<string, Breadc
 }
 
 export const navBreadcrumbMap = flatten(menu, [])
+
+// ─── Mapa ruta → rol mínimo ───────────────────────────────────────────────────
+// Cada href queda con el rol mínimo efectivo (el propio o el heredado del
+// ancestro). Solo se incluyen rutas restringidas (Supervisor/Admin); las que
+// quedan en "User" (default) no entran al mapa. Lo consume el RouteGuard.
+function buildRouteRoleMap(
+  items: MenuItem[],
+  inherited: AppRole | undefined,
+  acc: Map<string, AppRole>,
+): Map<string, AppRole> {
+  for (const item of items) {
+    const effective = item.minRole ?? inherited
+    if (item.href && effective) acc.set(item.href, effective)
+    if (item.children) buildRouteRoleMap(item.children, effective, acc)
+  }
+  return acc
+}
+
+export const routeRoleMap = buildRouteRoleMap(menu, undefined, new Map())
+
+/**
+ * Rol mínimo requerido para una ruta. Hace match por prefijo más específico
+ * (para cubrir subrutas dinámicas, ej. /alcance/proyectos/{id} hereda de
+ * /alcance/proyectos). Devuelve null si la ruta no está restringida.
+ */
+export function requiredRoleForPath(pathname: string): AppRole | null {
+  let best: { href: string; role: AppRole } | null = null
+  for (const [href, role] of routeRoleMap) {
+    if (pathname === href || pathname.startsWith(href + "/")) {
+      if (!best || href.length > best.href.length) best = { href, role }
+    }
+  }
+  return best?.role ?? null
+}
 
 // Etiquetas para segmentos dinámicos o rutas sin entrada en el menú
 export const segmentLabels: Record<string, string> = {

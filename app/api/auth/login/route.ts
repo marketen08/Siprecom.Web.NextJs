@@ -24,9 +24,10 @@ export async function POST(request: NextRequest) {
   const data: BackendAuthResponse = await backendRes.json()
   const jwt = decodeJWT(data.accessToken)
   const email = jwt["email"] as string
-  const roles = jwt[
-    "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
-  ] as string | string[]
+  // El backend emite el claim como "roles" (array, ya expandido por jerarquía:
+  // SuperAdmin/Admin incluyen Supervisor/User). Antes se leía la URI de
+  // ClaimTypes.Role que NO existe en el token → roles llegaba vacío.
+  const roles = jwt["roles"] as string | string[] | undefined
 
   const response = NextResponse.json({
     user: {
