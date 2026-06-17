@@ -50,13 +50,16 @@ export function LeyendaColoresEstado({ buckets, loading }: Props) {
         </div>
       )}
 
-      <ul className="space-y-0.5">
+      {/* Desglose por estado (color + cantidad) y nota al pie — ocultos en mobile
+          para achicar el overlay sobre el visor; el % de avance ya alcanza.
+          Visibles desde md (desktop). */}
+      <ul className="hidden space-y-0.5 md:block">
         <Item color="#10b981" label="Completado"  count={buckets?.completados.length} />
         <Item color="#f59e0b" label="En curso"    count={buckets?.enCurso.length} />
         <Item color="#94a3b8" label="No iniciado" count={buckets?.noIniciados.length} />
         <Item color="#ef4444" label="Rechazado"   count={buckets?.rechazados.length} />
       </ul>
-      <p className="text-[10px] text-muted-foreground italic pt-0.5">
+      <p className="hidden text-[10px] text-muted-foreground italic pt-0.5 md:block">
         Las entidades sin Elemento vinculado mantienen su color original.
       </p>
     </div>

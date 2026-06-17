@@ -29,6 +29,12 @@ export interface ViewerHandle {
    */
   selectByGuids: (guids: string[]) => void
   /**
+   * Encuadra la cámara sobre las entidades indicadas (por guid). Se usa en
+   * mobile al seleccionar: tras abrir el bottom sheet el viewer se redimensiona
+   * y encuadramos la pieza en la zona visible. No-op si no resuelve ningún guid.
+   */
+  fitToGuids: (guids: string[]) => void
+  /**
    * Aplica un "ghost" sobre el modelo: las entidades cuyos GUIDs NO estén en
    * la lista quedan grises y transparentes; las que SÍ están quedan con su
    * material original. Pasá null para limpiar el ghost (todo vuelve a colores
@@ -196,6 +202,20 @@ export async function createViewer(
     if (!currentModel || highlightedIds.length === 0) return
     await currentModel.resetHighlight(highlightedIds)
     highlightedIds = []
+  }
+
+  // Encuadra la cámara al bounding box combinado de las entidades indicadas.
+  // getMergedBox resuelve los localIds y devuelve un Box3 en coords de mundo;
+  // fitToBox de camera-controls hace la transición. Si el box queda vacío
+  // (guids no presentes en el modelo), no movemos la cámara.
+  async function fitToGuids(guids: string[]): Promise<void> {
+    if (!currentModel || disposed || guids.length === 0) return
+    const ids = await currentModel.getLocalIdsByGuids(guids)
+    const valid = ids.filter((id): id is number => typeof id === "number")
+    if (valid.length === 0) return
+    const box = await currentModel.getMergedBox(valid)
+    if (box.isEmpty()) return
+    await world.camera.controls.fitToBox(box, true)
   }
 
   async function highlightByGuid(guid: string | null): Promise<void> {
@@ -384,5 +404,5 @@ export async function createViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadIfc, highlightByGuid, selectByGuids, applyGhost, applyColorPorEstado, resize, dispose }
+  return { loadIfc, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, resize, dispose }
 }

@@ -40,7 +40,7 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
   const tagPrincipal = entidad.elementoTag ?? entidad.tagDetectado ?? null
 
   return (
-    <aside className="w-80 shrink-0 rounded-lg border border-gray-200 bg-white shadow-sm overflow-y-auto">
+    <aside className="h-full w-full overflow-y-auto bg-white md:w-80 md:shrink-0 md:rounded-lg md:border md:border-gray-200 md:shadow-sm">
       {/* Header — el TAG es el protagonista */}
       <header className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 border-b">
         <div className="min-w-0">

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle, Box, Eye, Filter, Loader2, Palette, Settings, Star,
+  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Loader2, Palette, Settings, Star,
 } from "lucide-react"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
@@ -27,6 +27,7 @@ import {
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   selectByGuids: (guids: string[]) => void
+  fitToGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   resize: () => void
@@ -71,6 +72,23 @@ function ModeloEjecucionContent() {
   // Toggle del panel de entidades (escondido por default — la página es para "visualizar").
   const [mostrarPanelEntidades, setMostrarPanelEntidades] = useState(false)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  // Mobile: el detalle es un bottom sheet con dos alturas (medio / expandido).
+  const [sheetExpanded, setSheetExpanded] = useState(false)
+  // En mobile el sheet empuja el viewer hacia arriba y encuadramos la pieza en
+  // la zona visible; en desktop el panel es columna lateral y NO movemos la
+  // cámara en cada click (sería molesto). Gateamos el fit por este flag.
+  const [isMobile, setIsMobile] = useState(false)
+  // Guids a encuadrar tras la última selección (toda la línea/equipo si está
+  // vinculada, o la pieza suelta si no). Lo consume el effect de fit.
+  const fitGuidsRef = useRef<string[] | null>(null)
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)")
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
 
   const filtroVisor = useFiltroVisor({
     proyectoId: proyectoActivo?.id ?? null,
@@ -122,7 +140,11 @@ function ModeloEjecucionContent() {
         if (cancelled) return
         const handle = await createUnifiedViewer(containerEl, archivo, proyectoActivo.id, {
           onPick: async (guids) => {
-            if (guids === null || guids.length === 0) { setEntidadSeleccionada(null); return }
+            if (guids === null || guids.length === 0) {
+              setEntidadSeleccionada(null)
+              fitGuidsRef.current = null
+              return
+            }
             const archivoActivo = archivoActualIdRef.current
             const proyId = proyectoIdRef.current
             if (!archivoActivo || !proyId) return
@@ -134,14 +156,23 @@ function ModeloEjecucionContent() {
               const entidades = await resolverEntidadesPorGuids(proyId, archivoActivo, guids)
               const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
               const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              // Nueva selección → el sheet arranca a media altura.
+              setSheetExpanded(false)
               setEntidadSeleccionada(elegida)
 
               // Si la entidad está vinculada a un Elemento, seleccionamos en el
               // visor TODAS las piezas de ese Elemento (toda la línea/equipo), no
-              // solo la hoja clickeada.
+              // solo la hoja clickeada. Esos mismos guids son los que encuadramos.
               if (elegida?.elementoId) {
                 const guidsElemento = await getGuidsPorElemento(proyId, archivoActivo, elegida.elementoId)
-                if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+                if (guidsElemento.length > 0) {
+                  viewerRef.current?.selectByGuids(guidsElemento)
+                  fitGuidsRef.current = guidsElemento
+                } else {
+                  fitGuidsRef.current = elegida.ifcGuid ? [elegida.ifcGuid] : null
+                }
+              } else {
+                fitGuidsRef.current = elegida?.ifcGuid ? [elegida.ifcGuid] : null
               }
             } catch (e) {
               setViewError((e as Error).message)
@@ -192,7 +223,26 @@ function ModeloEjecucionContent() {
     return () => ro.disconnect()
   }, [containerEl])
 
+  // Encuadre al seleccionar (solo mobile). Al abrir/cambiar el bottom sheet el
+  // viewer cambia de alto; esperamos a que el layout se asiente (rAF), forzamos
+  // un resize y recién ahí encuadramos, para que la pieza quede centrada en la
+  // zona visible (no detrás del sheet). En desktop no movemos la cámara en cada
+  // click — sería molesto. Re-corre también al expandir/colapsar el sheet.
+  useEffect(() => {
+    if (!isMobile || !viewerReady || !entidadSeleccionada) return
+    const guids = fitGuidsRef.current
+    if (!guids || guids.length === 0) return
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      viewerRef.current?.resize?.()
+      raf2 = requestAnimationFrame(() => { viewerRef.current?.fitToGuids?.(guids) })
+    })
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
+  }, [entidadSeleccionada?.id, sheetExpanded, viewerReady, isMobile])
+
   async function seleccionarEntidadDesdeListado(entidad: ProyectoIfcEntidad) {
+    setSheetExpanded(false)
+    fitGuidsRef.current = entidad.ifcGuid ? [entidad.ifcGuid] : null
     setEntidadSeleccionada(entidad)
     await viewerRef.current?.highlightByGuid(entidad.ifcGuid)
   }
@@ -289,9 +339,9 @@ function ModeloEjecucionContent() {
   }
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 4rem)" }}>
+    <div className="flex flex-col" style={{ height: "calc(100dvh - 4rem)" }}>
       {/* Header slim con título + acciones */}
-      <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-2 shadow-sm">
+      <div className="flex items-center justify-between gap-2 sm:gap-3 border-b border-gray-200 bg-white px-3 sm:px-4 py-2 shadow-sm">
         <div className="flex items-center gap-2 min-w-0">
           <Box className="h-4 w-4 text-blue-600 shrink-0" />
           <h1 className="text-sm font-semibold text-gray-800 truncate">
@@ -314,7 +364,7 @@ function ModeloEjecucionContent() {
             }`}
           >
             <Filter className="h-3.5 w-3.5" />
-            Filtros
+            <span className="hidden sm:inline">Filtros</span>
             {filtroVisor.activo && filtroVisor.resultado && (
               <span className="ml-1 rounded-full bg-blue-600 text-white px-1.5 text-[10px] font-bold">
                 {filtroVisor.resultado.totalCoinciden}
@@ -332,7 +382,7 @@ function ModeloEjecucionContent() {
             title="Pintar entidades con color según el estado del Elemento"
           >
             <Palette className="h-3.5 w-3.5" />
-            Colores por estado
+            <span className="hidden sm:inline">Colores por estado</span>
           </button>
           <button
             type="button"
@@ -342,13 +392,13 @@ function ModeloEjecucionContent() {
             }`}
           >
             <Eye className="h-3.5 w-3.5" />
-            {mostrarPanelEntidades ? "Ocultar entidades" : "Ver entidades"}
+            <span className="hidden sm:inline">{mostrarPanelEntidades ? "Ocultar entidades" : "Ver entidades"}</span>
           </button>
           <Link
             href={`/alcance/proyectos/${proyectoActivo.id}/modelo-3d`}
             className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            <Settings className="h-3.5 w-3.5" /> Gestionar Modelo 3D
+            <Settings className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Gestionar Modelo 3D</span>
           </Link>
         </div>
       </div>
@@ -366,19 +416,24 @@ function ModeloEjecucionContent() {
         </div>
       )}
 
-      {/* Cuerpo: panel de filtros (izquierda) + viewer + sidebar de detalle (derecha) */}
-      <div className="flex-1 flex min-h-0 gap-3 p-3">
+      {/* Cuerpo: en desktop son 3 columnas (filtros · viewer · detalle). En mobile
+          el viewer ocupa la franja superior; el detalle es un bottom sheet que lo
+          empuja hacia arriba (la maqueta queda siempre visible y el fit la encuadra
+          en la zona libre), y los filtros se muestran como overlay inferior. */}
+      <div className="relative flex-1 flex flex-col md:flex-row min-h-0 md:gap-3 md:p-3">
         {mostrarFiltros && (
-          <FiltrosVisorPanel
-            filtro={filtroVisor.filtro}
-            onChange={filtroVisor.setFiltro}
-            totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
-            totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
-            loading={filtroVisor.loading}
-            onClose={() => setMostrarFiltros(false)}
-          />
+          <div className="absolute inset-x-0 bottom-0 z-30 h-[70vh] p-3 md:static md:z-auto md:h-full md:w-auto md:shrink-0 md:p-0">
+            <FiltrosVisorPanel
+              filtro={filtroVisor.filtro}
+              onChange={filtroVisor.setFiltro}
+              totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
+              totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
+              loading={filtroVisor.loading}
+              onClose={() => setMostrarFiltros(false)}
+            />
+          </div>
         )}
-        <div className="relative flex-1 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="relative flex-1 min-h-0 bg-white overflow-hidden md:rounded-lg md:border md:border-gray-200 md:shadow-sm">
           <div ref={setContainerRef} className="absolute inset-0" />
           {coloresEstado.activo && (
             <div className="absolute top-3 left-3 z-10">
@@ -398,14 +453,33 @@ function ModeloEjecucionContent() {
         </div>
 
         {entidadSeleccionada && (
-          <EntidadDetalleSidebar
-            proyectoId={proyectoActivo.id}
-            entidad={entidadSeleccionada}
-            onClose={async () => {
-              setEntidadSeleccionada(null)
-              await viewerRef.current?.highlightByGuid(null)
-            }}
-          />
+          <div
+            className={`flex shrink-0 flex-col bg-white md:bg-transparent md:h-full ${
+              sheetExpanded ? "h-[82vh]" : "h-[44vh]"
+            }`}
+          >
+            {/* Grabber + toggle de altura del sheet — solo mobile */}
+            <button
+              type="button"
+              onClick={() => setSheetExpanded((v) => !v)}
+              className="md:hidden flex shrink-0 items-center justify-center gap-1.5 border-t border-gray-200 bg-white py-2 text-gray-400"
+              aria-label={sheetExpanded ? "Contraer panel" : "Expandir panel"}
+            >
+              {sheetExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              <span className="h-1.5 w-10 rounded-full bg-gray-300" />
+            </button>
+            <div className="min-h-0 flex-1">
+              <EntidadDetalleSidebar
+                proyectoId={proyectoActivo.id}
+                entidad={entidadSeleccionada}
+                onClose={async () => {
+                  setEntidadSeleccionada(null)
+                  fitGuidsRef.current = null
+                  await viewerRef.current?.highlightByGuid(null)
+                }}
+              />
+            </div>
+          </div>
         )}
       </div>
 

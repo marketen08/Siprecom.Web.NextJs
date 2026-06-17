@@ -33,6 +33,12 @@ export interface UnifiedViewerHandle {
    */
   selectByGuids: (guids: string[]) => void
   /**
+   * Encuadra la cámara sobre las entidades indicadas. En mobile lo dispara la
+   * página tras abrir el bottom sheet (y redimensionar el viewer) para centrar
+   * la pieza en la zona visible. Ambos motores lo implementan.
+   */
+  fitToGuids: (guids: string[]) => void
+  /**
    * Aplica el ghost a las entidades visibles. Si `opts.hide` es true, las no
    * visibles quedan completamente invisibles. Si es false (default), quedan
    * semi-transparentes (efecto fantasma del viewer).

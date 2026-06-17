@@ -73,7 +73,7 @@ export function FiltrosVisorPanel({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm flex flex-col max-h-full overflow-hidden w-72 shrink-0">
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm flex flex-col h-full max-h-full overflow-hidden w-full md:w-72 md:shrink-0">
       <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-800">
           <Filter className="h-4 w-4 text-blue-600" />

@@ -51,6 +51,12 @@ export interface ApsViewerHandle {
    * cuando se clickea una de sus piezas.
    */
   selectByGuids: (guids: string[]) => void
+  /**
+   * Encuadra la cámara sobre las entidades indicadas (por externalId). Usado en
+   * mobile al seleccionar para centrar la pieza en la zona visible una vez que
+   * el bottom sheet redimensionó el viewer. No-op si no resuelve ningún dbId.
+   */
+  fitToGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   /**
@@ -219,6 +225,16 @@ export async function createApsViewer(
     if (dbIds.length === 0) return
     lastProgrammaticKey = keyDeDbIds(dbIds)
     viewer.select(dbIds)
+  }
+
+  // Encuadra sin tocar la selección — el encuadre se dispara aparte (en mobile,
+  // después de que el bottom sheet redimensionó el viewer) para centrar la
+  // pieza en la zona visible.
+  function fitToGuids(guids: string[]): void {
+    if (disposed) return
+    const dbIds = guidsToIds(guids)
+    if (dbIds.length === 0) return
+    viewer.fitToView(dbIds)
   }
 
   // Click handler — Autodesk Viewer emite SELECTION_CHANGED al hacer click.
@@ -461,7 +477,7 @@ export async function createApsViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadModel, highlightByGuid, selectByGuids, applyGhost, applyColorPorEstado, resize, dispose }
+  return { loadModel, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, resize, dispose }
 }
 
 /** Convierte un GUID sintético "aps-{dbId}" a dbId numérico. Si no matchea, null. */
