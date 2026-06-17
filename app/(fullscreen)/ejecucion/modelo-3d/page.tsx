@@ -3,8 +3,10 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Loader2, Palette, Settings, Star,
+  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Loader2, Menu, Palette, Settings, Star,
 } from "lucide-react"
+
+import { useSidebar } from "@/components/sidebar-context"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useGetIfcPrincipal } from "@/features/modelo-3d/api/use-ifc-archivos"
@@ -41,6 +43,7 @@ interface ViewerHandle {
  * de navegación).
  */
 function ModeloEjecucionContent() {
+  const { toggle: toggleNav } = useSidebar()
   const { data: proyectosData } = useGetMisProyectos()
   const proyectoActivo = proyectosData?.find((p) => p.esActivo) ?? null
 
@@ -343,6 +346,15 @@ function ModeloEjecucionContent() {
       {/* Header slim con título + acciones */}
       <div className="flex items-center justify-between gap-2 sm:gap-3 border-b border-gray-200 bg-white px-3 sm:px-4 py-2 shadow-sm">
         <div className="flex items-center gap-2 min-w-0">
+          <button
+            type="button"
+            onClick={toggleNav}
+            className="-ml-1 shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-gray-100 transition-colors"
+            aria-label="Abrir menú de navegación"
+            title="Menú de navegación"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
           <Box className="h-4 w-4 text-blue-600 shrink-0" />
           <h1 className="text-sm font-semibold text-gray-800 truncate">
             {proyectoActivo.nombre}
@@ -394,12 +406,6 @@ function ModeloEjecucionContent() {
             <Eye className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{mostrarPanelEntidades ? "Ocultar entidades" : "Ver entidades"}</span>
           </button>
-          <Link
-            href={`/alcance/proyectos/${proyectoActivo.id}/modelo-3d`}
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <Settings className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Gestionar Modelo 3D</span>
-          </Link>
         </div>
       </div>
 

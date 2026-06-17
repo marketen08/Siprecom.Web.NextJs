@@ -80,15 +80,21 @@ function SidebarItem({ item, depth = 0, onNavigate }: { item: MenuItem; depth?: 
   )
 }
 
-export function Sidebar() {
+/**
+ * @param drawer Si es true, el sidebar es un overlay en TODOS los tamaños (no se
+ *   fija visible en desktop). Lo usa el layout fullscreen (visor 3D) para que el
+ *   usuario abra la navegación con un botón sin robarle ancho permanente al
+ *   viewer. Por defecto (dashboard) queda fijo en desktop.
+ */
+export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   const { open, close } = useSidebar()
 
   return (
     <>
-      {/* Overlay mobile */}
+      {/* Overlay — en mobile siempre; en drawer también en desktop */}
       {open && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          className={cn("fixed inset-0 z-30 bg-black/40", !drawer && "md:hidden")}
           onClick={close}
         />
       )}
@@ -98,10 +104,10 @@ export function Sidebar() {
         className={cn(
           "fixed left-0 top-16 bottom-0 w-64 bg-[#0f2d52] overflow-y-auto z-40",
           "transition-transform duration-300 ease-in-out",
-          // Mobile: oculto por defecto, visible cuando open
+          // Oculto por defecto, visible cuando open
           open ? "translate-x-0" : "-translate-x-full",
-          // Desktop: siempre visible
-          "md:translate-x-0"
+          // Desktop: fijo visible SOLO en modo no-drawer (dashboard)
+          !drawer && "md:translate-x-0"
         )}
       >
         <nav className="py-4 space-y-1">
