@@ -20,7 +20,12 @@ export async function POST(request: NextRequest) {
   if (!backendRes.ok) {
     const error = await backendRes.json().catch(() => ({}))
     return NextResponse.json(
-      { message: error.error ?? error.message ?? "No se pudo iniciar sesión con Microsoft" },
+      {
+        message: error.error ?? error.message ?? "No se pudo iniciar sesión con Microsoft",
+        // Propagamos el code del backend (ej. ACCESS_NOT_PROVISIONED) para que el
+        // callback distinga "sin acceso" de un error genérico.
+        code: error.code,
+      },
       { status: backendRes.status }
     )
   }

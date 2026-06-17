@@ -14,6 +14,9 @@ export default function AuthCallbackPage() {
   const setUser = useAuthStore((s) => s.setUser)
   const [status, setStatus] = useState<string>("Iniciando sesión...")
   const [error, setError] = useState<string | null>(null)
+  // True cuando el backend rechazó por allowlist (usuario no dado de alta).
+  // Cambia el título/encuadre del mensaje, no es un error técnico.
+  const [sinAcceso, setSinAcceso] = useState(false)
   const triggered = useRef(false)
 
   useEffect(() => {
@@ -43,6 +46,13 @@ export default function AuthCallbackPage() {
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}))
+          // Allowlist: el usuario no está dado de alta. No es un error técnico —
+          // mostramos la pantalla de "solicitar acceso".
+          if (res.status === 403 && err.code === "ACCESS_NOT_PROVISIONED") {
+            setSinAcceso(true)
+            setError(err.message ?? "Tu cuenta no está habilitada en la plataforma.")
+            return
+          }
           throw new Error(err.message ?? `Backend respondió ${res.status}`)
         }
 
@@ -60,7 +70,7 @@ export default function AuthCallbackPage() {
     return (
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>No se pudo iniciar sesión</CardTitle>
+          <CardTitle>{sinAcceso ? "Acceso no habilitado" : "No se pudo iniciar sesión"}</CardTitle>
           <CardDescription className="whitespace-pre-wrap wrap-break-word">{error}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -68,6 +78,8 @@ export default function AuthCallbackPage() {
             className="w-full"
             onClick={async () => {
               try {
+                // Cerramos la sesión local de MSAL: sin esto el SSO de Microsoft
+                // re-loguearía solo y volvería a rebotar acá.
                 await instance.clearCache()
               } catch {}
               window.location.href = "/login"
