@@ -267,8 +267,16 @@ export async function createApsViewer(
     if (!currentModel) return
     if (guid === null) {
       viewer.clearSelection()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(currentModel as any).clearThemingColors?.()
+      // Al deseleccionar NO destruimos el pintado de colores-por-estado: si está
+      // activo (lastBuckets), lo re-aplicamos respetando el isolate del filtro.
+      // Solo limpiamos el theming si no hay colores por estado activos (sino al
+      // cerrar el detalle se perdían los colores verde/amarillo/gris de avance).
+      if (lastBuckets) {
+        await aplicarBucketsRespetandoIsolate(lastBuckets)
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(currentModel as any).clearThemingColors?.()
+      }
       return
     }
     const dbId = guidToDbId.get(guid) ?? parseSyntheticGuid(guid)
