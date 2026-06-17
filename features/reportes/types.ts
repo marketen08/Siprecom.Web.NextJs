@@ -18,6 +18,8 @@ export interface ListadoIndiceTarea {
   /** 1=PENDIENTE, 2=EN_PROCESO, 3=COMPLETADO, 4=APROBADO, 5=RECHAZADO, 7=FIRMADO */
   estado: number
   estadoTexto: string | null
+  /** Fecha de completado (ISO) o null si la tarea no se completó. */
+  fechaCompletado: string | null
 }
 
 export interface ListadoIndiceElemento {

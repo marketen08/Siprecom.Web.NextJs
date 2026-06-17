@@ -558,11 +558,23 @@ function TareaPill({ t }: { t: ListadoIndiceTarea }) {
   return (
     <div className="flex items-center justify-between gap-2 text-[11px]">
       <span className="text-gray-700 truncate">{t.tareaNombre ?? "—"}</span>
-      <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] shrink-0 ${cls}`}>
-        {t.estadoTexto ?? "—"}
+      <span className="flex items-center gap-2 shrink-0">
+        {t.fechaCompletado && (
+          <span className="text-gray-500 text-[10px] tabular-nums">{formatFechaCorta(t.fechaCompletado)}</span>
+        )}
+        <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] ${cls}`}>
+          {t.estadoTexto ?? "—"}
+        </span>
       </span>
     </div>
   )
+}
+
+// dd/MM/yyyy — la fecha viene en ISO (UTC) del backend.
+function formatFechaCorta(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ""
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
 function pctColor(pct: number): string {
