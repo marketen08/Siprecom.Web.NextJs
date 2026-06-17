@@ -6,6 +6,9 @@ export interface ProyectoOpcion {
   nombre: string
   estado: number
   esActivo: boolean
+  permitirRegistroFisico: boolean
+  permitirRegistroDigital: boolean
+  registrosFisicosPreFirmados: boolean
 }
 
 export function useGetMisProyectos() {

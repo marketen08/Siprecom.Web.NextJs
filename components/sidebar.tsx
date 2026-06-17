@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/sidebar-context"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
+import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { meetsRole, type AppRole } from "@/lib/roles"
 import { menu, type MenuItem } from "@/lib/nav-menu"
 
@@ -38,16 +39,20 @@ function hasActiveChild(item: MenuItem, pathname: string): boolean {
 }
 
 function SidebarItem({
-  item, depth = 0, onNavigate, roles, inheritedMin,
+  item, depth = 0, onNavigate, roles, inheritedMin, ocultarFirmas,
 }: {
   item: MenuItem
   depth?: number
   onNavigate: () => void
   roles: string[]
   inheritedMin?: AppRole
+  ocultarFirmas: boolean
 }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(() => hasActiveChild(item, pathname))
+
+  // Proyecto solo pre-firmados → no hay firmas electrónicas: ocultar "Mis firmas".
+  if (item.requiereFirmas && ocultarFirmas) return null
 
   // Rol mínimo efectivo: el propio o el heredado del ancestro. Si el usuario no
   // lo alcanza, el item (y su subárbol) no se renderiza.
@@ -94,6 +99,7 @@ function SidebarItem({
                 onNavigate={onNavigate}
                 roles={roles}
                 inheritedMin={effectiveMin}
+                ocultarFirmas={ocultarFirmas}
               />
             ))}
           </div>
@@ -120,6 +126,12 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   const mounted = useMounted()
   const roles = mounted ? (userRoles ?? []) : []
 
+  // Proyecto activo: si es solo pre-firmados físicos (sin registro digital y con
+  // pre-firmado), no hay firmas electrónicas → ocultamos "Mis firmas".
+  const { data: proyectos } = useGetMisProyectos()
+  const activo = proyectos?.find((p) => p.esActivo)
+  const ocultarFirmas = !!activo && !activo.permitirRegistroDigital && activo.registrosFisicosPreFirmados
+
   return (
     <>
       {/* Overlay — en mobile siempre; en drawer también en desktop */}
@@ -143,7 +155,14 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
       >
         <nav className="py-4 space-y-1">
           {menu.map((section) => (
-            <SidebarItem key={section.label} item={section} depth={0} onNavigate={close} roles={roles} />
+            <SidebarItem
+              key={section.label}
+              item={section}
+              depth={0}
+              onNavigate={close}
+              roles={roles}
+              ocultarFirmas={ocultarFirmas}
+            />
           ))}
         </nav>
       </aside>

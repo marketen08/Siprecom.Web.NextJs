@@ -9,6 +9,12 @@ export type MenuItem = {
    * defina uno propio). Si se omite, hereda del ancestro; default "User".
    */
   minRole?: AppRole
+  /**
+   * Si es true, el item se oculta cuando el proyecto activo es solo de
+   * pre-firmados físicos (sin registro/firma digital) → no hay firmas
+   * electrónicas que gestionar. Lo evalúa el Sidebar.
+   */
+  requiereFirmas?: boolean
 }
 
 export const menu: MenuItem[] = [
@@ -26,7 +32,7 @@ export const menu: MenuItem[] = [
       { label: "Avance por elementos",    href: "/ejecucion/elementos" },
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d" },
-      { label: "Mis firmas",              href: "/mis-firmas" },
+      { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true },
     ],
   },
   {
