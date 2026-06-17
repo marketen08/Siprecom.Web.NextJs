@@ -91,7 +91,8 @@ export interface CreateApsViewerOptions {
 const COLOR_COMPLETADO  = [0.063, 0.725, 0.506, 1] // emerald-500
 const COLOR_EN_CURSO    = [0.961, 0.620, 0.043, 1] // amber-500
 const COLOR_NO_INICIADO = [0.580, 0.639, 0.722, 1] // slate-400
-const COLOR_RECHAZADO   = [0.937, 0.267, 0.267, 1] // red-500
+// Sin "rechazado": cuando un Elemento no aplica se elimina, no se rechazan sus
+// tareas. Ese bucket no se pinta en el visor.
 const COLOR_HIGHLIGHT   = [0.984, 0.749, 0.141, 1] // amber-400
 const GHOST_COLOR       = [0.796, 0.835, 0.882, 1] // slate-300 (con alpha bajo)
 
@@ -398,7 +399,6 @@ export async function createApsViewer(
     const dbIdsNoIniciados = guidsToIds(buckets.noIniciados)
     const dbIdsEnCurso     = guidsToIds(buckets.enCurso)
     const dbIdsCompletados = guidsToIds(buckets.completados)
-    const dbIdsRechazados  = guidsToIds(buckets.rechazados)
 
     // Sondear el isolate activo.
     let isolatedSet: Set<number> | null = null
@@ -416,7 +416,7 @@ export async function createApsViewer(
     // misma UX que aplicar un filtro: lo no relevante se atenúa.
     if (isolatedSet === null) {
       const todosLosConEstado = [
-        ...dbIdsNoIniciados, ...dbIdsEnCurso, ...dbIdsCompletados, ...dbIdsRechazados,
+        ...dbIdsNoIniciados, ...dbIdsEnCurso, ...dbIdsCompletados,
       ]
       if (todosLosConEstado.length > 0) {
         try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
@@ -443,7 +443,6 @@ export async function createApsViewer(
     setColor(dbIdsNoIniciados, COLOR_NO_INICIADO)
     setColor(dbIdsEnCurso,     COLOR_EN_CURSO)
     setColor(dbIdsCompletados, COLOR_COMPLETADO)
-    setColor(dbIdsRechazados,  COLOR_RECHAZADO)
     viewer.impl.invalidate(true, true, true)
   }
 

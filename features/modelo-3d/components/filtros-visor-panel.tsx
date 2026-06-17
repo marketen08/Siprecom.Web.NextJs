@@ -199,11 +199,12 @@ export function FiltrosVisorPanel({
 }
 
 // Opciones de filtro por estado — color + label coherentes con la leyenda.
+// Sin "Rechazado": cuando un Elemento no aplica se elimina, no se rechazan sus
+// tareas, así que no se ofrece como estado para filtrar/atenuar.
 const ESTADO_OPTIONS: { id: number; label: string; color: string }[] = [
   { id: EstadoVisualIds.Completado, label: "Completado",  color: "#10b981" },
   { id: EstadoVisualIds.EnCurso,    label: "En curso",    color: "#f59e0b" },
   { id: EstadoVisualIds.NoIniciado, label: "No iniciado", color: "#94a3b8" },
-  { id: EstadoVisualIds.Rechazado,  label: "Rechazado",   color: "#ef4444" },
 ]
 
 // ─── Sección colapsable ────────────────────────────────────────────────────

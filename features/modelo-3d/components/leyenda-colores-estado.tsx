@@ -50,14 +50,13 @@ export function LeyendaColoresEstado({ buckets, loading }: Props) {
         </div>
       )}
 
-      {/* Desglose por estado (color + cantidad) y nota al pie — ocultos en mobile
-          para achicar el overlay sobre el visor; el % de avance ya alcanza.
-          Visibles desde md (desktop). */}
-      <ul className="hidden space-y-0.5 md:block">
+      {/* Leyenda de colores. En mobile mostramos solo los colores (sin los
+          números de cada estado, que se ocultan dentro de <Item>) para achicar
+          el overlay. La nota al pie va oculta en mobile. */}
+      <ul className="space-y-0.5">
         <Item color="#10b981" label="Completado"  count={buckets?.completados.length} />
         <Item color="#f59e0b" label="En curso"    count={buckets?.enCurso.length} />
         <Item color="#94a3b8" label="No iniciado" count={buckets?.noIniciados.length} />
-        <Item color="#ef4444" label="Rechazado"   count={buckets?.rechazados.length} />
       </ul>
       <p className="hidden text-[10px] text-muted-foreground italic pt-0.5 md:block">
         Las entidades sin Elemento vinculado mantienen su color original.
@@ -75,7 +74,7 @@ function Item({ color, label, count }: { color: string; label: string; count?: n
       />
       <span className="text-gray-700">{label}</span>
       {typeof count === "number" && (
-        <span className="ml-auto text-gray-500 tabular-nums">
+        <span className="ml-auto hidden text-gray-500 tabular-nums md:inline">
           {count.toLocaleString("es-AR")}
         </span>
       )}

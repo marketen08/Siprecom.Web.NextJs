@@ -252,11 +252,12 @@ export async function createViewer(
   let ghostActive = false
 
   // Paleta de estados — tailwind colors para coherencia con la UI.
+  // Sin "rechazado": el flujo correcto cuando un Elemento no aplica es
+  // eliminarlo, no dejar todas sus tareas en rechazado. No se pinta ese bucket.
   const ESTADO_COLORS = {
     completado: new THREE.Color(0x10b981), // emerald-500
     enCurso:    new THREE.Color(0xf59e0b), // amber-500
     noIniciado: new THREE.Color(0x94a3b8), // slate-400
-    rechazado:  new THREE.Color(0xef4444), // red-500
   }
   let colorPorEstadoActive = false
 
@@ -279,11 +280,10 @@ export async function createViewer(
       return ids.filter((id): id is number => typeof id === "number")
     }
 
-    const [noIniciados, enCurso, completados, rechazados] = await Promise.all([
+    const [noIniciados, enCurso, completados] = await Promise.all([
       resolverIds(buckets.noIniciados),
       resolverIds(buckets.enCurso),
       resolverIds(buckets.completados),
-      resolverIds(buckets.rechazados),
     ])
 
     // Aplicamos los colores por bucket. Antes reseteamos por si veníamos de un
@@ -295,7 +295,6 @@ export async function createViewer(
     if (noIniciados.length > 0) await currentModel.setColor(noIniciados, ESTADO_COLORS.noIniciado)
     if (enCurso.length > 0)    await currentModel.setColor(enCurso,    ESTADO_COLORS.enCurso)
     if (completados.length > 0) await currentModel.setColor(completados, ESTADO_COLORS.completado)
-    if (rechazados.length > 0) await currentModel.setColor(rechazados, ESTADO_COLORS.rechazado)
     colorPorEstadoActive = true
   }
 
