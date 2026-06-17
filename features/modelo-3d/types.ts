@@ -98,7 +98,7 @@ export interface FiltroVisor {
   especialidadIds: string[]
   /** IDs de Niveles (PRECOMISIONADO/COMISIONADO). Filtra Elementos que tienen al menos una ElementoTarea de esos niveles. */
   nivelIds: string[]
-  /** Estados visuales del Elemento (1..4) — ver EstadoVisualIds. */
+  /** Estados visuales del Elemento (1..3) — ver EstadoVisualIds. */
   estadosVisuales: number[]
   /**
    * Si es true, oculta las entidades sin Elemento vinculado, independiente del
@@ -109,12 +109,12 @@ export interface FiltroVisor {
   ocultarNoVinculadas: boolean
 }
 
-/** Valores del enum EstadoVisualElemento del backend. */
+/** Valores del enum EstadoVisualElemento del backend. Sin "Rechazado": una tarea
+ *  rechazada cuenta como terminal, el Elemento no tiene estado visual rechazado. */
 export const EstadoVisualIds = {
   NoIniciado: 1,
   EnCurso:    2,
   Completado: 3,
-  Rechazado:  4,
 } as const
 
 export interface FiltroResultado {
@@ -153,7 +153,6 @@ export interface ColoresPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
-  rechazados: string[]
   totalConVinculo: number
   /** Avance de tareas — `(tareasCompletadas / tareasTotal) * 100`. 0 si no hay tareas. */
   porcentajeAvance: number

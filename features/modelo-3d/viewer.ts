@@ -47,7 +47,7 @@ export interface ViewerHandle {
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   /**
    * Pinta el modelo con colores semáforo según el estado del Elemento vinculado:
-   * verde=completado, amarillo=en curso, gris=no iniciado, rojo=rechazado. Las
+   * verde=completado, amarillo=en curso, gris=no iniciado. Las
    * entidades sin vínculo quedan con su color IFC original. Pasá null para
    * volver a los colores originales.
    */
@@ -66,7 +66,6 @@ export interface BucketsPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
-  rechazados: string[]
 }
 
 export interface CreateViewerOptions {

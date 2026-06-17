@@ -58,7 +58,6 @@ export interface BucketsPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
-  rechazados: string[]
 }
 
 export interface CreateUnifiedViewerOptions {
