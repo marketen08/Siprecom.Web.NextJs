@@ -7,6 +7,8 @@ export interface RegistroValor {
   valorNumero: number | null
   valorFecha: string | null
   valorBit: boolean | null
+  /** Matriz de celdas en JSON para campos Tabla: { "filas": [ ["c1","c2"], ... ] }. */
+  valorJson: string | null
   observaciones: string | null
   fechaCarga: string
   cargadoPor: string
@@ -68,6 +70,7 @@ export interface RegistroValorPrecargado {
   valorNumero: number | null
   valorFecha: string | null
   valorBit: boolean | null
+  valorJson?: string | null
 }
 
 export interface RegistroValorInput {
@@ -76,6 +79,8 @@ export interface RegistroValorInput {
   valorNumero?: number | null
   valorFecha?: string | null
   valorBit?: boolean | null
+  /** Matriz de celdas en JSON para campos Tabla: { "filas": [ ["c1","c2"], ... ] }. */
+  valorJson?: string | null
   observaciones?: string | null
 }
 

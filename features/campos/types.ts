@@ -1,4 +1,4 @@
-import type { CampoOpcion, CampoTipoDato } from "@/features/planillas/types"
+import type { CampoOpcion, CampoTablaColumna, CampoTablaFila, CampoTipoDato } from "@/features/planillas/types"
 
 export interface Campo {
   id: string
@@ -10,6 +10,8 @@ export interface Campo {
   descripcion?: string
   /** URL del blob con la imagen embebida (sólo cuando tipoDato === 8 / Imagen). */
   imagenUrl?: string
+  /** Filas por defecto para Tabla dinámica (sólo cuando tipoDato === 9). */
+  numeroFilas?: number
   /** Cantidad de planillas activas que usan este campo. */
   usoCount?: number
   createdAt: string
@@ -29,6 +31,7 @@ export interface CampoCreateInput {
   unidad?: string
   descripcion?: string
   imagenUrl?: string
+  numeroFilas?: number
 }
 
 export interface CampoUpdateInput {
@@ -39,6 +42,7 @@ export interface CampoUpdateInput {
   unidad?: string
   descripcion?: string
   imagenUrl?: string
+  numeroFilas?: number
 }
 
 export interface CampoOpcionCreateInput {
@@ -56,4 +60,32 @@ export interface CampoOpcionUpdateInput {
   orden: number
 }
 
-export type { CampoOpcion }
+export interface CampoTablaColumnaCreateInput {
+  campoId: string
+  encabezado: string
+  orden: number
+  esColumnaEtiqueta: boolean
+}
+
+export interface CampoTablaColumnaUpdateInput {
+  id: string
+  campoId: string
+  encabezado: string
+  orden: number
+  esColumnaEtiqueta: boolean
+}
+
+export interface CampoTablaFilaCreateInput {
+  campoId: string
+  etiquetaFila: string
+  orden: number
+}
+
+export interface CampoTablaFilaUpdateInput {
+  id: string
+  campoId: string
+  etiquetaFila: string
+  orden: number
+}
+
+export type { CampoOpcion, CampoTablaColumna, CampoTablaFila }

@@ -34,7 +34,7 @@ export interface CampoOpcion {
 // 6 = Firma y 7 = Adjunto fueron eliminados como tipos de campo. Se gestionan a nivel registro:
 //   - Firmas: ProyectosFirmasConfig + RegistroFirma.
 //   - Adjuntos: flags Proyecto.PermiteAdjuntos / Planilla.PermiteAdjuntos + RegistroArchivo.
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -43,6 +43,25 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   4: "Boolean",
   5: "Lista",
   8: "Imagen",
+  9: "Tabla",
+}
+
+/** Columna de un campo Tabla (tipoDato === 9). Encabezado definido al diseñar la planilla. */
+export interface CampoTablaColumna {
+  id: string
+  campoId: string
+  encabezado: string
+  orden: number
+  /** True si es la columna de etiquetas (primera columna read-only de una tabla matriz). */
+  esColumnaEtiqueta: boolean
+}
+
+/** Fila predefinida de un campo Tabla matriz. Su presencia convierte la tabla en "matriz" (filas fijas). */
+export interface CampoTablaFila {
+  id: string
+  campoId: string
+  etiquetaFila: string
+  orden: number
 }
 
 /** Opciones predefinidas de tamaño en grilla 12. -1 = personalizado (input numérico). */
@@ -96,6 +115,12 @@ export interface PlanillaCampoDetalle {
   /** Ancho en grilla 12 (1-12). Default 4. */
   tamano: number
   opciones: CampoOpcion[]
+  /** Solo aplica cuando campoTipoDato === 9 (Tabla). Filas efectivas para tabla dinámica. */
+  numeroFilas?: number
+  /** Columnas definidas (solo Tabla). Vacío para otros tipos. */
+  columnas?: CampoTablaColumna[]
+  /** Filas predefinidas (solo Tabla matriz). Vacío si es dinámica o no es Tabla. */
+  filas?: CampoTablaFila[]
 }
 
 export interface PlanillaEstructura {
@@ -153,6 +178,8 @@ export interface PlanillaCampoCreateInput {
   valorDefault?: string
   renderMode?: CampoListaRenderMode
   tamano?: number
+  /** Override de filas para Tabla dinámica (null = usa Campo.numeroFilas). */
+  numeroFilas?: number | null
 }
 
 export interface PlanillaCampoUpdateInput {
@@ -167,4 +194,6 @@ export interface PlanillaCampoUpdateInput {
   valorDefault?: string
   renderMode?: CampoListaRenderMode
   tamano?: number
+  /** Override de filas para Tabla dinámica (null = usa Campo.numeroFilas). */
+  numeroFilas?: number | null
 }

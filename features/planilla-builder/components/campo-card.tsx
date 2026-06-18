@@ -10,6 +10,7 @@ import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useReorderOpciones } from "@/features/campos/api/use-reorder-opciones"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
+import { CampoTablaEditor } from "./campo-tabla-editor"
 
 import {
   Select,
@@ -53,6 +54,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const tipoDatoLabel = CAMPO_TIPO_DATO[campo.campoTipoDato as CampoTipoDato] ?? "—"
   const isLista = campo.campoTipoDato === 5
   const isImagen = campo.campoTipoDato === 8
+  const isTabla = campo.campoTipoDato === 9
+  const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
 
   // Construye el payload de update reusando todos los valores actuales del campo, con overrides.
   const buildUpdatePayload = (overrides: Partial<{
@@ -64,6 +67,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     orden: number
     tamano: number
     planillaSeccionId?: string
+    numeroFilas?: number | null
   }> = {}) => ({
     id: campo.id,
     planillaId,
@@ -76,6 +80,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     valorDefault: campo.valorDefault,
     renderMode: campo.renderMode,
     tamano: campo.tamano,
+    numeroFilas: campo.numeroFilas ?? null,
     ...overrides,
   })
 
@@ -114,6 +119,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       valorDefault: otro.valorDefault,
       renderMode: otro.renderMode,
       tamano: otro.tamano,
+      numeroFilas: otro.numeroFilas ?? null,
     })
   }
 
@@ -302,8 +308,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             </label>
           </div>
 
-          {/* Valor por defecto — no aplica a tipo Imagen */}
-          {!isImagen && (
+          {/* Valor por defecto — no aplica a tipo Imagen ni Tabla */}
+          {!isImagen && !isTabla && (
             <div>
               <Label className="text-xs">Valor por defecto</Label>
               <Input
@@ -524,6 +530,35 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                 )}
               </div>
             </div>
+          )}
+
+          {/* Tabla (only for tipo 9): filas por defecto (dinámica) + editor de columnas/filas */}
+          {isTabla && (
+            <>
+              {!tablaEsMatriz && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Filas por defecto (tabla dinámica)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    className="h-8 w-24 text-sm"
+                    defaultValue={campo.numeroFilas ?? 3}
+                    onBlur={(e) => {
+                      const n = Number(e.target.value)
+                      if (Number.isFinite(n) && n !== (campo.numeroFilas ?? 3)) {
+                        updateMutation.mutate(buildUpdatePayload({ numeroFilas: Math.max(1, Math.min(100, Math.floor(n))) }))
+                      }
+                    }}
+                    disabled={updateMutation.isPending}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Filas vacías que se imprimen en modo físico. En digital el operador agrega de 2 a 10.
+                  </p>
+                </div>
+              )}
+              <CampoTablaEditor campo={campo} />
+            </>
           )}
         </div>
       )}

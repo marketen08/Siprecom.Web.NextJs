@@ -19,6 +19,7 @@ import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
+import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
 
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
@@ -133,6 +134,7 @@ export default function RegistroFormPage({ params }: PageProps) {
       else if (v.valorNumero != null)  init[v.planillaCampoId] = String(v.valorNumero)
       else if (v.valorFecha != null)   init[v.planillaCampoId] = v.valorFecha.substring(0, 10)
       else if (v.valorBit != null)     init[v.planillaCampoId] = v.valorBit ? "true" : "false"
+      else if (v.valorJson != null)    init[v.planillaCampoId] = v.valorJson
     }
     setValores(init)
     setObservaciones(registro.observaciones ?? "")
@@ -229,6 +231,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           case 2: input.valorNumero = raw !== "" ? Number(raw) : null; break
           case 3: input.valorFecha  = raw || null; break
           case 4: input.valorBit    = raw === "true" ? true : raw === "false" ? false : null; break
+          case 9: input.valorJson   = raw || null; break
           default: input.valorTexto = raw || null
         }
         return input
@@ -242,7 +245,8 @@ export default function RegistroFormPage({ params }: PageProps) {
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
       const val = valores[c.id] ?? c.valorDefault ?? ""
-      if (val === "" || val == null) newErrors[c.id] = true
+      const vacio = c.campoTipoDato === 9 ? !tablaTieneDatos(val) : (val === "" || val == null)
+      if (vacio) newErrors[c.id] = true
     }
     setErrors(newErrors)
     const firstErrorId = Object.keys(newErrors)[0]
@@ -423,6 +427,9 @@ export default function RegistroFormPage({ params }: PageProps) {
             const camposSeccion = camposPorSeccion[seccionId]
               .filter((c) => c.visible)
               .sort((a, b) => a.orden - b.orden)
+              // Las tablas (tipo 9) ocupan el ancho completo: forzamos tamano 12 para que
+              // packCampos las ubique en su propia fila y no se compriman junto a otros campos.
+              .map((c) => (c.campoTipoDato === 9 ? { ...c, tamano: 12 } : c))
 
             return (
               <div key={seccionId} className="rounded-xl border bg-white overflow-hidden">
@@ -940,6 +947,16 @@ function CampoInput({
       }
       break
     }
+    case 9: // Tabla — celdas de texto (matriz fija o dinámica)
+      input = (
+        <CampoTablaInput
+          campo={campo}
+          value={value}
+          onChange={onChange}
+          readOnly={readOnly}
+        />
+      )
+      break
     case 8: // Imagen — parte de la planilla (global del Campo), sin input
       return (
         <div id={`campo-${campo.id}`} className="space-y-1">
