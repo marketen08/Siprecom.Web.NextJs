@@ -113,6 +113,7 @@ export const menu: MenuItem[] = [
     label: "Licenciamiento",
     minRole: "SuperAdmin",
     children: [
+      { label: "Reporte de concurrencia", href: "/licenciamiento/concurrencia" },
       { label: "Licencias", href: "/licenciamiento/licencias" },
     ],
   },
@@ -219,4 +220,5 @@ export const segmentLabels: Record<string, string> = {
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",
   licencias:               "Licencias",
+  concurrencia:            "Reporte de concurrencia",
 }
