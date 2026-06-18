@@ -10,6 +10,18 @@ const COOKIE_OPTS = {
   path: "/",
 }
 
+// 401 por sesión reemplazada (login en otro dispositivo): borra cookies y
+// propaga el code para que el cliente muestre el mensaje correcto.
+function sesionReemplazada(): NextResponse {
+  const r = NextResponse.json(
+    { message: "Tu sesión se cerró porque iniciaste sesión en otro dispositivo.", code: "SESSION_SUPERSEDED" },
+    { status: 401 },
+  )
+  r.cookies.delete("accessToken")
+  r.cookies.delete("refreshToken")
+  return r
+}
+
 /**
  * Llama al backend .NET con el Bearer token indicado.
  */
@@ -56,6 +68,14 @@ export async function backendFetch(
   // Caso feliz: no es 401
   if (res.status !== 401) return res
 
+  // Sesión reemplazada (el user inició sesión en otro dispositivo): NO tiene
+  // sentido refrescar (el refresh también va a fallar). Cortamos con el code
+  // para que el frontend muestre el mensaje y mande a login.
+  const origBody = await res.clone().json().catch(() => null)
+  if (origBody?.code === "SESSION_SUPERSEDED") {
+    return sesionReemplazada()
+  }
+
   // Token expirado — intentar renovar
   if (!refreshToken) {
     return NextResponse.json({ message: "Sesión expirada" }, { status: 401 })
@@ -68,6 +88,9 @@ export async function backendFetch(
   })
 
   if (!refreshRes.ok) {
+    // El refresh puede fallar por sesión reemplazada o por expiración real.
+    const refBody = await refreshRes.clone().json().catch(() => null)
+    if (refBody?.code === "SESSION_SUPERSEDED") return sesionReemplazada()
     const response = NextResponse.json({ message: "Sesión expirada" }, { status: 401 })
     response.cookies.delete("accessToken")
     response.cookies.delete("refreshToken")

@@ -24,8 +24,8 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise
 }
 
-function redirectToLogin(): never {
-  window.location.href = "/login"
+function redirectToLogin(reason?: string): never {
+  window.location.href = reason ? `/login?reason=${reason}` : "/login"
   throw new Error("Sesión expirada")
 }
 
@@ -70,12 +70,20 @@ async function request<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, init)
 
   if (res.status === 401) {
+    // Sesión reemplazada (login en otro dispositivo): no reintentar refresh,
+    // ir directo a login con el motivo para mostrar el mensaje.
+    const body = await res.clone().json().catch(() => null)
+    if (body?.code === "SESSION_SUPERSEDED") redirectToLogin("session_superseded")
+
     const refreshed = await tryRefresh()
     if (!refreshed) redirectToLogin()
 
     // Reintentar la request original con las nuevas cookies
     const retry = await fetch(input, init)
-    if (retry.status === 401) redirectToLogin()
+    if (retry.status === 401) {
+      const rbody = await retry.clone().json().catch(() => null)
+      redirectToLogin(rbody?.code === "SESSION_SUPERSEDED" ? "session_superseded" : undefined)
+    }
     if (!retry.ok) throw await parseError(retry)
     return retry.json()
   }

@@ -1,13 +1,14 @@
 "use client"
 
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation } from "@tanstack/react-query"
 import { useMsal } from "@azure/msal-react"
 import { useAuthStore } from "@/store/auth-store"
+import { useMounted } from "@/lib/use-mounted"
 import type { LoginRequest, LoginApiResponse } from "@/types/auth"
 import { loginRequest as msalLoginRequest } from "@/lib/msal-config"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
@@ -56,8 +57,18 @@ async function loginRequest(data: LoginRequest): Promise<LoginApiResponse> {
 
 export default function LoginPage() {
   const setUser = useAuthStore((s) => s.setUser)
+  const clearUser = useAuthStore((s) => s.clearUser)
   const [showPassword, setShowPassword] = useState(false)
   const { instance: msalInstance } = useMsal()
+
+  // Aviso por sesión reemplazada (login en otro dispositivo). Se calcula en
+  // render (no setState-in-effect) y solo tras montar (hydration-safe), leyendo
+  // window.location en vez de useSearchParams (evita Suspense).
+  const mounted = useMounted()
+  const aviso =
+    mounted && new URLSearchParams(window.location.search).get("reason") === "session_superseded"
+      ? "Tu sesión se cerró porque iniciaste sesión en otro dispositivo."
+      : null
 
   const form = useForm<FormValues>({
     mode: "onSubmit",
@@ -80,6 +91,13 @@ export default function LoginPage() {
   })
 
   const [redirectingToMicrosoft, setRedirectingToMicrosoft] = useState(false)
+
+  // Si llegamos por sesión reemplazada, limpiamos el user persistido (logout
+  // total). clearUser es una acción de zustand (no setState de React), así que
+  // no dispara la regla set-state-in-effect.
+  useEffect(() => {
+    if (aviso) clearUser()
+  }, [aviso, clearUser])
 
   const handleMicrosoftLogin = async () => {
     form.clearErrors("root.serverError")
@@ -228,6 +246,12 @@ export default function LoginPage() {
                 </FormItem>
               )}
             />
+
+            {aviso && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {aviso}
+              </div>
+            )}
 
             {form.formState.errors.root?.serverError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
