@@ -108,6 +108,14 @@ export const menu: MenuItem[] = [
       { label: "Tipos de pendientes",      href: "/configuracion/pendientes-tipos" },
     ],
   },
+  {
+    // Licenciamiento / facturación — solo SuperAdmin (cuenta del proveedor).
+    label: "Licenciamiento",
+    minRole: "SuperAdmin",
+    children: [
+      { label: "Licencias", href: "/licenciamiento/licencias" },
+    ],
+  },
 ]
 
 // ─── Lookup plano href → trail de labels ──────────────────────────────────────
@@ -209,4 +217,6 @@ export const segmentLabels: Record<string, string> = {
   "pendientes-categorias": "Categorías de pendientes",
   "pendientes-tipos":      "Tipos de pendientes",
   "modelo-3d":             "Modelo 3D",
+  licenciamiento:          "Licenciamiento",
+  licencias:               "Licencias",
 }
