@@ -66,3 +66,47 @@ export function useImportPlanillaApply() {
     },
   })
 }
+
+// ─── MASIVO (todas las planillas) ───────────────────────────────────────────
+
+export interface PlanillasBulkImportPreview {
+  totalPlanillas: number
+  planillas: PlanillaImportPreview[]
+  esAplicable: boolean
+}
+
+export interface PlanillasBulkImportResultado {
+  aplicado: boolean
+  importadas: number
+  total: number
+  resultados: PlanillaImportResultado[]
+  mensaje: string
+}
+
+/** Descarga el JSON con TODAS las planillas (SuperAdmin), vía anchor programático. */
+export function exportarTodasLasPlanillas() {
+  const a = document.createElement("a")
+  a.href = `/api/planillas/export-all`
+  a.download = ""
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+export function useImportPlanillasAllPreview() {
+  return useMutation({
+    mutationFn: (data: unknown) =>
+      apiClient.post<ApiResponse<PlanillasBulkImportPreview>>("/api/planillas/import-all/preview", data),
+  })
+}
+
+export function useImportPlanillasAllApply() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: unknown) =>
+      apiClient.post<ApiResponse<PlanillasBulkImportResultado>>("/api/planillas/import-all", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["planillas"] })
+    },
+  })
+}
