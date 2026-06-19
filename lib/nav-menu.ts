@@ -115,6 +115,7 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Reporte de concurrencia", href: "/licenciamiento/concurrencia" },
       { label: "Licencias", href: "/licenciamiento/licencias" },
+      { label: "Migraciones", href: "/licenciamiento/migraciones" },
     ],
   },
 ]
