@@ -3,7 +3,9 @@ import { backendFetch } from "@/lib/server/backend-fetch"
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const res = await backendFetch(request, "/planillas/import-all", {
+  const omitir = request.nextUrl.searchParams.get("omitirExistentes") === "true"
+  const path = `/planillas/import-all${omitir ? "?omitirExistentes=true" : ""}`
+  const res = await backendFetch(request, path, {
     method: "POST",
     body: JSON.stringify(body),
   })

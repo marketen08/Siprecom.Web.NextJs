@@ -17,6 +17,7 @@ export default function PlanillasExportImportPage() {
   const [data, setData] = useState<unknown | null>(null)
   const [fileName, setFileName] = useState("")
   const [parseError, setParseError] = useState<string | null>(null)
+  const [omitirExistentes, setOmitirExistentes] = useState(true)
 
   const previewMut = useImportPlanillasAllPreview()
   const applyMut = useImportPlanillasAllApply()
@@ -104,6 +105,16 @@ export default function PlanillasExportImportPage() {
           )}
         </div>
 
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-300"
+            checked={omitirExistentes}
+            onChange={(e) => setOmitirExistentes(e.target.checked)}
+          />
+          Omitir las que ya existen (mismo código y versión)
+        </label>
+
         {parseError && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -134,15 +145,26 @@ export default function PlanillasExportImportPage() {
                     <span className="font-medium">
                       {p.nombre} <span className="font-mono text-gray-500">({p.codigoAplicar} v{p.versionAplicar})</span>
                     </span>
-                    {p.esAplicable ? (
-                      <span className="text-emerald-600 inline-flex items-center gap-1">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> OK
-                      </span>
-                    ) : (
-                      <span className="text-destructive inline-flex items-center gap-1">
-                        <AlertTriangle className="h-3.5 w-3.5" /> Conflicto
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1.5 shrink-0">
+                      {p.yaExiste && (
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded ${
+                            omitirExistentes ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {omitirExistentes ? "se omitirá" : "ya existe"}
+                        </span>
+                      )}
+                      {p.esAplicable ? (
+                        <span className="text-emerald-600 inline-flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> OK
+                        </span>
+                      ) : (
+                        <span className="text-destructive inline-flex items-center gap-1">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Conflicto
+                        </span>
+                      )}
+                    </span>
                   </div>
                   <p className="text-muted-foreground mt-0.5">
                     Campos nuevos: {p.camposNuevos} · reusados: {p.camposReusados} · secciones: {p.seccionesACrear}
@@ -159,12 +181,12 @@ export default function PlanillasExportImportPage() {
             {!resultado && (
               <div className="flex items-center gap-2">
                 <Button
-                  onClick={() => data && applyMut.mutate(data)}
+                  onClick={() => data && applyMut.mutate({ data, omitirExistentes })}
                   disabled={!preview.esAplicable || applyMut.isPending}
                   className="gap-2"
                 >
                   {applyMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  Importar {preview.totalPlanillas} planilla(s)
+                  Importar {omitirExistentes ? preview.planillas.filter((p) => !p.yaExiste).length : preview.totalPlanillas} planilla(s)
                 </Button>
                 {!preview.esAplicable && (
                   <span className="text-xs text-destructive">Resolvé los conflictos antes de importar.</span>
@@ -185,9 +207,49 @@ export default function PlanillasExportImportPage() {
         )}
 
         {resultado && (
-          <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-            <p>{resultado.mensaje}</p>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+              <p>{resultado.mensaje}</p>
+            </div>
+            {resultado.resultados.filter((r) => !r.aplicado && !r.omitida).length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-destructive">
+                  Planillas que fallaron ({resultado.resultados.filter((r) => !r.aplicado && !r.omitida).length}):
+                </p>
+                <ul className="space-y-1 max-h-64 overflow-y-auto">
+                  {resultado.resultados
+                    .filter((r) => !r.aplicado && !r.omitida)
+                    .map((r, i) => (
+                      <li
+                        key={i}
+                        className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                      >
+                        {r.mensaje}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+            {resultado.resultados.filter((r) => r.omitida).length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-amber-700">
+                  Omitidas por ya existir ({resultado.resultados.filter((r) => r.omitida).length}):
+                </p>
+                <ul className="space-y-1 max-h-48 overflow-y-auto">
+                  {resultado.resultados
+                    .filter((r) => r.omitida)
+                    .map((r, i) => (
+                      <li
+                        key={i}
+                        className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                      >
+                        {r.mensaje}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </Card>

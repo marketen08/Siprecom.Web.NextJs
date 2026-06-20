@@ -12,6 +12,8 @@ export interface PlanillaImportPreview {
   camposNuevos: number
   camposReusados: number
   planillaCamposACrear: number
+  /** True si ya existe una planilla con el mismo Codigo+Version. */
+  yaExiste?: boolean
   conflictos: Array<{
     tipo: string
     mensaje: string
@@ -22,6 +24,8 @@ export interface PlanillaImportPreview {
 
 export interface PlanillaImportResultado {
   aplicado: boolean
+  /** True si se salteó por ya existir (no es un error). */
+  omitida?: boolean
   planillaIdCreada: string | null
   preview: PlanillaImportPreview
   mensaje: string
@@ -78,6 +82,7 @@ export interface PlanillasBulkImportPreview {
 export interface PlanillasBulkImportResultado {
   aplicado: boolean
   importadas: number
+  omitidas: number
   total: number
   resultados: PlanillaImportResultado[]
   mensaje: string
@@ -103,8 +108,11 @@ export function useImportPlanillasAllPreview() {
 export function useImportPlanillasAllApply() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: unknown) =>
-      apiClient.post<ApiResponse<PlanillasBulkImportResultado>>("/api/planillas/import-all", data),
+    mutationFn: ({ data, omitirExistentes }: { data: unknown; omitirExistentes: boolean }) =>
+      apiClient.post<ApiResponse<PlanillasBulkImportResultado>>(
+        `/api/planillas/import-all${omitirExistentes ? "?omitirExistentes=true" : ""}`,
+        data,
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["planillas"] })
     },
