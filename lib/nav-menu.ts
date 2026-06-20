@@ -117,6 +117,8 @@ export const menu: MenuItem[] = [
       { label: "Licencias", href: "/licenciamiento/licencias" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
       { label: "Exportar/Importar planillas", href: "/licenciamiento/planillas" },
+      { label: "Exportar/Importar procedimientos", href: "/licenciamiento/procedimientos" },
+      { label: "Migrar tareas entre proyectos", href: "/licenciamiento/tareas" },
     ],
   },
 ]

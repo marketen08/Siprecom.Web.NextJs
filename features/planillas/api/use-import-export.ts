@@ -1,6 +1,20 @@
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
+
+export interface PlanillasReferencias {
+  tareasCount: number
+  registrosCount: number
+  hayReferencias: boolean
+}
+
+/** Cuántas Tareas/Registros usan planillas. Para deshabilitar los modos destructivos del import. */
+export function usePlanillasReferencias() {
+  return useQuery({
+    queryKey: ["planillas", "uso-referencias"],
+    queryFn: () => apiClient.get<PlanillasReferencias>("/api/planillas/uso-referencias"),
+  })
+}
 
 export interface PlanillaImportPreview {
   codigoOriginal: string

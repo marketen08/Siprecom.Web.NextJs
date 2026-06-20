@@ -11,6 +11,7 @@ import {
   parseFileJson,
   useImportPlanillasAllPreview,
   useImportPlanillasAllApply,
+  usePlanillasReferencias,
   type ImportModo,
 } from "@/features/planillas/api/use-import-export"
 
@@ -39,6 +40,8 @@ export default function PlanillasExportImportPage() {
 
   const previewMut = useImportPlanillasAllPreview()
   const applyMut = useImportPlanillasAllApply()
+  const referenciasQuery = usePlanillasReferencias()
+  const bloquearDestructivos = referenciasQuery.data?.hayReferencias ?? false
 
   const preview = previewMut.data?.data
   const resultado = applyMut.data?.data
@@ -142,21 +145,31 @@ export default function PlanillasExportImportPage() {
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-gray-600">Qué hacer con las que ya existen:</p>
           <div className="space-y-1">
-            {MODOS.map((m) => (
-              <label key={m.value} className="flex items-start gap-2 cursor-pointer rounded-md px-1 py-0.5 hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="modo-import"
-                  className="mt-0.5 h-4 w-4"
-                  checked={modo === m.value}
-                  onChange={() => setModo(m.value)}
-                />
-                <span className="text-sm">
-                  <span className={m.destructivo ? "font-medium text-red-700" : "font-medium"}>{m.label}</span>
-                  <span className="block text-[11px] text-muted-foreground">{m.help}</span>
-                </span>
-              </label>
-            ))}
+            {MODOS.map((m) => {
+              const bloqueado = !!m.destructivo && bloquearDestructivos
+              return (
+                <label
+                  key={m.value}
+                  className={`flex items-start gap-2 rounded-md px-1 py-0.5 ${bloqueado ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-gray-50"}`}
+                >
+                  <input
+                    type="radio"
+                    name="modo-import"
+                    className="mt-0.5 h-4 w-4"
+                    checked={modo === m.value}
+                    disabled={bloqueado}
+                    onChange={() => setModo(m.value)}
+                  />
+                  <span className="text-sm">
+                    <span className={m.destructivo ? "font-medium text-red-700" : "font-medium"}>{m.label}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {m.help}
+                      {bloqueado ? " — Deshabilitado: hay tareas o registros que usan planillas." : ""}
+                    </span>
+                  </span>
+                </label>
+              )
+            })}
           </div>
         </div>
 
