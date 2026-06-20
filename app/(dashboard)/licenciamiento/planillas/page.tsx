@@ -259,6 +259,7 @@ export default function PlanillasExportImportPage() {
                     confirmText={modo === "eliminar-todas" ? "Eliminar todo e importar" : "Reemplazar"}
                     pendingText="Aplicando…"
                     variant="destructive"
+                    confirmPhrase={modo === "eliminar-todas" ? "ELIMINAR TODAS" : undefined}
                     onConfirm={doApply}
                   />
                 ) : (
