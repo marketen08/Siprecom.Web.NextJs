@@ -3,8 +3,8 @@ import { backendFetch } from "@/lib/server/backend-fetch"
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const omitir = request.nextUrl.searchParams.get("omitirExistentes") === "true"
-  const path = `/planillas/import-all${omitir ? "?omitirExistentes=true" : ""}`
+  const modo = request.nextUrl.searchParams.get("modo") ?? "crear"
+  const path = `/planillas/import-all?modo=${encodeURIComponent(modo)}`
   const res = await backendFetch(request, path, {
     method: "POST",
     body: JSON.stringify(body),

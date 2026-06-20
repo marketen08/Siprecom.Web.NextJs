@@ -105,12 +105,15 @@ export function useImportPlanillasAllPreview() {
   })
 }
 
+/** Modo del import masivo. */
+export type ImportModo = "crear" | "omitir" | "reemplazar" | "eliminar-todas"
+
 export function useImportPlanillasAllApply() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ data, omitirExistentes }: { data: unknown; omitirExistentes: boolean }) =>
+    mutationFn: ({ data, modo }: { data: unknown; modo: ImportModo }) =>
       apiClient.post<ApiResponse<PlanillasBulkImportResultado>>(
-        `/api/planillas/import-all${omitirExistentes ? "?omitirExistentes=true" : ""}`,
+        `/api/planillas/import-all?modo=${encodeURIComponent(modo)}`,
         data,
       ),
     onSuccess: () => {

@@ -5,25 +5,44 @@ import { Loader2, Download, Upload, AlertTriangle, CheckCircle2, FileJson } from
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import {
   exportarTodasLasPlanillas,
   parseFileJson,
   useImportPlanillasAllPreview,
   useImportPlanillasAllApply,
+  type ImportModo,
 } from "@/features/planillas/api/use-import-export"
+
+const MODOS: { value: ImportModo; label: string; help: string; destructivo?: boolean }[] = [
+  { value: "crear", label: "Crear (versionar si ya existe)", help: "Las que ya existen se importan como versión nueva (1.0-2, …)." },
+  { value: "omitir", label: "Omitir las que ya existen", help: "Saltea las planillas con mismo código y versión." },
+  { value: "reemplazar", label: "Reemplazar las que ya existen", help: "Pisa la definición existente. Falla si la planilla tiene registros cargados.", destructivo: true },
+  { value: "eliminar-todas", label: "Eliminar TODAS y reimportar", help: "Borra todas las planillas de la base antes de importar. Falla si alguna tiene registros.", destructivo: true },
+]
+
+function badgeExistente(modo: ImportModo): string {
+  switch (modo) {
+    case "omitir": return "se omitirá"
+    case "reemplazar": return "se reemplazará"
+    case "eliminar-todas": return "se recreará"
+    default: return "nueva versión"
+  }
+}
 
 export default function PlanillasExportImportPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [data, setData] = useState<unknown | null>(null)
   const [fileName, setFileName] = useState("")
   const [parseError, setParseError] = useState<string | null>(null)
-  const [omitirExistentes, setOmitirExistentes] = useState(true)
+  const [modo, setModo] = useState<ImportModo>("omitir")
 
   const previewMut = useImportPlanillasAllPreview()
   const applyMut = useImportPlanillasAllApply()
 
   const preview = previewMut.data?.data
   const resultado = applyMut.data?.data
+  const modoActual = MODOS.find((m) => m.value === modo)!
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -50,6 +69,21 @@ export default function PlanillasExportImportPage() {
     applyMut.reset()
     if (fileRef.current) fileRef.current.value = ""
   }
+
+  async function doApply() {
+    if (data) await applyMut.mutateAsync({ data, modo })
+  }
+
+  const yaExistenCount = preview?.planillas.filter((p) => p.yaExiste).length ?? 0
+  const aImportar = preview
+    ? modo === "omitir"
+      ? preview.totalPlanillas - yaExistenCount
+      : preview.totalPlanillas
+    : 0
+  const applyLabel =
+    modo === "eliminar-todas"
+      ? `Eliminar todo e importar ${preview?.totalPlanillas ?? 0}`
+      : `Importar ${aImportar} planilla(s)`
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -81,8 +115,7 @@ export default function PlanillasExportImportPage() {
         <div>
           <h2 className="font-semibold text-gray-800">Importar</h2>
           <p className="text-sm text-muted-foreground">
-            Subí un archivo exportado. Se previsualiza antes de aplicar. Las planillas se crean nuevas
-            (si el código+versión ya existe, se sufija la versión); los campos se reusan por código.
+            Subí un archivo exportado. Se previsualiza antes de aplicar. Los campos se reusan por código.
           </p>
         </div>
 
@@ -105,15 +138,27 @@ export default function PlanillasExportImportPage() {
           )}
         </div>
 
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-gray-300"
-            checked={omitirExistentes}
-            onChange={(e) => setOmitirExistentes(e.target.checked)}
-          />
-          Omitir las que ya existen (mismo código y versión)
-        </label>
+        {/* Modo de importación */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-gray-600">Qué hacer con las que ya existen:</p>
+          <div className="space-y-1">
+            {MODOS.map((m) => (
+              <label key={m.value} className="flex items-start gap-2 cursor-pointer rounded-md px-1 py-0.5 hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="modo-import"
+                  className="mt-0.5 h-4 w-4"
+                  checked={modo === m.value}
+                  onChange={() => setModo(m.value)}
+                />
+                <span className="text-sm">
+                  <span className={m.destructivo ? "font-medium text-red-700" : "font-medium"}>{m.label}</span>
+                  <span className="block text-[11px] text-muted-foreground">{m.help}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
 
         {parseError && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -131,7 +176,8 @@ export default function PlanillasExportImportPage() {
         {preview && (
           <div className="space-y-3">
             <p className="text-sm">
-              <strong>{preview.totalPlanillas}</strong> planilla(s) en el archivo.
+              <strong>{preview.totalPlanillas}</strong> planilla(s) en el archivo
+              {yaExistenCount > 0 && <span className="text-muted-foreground"> · {yaExistenCount} ya existe(n)</span>}.
             </p>
             <ul className="space-y-1.5 max-h-72 overflow-y-auto">
               {preview.planillas.map((p, i) => (
@@ -149,10 +195,10 @@ export default function PlanillasExportImportPage() {
                       {p.yaExiste && (
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded ${
-                            omitirExistentes ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-700"
+                            modo === "omitir" ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-700"
                           }`}
                         >
-                          {omitirExistentes ? "se omitirá" : "ya existe"}
+                          {badgeExistente(modo)}
                         </span>
                       )}
                       {p.esAplicable ? (
@@ -178,16 +224,49 @@ export default function PlanillasExportImportPage() {
               ))}
             </ul>
 
+            {modo === "eliminar-todas" && (
+              <div className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-800">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>
+                  Atención: se eliminarán <strong>TODAS</strong> las planillas de la base (no solo las del archivo)
+                  antes de importar. Falla si alguna tiene registros cargados.
+                </p>
+              </div>
+            )}
+
             {!resultado && (
               <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => data && applyMut.mutate({ data, omitirExistentes })}
-                  disabled={!preview.esAplicable || applyMut.isPending}
-                  className="gap-2"
-                >
-                  {applyMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  Importar {omitirExistentes ? preview.planillas.filter((p) => !p.yaExiste).length : preview.totalPlanillas} planilla(s)
-                </Button>
+                {!preview.esAplicable ? (
+                  <Button disabled className="gap-2">
+                    <Upload className="h-4 w-4" /> {applyLabel}
+                  </Button>
+                ) : modoActual.destructivo ? (
+                  <ConfirmActionDialog
+                    trigger={
+                      <span className="inline-flex items-center gap-1.5">
+                        <Upload className="h-4 w-4" /> {applyLabel}
+                      </span>
+                    }
+                    triggerClassName="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-60"
+                    title={modo === "eliminar-todas" ? "¿Eliminar TODAS las planillas?" : "¿Reemplazar las planillas existentes?"}
+                    description={
+                      modo === "eliminar-todas" ? (
+                        <>Se borrarán <strong>todas</strong> las planillas de la base y luego se importarán las del archivo. No se puede deshacer. Falla si alguna tiene registros.</>
+                      ) : (
+                        <>Las planillas con el mismo código y versión se <strong>reemplazarán</strong> por las del archivo. Falla si alguna tiene registros cargados.</>
+                      )
+                    }
+                    confirmText={modo === "eliminar-todas" ? "Eliminar todo e importar" : "Reemplazar"}
+                    pendingText="Aplicando…"
+                    variant="destructive"
+                    onConfirm={doApply}
+                  />
+                ) : (
+                  <Button onClick={doApply} disabled={applyMut.isPending} className="gap-2">
+                    {applyMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    {applyLabel}
+                  </Button>
+                )}
                 {!preview.esAplicable && (
                   <span className="text-xs text-destructive">Resolvé los conflictos antes de importar.</span>
                 )}
