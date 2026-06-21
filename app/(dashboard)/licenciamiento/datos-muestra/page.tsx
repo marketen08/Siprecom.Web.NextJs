@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Loader2, Database, CheckCircle2, AlertTriangle, Sprout } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { useSeedDemoStatus, useRunSeedDemo } from "@/features/mantenimiento/api/use-seed-demo"
@@ -77,13 +76,24 @@ export default function DatosMuestraPage() {
                 confirmText="Regenerar"
                 pendingText="Cargando…"
                 variant="destructive"
+                confirmPhrase="REGENERAR"
                 onConfirm={() => runMut.mutateAsync({ limpiarAntes: true })}
               />
             ) : (
-              <Button onClick={() => runMut.mutate({ limpiarAntes: false })} disabled={runMut.isPending} className="gap-2">
-                {runMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-                Cargar datos de muestra
-              </Button>
+              <ConfirmActionDialog
+                trigger={
+                  <span className="inline-flex items-center gap-1.5">
+                    <Database className="h-4 w-4" /> Cargar datos de muestra
+                  </span>
+                }
+                triggerClassName="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+                title="¿Cargar los datos de muestra?"
+                description={<>Se crearán datos de ejemplo (clientes, proyectos, sistemas/subsistemas y ~500 elementos) en esta instancia.</>}
+                confirmText="Cargar"
+                pendingText="Cargando…"
+                confirmPhrase="CARGAR"
+                onConfirm={() => runMut.mutateAsync({ limpiarAntes: false })}
+              />
             ))}
           </div>
         )}
