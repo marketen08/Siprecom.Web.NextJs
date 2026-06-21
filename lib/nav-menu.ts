@@ -122,6 +122,7 @@ export const menu: MenuItem[] = [
       { label: "Reporte de concurrencia", href: "/licenciamiento/concurrencia" },
       { label: "Licencias", href: "/licenciamiento/licencias" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
+      { label: "Datos de muestra", href: "/licenciamiento/datos-muestra" },
       {
         label: "Exportar / Importar",
         children: [
