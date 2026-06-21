@@ -12,11 +12,19 @@ import { useGetElementosTipos } from "@/features/elementostipos/api/use-get-elem
 import { useNewElementoTipo } from "@/features/elementostipos/hooks/use-new-elementotipo"
 import { NewElementoTipoSheet } from "@/features/elementostipos/components/new-elementotipo-sheet"
 import { EditElementoTipoSheet } from "@/features/elementostipos/components/edit-elementotipo-sheet"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -26,12 +34,22 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+const ALL = "__all__"
+
 export default function ElementosTiposPage() {
   const [search, setSearch] = useState("")
+  const [especialidadId, setEspecialidadId] = useState<string>(ALL)
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const { data, isLoading, isFetching } = useGetElementosTipos({ page, pageSize, nombre: search || undefined })
+  const { data, isLoading, isFetching } = useGetElementosTipos({
+    page,
+    pageSize,
+    nombre: search || undefined,
+    especialidadId: especialidadId !== ALL ? especialidadId : undefined,
+  })
+  const { data: especialidadesRaw } = useGetEspecialidades()
+  const especialidades = especialidadesRaw?.data ?? []
   const { open } = useNewElementoTipo()
 
   const table = useReactTable({
@@ -62,6 +80,28 @@ export default function ElementosTiposPage() {
               className="pl-9"
             />
           </div>
+
+          <Select
+            value={especialidadId}
+            onValueChange={(v) => { setEspecialidadId(v ?? ALL); setPage(1) }}
+          >
+            <SelectTrigger className="w-64">
+              <SelectValue>
+                {especialidadId === ALL
+                  ? "Todas las especialidades"
+                  : especialidades.find((e) => e.id === especialidadId)?.nombre ?? "—"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas las especialidades</SelectItem>
+              {especialidades.map((esp) => (
+                <SelectItem key={esp.id} value={esp.id}>
+                  {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Button onClick={open} className="gap-2 ml-auto">
             <Plus className="h-4 w-4" />
             Nuevo tipo

@@ -87,13 +87,6 @@ export const columns: ColumnDef<ElementoTipo>[] = [
     ),
   },
   {
-    accessorKey: "createdByNombre",
-    header: "Creado por",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.createdByNombre}</span>
-    ),
-  },
-  {
     id: "actions",
     cell: ({ row }) => <RowActions tipo={row.original} />,
   },

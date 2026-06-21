@@ -7,18 +7,20 @@ interface Params {
   page?: number
   pageSize?: number
   nombre?: string
+  especialidadId?: string
 }
 
 export function useGetElementosTipos(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre } = params
+  const { page = 1, pageSize = 10, nombre, especialidadId } = params
 
   return useQuery({
-    queryKey: ["elementostipos", { page, pageSize, nombre }],
+    queryKey: ["elementostipos", { page, pageSize, nombre, especialidadId }],
     queryFn: () =>
       apiClient.get<PagedResponse<ElementoTipo>>("/api/elementostipos", {
         page,
         pageSize,
         ...(nombre ? { nombre } : {}),
+        ...(especialidadId ? { especialidadId } : {}),
       }),
   })
 }

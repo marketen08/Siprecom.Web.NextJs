@@ -1,8 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import { ColumnDef } from "@tanstack/react-table"
-import { Copy, Download, Pencil, Settings, Trash2 } from "lucide-react"
-import Link from "next/link"
+import { Copy, Download, FileText, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import type { Planilla } from "@/features/planillas/types"
 import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
@@ -10,76 +11,136 @@ import { useDeletePlanilla } from "@/features/planillas/api/use-delete-planilla"
 import { useClonePlanilla } from "@/features/planillas/api/use-clone-planilla"
 import { exportarPlanilla } from "@/features/planillas/api/use-import-export"
 
-import { Button } from "@/components/ui/button"
-import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 function RowActions({ planilla }: { planilla: Planilla }) {
+  const router = useRouter()
   const { open } = useOpenPlanilla()
   const deleteMutation = useDeletePlanilla()
   const cloneMutation = useClonePlanilla()
 
+  const [cloneOpen, setCloneOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  const handleClone = async () => {
+    await cloneMutation.mutateAsync(planilla.id)
+    setCloneOpen(false)
+  }
+
+  const handleDelete = async () => {
+    await deleteMutation.mutateAsync(planilla.id)
+    setDeleteOpen(false)
+  }
+
+  const descargarPdf = () => {
+    window.open(`/api/planillas/${planilla.id}/pdf/blanco`, "_blank", "noopener,noreferrer")
+  }
+
   return (
-    <div className="flex items-center gap-1 justify-end">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        title="Editar datos"
-        onClick={() => open(planilla.id)}
-      >
-        <Pencil className="h-4 w-4" />
-      </Button>
+    <div className="flex justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          title="Acciones"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer bg-transparent border-0 p-0"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem className="cursor-pointer" onClick={() => open(planilla.id)}>
+            <Pencil className="h-4 w-4" />
+            Editar datos
+          </DropdownMenuItem>
+          <DropdownMenuItem className="cursor-pointer" onClick={() => router.push(`/configuracion/planillas/${planilla.id}`)}>
+            <Settings className="h-4 w-4" />
+            Diseñar planilla
+          </DropdownMenuItem>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        title="Diseñar planilla"
-        asChild
-      >
-        <Link href={`/configuracion/planillas/${planilla.id}`}>
-          <Settings className="h-4 w-4" />
-        </Link>
-      </Button>
+          <DropdownMenuSeparator />
 
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        title="Exportar JSON"
-        onClick={() => exportarPlanilla(planilla.id)}
-      >
-        <Download className="h-4 w-4" />
-      </Button>
+          <DropdownMenuItem className="cursor-pointer" onClick={descargarPdf}>
+            <FileText className="h-4 w-4" />
+            Descargar PDF
+          </DropdownMenuItem>
+          <DropdownMenuItem className="cursor-pointer" onClick={() => exportarPlanilla(planilla.id)}>
+            <Download className="h-4 w-4" />
+            Exportar JSON
+          </DropdownMenuItem>
+          <DropdownMenuItem className="cursor-pointer" onClick={() => setCloneOpen(true)}>
+            <Copy className="h-4 w-4" />
+            Clonar
+          </DropdownMenuItem>
 
-      <ConfirmActionDialog
-        trigger={<Copy className="h-4 w-4" />}
-        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors"
-        title="¿Clonar planilla?"
-        description={
-          <>
-            Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo "(copia)" en el nombre.
-          </>
-        }
-        confirmText="Clonar"
-        pendingText="Clonando..."
-        onConfirm={() => cloneMutation.mutateAsync(planilla.id)}
-      />
+          <DropdownMenuSeparator />
 
-      <ConfirmActionDialog
-        trigger={<Trash2 className="h-4 w-4" />}
-        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
-        title="¿Eliminar planilla?"
-        description={
-          <>
-            Esta acción eliminará <strong>{planilla.nombre}</strong>. Podés reactivarla después.
-          </>
-        }
-        confirmText="Eliminar"
-        pendingText="Eliminando..."
-        variant="destructive"
-        onConfirm={() => deleteMutation.mutateAsync(planilla.id)}
-      />
+          <DropdownMenuItem
+            className="cursor-pointer"
+            variant="destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Eliminar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Clonar */}
+      <AlertDialog open={cloneOpen} onOpenChange={(o) => !cloneMutation.isPending && setCloneOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Clonar planilla?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo "(copia)" en el nombre.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cloneMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleClone() }}
+              disabled={cloneMutation.isPending}
+            >
+              {cloneMutation.isPending ? "Clonando..." : "Clonar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Eliminar */}
+      <AlertDialog open={deleteOpen} onOpenChange={(o) => !deleteMutation.isPending && setDeleteOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar planilla?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará <strong>{planilla.nombre}</strong>. Podés reactivarla después.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); handleDelete() }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
