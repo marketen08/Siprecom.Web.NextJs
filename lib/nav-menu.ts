@@ -79,21 +79,15 @@ export const menu: MenuItem[] = [
       { label: "Subsistemas",  href: "/alcance/subsistemas" },
       { label: "Elementos",    href: "/alcance/elementos" },
       { label: "Tareas",       href: "/alcance/tareas" },
-      { label: "Importar datos de proyecto", href: "/alcance/importacion" },
-      { label: "Importar tareas", href: "/alcance/importacion-tareas" },
-      { label: "Importar valores precargados", href: "/alcance/valores-precargados-importacion" },
-      { label: "Importar pendientes", href: "/alcance/importacion-pendientes" },
-    ],
-  },
-  {
-    // Gestión de usuarios y empresas — separada de la config de catálogos.
-    label: "Administración",
-    minRole: "Admin",
-    children: [
-      { label: "Usuarios",          href: "/configuracion/usuarios" },
-      // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
-      { label: "Clientes",          href: "/configuracion/clientes" },
-      { label: "Contratistas",      href: "/configuracion/contratistas" },
+      {
+        label: "Importar",
+        children: [
+          { label: "Datos de proyecto",   href: "/alcance/importacion" },
+          { label: "Tareas",              href: "/alcance/importacion-tareas" },
+          { label: "Valores precargados", href: "/alcance/valores-precargados-importacion" },
+          { label: "Pendientes",          href: "/alcance/importacion-pendientes" },
+        ],
+      },
     ],
   },
   {
@@ -110,16 +104,32 @@ export const menu: MenuItem[] = [
     ],
   },
   {
-    // Licenciamiento / facturación — solo SuperAdmin (cuenta del proveedor).
-    label: "Licenciamiento",
+    // Gestión de usuarios y empresas — separada de la config de catálogos.
+    label: "Administración del sistema",
+    minRole: "Admin",
+    children: [
+      { label: "Usuarios",          href: "/configuracion/usuarios" },
+      // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
+      { label: "Clientes",          href: "/configuracion/clientes" },
+      { label: "Contratistas",      href: "/configuracion/contratistas" },
+    ],
+  },
+  {
+    // Licenciamiento / facturación / migración — solo SuperAdmin (cuenta del proveedor).
+    label: "Super Admin",
     minRole: "SuperAdmin",
     children: [
       { label: "Reporte de concurrencia", href: "/licenciamiento/concurrencia" },
       { label: "Licencias", href: "/licenciamiento/licencias" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
-      { label: "Exportar/Importar planillas", href: "/licenciamiento/planillas" },
-      { label: "Exportar/Importar procedimientos", href: "/licenciamiento/procedimientos" },
-      { label: "Exportar/Importar catálogos (especialidades + tipos)", href: "/licenciamiento/catalogos" },
+      {
+        label: "Exportar / Importar",
+        children: [
+          { label: "Planillas",         href: "/licenciamiento/planillas" },
+          { label: "Procedimientos",    href: "/licenciamiento/procedimientos" },
+          { label: "Tipos de elemento", href: "/licenciamiento/catalogos" },
+        ],
+      },
     ],
   },
 ]

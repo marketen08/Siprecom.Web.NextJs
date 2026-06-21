@@ -61,11 +61,11 @@ export default function CatalogosExportImportPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
           <Tags className="h-6 w-6 text-blue-700" />
-          Exportar / Importar catálogos
+          Exportar / Importar tipos de elemento
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Especialidades y Tipos de elemento (catálogos globales). Migralos a otro ambiente antes de
-          importar las tareas, que los referencian.
+          Incluye también las <strong>especialidades</strong> (de las que dependen los tipos). Catálogos
+          globales: migralos a otro ambiente antes de importar las tareas, que los referencian.
         </p>
       </div>
 
