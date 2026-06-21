@@ -80,6 +80,7 @@ export const menu: MenuItem[] = [
       { label: "Elementos",    href: "/alcance/elementos" },
       { label: "Tareas",       href: "/alcance/tareas" },
       { label: "Importar datos de proyecto", href: "/alcance/importacion" },
+      { label: "Importar tareas", href: "/alcance/importacion-tareas" },
       { label: "Importar valores precargados", href: "/alcance/valores-precargados-importacion" },
       { label: "Importar pendientes", href: "/alcance/importacion-pendientes" },
     ],
@@ -118,7 +119,7 @@ export const menu: MenuItem[] = [
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
       { label: "Exportar/Importar planillas", href: "/licenciamiento/planillas" },
       { label: "Exportar/Importar procedimientos", href: "/licenciamiento/procedimientos" },
-      { label: "Migrar tareas entre proyectos", href: "/licenciamiento/tareas" },
+      { label: "Exportar/Importar catálogos (especialidades + tipos)", href: "/licenciamiento/catalogos" },
     ],
   },
 ]

@@ -3,8 +3,8 @@ import { backendFetch } from "@/lib/server/backend-fetch"
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const dest = request.nextUrl.searchParams.get("proyectoDestinoId") ?? ""
-  const res = await backendFetch(request, `/migracion/tareas/import/preview?proyectoDestinoId=${encodeURIComponent(dest)}`, {
+  const modo = request.nextUrl.searchParams.get("modo") ?? "omitir"
+  const res = await backendFetch(request, `/catalogos/import-all?modo=${encodeURIComponent(modo)}`, {
     method: "POST",
     body: JSON.stringify(body),
   })

@@ -39,6 +39,19 @@ export interface ImportPendientesResultado {
   mensaje: string
 }
 
+/** Preview de importación de Tareas (hoja única, un solo resumen). */
+export interface ImportTareasPreview {
+  tareas: ImportEntidadResumen
+  errores: ImportError[]
+  esAplicable: boolean
+}
+
+export interface ImportTareasResultado {
+  aplicado: boolean
+  preview: ImportTareasPreview
+  mensaje: string
+}
+
 /** Preview de importación de valores precargados a nivel elemento. */
 export interface ImportValoresPrecargadosPreview {
   valoresPrecargados: ImportEntidadResumen
