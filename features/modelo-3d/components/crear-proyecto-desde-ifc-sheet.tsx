@@ -78,8 +78,11 @@ export function CrearProyectoDesdeIfcSheet({ open, onClose }: Props) {
       setError(`El archivo debe tener extensión ${EXTENSIONES_ACEPTADAS.join(" o ")}.`)
       return
     }
-    if (archivo.size > 500 * 1024 * 1024) {
-      setError("El archivo supera los 500 MB.")
+    // NWD se sube directo a Azure Blob (staged) y admite hasta 600 MB; IFC pasa
+    // por la API (cap 500 MB).
+    const maxMb = esNwd ? 600 : 500
+    if (archivo.size > maxMb * 1024 * 1024) {
+      setError(`El archivo supera los ${maxMb} MB.`)
       return
     }
     try {

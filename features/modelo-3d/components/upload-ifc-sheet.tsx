@@ -60,8 +60,10 @@ export function UploadIfcSheet({ proyectoId, open, onClose }: Props) {
       setError(`El archivo debe tener extensión ${EXTENSIONES_ACEPTADAS.join(" o ")}.`)
       return
     }
-    if (archivo.size > 500 * 1024 * 1024) {
-      setError("El archivo supera los 500 MB.")
+    // NWD admite hasta 600 MB; IFC hasta 500 MB (pasa por la API).
+    const maxMb = ext === ".nwd" ? 600 : 500
+    if (archivo.size > maxMb * 1024 * 1024) {
+      setError(`El archivo supera los ${maxMb} MB.`)
       return
     }
     try {
