@@ -85,7 +85,7 @@ export function CampoForm({
           </div>
         )}
 
-        <div className="grid grid-cols-[1fr_auto] gap-3">
+        <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
           <FormField
             control={form.control}
             name="codigo"

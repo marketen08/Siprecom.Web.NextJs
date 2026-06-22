@@ -7,6 +7,7 @@ import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
 import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
 import { useOpenSeccion } from "@/features/planillas/hooks/use-open-seccion"
+import { exportarPlanilla } from "@/features/planillas/api/use-import-export"
 import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla-sheet"
 import { EditSeccionSheet } from "@/features/planillas/components/edit-seccion-sheet"
 import { SeccionPanel } from "@/features/planilla-builder/components/seccion-panel"
@@ -124,6 +125,15 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
                 </Button>
               </a>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => exportarPlanilla(id)}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Descargar JSON
+            </Button>
             <Button
               variant="outline"
               size="sm"
