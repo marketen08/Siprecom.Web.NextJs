@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Check, Copy, Loader2, ScanSearch, Wrench } from "lucide-react"
+import { Check, Copy, FileSpreadsheet, FileText, Loader2, ScanSearch, Wrench } from "lucide-react"
 
 import { useGetApsCodificaciones, setApsTagProperties } from "../api/use-aps-codificaciones"
 import { useReBootstrapIfcArchivo } from "../api/use-ifc-entidades"
+import { exportCodificacionesExcel, exportCodificacionesPdf } from "../lib/export-codificaciones"
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import {
@@ -58,6 +59,12 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
       else next.add(patron)
       return next
     })
+  }
+
+  const todasSeleccionadas = codis.length > 0 && codis.every((c) => seleccion.has(c.patron))
+
+  function toggleTodas() {
+    setSeleccion(todasSeleccionadas ? new Set() : new Set(codis.map((c) => c.patron)))
   }
 
   async function copiar() {
@@ -114,6 +121,38 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
 
           {codis.length > 0 && (
             <>
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={todasSeleccionadas}
+                    onChange={toggleTodas}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  Seleccionar todo ({codis.length})
+                </label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => exportCodificacionesExcel(codis, seleccion, archivoNombre)}
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    Excel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => exportCodificacionesPdf(codis, seleccion, archivoNombre)}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    PDF
+                  </Button>
+                </div>
+              </div>
+
               <ul className="space-y-1.5">
                 {codis.map((c) => (
                   <li key={c.patron}>

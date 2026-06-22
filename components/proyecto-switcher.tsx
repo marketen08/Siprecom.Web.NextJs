@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2, FolderOpen, Check, ChevronDown } from "lucide-react"
+import { Loader2, FolderOpen, Check, ChevronDown, BarChart3 } from "lucide-react"
 import { useIsFetching } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 
@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
@@ -80,6 +81,15 @@ export function ProyectoSwitcher() {
             {proyecto.esActivo && <Check className="h-4 w-4 shrink-0 text-blue-900" />}
           </DropdownMenuItem>
         ))}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => router.push("/ejecucion/proyectos")}
+          className="flex items-center gap-2 cursor-pointer"
+        >
+          <BarChart3 className="h-4 w-4 shrink-0 text-blue-900" />
+          <span className="truncate">Avance de todos los proyectos</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

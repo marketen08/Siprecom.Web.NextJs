@@ -9,7 +9,6 @@ import {
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import {
-  downloadIfcBuffer,
   useDeleteIfcArchivo,
   useGetIfcArchivos,
   useMarcarIfcPrincipal,
@@ -42,9 +41,9 @@ import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 interface ViewerHandle {
-  loadIfc: (buffer: Uint8Array, name?: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
   selectByGuids: (guids: string[]) => void
+  fitToGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   resize: () => void
@@ -118,54 +117,86 @@ function ModeloPageContent() {
   const actualIdRef = useRef<string | null>(null)
   actualIdRef.current = actualId
 
+  // Crea/recrea el viewer cuando cambia el archivo seleccionado. Despacha por
+  // formato vía createUnifiedViewer: IFC → @thatopen (descarga + parseo local);
+  // NWD → Autodesk Viewer (SVF2 vía APS). Antes este page usaba solo el motor
+  // IFC, así que los NWD no se visualizaban.
   useEffect(() => {
-    let cancelled = false
     const container = containerRef.current
-    if (!container) return
+    if (!container || !actualId || !archivoActual) return
+    // Esperar a que el pipeline del formato esté Completado.
+    if (archivoActual.formatoArchivo === FormatoArchivo3d.Ifc
+        && archivoActual.estadoProcesamiento !== EstadoProcesamientoIfc.Completado) return
+    if (archivoActual.formatoArchivo === FormatoArchivo3d.Nwd
+        && archivoActual.apsTranslationStatus !== ApsTranslationStatus.Completado) return
+
+    let cancelled = false
+    setViewError(null)
+    setLoadingView(true)
+    setViewerReady(false)
+    setArchivoCargadoId(null)
 
     ;(async () => {
-      const { createViewer } = await import("@/features/modelo-3d/viewer")
-      if (cancelled) return
-      const handle = await createViewer(container, {
-        onPick: async (guids) => {
-          if (guids === null || guids.length === 0) {
-            setEntidadSeleccionada(null)
-            return
-          }
-          const archivoActivo = actualIdRef.current
-          if (!archivoActivo) return
-          setResolviendoPick(true)
-          try {
-            // guids = cadena hoja→raíz (APS) o un único guid (IFC). Elegimos la
-            // entidad que matchea el guid más profundo.
-            const entidades = await resolverEntidadesPorGuids(id, archivoActivo, guids)
-            const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
-            const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
-            setEntidadSeleccionada(elegida)
+      try {
+        // Dispose del viewer previo (puede ser de otro motor/formato).
+        viewerRef.current?.dispose()
+        viewerRef.current = null
 
-            // Seleccionar TODAS las piezas del Elemento (línea/equipo completo).
-            if (elegida?.elementoId) {
-              const guidsElemento = await getGuidsPorElemento(id, archivoActivo, elegida.elementoId)
-              if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+        const { createUnifiedViewer } = await import("@/features/modelo-3d/unified-viewer")
+        if (cancelled) return
+        const handle = await createUnifiedViewer(container, archivoActual, id, {
+          onPick: async (guids) => {
+            if (guids === null || guids.length === 0) {
+              setEntidadSeleccionada(null)
+              return
             }
-          } catch (e) {
-            setViewError((e as Error).message)
-          } finally {
-            setResolviendoPick(false)
-          }
-        },
-      })
-      if (cancelled) { handle.dispose(); return }
-      viewerRef.current = handle
-      setViewerReady(true)
+            const archivoActivo = actualIdRef.current
+            if (!archivoActivo) return
+            setResolviendoPick(true)
+            try {
+              // guids = cadena hoja→raíz (APS) o un único guid (IFC). Elegimos la
+              // entidad que matchea el guid más profundo.
+              const entidades = await resolverEntidadesPorGuids(id, archivoActivo, guids)
+              const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
+              const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              setEntidadSeleccionada(elegida)
+
+              // Seleccionar TODAS las piezas del Elemento (línea/equipo completo).
+              if (elegida?.elementoId) {
+                const guidsElemento = await getGuidsPorElemento(id, archivoActivo, elegida.elementoId)
+                if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+              }
+            } catch (e) {
+              setViewError((e as Error).message)
+            } finally {
+              setResolviendoPick(false)
+            }
+          },
+          onProgress: (msg) => { if (!cancelled) setPhase(msg) },
+        })
+        if (cancelled) { handle.dispose(); return }
+        viewerRef.current = handle
+        setViewerReady(true)
+        setArchivoCargadoId(actualId)
+        setPhase("")
+      } catch (e) {
+        if (!cancelled) {
+          setViewError((e as Error).message)
+          setPhase("")
+          setArchivoCargadoId(null)
+        }
+      } finally {
+        if (!cancelled) setLoadingView(false)
+      }
     })()
 
     return () => {
       cancelled = true
       viewerRef.current?.dispose()
       viewerRef.current = null
+      setViewerReady(false)
     }
-  }, [id])
+  }, [id, actualId, archivoActual?.formatoArchivo, archivoActual?.estadoProcesamiento, archivoActual?.apsTranslationStatus])
 
   // ResizeObserver: si el contenedor cambia de tamaño (ej. se abre el panel
   // lateral de filtros), avisarle al viewer que recalcule. Sin esto el click
@@ -185,44 +216,12 @@ function ModeloPageContent() {
     await viewerRef.current?.highlightByGuid(entidad.ifcGuid)
   }
 
-  async function handleVisualizar(archivo: ProyectoIfcArchivo) {
-    if (!viewerRef.current) {
-      setViewError("El visor todavía no terminó de inicializar.")
-      return
-    }
+  // Selecciona el archivo a visualizar. La carga (descarga+parseo IFC, o APS para
+  // NWD) la maneja el effect de arriba según el formato.
+  function handleVisualizar(archivo: ProyectoIfcArchivo) {
     setViewError(null)
-    setLoadingView(true)
+    setEntidadSeleccionada(null)
     setActualId(archivo.id)
-    try {
-      setPhase("Descargando archivo…")
-      const ab = await downloadIfcBuffer(id, archivo.id, (p) => {
-        if (p.via === "cache") {
-          setPhase("Cargando desde caché local…")
-          return
-        }
-        const mb = Math.round((p.loaded / (1024 * 1024)) * 10) / 10
-        const totalMb = p.total ? Math.round((p.total / (1024 * 1024)) * 10) / 10 : null
-        const pct = p.total ? Math.round((p.loaded / p.total) * 100) : null
-        const via = p.via === "direct" ? "directo de Azure" : "via proxy"
-        setPhase(
-          totalMb !== null
-            ? `Descargando archivo (${via})… ${mb} / ${totalMb} MB (${pct}%)`
-            : `Descargando archivo (${via})… ${mb} MB`
-        )
-      }, archivo.tamanioBytes)
-
-      setPhase("Parseando IFC (puede tardar varios segundos)…")
-      await viewerRef.current.loadIfc(new Uint8Array(ab), archivo.nombre)
-      setArchivoCargadoId(archivo.id)
-      setPhase("Listo.")
-    } catch (e) {
-      setViewError((e as Error).message)
-      setPhase("")
-      setActualId(null)
-      setArchivoCargadoId(null)
-    } finally {
-      setLoadingView(false)
-    }
   }
 
   return (
@@ -293,7 +292,12 @@ function ModeloPageContent() {
               archivo={a}
               activo={actualId === a.id}
               loading={loadingView && actualId === a.id}
-              disabledVisualizar={loadingView || !viewerReady}
+              disabledVisualizar={
+                loadingView ||
+                (a.formatoArchivo === FormatoArchivo3d.Nwd
+                  ? a.apsTranslationStatus !== ApsTranslationStatus.Completado
+                  : a.estadoProcesamiento !== EstadoProcesamientoIfc.Completado)
+              }
               procesando={procesar.isPending && procesar.variables === a.id}
               reBootstrapeando={reBootstrap.isPending && reBootstrap.variables === a.id}
               marcandoPrincipal={marcarPrincipal.isPending && marcarPrincipal.variables === a.id}
@@ -344,7 +348,7 @@ function ModeloPageContent() {
           {!actualId && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-muted-foreground pointer-events-none">
               <Box className="h-10 w-10 mb-2 opacity-30" />
-              {viewerReady ? "Elegí un archivo para visualizar." : "Inicializando visor…"}
+              Elegí un archivo para visualizar.
             </div>
           )}
           {actualId && !entidadSeleccionada && !resolviendoPick && (

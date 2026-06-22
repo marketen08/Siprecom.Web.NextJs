@@ -23,7 +23,7 @@ export default function FullscreenLayout({
         <BreadcrumbProvider>
           <div className="min-h-screen bg-gray-50">
             <FetchingBar />
-            <Navbar />
+            <Navbar ocultarHamburger />
             <Sidebar drawer />
             <main className="pt-16 min-h-screen">
               {children}
