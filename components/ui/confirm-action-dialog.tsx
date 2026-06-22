@@ -114,7 +114,7 @@ export function ConfirmActionDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogTrigger className={cn(triggerClassName)}>
+      <AlertDialogTrigger className={cn("cursor-pointer", triggerClassName)}>
         {trigger}
       </AlertDialogTrigger>
       <AlertDialogContent>
