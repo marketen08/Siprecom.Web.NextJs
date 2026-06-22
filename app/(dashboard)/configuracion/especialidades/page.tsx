@@ -83,7 +83,7 @@ export default function EspecialidadesPage() {
           </p>
         </div>
         <Button
-          onClick={() => setSheet({ mode: "new", nombre: "", codigo: "", color: COLOR_DEFAULT })}
+          onClick={() => { setError(null); setSheet({ mode: "new", nombre: "", codigo: "", color: COLOR_DEFAULT }) }}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -129,13 +129,13 @@ export default function EspecialidadesPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
-                      onClick={() => setSheet({
+                      onClick={() => { setError(null); setSheet({
                         mode: "edit",
                         id: e.id,
                         nombre: e.nombre,
                         codigo: e.codigo ?? "",
                         color: e.color ?? COLOR_DEFAULT,
-                      })}
+                      }) }}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -143,7 +143,7 @@ export default function EspecialidadesPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-red-600"
-                      onClick={() => setConfirmDelete({ id: e.id, nombre: e.nombre })}
+                      onClick={() => { setError(null); setConfirmDelete({ id: e.id, nombre: e.nombre }) }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -226,7 +226,7 @@ export default function EspecialidadesPage() {
       </Sheet>
 
       {/* Confirmación de delete */}
-      <AlertDialog open={confirmDelete !== null} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+      <AlertDialog open={confirmDelete !== null} onOpenChange={(v) => { if (!v) { setConfirmDelete(null); setError(null) } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar especialidad</AlertDialogTitle>
@@ -235,6 +235,11 @@ export default function EspecialidadesPage() {
               Si hay tipos de elemento o pendientes activos que la usan, el backend rechaza la eliminación.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {error && (
+            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
+              {error}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={remove.isPending}>Cancelar</AlertDialogCancel>
             <AlertDialogAction

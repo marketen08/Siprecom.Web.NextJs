@@ -43,6 +43,7 @@ export function EditNivelSheet() {
               onSubmit={onSubmit}
               isPending={mutation.isPending}
               onCancel={close}
+              errorMessage={mutation.isError ? (mutation.error as Error)?.message : null}
             />
           ) : (
             <p className="text-sm text-destructive">No se pudo cargar el nivel.</p>

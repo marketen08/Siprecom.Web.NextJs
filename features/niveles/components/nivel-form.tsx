@@ -23,9 +23,11 @@ interface NivelFormProps {
   onSubmit: (values: NivelFormValues) => void
   isPending: boolean
   onCancel: () => void
+  /** Mensaje de error del backend (ej. 400 de validación) para mostrar en el form. */
+  errorMessage?: string | null
 }
 
-export function NivelForm({ defaultValues, onSubmit, isPending, onCancel }: NivelFormProps) {
+export function NivelForm({ defaultValues, onSubmit, isPending, onCancel, errorMessage }: NivelFormProps) {
   const form = useForm<NivelFormValues>({
     resolver: zodResolver(nivelSchema),
     defaultValues: {
@@ -87,6 +89,12 @@ export function NivelForm({ defaultValues, onSubmit, isPending, onCancel }: Nive
             )}
           />
         </div>
+
+        {errorMessage && (
+          <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
+            {errorMessage}
+          </p>
+        )}
 
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">

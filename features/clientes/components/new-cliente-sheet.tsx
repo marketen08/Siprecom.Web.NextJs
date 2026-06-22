@@ -32,11 +32,17 @@ export function NewClienteSheet({ esContratista }: NewClienteSheetProps = {}) {
     setBusy(true)
     setLogoWarning(null)
     try {
-      // Step 1: crear el cliente.
-      const created: any = await createMutation.mutateAsync({
-        nombre: values.nombre,
-        esContratista: values.esContratista,
-      })
+      // Step 1: crear el cliente. Si falla (ej. nombre duplicado), el mensaje se
+      // muestra vía createMutation.error en el form; cortamos sin propagar el reject.
+      let created: any
+      try {
+        created = await createMutation.mutateAsync({
+          nombre: values.nombre,
+          esContratista: values.esContratista,
+        })
+      } catch {
+        return
+      }
       const nuevoId = created?.data?.id ?? created?.data?.Id
 
       // Step 2: si hay archivo, subir el logo. Si falla, el cliente ya quedó creado
@@ -86,6 +92,7 @@ export function NewClienteSheet({ esContratista }: NewClienteSheetProps = {}) {
             isPending={busy || createMutation.isPending}
             onCancel={close}
             fixedEsContratista={esContratista}
+            errorMessage={createMutation.isError ? (createMutation.error as Error)?.message : null}
           />
         </div>
       </SheetContent>

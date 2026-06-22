@@ -35,6 +35,7 @@ export function NewNivelSheet() {
             onSubmit={onSubmit}
             isPending={mutation.isPending}
             onCancel={close}
+            errorMessage={mutation.isError ? (mutation.error as Error)?.message : null}
           />
         </div>
       </SheetContent>

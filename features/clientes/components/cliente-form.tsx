@@ -45,6 +45,8 @@ interface ClienteFormProps {
    * Pensado para edición: no se permite mover entre listas.
    */
   readOnlyTipo?: boolean
+  /** Mensaje de error del backend (ej. 400 "El nombre ya existe") para mostrar en el form. */
+  errorMessage?: string | null
 }
 
 export function ClienteForm({
@@ -54,6 +56,7 @@ export function ClienteForm({
   onCancel,
   fixedEsContratista,
   readOnlyTipo,
+  errorMessage,
 }: ClienteFormProps) {
   const form = useForm<ClienteFormValues>({
     resolver: zodResolver(clienteSchema),
@@ -235,6 +238,12 @@ export function ClienteForm({
             </p>
           )}
         </div>
+
+        {errorMessage && (
+          <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
+            {errorMessage}
+          </p>
+        )}
 
         {/* Botones */}
         <div className="flex gap-3 pt-2">

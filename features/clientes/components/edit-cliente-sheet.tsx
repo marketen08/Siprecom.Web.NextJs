@@ -32,11 +32,17 @@ export function EditClienteSheet() {
     setBusy(true)
     setLogoWarning(null)
     try {
-      await updateMutation.mutateAsync({
-        nombre: values.nombre,
-        // Tipo es read-only en edición: forzamos el valor original del backend.
-        esContratista: cliente.esContratista,
-      })
+      // Si el update falla (ej. nombre duplicado), el mensaje se muestra vía
+      // updateMutation.error en el form; cortamos sin propagar el reject.
+      try {
+        await updateMutation.mutateAsync({
+          nombre: values.nombre,
+          // Tipo es read-only en edición: forzamos el valor original del backend.
+          esContratista: cliente.esContratista,
+        })
+      } catch {
+        return
+      }
 
       if (logoFile) {
         try {
@@ -80,6 +86,7 @@ export function EditClienteSheet() {
               isPending={busy || updateMutation.isPending || uploadLogoMutation.isPending}
               onCancel={close}
               readOnlyTipo
+              errorMessage={updateMutation.isError ? (updateMutation.error as Error)?.message : null}
             />
           ) : (
             <p className="text-sm text-destructive">No se pudo cargar.</p>
