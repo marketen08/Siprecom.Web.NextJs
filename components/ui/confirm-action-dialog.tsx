@@ -81,15 +81,19 @@ export function ConfirmActionDialog({
   const [open, setOpen] = React.useState(false)
   const [pending, setPending] = React.useState(false)
   const [typed, setTyped] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
   const phraseOk = !confirmPhrase || typed.trim() === confirmPhrase
 
   const handleConfirm = async () => {
     setPending(true)
+    setError(null)
     try {
       await onConfirm()
       setOpen(false)
-    } catch {
-      // Mantener abierto: el error se muestra fuera del diálogo (ej. por toast).
+    } catch (err) {
+      // Mantener abierto y mostrar el mensaje del backend (ej. 400 de validación)
+      // dentro del propio diálogo.
+      setError((err as Error)?.message ?? "No se pudo completar la acción.")
     } finally {
       setPending(false)
     }
@@ -98,7 +102,10 @@ export function ConfirmActionDialog({
   const handleOpenChange = (next: boolean) => {
     // Bloquear cierre por click afuera / Esc mientras la mutación está en curso.
     if (pending && !next) return
-    if (next) setTyped("") // resetear el input de confirmación al abrir
+    if (next) {
+      setTyped("") // resetear el input de confirmación al abrir
+      setError(null)
+    }
     setOpen(next)
   }
 
@@ -130,6 +137,11 @@ export function ConfirmActionDialog({
               autoFocus
             />
           </div>
+        )}
+        {error && (
+          <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
+            {error}
+          </p>
         )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{cancelText}</AlertDialogCancel>
