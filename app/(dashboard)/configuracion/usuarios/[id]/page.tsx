@@ -4,7 +4,7 @@ import { use, useState, Suspense } from "react"
 import {
   Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
-  UserX, UserCheck, AlertTriangle,
+  UserX, UserCheck, AlertTriangle, Mail,
 } from "lucide-react"
 import { useRef, useEffect } from "react"
 
@@ -78,8 +78,16 @@ function UsuarioDetailContent({ id }: { id: string }) {
   return (
     <div className="space-y-6 max-w-2xl">
 
-      {/* Subtítulo de contexto */}
-      <p className="text-sm text-muted-foreground">{usuario.email}</p>
+      {/* Email — siempre visible (no editable), independiente de la tab activa. */}
+      <div className="flex items-center gap-3 rounded-lg border bg-white px-4 py-3 shadow-sm">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-700 shrink-0">
+          <Mail className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-muted-foreground">Email</p>
+          <p className="text-sm font-medium text-gray-800 truncate">{usuario.email}</p>
+        </div>
+      </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -157,22 +165,6 @@ function TabDatos({ usuario }: { usuario: any }) {
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Email</label>
-          <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border">
-            {usuario.email}
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Usuario</label>
-          <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border font-mono">
-            {usuario.userName}
-          </p>
-        </div>
-
-        <Separator />
-
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Nombre</label>
@@ -231,6 +223,13 @@ function TabDatos({ usuario }: { usuario: any }) {
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-gray-700">Restablecer contraseña</h3>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-700">Usuario</label>
+          <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border font-mono">
+            {usuario.userName}
+          </p>
         </div>
 
         {passwordSaved && (
@@ -615,6 +614,14 @@ const ROLES = [
   { value: "User",       label: "Usuario",       descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
 ]
 
+// SuperAdmin es un rol del proveedor: no se ofrece como asignación normal, pero
+// si el usuario ya lo tiene lo mostramos (si no, la tab quedaba sin nada marcado).
+const ROL_SUPERADMIN = {
+  value: "SuperAdmin",
+  label: "Super Admin",
+  descripcion: "Acceso total del proveedor: licenciamiento, migraciones, datos de muestra y toda la administración del sistema.",
+}
+
 function TabRol({ usuarioId }: { usuarioId: string }) {
   const { data, isLoading } = useGetUsuarioRol(usuarioId)
   const setRol = useSetUsuarioRol(usuarioId)
@@ -622,6 +629,9 @@ function TabRol({ usuarioId }: { usuarioId: string }) {
 
   const rolActual = data?.roles?.[0] ?? ""
   const [rolSeleccionado, setRolSeleccionado] = useState<string | null>(null)
+
+  // Si el usuario es SuperAdmin, mostramos esa card además de las asignables.
+  const rolesVisibles = rolActual === "SuperAdmin" ? [ROL_SUPERADMIN, ...ROLES] : ROLES
 
   // Inicializar selección cuando llegan los datos
   if (rolActual && rolSeleccionado === null) {
@@ -656,7 +666,7 @@ function TabRol({ usuarioId }: { usuarioId: string }) {
       )}
 
       <div className="space-y-2">
-        {ROLES.map((r) => (
+        {rolesVisibles.map((r) => (
           <button
             key={r.value}
             type="button"
