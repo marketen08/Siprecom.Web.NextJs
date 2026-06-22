@@ -125,6 +125,7 @@ export function ClienteForm({
                   <Input
                     placeholder="Ej: Empresa Constructora SA"
                     disabled={isPending}
+                    maxLength={200}
                     {...field}
                   />
                 </FormControl>

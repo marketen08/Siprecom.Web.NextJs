@@ -101,17 +101,17 @@ export const menu: MenuItem[] = [
       { label: "Procedimientos",    href: "/configuracion/procedimientos" },
       { label: "Categorías de pendientes", href: "/configuracion/pendientes-categorias" },
       { label: "Tipos de pendientes",      href: "/configuracion/pendientes-tipos" },
+      { label: "Clientes",          href: "/configuracion/clientes" },
+      { label: "Contratistas",      href: "/configuracion/contratistas" },
     ],
   },
   {
-    // Gestión de usuarios y empresas — separada de la config de catálogos.
+    // Gestión de usuarios — separada de la config de catálogos.
     label: "Administración del sistema",
     minRole: "Admin",
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios" },
       // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
-      { label: "Clientes",          href: "/configuracion/clientes" },
-      { label: "Contratistas",      href: "/configuracion/contratistas" },
     ],
   },
   {
