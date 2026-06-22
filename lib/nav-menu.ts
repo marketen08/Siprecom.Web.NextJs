@@ -96,6 +96,7 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Especialidades",    href: "/configuracion/especialidades" },
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
+      { label: "Niveles",           href: "/configuracion/niveles" },
       { label: "Campos",            href: "/configuracion/campos" },
       { label: "Planillas",         href: "/configuracion/planillas" },
       { label: "Procedimientos",    href: "/configuracion/procedimientos" },
