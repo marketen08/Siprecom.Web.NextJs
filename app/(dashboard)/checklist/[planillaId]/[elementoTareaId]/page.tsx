@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api-client"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
+import { useGetTestpackGrupo } from "@/features/elementos-tareas/api/use-get-testpack-grupo"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,14 @@ function CargarPdfContent() {
   const { data: proyectoRaw } = useGetProyecto(tarea?.proyectoId ?? null)
   const proyecto = proyectoRaw?.data
   const preFirmado = proyecto?.registrosFisicosPreFirmados ?? false
+
+  // Testpack: si hay hermanos afectables, ofrecer "aplicar a todo el testpack".
+  const { data: grupoRaw } = useGetTestpackGrupo(elementoTareaId)
+  const grupoTestpack = grupoRaw?.data
+  const testpackAfectables = grupoTestpack?.cantidadAfectables ?? 0
+  const testpackInmutables = grupoTestpack?.cantidadInmutables ?? 0
+  const mostrarTestpack = (grupoTestpack?.tieneTestpack ?? false) && testpackAfectables > 0
+  const [aplicarATestpack, setAplicarATestpack] = useState(true)
 
   // Breadcrumb: Ejecución → Registros → Cargar planilla física
   // (consistente con /ejecucion/registros/[id] que usa el mismo prefijo).
@@ -98,6 +107,7 @@ function CargarPdfContent() {
     const form = new FormData()
     form.append("Archivo", archivo)
     if (observaciones.trim()) form.append("Observaciones", observaciones.trim())
+    if (mostrarTestpack && aplicarATestpack) form.append("AplicarATestpack", "true")
 
     const res = await fetch(`/api/registros/${registroId}/completar/fisico`, {
       method: "POST",
@@ -326,6 +336,35 @@ function CargarPdfContent() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
           />
         </div>
+
+        {/* Testpack: aplicar a todo el grupo */}
+        {mostrarTestpack && (
+          <label className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={aplicarATestpack}
+              onChange={(e) => setAplicarATestpack(e.target.checked)}
+              disabled={ocupado}
+              className="mt-0.5 h-4 w-4 accent-blue-700"
+            />
+            <div className="text-sm">
+              <span className="font-medium text-gray-800">
+                Aplicar a todo el testpack{grupoTestpack?.testpack ? ` (${grupoTestpack.testpack})` : ""}
+              </span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Marca como completados los {testpackAfectables} elemento(s) con esta misma tarea:{" "}
+                <span className="font-mono">
+                  {(grupoTestpack?.miembros ?? [])
+                    .filter((m) => !m.esInmutable)
+                    .map((m) => m.tag)
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>.
+                {testpackInmutables > 0 && ` ${testpackInmutables} ya firmado(s) se omiten.`}
+              </p>
+            </div>
+          </label>
+        )}
 
         {/* Error */}
         {mensajeError && (
