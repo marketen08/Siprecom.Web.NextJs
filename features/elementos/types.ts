@@ -12,7 +12,8 @@ export interface Elemento {
   nombre: string
   elementoTipoId: string
   elementoTipoNombre: string | null
-  elementoTipoEspecialidad: string | null
+  elementoTipoEspecialidadId: string | null
+  elementoTipoEspecialidadNombre: string | null
   prioridad: number
   prioridadTexto: string
   sistemaId: string

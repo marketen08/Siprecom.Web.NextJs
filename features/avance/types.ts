@@ -15,8 +15,6 @@ export interface AvanceDTO {
 
 export interface AvanceElementoDTO extends AvanceDTO {
   elementoTipoNombre: string | null
-  /** @deprecated typo histórico — usar `elementoTipoEspecialidadNombre`. */
-  elementoTipoEspecialidad: string | null
   elementoTipoEspecialidadId: string | null
   elementoTipoEspecialidadNombre: string | null
   prioridadTexto: string

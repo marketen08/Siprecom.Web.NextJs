@@ -85,6 +85,13 @@ export const columns: ColumnDef<Tarea>[] = [
     },
   },
   {
+    accessorKey: "especialidadNombre",
+    header: "Especialidad",
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground">{row.original.especialidadNombre || "—"}</span>
+    ),
+  },
+  {
     accessorKey: "elementoTipoNombre",
     header: "Tipo de elemento",
     cell: ({ row }) => (

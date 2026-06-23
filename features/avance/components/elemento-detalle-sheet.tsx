@@ -139,7 +139,7 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
               </h3>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                 {avance?.elementoTipoNombre        && <DataItem label="Tipo"         value={avance.elementoTipoNombre} />}
-                {avance?.elementoTipoEspecialidad  && <DataItem label="Especialidad" value={avance.elementoTipoEspecialidad} />}
+                {avance?.elementoTipoEspecialidadNombre  && <DataItem label="Especialidad" value={avance.elementoTipoEspecialidadNombre} />}
                 {elemento.pid      && <DataItem label="PID"      value={elemento.pid} />}
                 {elemento.testpack && <DataItem label="Testpack" value={elemento.testpack} />}
                 {elemento.horasAdicionales > 0 && (

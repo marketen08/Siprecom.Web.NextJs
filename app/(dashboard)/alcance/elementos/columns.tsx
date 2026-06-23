@@ -89,10 +89,10 @@ export const columns: ColumnDef<Elemento>[] = [
     ),
   },
   {
-    accessorKey: "elementoTipoEspecialidad",
+    accessorKey: "elementoTipoEspecialidadNombre",
     header: "Especialidad",
     cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.elementoTipoEspecialidad ?? "—"}</span>
+      <span className="text-sm text-muted-foreground">{row.original.elementoTipoEspecialidadNombre ?? "—"}</span>
     ),
   },
   {

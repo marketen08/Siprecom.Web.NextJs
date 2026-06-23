@@ -577,12 +577,12 @@ function AvanceElementosContent() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {e.elementoTipoNombre || e.elementoTipoEspecialidad ? (
+                    {e.elementoTipoNombre || e.elementoTipoEspecialidadNombre ? (
                       <>
                         <p className="text-sm text-gray-600">{e.elementoTipoNombre ?? "—"}</p>
-                        {e.elementoTipoEspecialidad && (
+                        {e.elementoTipoEspecialidadNombre && (
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {e.elementoTipoEspecialidad}
+                            {e.elementoTipoEspecialidadNombre}
                           </p>
                         )}
                       </>

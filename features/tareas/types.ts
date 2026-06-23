@@ -20,6 +20,8 @@ export interface Tarea {
   proyectoNombre?: string
   elementoTipoId?: string
   elementoTipoNombre?: string
+  especialidadId?: string
+  especialidadNombre?: string
   nivelId?: string
   nivelNombre?: string
   planillaId?: string

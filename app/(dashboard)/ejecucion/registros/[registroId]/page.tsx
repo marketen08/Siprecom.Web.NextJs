@@ -280,7 +280,7 @@ export default function RegistroFormPage({ params }: PageProps) {
   // bajo el TAG + nombre. Filtramos los nulos así no quedan separadores huérfanos.
   const detallesElemento = [
     elemento?.elementoTipoNombre,
-    elemento?.elementoTipoEspecialidad,
+    elemento?.elementoTipoEspecialidadNombre,
   ].filter(Boolean) as string[]
 
   return (

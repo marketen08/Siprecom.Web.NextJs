@@ -169,7 +169,7 @@ function CargarPdfContent() {
   const estadoLabel = ESTADO_ELEMENTO_TAREA[tarea.estado as keyof typeof ESTADO_ELEMENTO_TAREA] ?? tarea.estadoTexto
   const detallesElemento = [
     elemento?.elementoTipoNombre,
-    elemento?.elementoTipoEspecialidad,
+    elemento?.elementoTipoEspecialidadNombre,
   ].filter(Boolean) as string[]
 
   // Estado no permite carga

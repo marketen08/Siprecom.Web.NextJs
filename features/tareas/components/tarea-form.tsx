@@ -9,6 +9,7 @@ import { PRIORIDAD } from "../types"
 import type { Tarea } from "../types"
 
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
 import { useGetProcedimientosSelect } from "@/features/procedimientos/api/use-get-procedimientos-select"
@@ -44,27 +45,21 @@ const NONE = "__none__"
 
 export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: TareaFormProps) {
   const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
+  const { data: especialidadesData } = useGetEspecialidades()
   const { data: nivelesData, isLoading: loadingNiveles } = useGetNivelesSelect()
   const { data: planillasData, isLoading: loadingPlanillas } = useGetPlanillasSelect()
   const { data: procedimientosData, isLoading: loadingProcedimientos } = useGetProcedimientosSelect()
 
   const tipos = (tiposData as any)?.data ?? []
+  const especialidades = especialidadesData?.data ?? []
   const niveles = (nivelesData as any)?.data ?? (Array.isArray(nivelesData) ? nivelesData : [])
   const planillas = (planillasData as any)?.data ?? []
   const procedimientos = (procedimientosData as any)?.data ?? []
 
-  // Lista distinta de especialidades, derivada de los tipos cargados.
-  const especialidades = useMemo<string[]>(() => {
-    const set = new Set<string>()
-    for (const t of tipos as Array<{ especialidad?: string }>) {
-      if (t.especialidad && t.especialidad.trim()) set.add(t.especialidad)
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [tipos])
-
-  const ALL_ESP = "__all__"
-  // Especialidad seleccionada como helper de UI: filtra tipos. NO se manda al backend.
-  const [especialidad, setEspecialidad] = useState<string>(ALL_ESP)
+  // Especialidad seleccionada (requerida). Helper de UI: filtra el listado de
+  // tipos. NO se manda al backend (queda implícita por el tipo elegido).
+  const [especialidadId, setEspecialidadId] = useState<string>("")
+  const [especialidadError, setEspecialidadError] = useState<string | null>(null)
 
   const form = useForm<TareaFormValues>({
     resolver: zodResolver(tareaSchema),
@@ -85,19 +80,19 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   // con la del tipo correspondiente para que el filtro tenga sentido al abrir el form.
   useEffect(() => {
     const currentTipoId = form.getValues("elementoTipoId")
-    if (currentTipoId && tipos.length > 0 && especialidad === ALL_ESP) {
+    if (currentTipoId && tipos.length > 0 && !especialidadId) {
       const tipo = tipos.find((t: any) => t.id === currentTipoId)
-      if (tipo?.especialidad) setEspecialidad(tipo.especialidad)
+      if (tipo?.especialidadId) setEspecialidadId(tipo.especialidadId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipos.length])
 
-  // Tipos filtrados según la especialidad seleccionada
+  // Tipos filtrados según la especialidad seleccionada (vacío hasta elegir una).
   const tiposFiltrados = useMemo(() => {
-    if (especialidad === ALL_ESP) return tipos
-    return (tipos as Array<{ id: string; nombre: string; especialidad?: string }>)
-      .filter((t) => t.especialidad === especialidad)
-  }, [tipos, especialidad])
+    if (!especialidadId) return []
+    return (tipos as Array<{ id: string; nombre: string; especialidadId?: string }>)
+      .filter((t) => t.especialidadId === especialidadId)
+  }, [tipos, especialidadId])
 
   const tipoOptions = useMemo(
     () => (tiposFiltrados as Array<{ id: string; nombre: string }>).map((t) => ({ value: t.id, label: t.nombre })),
@@ -105,6 +100,10 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   )
 
   const handleSubmit = (values: TareaFormValues) => {
+    if (!especialidadId) {
+      setEspecialidadError("La especialidad es requerida")
+      return
+    }
     onSubmit({
       ...values,
       procedimientoId: values.procedimientoId || undefined,
@@ -195,35 +194,43 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
           </p>
 
           <div className="grid grid-cols-2 gap-3">
-            {/* Especialidad: helper de UI para filtrar el listado de tipos. NO se envía al backend. */}
+            {/* Especialidad: requerida. Helper de UI para filtrar el listado de
+                tipos. NO se envía al backend (queda implícita por el tipo elegido). */}
             <FormItem>
               <FormLabel>Especialidad</FormLabel>
               <Select
                 disabled={isPending || loadingTipos}
-                value={especialidad}
+                value={especialidadId}
                 onValueChange={(v) => {
-                  const value = v ?? ALL_ESP
-                  setEspecialidad(value)
+                  if (!v) return
+                  setEspecialidadId(v)
+                  setEspecialidadError(null)
                   // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpiamos.
                   const currentTipoId = form.getValues("elementoTipoId")
-                  if (value !== ALL_ESP && currentTipoId) {
+                  if (currentTipoId) {
                     const tipo = tipos.find((t: any) => t.id === currentTipoId)
-                    if (tipo?.especialidad !== value) form.setValue("elementoTipoId", "")
+                    if (tipo?.especialidadId !== v) form.setValue("elementoTipoId", "")
                   }
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Todas las especialidades">
-                    {especialidad === ALL_ESP ? "Todas las especialidades" : especialidad}
+                  <SelectValue placeholder="Seleccioná una especialidad">
+                    {especialidadId
+                      ? especialidades.find((e) => e.id === especialidadId)?.nombre ?? "—"
+                      : "Seleccioná una especialidad"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_ESP}>Todas las especialidades</SelectItem>
                   {especialidades.map((esp) => (
-                    <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                    <SelectItem key={esp.id} value={esp.id}>
+                      {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {especialidadError && (
+                <p className="text-sm font-medium text-destructive">{especialidadError}</p>
+              )}
             </FormItem>
 
             <FormField
@@ -237,10 +244,14 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                       options={tipoOptions}
                       value={field.value || ""}
                       onChange={(v) => field.onChange(v)}
-                      placeholder={especialidad === ALL_ESP ? "Buscar entre todos los tipos..." : `Buscar en ${especialidad}...`}
+                      placeholder={
+                        !especialidadId
+                          ? "Seleccioná una especialidad primero"
+                          : `Buscar en ${especialidades.find((e) => e.id === especialidadId)?.nombre ?? "esta especialidad"}...`
+                      }
                       searchPlaceholder="Escribir para filtrar..."
-                      emptyMessage={especialidad === ALL_ESP ? "Sin tipos disponibles" : "Sin tipos para esta especialidad"}
-                      disabled={isPending || loadingTipos}
+                      emptyMessage={!especialidadId ? "Seleccioná una especialidad primero" : "Sin tipos para esta especialidad"}
+                      disabled={isPending || loadingTipos || !especialidadId}
                     />
                   </FormControl>
                   <FormMessage />
