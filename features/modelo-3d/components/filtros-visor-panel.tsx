@@ -84,13 +84,13 @@ export function FiltrosVisorPanel({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 shrink-0">
           {!vacio && (
             <button
               type="button"
               onClick={() => onChange(filtroVacio())}
               disabled={loading}
-              className="text-xs text-gray-500 hover:text-red-600 px-1.5 py-0.5"
+              className="cursor-pointer text-[11px] font-medium leading-none text-gray-600 border border-gray-200 rounded px-1.5 py-1 hover:bg-gray-50 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Limpiar
             </button>
@@ -98,7 +98,7 @@ export function FiltrosVisorPanel({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700"
+            className="cursor-pointer rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
             aria-label="Cerrar"
           >
             <X className="h-4 w-4" />

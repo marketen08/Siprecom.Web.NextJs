@@ -137,6 +137,11 @@ export async function createApsViewer(
   // (sin filtro). Sirve para limpiarlo al desactivar colores y NO romper un
   // isolate que pudo haber causado el filtro de forma independiente.
   let isolatedByColors = false
+  // dbIds que el FILTRO mantiene aislados (null = sin filtro). Lo trackeamos a
+  // mano en vez de sondear viewer.getIsolatedNodes(): showAll()/isolate() son
+  // asíncronos, así que sondear justo después devuelve el isolate viejo y los
+  // colores se re-pintaban solo sobre lo filtrado al limpiar el filtro.
+  let filterIsolatedIds: number[] | null = null
 
   async function loadModel(urn: string): Promise<{ totalItems: number }> {
     if (disposed) throw new Error("Viewer dispuesto.")
@@ -302,8 +307,9 @@ export async function createApsViewer(
       // Restaurar ghosting al default (true) → sin filtro el viewer vuelve a
       // su estado normal con todos los elementos en su color.
       try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
-      viewer.isolate([])
+      viewer.showAll()
       isolatedByColors = false
+      filterIsolatedIds = null
       // Si los colores están activos, aplicarBucketsRespetandoIsolate va a
       // detectar que no hay isolate y lo va a re-crear para los con estado,
       // actualizando isolatedByColors = true.
@@ -328,7 +334,8 @@ export async function createApsViewer(
       )
       m.clearThemingColors?.()
       try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
-      viewer.isolate([])
+      viewer.showAll()
+      filterIsolatedIds = null
       if (lastBuckets) await aplicarBucketsRespetandoIsolate(lastBuckets)
       else viewer.impl.invalidate(true, true, true)
       return
@@ -345,6 +352,7 @@ export async function createApsViewer(
       (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(!hideMode)
     } catch { /* ignore */ }
     viewer.isolate(dbIds)
+    filterIsolatedIds = dbIds
 
     // 2) Aplicar colores:
     //    - Si los colores por estado están ACTIVOS, re-pintar SOLO los dbIds
@@ -378,7 +386,7 @@ export async function createApsViewer(
       // mantiene intacto.
       if (isolatedByColors) {
         try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
-        viewer.isolate([])
+        viewer.showAll()
         isolatedByColors = false
       }
       viewer.impl.invalidate(true, true, true)
@@ -407,15 +415,15 @@ export async function createApsViewer(
     const dbIdsEnCurso     = guidsToIds(buckets.enCurso)
     const dbIdsCompletados = guidsToIds(buckets.completados)
 
-    // Sondear el isolate activo.
-    let isolatedSet: Set<number> | null = null
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const isolated = (viewer as any).getIsolatedNodes?.() ?? []
-      if (Array.isArray(isolated) && isolated.length > 0) {
-        isolatedSet = new Set(isolated as number[])
-      }
-    } catch { /* best-effort */ }
+    // Isolate del FILTRO (lo trackeamos a mano; NO sondeamos getIsolatedNodes()
+    // porque showAll()/isolate() son async y devolvían el isolate viejo justo
+    // después de limpiar el filtro → los colores se pintaban solo sobre lo
+    // filtrado). Si el filtro está activo restringimos los colores a su set;
+    // si no, isolatedSet queda null y abajo auto-aislamos los con-estado.
+    let isolatedSet: Set<number> | null =
+      filterIsolatedIds && filterIsolatedIds.length > 0
+        ? new Set(filterIsolatedIds)
+        : null
 
     // Si NO hay isolate activo y se acaban de aplicar colores por estado,
     // automáticamente isolamos los dbIds de los 4 buckets para que las
@@ -467,6 +475,7 @@ export async function createApsViewer(
     disposed = true
     lastBuckets = null
     isolatedByColors = false
+    filterIsolatedIds = null
     try {
       viewer.removeEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, onSelectionChanged)
       viewer.finish()
