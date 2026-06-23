@@ -39,6 +39,7 @@ export default function ImportacionPage() {
   const [archivo, setArchivo] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [applyMensaje, setApplyMensaje] = useState<string | null>(null)
+  const [applyOk, setApplyOk] = useState(false)
   const [errorGlobal, setErrorGlobal] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -81,6 +82,7 @@ export default function ImportacionPage() {
       const resp = await applyMut.mutateAsync(archivo)
       setPreview(resp.data.preview)
       setApplyMensaje(resp.data.mensaje)
+      setApplyOk(resp.data.aplicado)
       if (resp.data.aplicado) {
         // Limpiamos archivo después de un apply exitoso.
         setArchivo(null)
@@ -213,7 +215,11 @@ export default function ImportacionPage() {
             </div>
 
             {applyMensaje && (
-              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
+              <p className={`text-sm border rounded-md p-3 ${
+                applyOk
+                  ? "text-green-700 bg-green-50 border-green-200"
+                  : "text-red-700 bg-red-50 border-red-200"
+              }`}>
                 {applyMensaje}
               </p>
             )}
