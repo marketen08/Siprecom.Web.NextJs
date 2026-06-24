@@ -1,5 +1,7 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+
 import { useNewPlanilla } from "../hooks/use-new-planilla"
 import { useCreatePlanilla } from "../api/use-create-planilla"
 import { PlanillaForm } from "./planilla-form"
@@ -16,9 +18,19 @@ import {
 export function NewPlanillaSheet() {
   const { isOpen, close } = useNewPlanilla()
   const mutation = useCreatePlanilla()
+  const router = useRouter()
 
   const onSubmit = (values: PlanillaFormValues) => {
-    mutation.mutate(values, { onSuccess: close })
+    mutation.mutate(values, {
+      onSuccess: (res: unknown) => {
+        close()
+        // Tras crear, ir directo a la configuración de la planilla nueva.
+        // El envelope puede venir como { data: PlanillaDTO } o el DTO directo.
+        const r = res as { data?: { id?: string }; id?: string }
+        const id = r?.data?.id ?? r?.id
+        if (id) router.push(`/configuracion/planillas/${id}`)
+      },
+    })
   }
 
   return (

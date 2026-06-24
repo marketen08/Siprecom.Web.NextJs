@@ -61,6 +61,7 @@ export function CampoForm({
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
       imagenUrl: defaultValues?.imagenUrl ?? "",
+      esObligatorioDefault: defaultValues?.esObligatorioDefault ?? false,
     },
   })
 
@@ -183,6 +184,27 @@ export function CampoForm({
                 />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="esObligatorioDefault"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center gap-2 space-y-0">
+              <FormControl>
+                <input
+                  type="checkbox"
+                  checked={!!field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                  disabled={isPending}
+                  className="h-4 w-4 cursor-pointer"
+                />
+              </FormControl>
+              <FormLabel className="mt-0! cursor-pointer font-normal">
+                Obligatorio por defecto
+              </FormLabel>
             </FormItem>
           )}
         />

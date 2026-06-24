@@ -312,17 +312,46 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
           {!isImagen && !isTabla && (
             <div>
               <Label className="text-xs">Valor por defecto</Label>
-              <Input
-                className="mt-1 h-7 text-sm"
-                defaultValue={campo.valorDefault ?? ""}
-                placeholder="—"
-                onBlur={(e) => {
-                  if (e.target.value !== (campo.valorDefault ?? "")) {
-                    updateMutation.mutate(buildUpdatePayload({ valorDefault: e.target.value || undefined }))
+              {isLista ? (
+                // Para Lista el default es UNA de las opciones, no texto libre.
+                <Select
+                  value={campo.valorDefault ?? "__none__"}
+                  onValueChange={(v) =>
+                    updateMutation.mutate(
+                      buildUpdatePayload({ valorDefault: v && v !== "__none__" ? v : undefined }),
+                    )
                   }
-                }}
-                disabled={updateMutation.isPending}
-              />
+                  disabled={updateMutation.isPending}
+                >
+                  <SelectTrigger className="mt-1 h-7 text-sm">
+                    <SelectValue>
+                      {(() => {
+                        if (!campo.valorDefault) return "— Sin valor por defecto —"
+                        const op = campo.opciones?.find((o) => o.valor === campo.valorDefault)
+                        return op ? op.etiqueta : campo.valorDefault
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Sin valor por defecto —</SelectItem>
+                    {campo.opciones?.map((o) => (
+                      <SelectItem key={o.id} value={o.valor}>{o.etiqueta}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  className="mt-1 h-7 text-sm"
+                  defaultValue={campo.valorDefault ?? ""}
+                  placeholder="—"
+                  onBlur={(e) => {
+                    if (e.target.value !== (campo.valorDefault ?? "")) {
+                      updateMutation.mutate(buildUpdatePayload({ valorDefault: e.target.value || undefined }))
+                    }
+                  }}
+                  disabled={updateMutation.isPending}
+                />
+              )}
             </div>
           )}
 

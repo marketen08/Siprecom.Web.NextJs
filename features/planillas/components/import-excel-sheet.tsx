@@ -272,7 +272,7 @@ export function ImportExcelSheet({ open, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={cerrar}>
-      <SheetContent className="w-full sm:max-w-2xl flex flex-col overflow-hidden">
+      <SheetContent className="w-full sm:max-w-2xl! flex flex-col overflow-hidden">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-green-600" />
@@ -426,7 +426,10 @@ export function ImportExcelSheet({ open, onClose }: Props) {
                                 }
                               >
                                 <SelectTrigger className="h-7 w-32 text-xs border-gray-200">
-                                  <SelectValue />
+                                  {/* Label explícito: Radix no resuelve el label de un
+                                      valor seteado por código (import) con el dropdown
+                                      cerrado y mostraría el número crudo. */}
+                                  <SelectValue>{CAMPO_TIPO_DATO[campo.tipoDato]}</SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                   {TIPOS.map((t) => (

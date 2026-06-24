@@ -18,6 +18,14 @@ import { DataTableWrapper } from "@/components/data-table-wrapper"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
+import {
   Table,
   TableBody,
   TableCell,
@@ -28,6 +36,7 @@ import {
 
 export default function CamposPage() {
   const [search, setSearch] = useState("")
+  const [tipoFiltro, setTipoFiltro] = useState<string>("__all__")
   const [page, setPage] = useState(1)
   const pageSize = 10
 
@@ -35,6 +44,7 @@ export default function CamposPage() {
     page,
     pageSize,
     nombre: search || undefined,
+    tipoDato: tipoFiltro === "__all__" ? undefined : Number(tipoFiltro),
   })
   const { open } = useNewCampo()
 
@@ -66,6 +76,24 @@ export default function CamposPage() {
               className="pl-9"
             />
           </div>
+          <Select
+            value={tipoFiltro}
+            onValueChange={(v) => { setTipoFiltro(v ?? "__all__"); setPage(1) }}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue>
+                {tipoFiltro === "__all__"
+                  ? "Todos los tipos"
+                  : CAMPO_TIPO_DATO[Number(tipoFiltro) as CampoTipoDato]}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todos los tipos</SelectItem>
+              {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button onClick={open} className="gap-2 ml-auto">
             <Plus className="h-4 w-4" />
             Nuevo campo

@@ -7,6 +7,8 @@ export interface Campo {
   tipoDato: CampoTipoDato
   tipoDatoNombre?: string
   unidad?: string
+  /** Default de obligatoriedad: precarga el checkbox al agregar el campo a una planilla. */
+  esObligatorioDefault?: boolean
   descripcion?: string
   /** URL del blob con la imagen embebida (sólo cuando tipoDato === 8 / Imagen). */
   imagenUrl?: string
@@ -32,6 +34,7 @@ export interface CampoCreateInput {
   descripcion?: string
   imagenUrl?: string
   numeroFilas?: number
+  esObligatorioDefault?: boolean
 }
 
 export interface CampoUpdateInput {
@@ -43,6 +46,7 @@ export interface CampoUpdateInput {
   descripcion?: string
   imagenUrl?: string
   numeroFilas?: number
+  esObligatorioDefault?: boolean
 }
 
 export interface CampoOpcionCreateInput {

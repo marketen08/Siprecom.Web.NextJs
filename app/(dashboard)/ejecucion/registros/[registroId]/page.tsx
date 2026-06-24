@@ -1006,7 +1006,7 @@ function CampoInput({
                   type="button"
                   onClick={() => !readOnly && onChange(op.valor)}
                   disabled={readOnly}
-                  className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                  className={`px-3 py-1.5 rounded-md border text-sm font-medium cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                     selected
                       ? "border-blue-600 bg-blue-50 text-blue-700"
                       : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
@@ -1022,7 +1022,7 @@ function CampoInput({
         const selectedLabel = opcionesOrdenadas.find((op) => op.valor === value)?.etiqueta
         input = (
           <Select value={value} onValueChange={(v) => onChange(v ?? "")} disabled={readOnly}>
-            <SelectTrigger>
+            <SelectTrigger className="cursor-pointer disabled:cursor-not-allowed">
               <SelectValue placeholder="Seleccioná una opción...">
                 {selectedLabel ?? "Seleccioná una opción..."}
               </SelectValue>

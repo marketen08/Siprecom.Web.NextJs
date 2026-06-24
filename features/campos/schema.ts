@@ -10,6 +10,8 @@ export const campoSchema = z.object({
   imagenUrl: z.string().optional(),
   /** Solo Tabla dinámica (tipoDato === 9). Default 3. */
   numeroFilas: z.number().int().min(1).max(100).optional(),
+  /** Default de obligatoriedad: precarga el checkbox al agregar el campo a una planilla. */
+  esObligatorioDefault: z.boolean().optional(),
 })
 
 export type CampoFormValues = z.infer<typeof campoSchema>

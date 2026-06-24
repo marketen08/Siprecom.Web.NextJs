@@ -149,7 +149,7 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
         {/* Builder layout */}
         <div className="flex gap-4 h-[calc(100vh-280px)]">
           {/* Left: Secciones */}
-          <div className="w-56 shrink-0 border rounded-lg p-3 bg-white overflow-hidden flex flex-col">
+          <div className="w-72 shrink-0 border rounded-lg p-3 bg-white overflow-hidden flex flex-col">
             <SeccionPanel
               planillaId={id}
               secciones={secciones}

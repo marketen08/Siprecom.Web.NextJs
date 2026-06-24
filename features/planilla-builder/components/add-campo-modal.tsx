@@ -20,7 +20,7 @@ import {
   type CampoListaRenderMode,
   type PlanillaSeccion,
 } from "@/features/planillas/types"
-import { ArrowDown, ArrowUp, ImageIcon, Trash2, Plus } from "lucide-react"
+import { ArrowDown, ArrowUp, ImageIcon, Trash2, Plus, Star } from "lucide-react"
 
 import {
   Sheet,
@@ -78,12 +78,18 @@ export function AddCampoModal({
   const [tamano, setTamano] = useState<number>(CAMPO_TAMANO_DEFAULT)
   // Opciones temporales para nuevo campo Lista (se crean tras crear el Campo).
   const [tempOpciones, setTempOpciones] = useState<Array<{ valor: string; etiqueta: string }>>([])
+  // Opción marcada como valor por defecto (por su `valor`). Se persiste como
+  // PlanillaCampo.ValorDefault al agregar el campo. null = sin default.
+  const [opcionDefaultValor, setOpcionDefaultValor] = useState<string | null>(null)
   const [opcionInput, setOpcionInput] = useState({ valor: "", etiqueta: "" })
   // Mientras esté en false, cada opción nueva se inserta alfabéticamente por etiqueta.
   // En cuanto el usuario use las flechas, pasa a true y se respeta su orden manual.
   const [opcionesManualOrder, setOpcionesManualOrder] = useState(false)
   // Imagen pre-cargada para campo nuevo de tipo Imagen (sube primero, recibe URL).
   const [imagenUrl, setImagenUrl] = useState<string | undefined>(undefined)
+  // Obligatoriedad del campo en ESTA planilla. En "Existente" se precarga del
+  // EsObligatorioDefault del campo; en "Nuevo" además se guarda como default del campo.
+  const [esObligatorio, setEsObligatorio] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // El initializer de useState sólo corre en el primer montaje (cuando aún no hay
@@ -92,6 +98,15 @@ export function AddCampoModal({
   useEffect(() => {
     if (open) setSeccionId(selectedSeccionId ?? "__none__")
   }, [open, selectedSeccionId])
+
+  // Al elegir un campo existente, precargamos el checkbox de obligatorio con el
+  // EsObligatorioDefault guardado en ese campo.
+  useEffect(() => {
+    if (tab !== "existing" || !selectedCampoId) return
+    const c = campos.find((x) => x.id === selectedCampoId)
+    setEsObligatorio(Boolean(c?.esObligatorioDefault))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCampoId, tab])
 
   const { data: camposResult } = useGetCamposSelect()
   const campos: Array<{ id: string; etiqueta: string; codigo: string } & Record<string, any>> = (camposResult as any)?.data ?? []
@@ -124,9 +139,11 @@ export function AddCampoModal({
     setRenderMode(0)
     setTamano(CAMPO_TAMANO_DEFAULT)
     setTempOpciones([])
+    setOpcionDefaultValor(null)
     setOpcionInput({ valor: "", etiqueta: "" })
     setOpcionesManualOrder(false)
     setImagenUrl(undefined)
+    setEsObligatorio(false)
     form.reset()
     onClose()
   }
@@ -150,7 +167,7 @@ export function AddCampoModal({
         campoId: selectedCampoId,
         planillaSeccionId: seccionId === "__none__" ? undefined : seccionId,
         orden: nextOrden,
-        esObligatorio: false,
+        esObligatorio,
         visible: true,
         soloLectura: false,
         renderMode: isListaExistente ? renderMode : undefined,
@@ -168,6 +185,8 @@ export function AddCampoModal({
         ...values,
         tipoDato: values.tipoDato as CampoTipoDato,
         imagenUrl: values.tipoDato === 8 ? imagenUrl : undefined,
+        // Guardamos la obligatoriedad como default del campo (para próximas planillas).
+        esObligatorioDefault: esObligatorio,
       })
       const newCampoId = res?.data?.id ?? res?.id
       if (!newCampoId) return
@@ -190,9 +209,11 @@ export function AddCampoModal({
         campoId: newCampoId,
         planillaSeccionId: seccionId === "__none__" ? undefined : seccionId,
         orden: nextOrden,
-        esObligatorio: false,
+        esObligatorio,
         visible: true,
         soloLectura: false,
+        // Para Lista, la opción marcada con la estrella es el valor por defecto.
+        valorDefault: values.tipoDato === 5 ? (opcionDefaultValor ?? undefined) : undefined,
         renderMode: values.tipoDato === 5 ? renderMode : undefined,
         // Checklist siempre ocupa ancho completo (12), independiente del control.
         tamano: values.tipoDato === 5 && renderMode === 3 ? 12 : tamano,
@@ -236,7 +257,11 @@ export function AddCampoModal({
   }
 
   const handleRemoveOpcion = (index: number) => {
-    setTempOpciones((prev) => prev.filter((_, i) => i !== index))
+    setTempOpciones((prev) => {
+      // Si la opción que se quita era la default, limpiamos la marca.
+      if (prev[index]?.valor === opcionDefaultValor) setOpcionDefaultValor(null)
+      return prev.filter((_, i) => i !== index)
+    })
   }
 
   const handleMoveOpcion = (index: number, dir: -1 | 1) => {
@@ -364,6 +389,18 @@ export function AddCampoModal({
                 : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
+
+          {/* Obligatorio (compartido entre ambas tabs). En "Nuevo" se guarda además
+              como default del campo; en "Existente" se precarga de ese default. */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={esObligatorio}
+              onChange={(e) => setEsObligatorio(e.target.checked)}
+              className="h-4 w-4 cursor-pointer"
+            />
+            Campo obligatorio
+          </label>
 
           {tab === "existing" ? (
             <div className="space-y-3">
@@ -585,11 +622,26 @@ export function AddCampoModal({
                     </div>
 
                     <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
+                    <p className="text-[10px] text-blue-700/70 -mt-1">
+                      Tocá la ★ para marcar el valor por defecto.
+                    </p>
 
                     {tempOpciones.length > 0 && (
                       <div className="space-y-1">
                         {tempOpciones.map((op, i) => (
                           <div key={i} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
+                            <button
+                              type="button"
+                              onClick={() => setOpcionDefaultValor((cur) => (cur === op.valor ? null : op.valor))}
+                              className={cn(
+                                "shrink-0",
+                                op.valor === opcionDefaultValor ? "text-amber-500" : "text-gray-300 hover:text-amber-400",
+                              )}
+                              title="Marcar como valor por defecto"
+                              aria-label="Marcar como valor por defecto"
+                            >
+                              <Star className={cn("h-3.5 w-3.5", op.valor === opcionDefaultValor && "fill-amber-400")} />
+                            </button>
                             <span className="font-mono text-gray-500 shrink-0">{op.valor}</span>
                             <span className="flex-1 truncate">{op.etiqueta}</span>
                             <button
