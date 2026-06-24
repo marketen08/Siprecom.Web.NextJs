@@ -73,10 +73,10 @@ export const columns: ColumnDef<ElementoTipo>[] = [
     },
   },
   {
-    accessorKey: "horasBaseDefault",
-    header: "Hs. base",
+    accessorKey: "horasAdicionalesDefault",
+    header: "Hs. adicionales",
     cell: ({ row }) => (
-      <span className="text-sm font-mono">{row.original.horasBaseDefault}</span>
+      <span className="text-sm font-mono">{row.original.horasAdicionalesDefault}</span>
     ),
   },
   {

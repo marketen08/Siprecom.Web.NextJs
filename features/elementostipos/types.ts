@@ -5,8 +5,6 @@ export interface ElementoTipo {
   especialidadNombre: string | null
   especialidadCodigo: string | null
   especialidadColor: string | null
-  horasBaseDefault: number
-  impactoBaseDefault: number
   horasAdicionalesDefault: number
   impactoFactorDefault: number
   createdAt: string
@@ -19,8 +17,6 @@ export interface ElementoTipo {
 export interface ElementoTipoCreateInput {
   nombre: string
   especialidadId: string
-  horasBaseDefault: number
-  impactoBaseDefault: number
   horasAdicionalesDefault: number
   impactoFactorDefault: number
 }
@@ -28,8 +24,6 @@ export interface ElementoTipoCreateInput {
 export interface ElementoTipoUpdateInput {
   nombre: string
   especialidadId: string
-  horasBaseDefault: number
-  impactoBaseDefault: number
   horasAdicionalesDefault: number
   impactoFactorDefault: number
 }

@@ -44,8 +44,6 @@ export function ElementoTipoForm({
     defaultValues: {
       nombre: defaultValues?.nombre ?? "",
       especialidadId: defaultValues?.especialidadId ?? "",
-      horasBaseDefault: defaultValues?.horasBaseDefault ?? 1,
-      impactoBaseDefault: defaultValues?.impactoBaseDefault ?? 1,
       horasAdicionalesDefault: defaultValues?.horasAdicionalesDefault ?? 0,
       impactoFactorDefault: defaultValues?.impactoFactorDefault ?? 1,
     },
@@ -107,48 +105,6 @@ export function ElementoTipoForm({
           </p>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="horasBaseDefault"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Horas base</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      disabled={isPending}
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="impactoBaseDefault"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Impacto base</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      disabled={isPending}
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <FormField
               control={form.control}
               name="horasAdicionalesDefault"
