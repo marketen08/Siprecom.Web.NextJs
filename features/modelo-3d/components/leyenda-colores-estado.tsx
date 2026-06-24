@@ -15,19 +15,22 @@ interface Props {
  * cuadro refleja el avance de lo que está en pantalla.
  */
 export function LeyendaColoresEstado({ buckets, loading }: Props) {
-  const pct = buckets?.porcentajeAvance ?? 0
-  const total = buckets?.tareasTotal ?? 0
-  const completadas = buckets?.tareasCompletadas ?? 0
+  // Avance por ELEMENTOS (no tareas): elementos en estado Completado sobre el
+  // total de elementos del subset. Coherente con los conteos de la leyenda y con
+  // la lista de /alcance/elementos.
+  const total = buckets?.totalElementos ?? 0
+  const completados = buckets?.completadosElementos ?? 0
+  const pct = total > 0 ? (completados / total) * 100 : 0
 
   return (
     <div className="pointer-events-none rounded-md border border-gray-200 bg-white/95 px-3 py-2 shadow-sm text-xs space-y-2 min-w-55">
       <div className="font-semibold text-gray-700 uppercase tracking-wider text-[10px]">
-        {loading ? "Cargando estados…" : "Estado del Elemento"}
+        {loading ? "Cargando estados…" : "Estado del proyecto"}
       </div>
 
-      {/* Avance de tareas del subset filtrado. Si no hay tareas (filtro deja
-          0 elementos / 0 tareas) lo decimos en vez de mostrar 0,0% que da
-          falsa sensación de "todo pendiente". */}
+      {/* Avance por elementos del subset filtrado. Si no hay elementos (el filtro
+          deja 0) lo decimos en vez de mostrar 0,0% que da falsa sensación de
+          "todo pendiente". */}
       {buckets && (
         <div className="rounded-sm bg-gray-50 px-2 py-1.5 space-y-1">
           <div className="flex items-baseline justify-between gap-2">
@@ -44,8 +47,8 @@ export function LeyendaColoresEstado({ buckets, loading }: Props) {
           </div>
           <div className="text-[10px] text-gray-500 tabular-nums">
             {total > 0
-              ? `${completadas.toLocaleString("es-AR")} / ${total.toLocaleString("es-AR")} tareas`
-              : "Sin tareas en el filtro actual"}
+              ? `${completados.toLocaleString("es-AR")} / ${total.toLocaleString("es-AR")} elementos`
+              : "Sin elementos en el filtro actual"}
           </div>
         </div>
       )}
@@ -54,9 +57,9 @@ export function LeyendaColoresEstado({ buckets, loading }: Props) {
           números de cada estado, que se ocultan dentro de <Item>) para achicar
           el overlay. La nota al pie va oculta en mobile. */}
       <ul className="space-y-0.5">
-        <Item color="#10b981" label="Completado"  count={buckets?.completados.length} />
-        <Item color="#f59e0b" label="En curso"    count={buckets?.enCurso.length} />
-        <Item color="#94a3b8" label="No iniciado" count={buckets?.noIniciados.length} />
+        <Item color="#10b981" label="Completado"  count={buckets?.completadosElementos} />
+        <Item color="#f59e0b" label="En curso"    count={buckets?.enCursoElementos} />
+        <Item color="#94a3b8" label="No iniciado" count={buckets?.noIniciadosElementos} />
       </ul>
       <p className="hidden text-[10px] text-muted-foreground italic pt-0.5 md:block">
         Las entidades sin Elemento vinculado mantienen su color original.

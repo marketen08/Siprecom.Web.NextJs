@@ -153,7 +153,14 @@ export interface ColoresPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
+  /** Total de PIEZAS/GUIDs vinculadas (para pintar el visor). NO es cantidad de elementos. */
   totalConVinculo: number
+  /** Conteos por ELEMENTOS distintos (no piezas). La leyenda usa estos para coincidir con la lista de elementos. */
+  noIniciadosElementos: number
+  enCursoElementos: number
+  completadosElementos: number
+  /** Total de elementos distintos con al menos una pieza en el modelo. */
+  totalElementos: number
   /** Avance de tareas — `(tareasCompletadas / tareasTotal) * 100`. 0 si no hay tareas. */
   porcentajeAvance: number
   /** ElementoTarea consideradas (excluye CANCELADO). */
