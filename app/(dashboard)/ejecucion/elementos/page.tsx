@@ -72,7 +72,7 @@ function AvanceElementosContent() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const pageSize = 20
-  const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceElementoDTO } | null>(null)
+  const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceElementoDTO | null } | null>(null)
   const [planillasDialogOpen, setPlanillasDialogOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -174,17 +174,22 @@ function AvanceElementosContent() {
   const total = raw?.total ?? 0
   const totalPages = Math.ceil(total / pageSize)
 
-  // Abre el sheet desde la URL (?elementoId=...) — para que el back del browser
-  // desde la página del registro reabra el sheet con el contexto intacto.
-  // Espera a que `elementos` cargue para tener el `avance` del elemento.
+  // Abre el sheet desde la URL (?elementoId=...) — para el back del browser desde la
+  // página del registro, o al entrar por link directo. Importante: abrimos el sheet
+  // AUNQUE el elemento no esté en la página/filtro cargado (las tareas se cargan por su
+  // cuenta vía useGetElementosTareasPorElemento). Si el avance aparece luego en la lista,
+  // lo completamos para mostrar la barra/estados.
   useEffect(() => {
     if (!elementoIdParam) {
       if (selectedElemento) setSelectedElemento(null)
       return
     }
-    if (selectedElemento?.id === elementoIdParam) return
-    const found = elementos.find((e) => e.id === elementoIdParam)
-    if (found) setSelectedElemento({ id: found.id, avance: found })
+    const found = elementos.find((e) => e.id === elementoIdParam) ?? null
+    if (selectedElemento?.id === elementoIdParam) {
+      if (found && !selectedElemento.avance) setSelectedElemento({ id: elementoIdParam, avance: found })
+      return
+    }
+    setSelectedElemento({ id: elementoIdParam, avance: found })
   }, [elementoIdParam, elementos])
 
   function handleSistemaChange(value: string | null) {
