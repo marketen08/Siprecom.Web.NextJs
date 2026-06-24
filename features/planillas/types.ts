@@ -29,6 +29,8 @@ export interface CampoOpcion {
   valor: string
   etiqueta: string
   orden: number
+  /** Marca la opción como valor por defecto del campo (sólo una por campo). */
+  esDefault?: boolean
 }
 
 // 6 = Firma y 7 = Adjunto fueron eliminados como tipos de campo. Se gestionan a nivel registro:

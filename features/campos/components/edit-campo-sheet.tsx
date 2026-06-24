@@ -7,6 +7,7 @@ import { useGetCampo } from "../api/use-get-campo"
 import { useGetCampoUso } from "../api/use-get-campo-uso"
 import { useUpdateCampoGlobal } from "../api/use-update-campo"
 import { CampoForm } from "./campo-form"
+import { CampoOpcionesEditor } from "./campo-opciones-editor"
 import type { CampoFormValues } from "../schema"
 import type { CampoTipoDato } from "@/features/planillas/types"
 
@@ -65,6 +66,9 @@ export function EditCampoSheet() {
                   {(mutation.error as Error)?.message ?? "Error al guardar el campo."}
                 </div>
               )}
+
+              {/* Editor de opciones — sólo para campos Lista (tipoDato === 5). */}
+              {campo.tipoDato === 5 && id && <CampoOpcionesEditor campoId={id} />}
 
               {planillasUso.length > 0 && (
                 <div className="mt-6 rounded-md border bg-gray-50 p-3">
