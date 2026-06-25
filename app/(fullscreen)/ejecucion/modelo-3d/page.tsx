@@ -3,16 +3,18 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Loader2, Menu, Palette, Settings, Star,
+  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Link as LinkIcon, Loader2, Menu, Palette, Settings, Star,
 } from "lucide-react"
 
 import { useSidebar } from "@/components/sidebar-context"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
+import type { Elemento } from "@/features/elementos/types"
 import { useGetIfcPrincipal } from "@/features/modelo-3d/api/use-ifc-archivos"
 import { resolverEntidadesPorGuids, getGuidsPorElemento } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
+import { ElementosPanel } from "@/features/modelo-3d/components/elementos-panel"
 import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor-panel"
 import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-colores-estado"
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
@@ -72,7 +74,11 @@ function ModeloEjecucionContent() {
 
   const [entidadSeleccionada, setEntidadSeleccionada] = useState<ProyectoIfcEntidad | null>(null)
   const [resolviendoPick, setResolviendoPick] = useState(false)
-  // Toggle del panel de entidades (escondido por default — la página es para "visualizar").
+  // Aviso neutro sobre el visor (ej. elemento sin piezas vinculadas).
+  const [avisoMaqueta, setAvisoMaqueta] = useState<string | null>(null)
+  // Toggles de los paneles inferiores (escondidos por default). El de elementos es
+  // el principal; el de entidades es secundario (vinculado manual de piezas IFC).
+  const [mostrarPanelElementos, setMostrarPanelElementos] = useState(false)
   const [mostrarPanelEntidades, setMostrarPanelEntidades] = useState(false)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   // Mobile: el detalle es un bottom sheet con dos alturas (medio / expandido).
@@ -250,6 +256,37 @@ function ModeloEjecucionContent() {
     await viewerRef.current?.highlightByGuid(entidad.ifcGuid)
   }
 
+  // Seleccionar un Elemento desde el listado: resaltamos TODAS sus piezas en la
+  // maqueta, las encuadramos, y abrimos el detalle reutilizando el sidebar (con
+  // una entidad del elemento). Si el elemento no tiene piezas vinculadas, avisamos.
+  async function seleccionarElementoDesdeListado(elemento: Elemento) {
+    if (!proyectoActivo || !archivo) return
+    setSheetExpanded(false)
+    setAvisoMaqueta(null)
+    setResolviendoPick(true)
+    try {
+      const guids = await getGuidsPorElemento(proyectoActivo.id, archivo.id, elemento.id)
+      if (guids.length === 0) {
+        setEntidadSeleccionada(null)
+        fitGuidsRef.current = null
+        await viewerRef.current?.highlightByGuid(null)
+        setAvisoMaqueta(`El elemento ${elemento.tag} no tiene piezas vinculadas en la maqueta.`)
+        return
+      }
+      viewerRef.current?.selectByGuids(guids)
+      fitGuidsRef.current = guids
+      viewerRef.current?.fitToGuids?.(guids)
+      // Detalle: una entidad del elemento alimenta el sidebar existente.
+      const entidades = await resolverEntidadesPorGuids(proyectoActivo.id, archivo.id, guids)
+      const entidad = entidades.find((e) => e.elementoId === elemento.id) ?? entidades[0] ?? null
+      setEntidadSeleccionada(entidad)
+    } catch (e) {
+      setViewError((e as Error).message)
+    } finally {
+      setResolviendoPick(false)
+    }
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   if (!proyectoActivo) {
@@ -398,13 +435,30 @@ function ModeloEjecucionContent() {
           </button>
           <button
             type="button"
-            onClick={() => setMostrarPanelEntidades((v) => !v)}
+            onClick={() => {
+              setMostrarPanelElementos((v) => !v)
+              setMostrarPanelEntidades(false)
+            }}
             className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
-              mostrarPanelEntidades ? "text-blue-700 bg-blue-50 border-blue-200" : "text-gray-600 hover:bg-gray-50"
+              mostrarPanelElementos ? "text-blue-700 bg-blue-50 border-blue-200" : "text-gray-600 hover:bg-gray-50"
             }`}
           >
             <Eye className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{mostrarPanelEntidades ? "Ocultar entidades" : "Ver entidades"}</span>
+            <span className="hidden sm:inline">{mostrarPanelElementos ? "Ocultar elementos" : "Ver elementos"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMostrarPanelEntidades((v) => !v)
+              setMostrarPanelElementos(false)
+            }}
+            title="Vincular manualmente piezas IFC a elementos"
+            className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
+              mostrarPanelEntidades ? "text-blue-700 bg-blue-50 border-blue-200" : "text-gray-500 hover:bg-gray-50"
+            }`}
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{mostrarPanelEntidades ? "Ocultar entidades" : "Entidades"}</span>
           </button>
         </div>
       </div>
@@ -419,6 +473,14 @@ function ModeloEjecucionContent() {
         <div className="border-b border-blue-200 bg-blue-50 px-4 py-1.5 text-xs text-blue-700 flex items-center gap-2">
           {loadingView && <Loader2 className="h-3 w-3 animate-spin" />}
           {phase}
+        </div>
+      )}
+      {avisoMaqueta && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-700 flex items-center justify-between gap-2">
+          <span>{avisoMaqueta}</span>
+          <button type="button" onClick={() => setAvisoMaqueta(null)} className="text-amber-600 hover:text-amber-800 leading-none">
+            ✕
+          </button>
         </div>
       )}
 
@@ -489,7 +551,17 @@ function ModeloEjecucionContent() {
         )}
       </div>
 
-      {/* Panel de entidades plegable (escondido por default — se abre con el botón) */}
+      {/* Panel de elementos (principal) — buscar y ubicar un Elemento en la maqueta. */}
+      {mostrarPanelElementos && (
+        <div className="border-t border-gray-200 bg-white p-4 max-h-[40vh] overflow-y-auto">
+          <ElementosPanel
+            onSeleccionar={seleccionarElementoDesdeListado}
+            elementoSeleccionadoId={entidadSeleccionada?.elementoId ?? null}
+          />
+        </div>
+      )}
+
+      {/* Panel de entidades (secundario) — vinculado manual de piezas IFC sin TAG. */}
       {mostrarPanelEntidades && (
         <div className="border-t border-gray-200 bg-white p-4 max-h-[40vh] overflow-y-auto">
           <EntidadesPanel
