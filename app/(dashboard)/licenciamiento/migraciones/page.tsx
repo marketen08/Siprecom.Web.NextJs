@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Loader2, Database, CheckCircle2, AlertTriangle, PlayCircle } from "lucide-react"
+import { Loader2, Database, CheckCircle2, AlertTriangle, PlayCircle, Server } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
 import { Card } from "@/components/ui/card"
@@ -17,6 +17,13 @@ interface MigracionesStatus {
   pending?: string[]
   upToDate?: boolean
   error?: string
+  build?: {
+    service?: string
+    version?: string
+    informational?: string
+    buildDateUtc?: string | null
+    marker?: string
+  }
 }
 
 interface AplicarResult {
@@ -144,6 +151,30 @@ export default function MigracionesPage() {
           </>
         )}
       </Card>
+
+      {/* Build en ejecución — para verificar de un vistazo qué versión del backend
+          está corriendo (si la migración nueva no aparece, suele ser build viejo). */}
+      {data?.build && (
+        <Card className="p-4 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <Server className="h-4 w-4 text-blue-700" /> Build en ejecución
+          </div>
+          <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-1 text-xs">
+            <dt className="text-muted-foreground">Marker</dt>
+            <dd className="font-mono">{data.build.marker ?? "—"}</dd>
+            <dt className="text-muted-foreground">Publicado</dt>
+            <dd className="font-mono">
+              {data.build.buildDateUtc ? new Date(data.build.buildDateUtc).toLocaleString("es-AR") : "—"}
+            </dd>
+            <dt className="text-muted-foreground">Versión</dt>
+            <dd className="font-mono">{data.build.version ?? "—"}</dd>
+          </dl>
+          <p className="text-[11px] text-muted-foreground">
+            Si una migración nueva no aparece como pendiente, casi siempre es porque el backend
+            corriendo es un build anterior — revisá la fecha de “Publicado”.
+          </p>
+        </Card>
+      )}
     </div>
   )
 }
