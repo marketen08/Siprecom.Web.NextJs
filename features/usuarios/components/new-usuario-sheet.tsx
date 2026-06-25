@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Eye, EyeOff, Loader2, Search, X, FolderOpen, Check, Circle, AlertTriangle } from "lucide-react"
+import { Loader2, Search, X, FolderOpen, AlertTriangle, Mail, KeyRound } from "lucide-react"
 
 import { useCreateUsuario } from "../api/use-create-usuario"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
@@ -21,21 +21,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
 
+// LoginMethod: 0 = Mail+contraseña (invitación), 1 = Microsoft.
 const schema = z.object({
   email: z.string().email("Email inválido"),
   nombre: z.string().min(1, "Requerido").max(100),
   apellido: z.string().min(1, "Requerido").max(100),
-  password: z.string()
-    .min(12, "Mínimo 12 caracteres")
-    .regex(/[a-z]/, "Debe contener al menos una minúscula")
-    .regex(/[A-Z]/, "Debe contener al menos una mayúscula")
-    .regex(/[0-9]/, "Debe contener al menos un dígito")
-    .regex(/[^A-Za-z0-9]/, "Debe contener al menos un carácter especial"),
-  confirmPassword: z.string().min(1, "Requerido"),
-}).refine(d => d.password === d.confirmPassword, {
-  message: "Las contraseñas no coinciden",
-  path: ["confirmPassword"],
+  loginMethod: z.number().int().min(0).max(1),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -43,40 +36,6 @@ type FormValues = z.infer<typeof schema>
 interface Props {
   open: boolean
   onClose: () => void
-}
-
-// Requisitos de password — deben coincidir con el zod schema de arriba y con la
-// política configurada en el backend (Program.cs > AddIdentityCore).
-const PASSWORD_REQUIREMENTS = [
-  { test: (v: string) => v.length >= 12, label: "Mínimo 12 caracteres" },
-  { test: (v: string) => /[a-z]/.test(v),  label: "Al menos una minúscula" },
-  { test: (v: string) => /[A-Z]/.test(v),  label: "Al menos una mayúscula" },
-  { test: (v: string) => /[0-9]/.test(v),  label: "Al menos un dígito" },
-  { test: (v: string) => /[^A-Za-z0-9]/.test(v), label: "Al menos un carácter especial" },
-]
-
-function PasswordRequirements({ value }: { value: string }) {
-  return (
-    <ul className="mt-2 space-y-1">
-      {PASSWORD_REQUIREMENTS.map((r, i) => {
-        const ok = r.test(value)
-        return (
-          <li
-            key={i}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${
-              ok ? "text-green-600" : "text-muted-foreground"
-            }`}
-          >
-            {ok
-              ? <Check className="h-3.5 w-3.5 shrink-0" />
-              : <Circle className="h-3.5 w-3.5 shrink-0" />
-            }
-            <span>{r.label}</span>
-          </li>
-        )
-      })}
-    </ul>
-  )
 }
 
 // ─── Combobox proyecto ────────────────────────────────────────────────────────
@@ -166,19 +125,60 @@ function ProyectoSelector({
   )
 }
 
+// ─── Selector de método de login ──────────────────────────────────────────────
+
+function MetodoLoginSelector({
+  value, onChange, disabled,
+}: {
+  value: number
+  onChange: (v: number) => void
+  disabled?: boolean
+}) {
+  const opciones = [
+    { v: 0, label: "Mail + contraseña", desc: "Recibe una invitación para definir su contraseña", icon: KeyRound },
+    { v: 1, label: "Microsoft", desc: "Ingresa con su cuenta de Microsoft (SSO)", icon: Mail },
+  ]
+  return (
+    <div className="grid grid-cols-1 gap-2">
+      {opciones.map((o) => {
+        const Icon = o.icon
+        const activo = value === o.v
+        return (
+          <button
+            key={o.v}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(o.v)}
+            className={cn(
+              "flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-left transition-colors disabled:opacity-60",
+              activo ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:bg-gray-50",
+            )}
+          >
+            <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", activo ? "text-blue-600" : "text-gray-400")} />
+            <div className="min-w-0">
+              <p className={cn("text-sm font-medium", activo ? "text-blue-700" : "text-gray-700")}>{o.label}</p>
+              <p className="text-xs text-muted-foreground">{o.desc}</p>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Sheet ────────────────────────────────────────────────────────────────────
 
 export function NewUsuarioSheet({ open, onClose }: Props) {
   const create = useCreateUsuario()
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
   const [proyecto, setProyecto] = useState<{ id: string; nombre: string } | null>(null)
   const [errorProyecto, setErrorProyecto] = useState("")
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", nombre: "", apellido: "", password: "", confirmPassword: "" },
+    defaultValues: { email: "", nombre: "", apellido: "", loginMethod: 0 },
   })
+
+  const loginMethod = form.watch("loginMethod")
 
   async function onSubmit(values: FormValues) {
     if (!proyecto) {
@@ -187,11 +187,11 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
     }
     setErrorProyecto("")
 
-    // Single request: el backend crea el user + asigna el proyecto + setea el
-    // ProyectoId activo en una sola operación atómica.
+    // El backend crea el user (sin contraseña) + asigna el proyecto, y manda el
+    // email de alta (invitación o bienvenida Microsoft) en una sola operación.
     await create.mutateAsync({
       email: values.email,
-      password: values.password,
+      loginMethod: values.loginMethod,
       nombre: values.nombre,
       apellido: values.apellido,
       proyectoId: proyecto.id,
@@ -215,7 +215,7 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
         <SheetHeader>
           <SheetTitle>Nuevo usuario</SheetTitle>
           <SheetDescription>
-            Creá una cuenta nueva y asignale un proyecto.
+            Creá la cuenta y asignale un proyecto. El usuario recibe un email para activarla.
           </SheetDescription>
         </SheetHeader>
 
@@ -277,64 +277,19 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
             )}
           </div>
 
-          {/* Contraseña */}
+          {/* Método de login */}
           <div className="space-y-1.5">
-            <Label htmlFor="password">Contraseña</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Mínimo 12 caracteres"
-                {...form.register("password")}
-                className="pr-10"
-                disabled={create.isPending}
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-                onClick={() => setShowPassword(v => !v)}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <PasswordRequirements value={form.watch("password") ?? ""} />
-            {form.formState.errors.password && form.formState.isSubmitted && (
-              <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
-            )}
-            <p className="text-xs text-muted-foreground italic">
-              El usuario podrá iniciar sesión con esta contraseña o con su cuenta de Microsoft.
-            </p>
-          </div>
-
-          {/* Confirmar */}
-          <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
-            <div className="relative">
-              <Input
-                id="confirmPassword"
-                type={showConfirm ? "text" : "password"}
-                placeholder="Repetí la contraseña"
-                {...form.register("confirmPassword")}
-                className="pr-10"
-                disabled={create.isPending}
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-                onClick={() => setShowConfirm(v => !v)}
-              >
-                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {form.formState.errors.confirmPassword && (
-              <p className="text-xs text-destructive">{form.formState.errors.confirmPassword.message}</p>
-            )}
+            <Label>Método de ingreso</Label>
+            <MetodoLoginSelector
+              value={loginMethod}
+              onChange={(v) => form.setValue("loginMethod", v)}
+              disabled={create.isPending}
+            />
           </div>
 
           {create.isError && (() => {
             const err = create.error as any
             // 409 Conflict del backend: el email pertenece a un user dado de baja.
-            // Mostramos contexto (nombre, link al user) en lugar del error genérico.
             const conflict = err?.status === 409 && err?.body?.existingUserId
             if (conflict) {
               return (

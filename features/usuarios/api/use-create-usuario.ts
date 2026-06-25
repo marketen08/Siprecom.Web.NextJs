@@ -3,7 +3,8 @@ import { apiClient } from "@/lib/api-client"
 
 export interface CreateUsuarioInput {
   email: string
-  password: string
+  /** 0 = Mail+contraseña (invitación), 1 = Microsoft. */
+  loginMethod: number
   nombre?: string
   apellido?: string
   proyectoId?: string

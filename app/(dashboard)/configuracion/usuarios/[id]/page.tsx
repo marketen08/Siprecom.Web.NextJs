@@ -17,6 +17,7 @@ import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
+import { useResendInvite } from "@/features/usuarios/api/use-resend-invite"
 import { useSetProyectoActivoAdmin } from "@/features/usuarios/api/use-set-proyecto-activo-admin"
 import { useDeactivateUsuario } from "@/features/usuarios/api/use-deactivate-usuario"
 import { useDeactivateUsuarioPermanent } from "@/features/usuarios/api/use-deactivate-usuario-permanent"
@@ -124,6 +125,7 @@ function UsuarioDetailContent({ id }: { id: string }) {
 function TabDatos({ usuario }: { usuario: any }) {
   const update = useUpdateUsuarioAdmin(usuario.id)
   const resetPassword = useResetPasswordAdmin(usuario.id)
+  const resendInvite = useResendInvite(usuario.id)
   const [nombre, setNombre]   = useState(usuario.nombre ?? "")
   const [apellido, setApellido] = useState(usuario.apellido ?? "")
   const [clienteId, setClienteId] = useState<string>(usuario.clienteId ?? "")
@@ -272,6 +274,36 @@ function TabDatos({ usuario }: { usuario: any }) {
 
         {resetPassword.isError && (
           <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
+        )}
+      </div>
+
+      {/* Reenviar email de alta (invitación / bienvenida Microsoft) */}
+      <div className="space-y-3">
+        <Separator />
+        <div className="flex items-center gap-2">
+          <Mail className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-gray-700">Email de alta</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Reenvía el email de activación (invitación para definir contraseña, o bienvenida de Microsoft).
+        </p>
+        {resendInvite.isSuccess && (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+            <CheckCircle2 className="h-4 w-4" /> Email reenviado
+          </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => resendInvite.mutate()}
+          disabled={resendInvite.isPending}
+        >
+          {resendInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+          {resendInvite.isPending ? "Enviando..." : "Reenviar email de alta"}
+        </Button>
+        {resendInvite.isError && (
+          <p className="text-sm text-red-600">{(resendInvite.error as Error)?.message ?? "Error al reenviar"}</p>
         )}
       </div>
 

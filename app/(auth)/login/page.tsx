@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -246,6 +247,12 @@ export default function LoginPage() {
                 </FormItem>
               )}
             />
+
+            <div className="flex justify-end -mt-1">
+              <Link href="/recuperar-contrasena" className="text-xs text-blue-700 hover:underline">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
 
             {aviso && (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
