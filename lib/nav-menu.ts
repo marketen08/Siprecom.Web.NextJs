@@ -84,6 +84,7 @@ export const menu: MenuItem[] = [
         children: [
           { label: "Datos de proyecto",   href: "/alcance/importacion" },
           { label: "Tareas",              href: "/alcance/importacion-tareas" },
+          { label: "Planificación",       href: "/alcance/importacion-planificacion" },
           { label: "Valores precargados", href: "/alcance/valores-precargados-importacion" },
           { label: "Pendientes",          href: "/alcance/importacion-pendientes" },
         ],
@@ -229,6 +230,8 @@ export const segmentLabels: Record<string, string> = {
   "avance-programado":         "Avance programado",
   "estado-pendientes":         "Estado de pendientes",
   importacion:   "Importación masiva",
+  "importacion-tareas": "Importar tareas",
+  "importacion-planificacion": "Importar planificación",
   "importacion-pendientes": "Importar pendientes",
   "valores-precargados-importacion": "Importar valores precargados",
   pendientes:    "Pendientes",

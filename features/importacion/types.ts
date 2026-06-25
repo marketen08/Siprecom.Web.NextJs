@@ -65,3 +65,16 @@ export interface ImportValoresPrecargadosResultado {
   preview: ImportValoresPrecargadosPreview
   mensaje: string
 }
+
+/** Preview de importación de Planificación (SubSistema × Nivel, hoja única). */
+export interface ImportPlanificacionPreview {
+  planificacion: ImportEntidadResumen
+  errores: ImportError[]
+  esAplicable: boolean
+}
+
+export interface ImportPlanificacionResultado {
+  aplicado: boolean
+  preview: ImportPlanificacionPreview
+  mensaje: string
+}
