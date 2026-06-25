@@ -133,8 +133,10 @@ export function ElementoForm({
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder={loadingSistemas ? "Cargando..." : "Seleccioná un sistema"}>
-                        {sistemasData?.data.find((s) => s.id === field.value)?.nombre
-                          ?? (loadingSistemas ? "Cargando..." : "Seleccioná un sistema")}
+                        {(() => {
+                          const s = sistemasData?.data.find((s) => s.id === field.value)
+                          return s ? `${s.codigo} — ${s.nombre}` : (loadingSistemas ? "Cargando..." : "Seleccioná un sistema")
+                        })()}
                       </SelectValue>
                     </SelectTrigger>
                   </FormControl>
@@ -165,8 +167,10 @@ export function ElementoForm({
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder={!selectedSistemaId ? "Seleccioná un sistema primero" : "Seleccioná un subsistema"}>
-                        {subSistemasData?.data.find((s) => s.id === field.value)?.nombre
-                          ?? (!selectedSistemaId ? "Seleccioná un sistema primero" : "Seleccioná un subsistema")}
+                        {(() => {
+                          const s = subSistemasData?.data.find((s) => s.id === field.value)
+                          return s ? `${s.codigo} — ${s.nombre}` : (!selectedSistemaId ? "Seleccioná un sistema primero" : "Seleccioná un subsistema")
+                        })()}
                       </SelectValue>
                     </SelectTrigger>
                   </FormControl>

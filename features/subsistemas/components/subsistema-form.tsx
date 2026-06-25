@@ -73,8 +73,10 @@ export function SubSistemaForm({
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder={loadingSistemas ? "Cargando sistemas..." : "Seleccioná un sistema"}>
-                        {sistemasData?.data.find((s) => s.id === field.value)?.nombre
-                          ?? (loadingSistemas ? "Cargando sistemas..." : "Seleccioná un sistema")}
+                        {(() => {
+                          const s = sistemasData?.data.find((s) => s.id === field.value)
+                          return s ? `${s.codigo} — ${s.nombre}` : (loadingSistemas ? "Cargando sistemas..." : "Seleccioná un sistema")
+                        })()}
                       </SelectValue>
                     </SelectTrigger>
                   </FormControl>

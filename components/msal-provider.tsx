@@ -90,7 +90,7 @@ export function MsalProviderClient({ children }: { children: React.ReactNode }) 
   if (!ready || !msalInstance) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Inicializando MSAL...
+        Iniciando...
       </div>
     )
   }
