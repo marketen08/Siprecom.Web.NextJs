@@ -177,6 +177,20 @@ export const columns: ColumnDef<Planilla>[] = [
     ),
   },
   {
+    accessorKey: "orientacionPdf",
+    header: "PDF",
+    cell: ({ row }) =>
+      row.original.orientacionPdf === 1 ? (
+        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+          Apaisado
+        </span>
+      ) : (
+        <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-500">
+          Vertical
+        </span>
+      ),
+  },
+  {
     accessorKey: "updatedAt",
     header: "Última actualización",
     cell: ({ row }) => (

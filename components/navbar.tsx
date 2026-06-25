@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Menu } from "lucide-react"
 import { UserMenu } from "@/components/user-menu"
 import { ProyectoSwitcher } from "@/components/proyecto-switcher"
@@ -26,14 +27,14 @@ export function Navbar({ ocultarHamburger = false }: { ocultarHamburger?: boolea
         </button>
       )}
 
-      {/* Logo */}
-      <div className="flex items-center gap-2">
+      {/* Logo — link al home */}
+      <Link href="/dashboard" aria-label="Ir al inicio" className="flex items-center gap-2 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
         <img
           src="/logosiprecom.png"
           alt="Siprecom"
           className="h-5 w-auto"
         />
-      </div>
+      </Link>
 
       {/* Spacer */}
       <div className="flex-1" />

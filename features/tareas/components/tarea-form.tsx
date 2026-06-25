@@ -71,8 +71,8 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
       planillaId: defaultValues?.planillaId ?? "",
       procedimientoId: defaultValues?.procedimientoId ?? "",
       prioridad: defaultValues?.prioridad ?? 2,
-      horasBase: defaultValues?.horasBase ?? 0,
-      impactoBase: defaultValues?.impactoBase ?? 0,
+      horasBase: defaultValues?.horasBase ?? 4,
+      impactoBase: defaultValues?.impactoBase ?? 1,
     },
   })
 

@@ -877,8 +877,8 @@ function UsuariosRolesSection({
 
       {/* Formulario para agregar asignación */}
       <div className="flex items-end gap-2 flex-wrap">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600">Rol</label>
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-gray-600">Rol</label>
           <select
             value={rolSeleccionado}
             onChange={(e) => setRolSeleccionado(e.target.value)}
@@ -889,8 +889,8 @@ function UsuariosRolesSection({
           </select>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600">Usuario</label>
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-gray-600">Usuario</label>
           <select
             value={userSeleccionado}
             onChange={(e) => setUserSeleccionado(e.target.value)}

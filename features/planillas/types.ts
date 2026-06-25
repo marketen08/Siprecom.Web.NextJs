@@ -1,3 +1,6 @@
+/** Orientación del PDF de la planilla: 0 = Vertical, 1 = Horizontal (apaisado). */
+export type OrientacionPdf = 0 | 1
+
 export interface Planilla {
   id: string
   codigo?: string
@@ -9,6 +12,7 @@ export interface Planilla {
   requiereFirma: boolean
   permiteAdjuntos: boolean
   generaPdfFinal: boolean
+  orientacionPdf: OrientacionPdf
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string
@@ -140,6 +144,7 @@ export interface PlanillaCreateInput {
   requiereFirma?: boolean
   permiteAdjuntos?: boolean
   generaPdfFinal?: boolean
+  orientacionPdf?: OrientacionPdf
 }
 
 export interface PlanillaUpdateInput {
@@ -152,6 +157,7 @@ export interface PlanillaUpdateInput {
   requiereFirma?: boolean
   permiteAdjuntos?: boolean
   generaPdfFinal?: boolean
+  orientacionPdf?: OrientacionPdf
 }
 
 export interface PlanillaSeccionCreateInput {

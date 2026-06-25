@@ -42,6 +42,7 @@ export function PlanillaForm({
       requiereFirma: defaultValues?.requiereFirma ?? true,
       permiteAdjuntos: defaultValues?.permiteAdjuntos ?? true,
       generaPdfFinal: defaultValues?.generaPdfFinal ?? true,
+      orientacionPdf: defaultValues?.orientacionPdf ?? 0,
     },
   })
 
@@ -178,6 +179,16 @@ export function PlanillaForm({
                 disabled={isPending}
               />
               Genera PDF final
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300"
+                checked={form.watch("orientacionPdf") === 1}
+                onChange={(e) => form.setValue("orientacionPdf", e.target.checked ? 1 : 0)}
+                disabled={isPending}
+              />
+              PDF horizontal (apaisado)
             </label>
           </div>
         </div>

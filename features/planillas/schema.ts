@@ -9,6 +9,8 @@ export const planillaSchema = z.object({
   requiereFirma: z.boolean().optional(),
   permiteAdjuntos: z.boolean().optional(),
   generaPdfFinal: z.boolean().optional(),
+  // 0 = Vertical, 1 = Horizontal (apaisado)
+  orientacionPdf: z.union([z.literal(0), z.literal(1)]).optional(),
 })
 
 export type PlanillaFormValues = z.infer<typeof planillaSchema>
