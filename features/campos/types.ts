@@ -1,4 +1,4 @@
-import type { CampoOpcion, CampoTablaColumna, CampoTablaFila, CampoTipoDato } from "@/features/planillas/types"
+import type { AlineacionTexto, CampoOpcion, CampoTablaColumna, CampoTablaFila, CampoTipoDato } from "@/features/planillas/types"
 
 export interface Campo {
   id: string
@@ -14,6 +14,13 @@ export interface Campo {
   imagenUrl?: string
   /** Filas por defecto para Tabla dinámica (sólo cuando tipoDato === 9). */
   numeroFilas?: number
+  /** Estilo de Label (sólo cuando tipoDato === 10). */
+  negrita?: boolean
+  conBorde?: boolean
+  fondoGris?: boolean
+  alineacion?: AlineacionTexto
+  sinPadding?: boolean
+  sinMargen?: boolean
   /** Cantidad de planillas activas que usan este campo. */
   usoCount?: number
   createdAt: string
@@ -35,6 +42,12 @@ export interface CampoCreateInput {
   imagenUrl?: string
   numeroFilas?: number
   esObligatorioDefault?: boolean
+  negrita?: boolean
+  conBorde?: boolean
+  fondoGris?: boolean
+  alineacion?: AlineacionTexto
+  sinPadding?: boolean
+  sinMargen?: boolean
 }
 
 export interface CampoUpdateInput {
@@ -47,6 +60,12 @@ export interface CampoUpdateInput {
   imagenUrl?: string
   numeroFilas?: number
   esObligatorioDefault?: boolean
+  negrita?: boolean
+  conBorde?: boolean
+  fondoGris?: boolean
+  alineacion?: AlineacionTexto
+  sinPadding?: boolean
+  sinMargen?: boolean
 }
 
 export interface CampoOpcionCreateInput {

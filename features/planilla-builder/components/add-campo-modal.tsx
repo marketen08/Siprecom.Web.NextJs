@@ -16,6 +16,8 @@ import {
   CAMPO_LISTA_RENDER_MODE_LABEL,
   CAMPO_TAMANO_OPCIONES,
   CAMPO_TAMANO_DEFAULT,
+  ALINEACION_TEXTO_LABEL,
+  type AlineacionTexto,
   type CampoTipoDato,
   type CampoListaRenderMode,
   type PlanillaSeccion,
@@ -87,6 +89,10 @@ export function AddCampoModal({
   const [opcionesManualOrder, setOpcionesManualOrder] = useState(false)
   // Imagen pre-cargada para campo nuevo de tipo Imagen (sube primero, recibe URL).
   const [imagenUrl, setImagenUrl] = useState<string | undefined>(undefined)
+  // Estilo para campo nuevo de tipo Label.
+  const [labelStyle, setLabelStyle] = useState<{ negrita: boolean; conBorde: boolean; fondoGris: boolean; alineacion: AlineacionTexto; sinPadding: boolean; sinMargen: boolean }>({
+    negrita: false, conBorde: false, fondoGris: false, alineacion: 0, sinPadding: false, sinMargen: false,
+  })
   // Obligatoriedad del campo en ESTA planilla. En "Existente" se precarga del
   // EsObligatorioDefault del campo; en "Nuevo" además se guarda como default del campo.
   const [esObligatorio, setEsObligatorio] = useState(false)
@@ -143,6 +149,7 @@ export function AddCampoModal({
     setOpcionInput({ valor: "", etiqueta: "" })
     setOpcionesManualOrder(false)
     setImagenUrl(undefined)
+    setLabelStyle({ negrita: false, conBorde: false, fondoGris: false, alineacion: 0, sinPadding: false, sinMargen: false })
     setEsObligatorio(false)
     form.reset()
     onClose()
@@ -153,6 +160,7 @@ export function AddCampoModal({
   const isListaExistente = selectedCampoExistente?.tipoDato === 5
   const isListaNuevo = tipoDatoFormulario === 5
   const isImagenNuevo = tipoDatoFormulario === 8
+  const isLabelNuevo = tipoDatoFormulario === 10
 
   const handleUploadImagen = async (file: File) => {
     const url = await uploadMutation.mutateAsync(file)
@@ -187,6 +195,10 @@ export function AddCampoModal({
         imagenUrl: values.tipoDato === 8 ? imagenUrl : undefined,
         // Guardamos la obligatoriedad como default del campo (para próximas planillas).
         esObligatorioDefault: esObligatorio,
+        // Estilo del Label (display-only).
+        ...(values.tipoDato === 10
+          ? { negrita: labelStyle.negrita, conBorde: labelStyle.conBorde, fondoGris: labelStyle.fondoGris, alineacion: labelStyle.alineacion, sinPadding: labelStyle.sinPadding, sinMargen: labelStyle.sinMargen }
+          : {}),
       })
       const newCampoId = res?.data?.id ?? res?.id
       if (!newCampoId) return
@@ -595,6 +607,68 @@ export function AddCampoModal({
                     <p className="text-[10px] text-muted-foreground">
                       Formatos: JPG, PNG, WEBP, SVG, GIF. Máximo 5 MB.
                     </p>
+                  </div>
+                )}
+
+                {/* Sub-sección Label: estilo (display-only) */}
+                {isLabelNuevo && (
+                  <div className="space-y-3 rounded-md border border-blue-100 bg-blue-50/40 p-3">
+                    <Label className="text-xs font-semibold text-blue-900">Estilo del label</Label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Texto fijo (sale de la etiqueta). No es un campo a completar: sirve como encabezado,
+                      ej. arriba de una tabla. Ocupa el ancho completo.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                          checked={labelStyle.negrita}
+                          onChange={(e) => setLabelStyle((s) => ({ ...s, negrita: e.target.checked }))} />
+                        Negrita
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                          checked={labelStyle.conBorde}
+                          onChange={(e) => setLabelStyle((s) => ({ ...s, conBorde: e.target.checked }))} />
+                        Borde
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                          checked={labelStyle.fondoGris}
+                          onChange={(e) => setLabelStyle((s) => ({ ...s, fondoGris: e.target.checked }))} />
+                        Fondo gris
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                          checked={labelStyle.sinPadding}
+                          onChange={(e) => setLabelStyle((s) => ({ ...s, sinPadding: e.target.checked }))} />
+                        Sin padding
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                          checked={labelStyle.sinMargen}
+                          onChange={(e) => setLabelStyle((s) => ({ ...s, sinMargen: e.target.checked }))} />
+                        Sin margen
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs">Alineación</Label>
+                      <select
+                        className="h-8 rounded-md border border-input bg-white px-2 text-sm"
+                        value={labelStyle.alineacion}
+                        onChange={(e) => setLabelStyle((s) => ({ ...s, alineacion: Number(e.target.value) as AlineacionTexto }))}
+                      >
+                        {Object.entries(ALINEACION_TEXTO_LABEL).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Preview */}
+                    <div
+                      className={`text-sm ${labelStyle.sinPadding ? "" : "px-2 py-1"} ${labelStyle.fondoGris ? "bg-gray-100" : ""} ${labelStyle.conBorde ? "border border-gray-300" : ""} ${labelStyle.negrita ? "font-bold" : ""}`}
+                      style={{ textAlign: labelStyle.alineacion === 1 ? "center" : labelStyle.alineacion === 2 ? "right" : "left" }}
+                    >
+                      {form.watch("etiqueta") || "Vista previa del label"}
+                    </div>
                   </div>
                 )}
 

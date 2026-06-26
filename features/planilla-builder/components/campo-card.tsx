@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowDown, ArrowUp, Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 
-import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode, PlanillaSeccion } from "@/features/planillas/types"
-import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_TAMANO_OPCIONES } from "@/features/planillas/types"
+import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode, PlanillaSeccion, AlineacionTexto } from "@/features/planillas/types"
+import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_TAMANO_OPCIONES, ALINEACION_TEXTO_LABEL } from "@/features/planillas/types"
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
+import { useUpdateCampoGlobal } from "@/features/campos/api/use-update-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useReorderOpciones } from "@/features/campos/api/use-reorder-opciones"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
@@ -55,7 +56,28 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const isLista = campo.campoTipoDato === 5
   const isImagen = campo.campoTipoDato === 8
   const isTabla = campo.campoTipoDato === 9
+  const isLabel = campo.campoTipoDato === 10
   const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
+
+  const updateCampoGlobal = useUpdateCampoGlobal()
+  // El estilo del Label vive en el Campo global → update global (afecta todas las
+  // planillas que usen este campo). Otros campos del Campo no aplican a un Label.
+  const updateLabelStyle = (overrides: Partial<{ negrita: boolean; conBorde: boolean; fondoGris: boolean; alineacion: AlineacionTexto; sinPadding: boolean; sinMargen: boolean }>) => {
+    updateCampoGlobal.mutate({
+      id: campo.campoId,
+      codigo: campo.campoCodigo ?? "",
+      etiqueta: campo.campoEtiqueta ?? "",
+      tipoDato: campo.campoTipoDato,
+      unidad: campo.campoUnidad,
+      negrita: campo.campoNegrita ?? false,
+      conBorde: campo.campoConBorde ?? false,
+      fondoGris: campo.campoFondoGris ?? false,
+      alineacion: campo.campoAlineacion ?? 0,
+      sinPadding: campo.campoSinPadding ?? false,
+      sinMargen: campo.campoSinMargen ?? false,
+      ...overrides,
+    })
+  }
 
   // Construye el payload de update reusando todos los valores actuales del campo, con overrides.
   const buildUpdatePayload = (overrides: Partial<{
@@ -308,8 +330,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             </label>
           </div>
 
-          {/* Valor por defecto — no aplica a tipo Imagen ni Tabla */}
-          {!isImagen && !isTabla && (
+          {/* Valor por defecto — no aplica a tipo Imagen, Tabla ni Label */}
+          {!isImagen && !isTabla && !isLabel && (
             <div>
               <Label className="text-xs">Valor por defecto</Label>
               {isLista ? (
@@ -567,19 +589,10 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               {!tablaEsMatriz && (
                 <div className="space-y-1">
                   <Label className="text-xs">Filas por defecto (tabla dinámica)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={100}
-                    className="h-8 w-24 text-sm"
-                    defaultValue={campo.numeroFilas ?? 3}
-                    onBlur={(e) => {
-                      const n = Number(e.target.value)
-                      if (Number.isFinite(n) && n !== (campo.numeroFilas ?? 3)) {
-                        updateMutation.mutate(buildUpdatePayload({ numeroFilas: Math.max(1, Math.min(100, Math.floor(n))) }))
-                      }
-                    }}
+                  <FilasPorDefectoInput
+                    numeroFilas={campo.numeroFilas}
                     disabled={updateMutation.isPending}
+                    onCommit={(n) => updateMutation.mutate(buildUpdatePayload({ numeroFilas: n }))}
                   />
                   <p className="text-[10px] text-muted-foreground">
                     Filas vacías que se imprimen en modo físico. En digital el operador agrega de 2 a 10.
@@ -589,8 +602,116 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               <CampoTablaEditor campo={campo} />
             </>
           )}
+
+          {/* Label (tipo 10): estilo (display-only). Vive en el Campo global. */}
+          {isLabel && (
+            <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50/60 p-3">
+              <Label className="text-xs font-semibold">Estilo del label</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Texto fijo (la etiqueta). No es un campo a completar. El estilo afecta a todas las
+                planillas que usen este campo.
+              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoNegrita ?? false}
+                    onChange={(e) => updateLabelStyle({ negrita: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Negrita
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoConBorde ?? false}
+                    onChange={(e) => updateLabelStyle({ conBorde: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Borde
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoFondoGris ?? false}
+                    onChange={(e) => updateLabelStyle({ fondoGris: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Fondo gris
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoSinPadding ?? false}
+                    onChange={(e) => updateLabelStyle({ sinPadding: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Sin padding
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoSinMargen ?? false}
+                    onChange={(e) => updateLabelStyle({ sinMargen: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Sin margen
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">Alineación</Label>
+                <select
+                  className="h-8 rounded-md border border-input bg-white px-2 text-sm"
+                  value={campo.campoAlineacion ?? 0}
+                  onChange={(e) => updateLabelStyle({ alineacion: Number(e.target.value) as AlineacionTexto })}
+                  disabled={updateCampoGlobal.isPending}
+                >
+                  {Object.entries(ALINEACION_TEXTO_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Preview */}
+              <div
+                className={`text-sm ${campo.campoSinPadding ? "" : "px-2 py-1"} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
+                style={{ textAlign: campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left" }}
+              >
+                {campo.campoEtiqueta || "Label"}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Input controlado para "filas por defecto" de una tabla dinámica. Mantiene su
+ * propio estado (evita el warning de Base UI por cambiar defaultValue de un input
+ * no controlado tras guardar) y se re-sincroniza si el valor persistido cambia.
+ */
+function FilasPorDefectoInput({
+  numeroFilas,
+  disabled,
+  onCommit,
+}: {
+  numeroFilas: number | null | undefined
+  disabled?: boolean
+  onCommit: (n: number) => void
+}) {
+  const actual = numeroFilas ?? 3
+  const [valor, setValor] = useState(String(actual))
+
+  useEffect(() => {
+    setValor(String(actual))
+  }, [actual])
+
+  return (
+    <Input
+      type="number"
+      min={1}
+      max={100}
+      className="h-8 w-24 text-sm"
+      value={valor}
+      onChange={(e) => setValor(e.target.value)}
+      onBlur={(e) => {
+        const n = Number(e.target.value)
+        if (!Number.isFinite(n)) return
+        const clamped = Math.max(1, Math.min(100, Math.floor(n)))
+        if (clamped !== actual) onCommit(clamped)
+      }}
+      disabled={disabled}
+    />
   )
 }

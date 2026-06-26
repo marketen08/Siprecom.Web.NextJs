@@ -40,7 +40,7 @@ export interface CampoOpcion {
 // 6 = Firma y 7 = Adjunto fueron eliminados como tipos de campo. Se gestionan a nivel registro:
 //   - Firmas: ProyectosFirmasConfig + RegistroFirma.
 //   - Adjuntos: flags Proyecto.PermiteAdjuntos / Planilla.PermiteAdjuntos + RegistroArchivo.
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -50,6 +50,16 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   5: "Lista",
   8: "Imagen",
   9: "Tabla",
+  10: "Label",
+}
+
+/** Alineación horizontal del texto de un campo Label. 0=Izquierda, 1=Centro, 2=Derecha. */
+export type AlineacionTexto = 0 | 1 | 2
+
+export const ALINEACION_TEXTO_LABEL: Record<AlineacionTexto, string> = {
+  0: "Izquierda",
+  1: "Centro",
+  2: "Derecha",
 }
 
 /** Columna de un campo Tabla (tipoDato === 9). Encabezado definido al diseñar la planilla. */
@@ -127,6 +137,13 @@ export interface PlanillaCampoDetalle {
   columnas?: CampoTablaColumna[]
   /** Filas predefinidas (solo Tabla matriz). Vacío si es dinámica o no es Tabla. */
   filas?: CampoTablaFila[]
+  /** Estilo de Label (vive en el Campo global). Solo si campoTipoDato === 10. */
+  campoNegrita?: boolean
+  campoConBorde?: boolean
+  campoFondoGris?: boolean
+  campoAlineacion?: AlineacionTexto
+  campoSinPadding?: boolean
+  campoSinMargen?: boolean
 }
 
 export interface PlanillaEstructura {

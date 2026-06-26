@@ -230,9 +230,9 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   function buildValores(): RegistroValorInput[] {
-    // Excluimos tipos que NO son inputs digitales: Imagen (8).
+    // Excluimos tipos que NO son inputs digitales: Imagen (8) y Label (10).
     return campos
-      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 8)
+      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 8 && c.campoTipoDato !== 10)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -252,7 +252,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function validate(): boolean {
     const camposObligatorios = campos.filter(
-      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 8
+      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
@@ -1049,6 +1049,16 @@ function CampoInput({
         />
       )
       break
+    case 10: // Label — texto fijo display-only (no input, no label de campo)
+      return (
+        <div
+          id={`campo-${campo.id}`}
+          className={`text-sm ${campo.campoSinPadding ? "" : "px-2 py-1.5"} ${campo.campoSinMargen ? "-my-2.5" : ""} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300 rounded" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
+          style={{ textAlign: campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left" }}
+        >
+          {campo.campoEtiqueta}
+        </div>
+      )
     case 8: // Imagen — parte de la planilla (global del Campo), sin input
       return (
         <div id={`campo-${campo.id}`} className="space-y-1">

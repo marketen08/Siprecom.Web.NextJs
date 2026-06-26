@@ -98,7 +98,7 @@ export function ElementoValoresPrecargadosEditor({ elementoId }: Props) {
   const camposVisibles = useMemo<PlanillaCampoDetalle[]>(() => {
     if (!estructura) return []
     return [...estructura.campos]
-      .filter((c) => c.campoTipoDato !== 8) // Imagen no es input
+      .filter((c) => c.campoTipoDato !== 8 && c.campoTipoDato !== 10) // Imagen y Label no son inputs
       .sort((a, b) => a.orden - b.orden)
   }, [estructura])
 
