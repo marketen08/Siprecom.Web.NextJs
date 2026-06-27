@@ -138,7 +138,7 @@ async function crearApsViewer(
     throw new Error("Archivo NWD sin URN APS asignada — re-procesá la traducción.")
   }
   const { createApsViewer } = await import("./aps-viewer")
-  const handle = await createApsViewer(container, { onPick: opts.onPick })
+  const handle = await createApsViewer(container, { onPick: opts.onPick, onProgress: opts.onProgress })
 
   opts.onProgress?.("Cargando NWD desde Autodesk…")
   await handle.loadModel(archivo.apsUrn)

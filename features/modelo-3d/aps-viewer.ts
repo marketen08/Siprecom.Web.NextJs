@@ -42,6 +42,34 @@ function loadSdk(): Promise<void> {
   return sdkLoadPromise
 }
 
+/**
+ * Pide el token del viewer reintentando con backoff. Pensado para el arranque
+ * en frío del backend (App Service recién despierto o base serverless saliendo
+ * de pausa), donde la primera llamada puede tardar o fallar por unos segundos
+ * antes de responder normal. ~6 intentos × 3s ≈ 18s de margen.
+ */
+async function fetchViewerTokenConReintentos(
+  onProgress?: (msg: string) => void,
+  intentos = 6,
+  esperaMs = 3000,
+): Promise<{ token: string; expiresIn: number }> {
+  let ultimoError: unknown
+  for (let i = 0; i < intentos; i++) {
+    try {
+      return await fetchViewerToken()
+    } catch (e) {
+      ultimoError = e
+      if (i < intentos - 1) {
+        onProgress?.(`El sistema está iniciando, reintentando… (${i + 2}/${intentos})`)
+        await new Promise((r) => setTimeout(r, esperaMs))
+      }
+    }
+  }
+  throw ultimoError instanceof Error
+    ? ultimoError
+    : new Error("No se pudo conectar con el servidor para cargar el modelo 3D.")
+}
+
 export interface ApsViewerHandle {
   loadModel: (urn: string) => Promise<{ totalItems: number }>
   highlightByGuid: (guid: string | null) => Promise<void>
@@ -84,6 +112,11 @@ export interface CreateApsViewerOptions {
    * objeto o un sintético "aps-{dbId}". null = se deseleccionó.
    */
   onPick?: (guids: string[] | null) => void
+  /**
+   * Reporta progreso durante el arranque del visor (ej. mientras se espera el
+   * token con el backend frío). El caller lo muestra en el banner de carga.
+   */
+  onProgress?: (msg: string) => void
 }
 
 // Paleta semáforo coherente con el viewer IFC.
@@ -103,17 +136,38 @@ export async function createApsViewer(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Autodesk = (window as any).Autodesk
 
+  // Pre-traemos el primer token ANTES de instanciar el viewer. Si el backend
+  // está frío la llamada puede fallar unos segundos: reintentamos con backoff
+  // para darle tiempo a calentar. Si tras los reintentos sigue fallando,
+  // lanzamos — así la página muestra su banner de error en vez de que el SDK de
+  // Autodesk pinte "Backend call failure" sobre el canvas negro.
+  opts.onProgress?.("Conectando con Autodesk…")
+  let tokenInicialPendiente: { token: string; expiresIn: number } | null =
+    await fetchViewerTokenConReintentos(opts.onProgress)
+
   const viewerOptions = {
     env: "AutodeskProduction",
     api: "streamingV2",
     getAccessToken: async (
       callback: (token: string, expiresIn: number) => void,
     ) => {
+      // El SDK pide el token al iniciar y luego para refrescarlo cerca del
+      // vencimiento. En el primer pedido devolvemos el ya pre-obtenido para no
+      // pegarle dos veces al backend; en los refrescos posteriores lo volvemos a
+      // pedir (con reintentos por si el backend se volvió a dormir).
+      if (tokenInicialPendiente) {
+        const t = tokenInicialPendiente
+        tokenInicialPendiente = null
+        callback(t.token, t.expiresIn)
+        return
+      }
       try {
-        const t = await fetchViewerToken()
+        const t = await fetchViewerTokenConReintentos()
         callback(t.token, t.expiresIn)
       } catch (e) {
-        console.error("APS token fetch:", e)
+        // En un refresh tardío ya no podemos abortar la sesión del viewer; al
+        // menos lo dejamos registrado. El SDK reintentará en el próximo ciclo.
+        console.error("APS token refresh:", e)
       }
     },
   }
