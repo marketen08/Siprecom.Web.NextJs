@@ -13,6 +13,10 @@ import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
+import {
+  useGetFuncionalidadesProyecto,
+  useSetFuncionalidadProyecto,
+} from "@/features/proyectos/api/use-funcionalidades-proyecto"
 import { useGetFirmasConfig } from "@/features/proyectos/api/use-get-firmas-config"
 import { useSaveFirmasConfig } from "@/features/proyectos/api/use-save-firmas-config"
 import { useGetFirmasPendientes } from "@/features/proyectos/api/use-get-firmas-pendientes"
@@ -85,15 +89,17 @@ function ProyectoDetailContent() {
     <div className="space-y-6 max-w-3xl">
 
       {/* Acciones */}
-      <div className="flex items-center justify-end">
-        <Link
-          href={`/alcance/proyectos/${id}/modelo-3d`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
-        >
-          <Box className="h-4 w-4" />
-          Modelo 3D
-        </Link>
-      </div>
+      {proyecto.funcionalidadesEfectivas?.MAQUETA_3D !== false && (
+        <div className="flex items-center justify-end">
+          <Link
+            href={`/alcance/proyectos/${id}/modelo-3d`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+          >
+            <Box className="h-4 w-4" />
+            Modelo 3D
+          </Link>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -358,6 +364,62 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
               <Toggle
                 checked={localFlags[flag.campo]}
                 onChange={(v) => handleToggle(flag.campo, v)}
+                disabled={disabled}
+              />
+            </div>
+          </div>
+        )
+      })}
+
+      <FuncionalidadesProyecto proyectoId={proyecto.id} />
+    </div>
+  )
+}
+
+// ─── Funcionalidades (feature flags por proyecto) ─────────────────────────────
+
+function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
+  const { data, isLoading } = useGetFuncionalidadesProyecto(proyectoId)
+  const setFuncionalidad = useSetFuncionalidadProyecto(proyectoId)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  async function handleToggle(clave: string, habilitada: boolean) {
+    setSaving(clave)
+    try {
+      await setFuncionalidad.mutateAsync({ clave, habilitada })
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  if (isLoading || !data || data.length === 0) return null
+
+  return (
+    <div className="space-y-3 pt-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funcionalidades</p>
+      {data.map((f) => {
+        // Si el SuperAdmin la apagó globalmente, no se puede activar por proyecto.
+        const bloqueadaGlobal = !f.habilitadaGlobal
+        const disabled = saving !== null || bloqueadaGlobal
+        return (
+          <div
+            key={f.clave}
+            className={`flex items-center justify-between gap-4 rounded-lg border bg-white p-4 ${bloqueadaGlobal ? "opacity-60" : ""}`}
+          >
+            <div className="space-y-0.5 min-w-0">
+              <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
+              <p className="text-xs text-muted-foreground">{f.descripcion}</p>
+              {bloqueadaGlobal && (
+                <p className="text-xs text-amber-600">
+                  Deshabilitada globalmente por el administrador del sistema.
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              {saving === f.clave && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+              <Toggle
+                checked={f.habilitadaProyecto}
+                onChange={(v) => handleToggle(f.clave, v)}
                 disabled={disabled}
               />
             </div>

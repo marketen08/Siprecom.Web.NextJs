@@ -39,7 +39,7 @@ function hasActiveChild(item: MenuItem, pathname: string): boolean {
 }
 
 function SidebarItem({
-  item, depth = 0, onNavigate, roles, inheritedMin, ocultarFirmas,
+  item, depth = 0, onNavigate, roles, inheritedMin, ocultarFirmas, funcionalidades,
 }: {
   item: MenuItem
   depth?: number
@@ -47,12 +47,16 @@ function SidebarItem({
   roles: string[]
   inheritedMin?: AppRole
   ocultarFirmas: boolean
+  funcionalidades: Record<string, boolean>
 }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(() => hasActiveChild(item, pathname))
 
   // Proyecto solo pre-firmados → no hay firmas electrónicas: ocultar "Mis firmas".
   if (item.requiereFirmas && ocultarFirmas) return null
+
+  // Funcionalidad (feature flag) requerida y no habilitada en el proyecto activo.
+  if (item.requiereFuncionalidad && funcionalidades[item.requiereFuncionalidad] === false) return null
 
   // Rol mínimo efectivo: el propio o el heredado del ancestro. Si el usuario no
   // lo alcanza, el item (y su subárbol) no se renderiza.
@@ -100,6 +104,7 @@ function SidebarItem({
                 roles={roles}
                 inheritedMin={effectiveMin}
                 ocultarFirmas={ocultarFirmas}
+                funcionalidades={funcionalidades}
               />
             ))}
           </div>
@@ -132,6 +137,12 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   const activo = proyectos?.find((p) => p.esActivo)
   const ocultarFirmas = !!activo && !activo.permitirRegistroDigital && activo.registrosFisicosPreFirmados
 
+  // Funcionalidades efectivas del proyecto activo (feature flags). Si no hay
+  // proyecto activo todavía, no ocultamos nada (mapa vacío → sin filtro).
+  const funcionalidades: Record<string, boolean> = activo
+    ? { MAQUETA_3D: activo.maqueta3d }
+    : {}
+
   return (
     <>
       {/* Overlay — en mobile siempre; en drawer también en desktop */}
@@ -162,6 +173,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
               onNavigate={close}
               roles={roles}
               ocultarFirmas={ocultarFirmas}
+              funcionalidades={funcionalidades}
             />
           ))}
         </nav>

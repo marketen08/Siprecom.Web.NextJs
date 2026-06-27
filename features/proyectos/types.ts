@@ -42,6 +42,12 @@ export interface Proyecto {
    * vacío, el extractor usa el default: "AutoCad.Tag,CADWorx.Line Number,AutoCad.Line Number".
    */
   apsTagProperties: string | null
+  /**
+   * Estado efectivo (global AND proyecto) de cada funcionalidad toggleable, por
+   * clave del catálogo. Ej: { MAQUETA_3D: true }. Solo viene en el detalle del
+   * proyecto (GET /proyectos/{id}).
+   */
+  funcionalidadesEfectivas?: Record<string, boolean>
   createdAt: string
   createdByNombre: string
   updatedAt: string

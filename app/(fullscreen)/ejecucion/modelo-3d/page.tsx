@@ -299,6 +299,18 @@ function ModeloEjecucionContent() {
     )
   }
 
+  // Maqueta 3D deshabilitada (global o por proyecto). Guard para deep-links: el
+  // item de menú ya se oculta, pero la URL es accesible directamente.
+  if (!proyectoActivo.maqueta3d) {
+    return (
+      <EmptyState
+        icon={<Box className="h-12 w-12 text-gray-300" />}
+        title="Maqueta 3D deshabilitada"
+        description="La funcionalidad de modelo 3D no está habilitada para este proyecto."
+      />
+    )
+  }
+
   if (errorIfc) {
     return (
       <EmptyState
