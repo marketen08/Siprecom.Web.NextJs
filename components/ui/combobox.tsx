@@ -36,7 +36,10 @@ export function Combobox({
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
+  // Índice de la opción resaltada para navegación con teclado (flechas + Enter).
+  const [highlighted, setHighlighted] = React.useState(0)
   const wrapperRef = React.useRef<HTMLDivElement>(null)
+  const listRef = React.useRef<HTMLDivElement>(null)
 
   // Click-outside para cerrar
   React.useEffect(() => {
@@ -62,6 +65,46 @@ export function Combobox({
   }, [options, search])
 
   const selected = options.find((o) => o.value === value)
+
+  // Al abrir o cambiar el filtro, resaltar la primera opción.
+  React.useEffect(() => {
+    setHighlighted(0)
+  }, [search, open])
+
+  // Mantener visible la opción resaltada al navegar con flechas.
+  React.useEffect(() => {
+    if (!open) return
+    const node = listRef.current?.children[highlighted] as HTMLElement | undefined
+    node?.scrollIntoView({ block: "nearest" })
+  }, [highlighted, open])
+
+  function commit(option: ComboboxOption | undefined) {
+    if (!option) return
+    onChange(option.value)
+    setOpen(false)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      setOpen(false)
+      return
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setHighlighted((i) => Math.min(i + 1, filtered.length - 1))
+      return
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setHighlighted((i) => Math.max(i - 1, 0))
+      return
+    }
+    if (e.key === "Enter") {
+      e.preventDefault()
+      // Selecciona la opción resaltada (por default la primera de la lista).
+      commit(filtered[highlighted] ?? filtered[0])
+    }
+  }
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -92,27 +135,24 @@ export function Combobox({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={searchPlaceholder}
                 className="w-full rounded-sm border border-input pl-7 pr-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setOpen(false)
-                }}
+                onKeyDown={handleKeyDown}
               />
             </div>
           </div>
-          <div className="overflow-y-auto p-1">
+          <div ref={listRef} className="overflow-y-auto p-1">
             {filtered.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-3">{emptyMessage}</p>
             ) : (
-              filtered.map((o) => (
+              filtered.map((o, i) => (
                 <button
                   key={o.value}
                   type="button"
-                  onClick={() => {
-                    onChange(o.value)
-                    setOpen(false)
-                  }}
+                  onClick={() => commit(o)}
+                  onMouseEnter={() => setHighlighted(i)}
                   className={cn(
-                    "w-full text-left rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
-                    value === o.value && "bg-accent/50 font-medium"
+                    "w-full text-left rounded-sm px-2 py-1.5 text-sm",
+                    i === highlighted && "bg-accent text-accent-foreground",
+                    value === o.value && "font-medium"
                   )}
                 >
                   {o.label}

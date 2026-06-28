@@ -24,10 +24,14 @@ export default function FuncionalidadesPage() {
 
   const mutation = useMutation({
     mutationFn: (body: { clave: string; habilitada: boolean }) =>
-      apiClient.put<FuncionalidadGlobal>("/api/licenciamiento/funcionalidades", body),
-    onSuccess: (res) => {
+      apiClient.put("/api/licenciamiento/funcionalidades", body),
+    // El PUT responde con envelope ({ data, message }); en vez de leer la respuesta
+    // actualizamos la cache con lo que mandamos (clave/habilitada de las variables).
+    onSuccess: (_res, variables) => {
       qc.setQueryData<FuncionalidadGlobal[]>(["licenciamiento", "funcionalidades"], (prev) =>
-        prev?.map((f) => (f.clave === res.clave ? { ...f, habilitada: res.habilitada } : f)),
+        prev?.map((f) =>
+          f.clave === variables.clave ? { ...f, habilitada: variables.habilitada } : f,
+        ),
       )
     },
   })
