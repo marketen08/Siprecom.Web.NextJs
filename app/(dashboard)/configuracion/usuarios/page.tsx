@@ -9,6 +9,7 @@ import {
 import { Search, UserPlus } from "lucide-react"
 
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
+import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { EditUsuarioSheet } from "@/features/usuarios/components/edit-usuario-sheet"
 import { NewUsuarioSheet } from "@/features/usuarios/components/new-usuario-sheet"
 import { columns } from "./columns"
@@ -34,12 +35,37 @@ import {
 
 type EstadoFiltro = "todos" | "activos" | "baja"
 
+const ESTADO_LABELS: Record<EstadoFiltro, string> = {
+  activos: "Activos",
+  baja: "Dados de baja",
+  todos: "Todos",
+}
+
+const ALL = "__all__"
+
+// Roles globales, alineados con lib/roles.ts (SuperAdmin > Admin > Supervisor > User).
+const ROLES: { value: string; label: string }[] = [
+  { value: "SuperAdmin", label: "SuperAdmin" },
+  { value: "Admin", label: "Admin" },
+  { value: "Supervisor", label: "Supervisor" },
+  { value: "User", label: "User" },
+]
+
 export default function UsuariosPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos")
+  const [clienteId, setClienteId] = useState<string>(ALL)
+  const [rol, setRol] = useState<string>(ALL)
   const pageSize = 10
+
+  // Empresa: clientes + contratistas (estos con badge en el label).
+  const { data: empresasData } = useGetClientesSelect()
+  const empresas = [
+    ...(empresasData?.contratistas ?? []).map((c) => ({ id: c.id, nombre: `${c.nombre} (contratista)` })),
+    ...(empresasData?.clientes ?? []).map((c) => ({ id: c.id, nombre: c.nombre })),
+  ]
 
   // "activos" → isLocked: false, "baja" → true, "todos" → undefined
   const isLockedParam = estadoFiltro === "activos" ? false
@@ -51,6 +77,8 @@ export default function UsuariosPage() {
     pageSize,
     nombre: search || undefined,
     isLocked: isLockedParam,
+    clienteId: clienteId === ALL ? undefined : clienteId,
+    rol: rol === ALL ? undefined : rol,
   })
 
   const table = useReactTable({
@@ -83,15 +111,49 @@ export default function UsuariosPage() {
           </div>
           <Select
             value={estadoFiltro}
-            onValueChange={(v) => { setEstadoFiltro(v as EstadoFiltro); setPage(1) }}
+            onValueChange={(v) => { setEstadoFiltro((v ?? "activos") as EstadoFiltro); setPage(1) }}
           >
             <SelectTrigger className="w-40">
-              <SelectValue />
+              <SelectValue>{ESTADO_LABELS[estadoFiltro]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="activos">Activos</SelectItem>
               <SelectItem value="baja">Dados de baja</SelectItem>
               <SelectItem value="todos">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={clienteId}
+            onValueChange={(v) => { setClienteId(v ?? ALL); setPage(1) }}
+          >
+            <SelectTrigger className="w-52">
+              <SelectValue>
+                {clienteId === ALL
+                  ? "Todas las empresas"
+                  : empresas.find((e) => e.id === clienteId)?.nombre ?? "Empresa"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas las empresas</SelectItem>
+              {empresas.map((e) => (
+                <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={rol}
+            onValueChange={(v) => { setRol(v ?? ALL); setPage(1) }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue>
+                {rol === ALL ? "Todos los roles" : ROLES.find((r) => r.value === rol)?.label ?? "Rol"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los roles</SelectItem>
+              {ROLES.map((r) => (
+                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button onClick={() => setNewOpen(true)} className="gap-1.5 ml-auto">

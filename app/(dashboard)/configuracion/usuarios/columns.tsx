@@ -48,11 +48,23 @@ export const columns: ColumnDef<Usuario>[] = [
     ),
   },
   {
-    accessorKey: "userName",
-    header: "Usuario",
+    accessorKey: "clienteNombre",
+    header: "Empresa",
     cell: ({ row }) => (
-      <span className="text-sm font-mono text-muted-foreground">{row.original.userName}</span>
+      <span className="text-sm text-muted-foreground">{row.original.clienteNombre || "—"}</span>
     ),
+  },
+  {
+    accessorKey: "roles",
+    header: "Rol",
+    cell: ({ row }) => {
+      const roles = row.original.roles ?? []
+      return (
+        <span className="text-sm text-muted-foreground">
+          {roles.length > 0 ? roles.join(", ") : "—"}
+        </span>
+      )
+    },
   },
   {
     id: "actions",
