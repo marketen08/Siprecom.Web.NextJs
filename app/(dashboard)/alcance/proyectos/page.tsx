@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   useReactTable,
   getCoreRowModel,
@@ -14,8 +15,8 @@ import { NewProyectoSheet } from "@/features/proyectos/components/new-proyecto-s
 import { EditProyectoSheet } from "@/features/proyectos/components/edit-proyecto-sheet"
 import { CrearProyectoDesdeIfcSheet } from "@/features/modelo-3d/components/crear-proyecto-desde-ifc-sheet"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
-import { ESTADO_PROYECTO } from "@/features/proyectos/types"
-import { columns } from "./columns"
+import { ESTADO_PROYECTO, type Proyecto } from "@/features/proyectos/types"
+import { columns, EstadoBadge, RowActions } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
@@ -128,7 +129,7 @@ export default function ProyectosPage() {
       <div className="space-y-4">
         {/* Buscador + Nuevo + Filtros */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative w-80">
+          <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nombre..."
@@ -138,19 +139,21 @@ export default function ProyectosPage() {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Button onClick={() => setOpenCrearDesdeIfc(true)} variant="outline" className="gap-2">
-              <Box className="h-4 w-4" />
-              Crear desde IFC o NWD
-            </Button>
-            <Button onClick={open} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nuevo proyecto
-            </Button>
             <FiltersTrigger
               open={filtersOpen}
               onOpenChange={setFiltersOpen}
               activeCount={activeFilters.length}
             />
+            <Button onClick={() => setOpenCrearDesdeIfc(true)} variant="outline" className="gap-2">
+              <Box className="h-4 w-4" />
+              <span className="hidden sm:inline">Crear desde IFC o NWD</span>
+              <span className="sm:hidden">IFC/NWD</span>
+            </Button>
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nuevo proyecto</span>
+              <span className="sm:hidden">Nuevo</span>
+            </Button>
           </div>
         </div>
 
@@ -228,8 +231,43 @@ export default function ProyectosPage() {
           </FilterField>
         </FiltersSheet>
 
-        {/* Tabla */}
-        <DataTableWrapper isFetching={isFetching && !isLoading}>
+        {/* Cards (solo mobile) */}
+        <div className="md:hidden space-y-2">
+          {isLoading ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              Cargando...
+            </div>
+          ) : (data?.data ?? []).length === 0 ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              No se encontraron proyectos.
+            </div>
+          ) : (
+            (data?.data ?? []).map((p: Proyecto) => (
+              <div key={p.id} className="rounded-lg border bg-white p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/alcance/proyectos/${p.id}`} className="min-w-0 flex-1">
+                    <p className="font-medium text-blue-700 truncate">{p.nombre}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {p.clienteNombre ?? "—"}
+                      {p.contratistaNombre ? ` · ${p.contratistaNombre}` : ""}
+                    </p>
+                  </Link>
+                  <EstadoBadge estado={p.estado} />
+                </div>
+                {p.observaciones && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{p.observaciones}</p>
+                )}
+                <div className="flex justify-end border-t pt-2">
+                  <RowActions proyecto={p} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Tabla (solo desktop) */}
+        <div className="hidden md:block">
+          <DataTableWrapper isFetching={isFetching && !isLoading}>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -270,7 +308,8 @@ export default function ProyectosPage() {
               )}
             </TableBody>
           </Table>
-        </DataTableWrapper>
+          </DataTableWrapper>
+        </div>
 
         {/* Total + Paginación */}
         <div className="flex items-center justify-between text-sm text-muted-foreground">

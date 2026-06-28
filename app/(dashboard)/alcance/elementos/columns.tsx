@@ -10,14 +10,14 @@ import { useDeleteElemento } from "@/features/elementos/api/use-delete-elemento"
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
-const PRIORIDAD_COLOR: Record<number, string> = {
+export const PRIORIDAD_COLOR: Record<number, string> = {
   1: "text-green-600",
   2: "text-blue-600",
   3: "text-orange-500",
   4: "text-red-600",
 }
 
-function RowActions({ elemento }: { elemento: Elemento }) {
+export function RowActions({ elemento }: { elemento: Elemento }) {
   const { open } = useOpenElemento()
   const deleteMutation = useDeleteElemento()
 

@@ -101,14 +101,16 @@ function ProyectoDetailContent() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-0">
+      {/* Tabs — scrollables en horizontal cuando no entran (mobile). overflow-y-hidden
+          evita el scroll vertical fantasma: poner overflow-x:auto fuerza overflow-y a
+          'auto', y el -mb-px de los botones alcanza para disparar 1px de scroll. */}
+      <div className="border-b border-gray-200 overflow-x-auto overflow-y-hidden">
+        <nav className="flex gap-0 w-max min-w-full">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 tab === t.id
                   ? "border-blue-600 text-blue-700"
                   : "border-transparent text-gray-500 hover:text-gray-700"
@@ -205,7 +207,7 @@ function FechaEstimadaFinSection({ proyectoId }: { proyectoId: string }) {
           {resumen.porNivel.length > 0 && (
             <>
               <Separator />
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 overflow-x-auto">
                 <p className="text-xs font-medium text-gray-700">Por nivel</p>
                 <table className="w-full text-xs">
                   <thead>
@@ -516,7 +518,9 @@ function UsuarioCombobox({
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const { data, isFetching } = useGetUsuarios({ nombre: search || undefined, pageSize: 10, page: 1 })
+  // isLocked: false → excluye usuarios dados de baja (bloqueados): no deben poder
+  // agregarse a un proyecto.
+  const { data, isFetching } = useGetUsuarios({ nombre: search || undefined, pageSize: 10, page: 1, isLocked: false })
   const resultados = (data as any)?.data ?? []
 
   useEffect(() => {
@@ -609,7 +613,8 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
   const { data: asignacionesRaw } = useGetUsuariosRoles(proyectoId)
   const asignar = useAsignarUsuarioRol(proyectoId)
   const eliminarRol = useDeleteUsuarioRol(proyectoId)
-  const { data: usuariosRaw } = useGetUsuarios({ pageSize: 200 })
+  // isLocked: false → excluye usuarios dados de baja: no deben poder asignarse a un rol de firma.
+  const { data: usuariosRaw } = useGetUsuarios({ pageSize: 200, isLocked: false })
 
   const asignaciones = asignacionesRaw?.data ?? []
   const usuarios = usuariosRaw?.data ?? []
@@ -770,7 +775,7 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
             </div>
 
             {/* Campos */}
-            <div className="flex-1 grid grid-cols-2 gap-2">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Rol *</label>
                 <Input
@@ -791,7 +796,7 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
               </div>
 
               {/* Obligatorio */}
-              <div className="col-span-2 flex items-center justify-between pt-1">
+              <div className="sm:col-span-2 flex items-center justify-between pt-1">
                 <div className="flex items-center gap-2">
                   <Toggle
                     checked={slot.esObligatorio}
@@ -937,26 +942,28 @@ function UsuariosRolesSection({
         })}
       </div>
 
-      {/* Formulario para agregar asignación */}
-      <div className="flex items-end gap-2 flex-wrap">
-        <div className="space-y-2">
+      {/* Formulario para agregar asignación. En mobile se apila a ancho completo;
+          en desktop queda en fila. Los <select> nativos llevan w-full + min-w-0
+          para no desbordar la pantalla cuando un nombre de usuario es largo. */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+        <div className="space-y-2 w-full sm:w-auto">
           <label className="block text-xs font-medium text-gray-600">Rol</label>
           <select
             value={rolSeleccionado}
             onChange={(e) => setRolSeleccionado(e.target.value)}
-            className="h-8 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="h-8 w-full sm:w-44 min-w-0 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Seleccionar rol...</option>
             {roles.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 w-full sm:w-auto">
           <label className="block text-xs font-medium text-gray-600">Usuario</label>
           <select
             value={userSeleccionado}
             onChange={(e) => setUserSeleccionado(e.target.value)}
-            className="h-8 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="h-8 w-full sm:w-52 min-w-0 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Seleccionar usuario...</option>
             {usuarios.map((u) => (
@@ -969,7 +976,7 @@ function UsuariosRolesSection({
           type="button"
           size="sm"
           variant="outline"
-          className="gap-1.5 self-end"
+          className="gap-1.5 w-full sm:w-auto sm:self-end"
           onClick={handleAsignar}
           disabled={!rolSeleccionado || !userSeleccionado || isAsignando}
         >
