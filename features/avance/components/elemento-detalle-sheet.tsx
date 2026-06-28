@@ -71,6 +71,9 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
   // Adjuntos: el sheet sólo conoce el flag del proyecto. La planilla puede vetar igual,
   // pero eso lo valida el backend al hacer POST (sale como mensaje de error inline).
   const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
+  // Descarga de procedimientos: gateada por la config del proyecto. Default false
+  // (conservador) hasta que carga el proyecto, así no ofrecemos algo no permitido.
+  const permitirDescargarProcedimientos = proyecto?.permitirDescargarProcedimientos ?? false
 
   async function handleIniciar(tarea: ElementoTarea) {
     const result = await iniciarMutation.mutateAsync(tarea.id) as any
@@ -193,6 +196,7 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                         permitirDigital={permitirDigital}
                         fisicoPreFirmado={fisicoPreFirmado}
                         permiteAdjuntosProyecto={permiteAdjuntosProyecto}
+                        permitirDescargarProcedimientos={permitirDescargarProcedimientos}
                       />
                     ))}
                   </div>
@@ -220,6 +224,7 @@ function TareaCard({
   permitirDigital,
   fisicoPreFirmado,
   permiteAdjuntosProyecto,
+  permitirDescargarProcedimientos,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
@@ -232,6 +237,7 @@ function TareaCard({
   permitirDigital: boolean
   fisicoPreFirmado: boolean
   permiteAdjuntosProyecto: boolean
+  permitirDescargarProcedimientos: boolean
 }) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
@@ -294,6 +300,7 @@ function TareaCard({
     puedeAdjuntar,
     adjuntandoPending: uploadAdjunto.isPending,
     descargandoProcedimientoPending: downloadProcedimiento.isPending,
+    permitirDescargarProcedimientos,
   })
 
   const busy = isIniciando || uploadAdjunto.isPending || downloadProcedimiento.isPending
@@ -478,6 +485,7 @@ function buildTareaMenuItems({
   adjuntandoPending,
   onDescargarProcedimiento,
   descargandoProcedimientoPending,
+  permitirDescargarProcedimientos,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
@@ -496,6 +504,7 @@ function buildTareaMenuItems({
   puedeAdjuntar: boolean
   adjuntandoPending: boolean
   descargandoProcedimientoPending: boolean
+  permitirDescargarProcedimientos: boolean
 }): MenuItem[] {
   const items: MenuItem[] = []
   // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
@@ -598,10 +607,11 @@ function buildTareaMenuItems({
       break
   }
 
-  // Descargar procedimiento — disponible cuando la tarea tiene un procedimiento asignado y
-  // ese procedimiento tiene archivo cargado. El backend valida que el usuario tenga acceso
-  // al proyecto (rol asignado) antes de devolver el SAS URL.
-  if (tarea.procedimientoId && tarea.procedimientoTieneArchivo) {
+  // Descargar procedimiento — disponible cuando: el proyecto habilita la descarga de
+  // procedimientos, la tarea tiene un procedimiento asignado y ese procedimiento tiene
+  // archivo cargado. El backend valida que el usuario tenga acceso al proyecto (rol
+  // asignado) antes de devolver el SAS URL.
+  if (permitirDescargarProcedimientos && tarea.procedimientoId && tarea.procedimientoTieneArchivo) {
     items.push({
       kind: "item",
       label: "Descargar procedimiento",
