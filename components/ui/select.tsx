@@ -6,7 +6,17 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+// modal={false} por defecto: un Select modal bloquea el scroll del body y compensa
+// el scrollbar. Cuando el Select vive dentro de un Sheet/Dialog (que YA bloquea el
+// scroll), ese segundo lock corre el panel fixed hacia un costado hasta acomodarse
+// tras varios intentos. Sin modal, el dropdown se comporta como un select común
+// (se reposiciona/cierra al hacer scroll). Se puede sobreescribir pasando modal.
+// El wrapper es genérico para preservar la inferencia del tipo del value (onValueChange).
+function Select<Value, Multiple extends boolean | undefined = false>(
+  props: SelectPrimitive.Root.Props<Value, Multiple>,
+) {
+  return <SelectPrimitive.Root modal={false} {...props} />
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -87,6 +97,11 @@ function SelectContent({
         align={align}
         alignOffset={alignOffset}
         alignItemWithTrigger={alignItemWithTrigger}
+        // position: fixed (no 'absolute', el default): así el popup se ancla al
+        // viewport y NO extiende el alto del documento. Con absolute, el popup
+        // portaleado al body agranda la página y genera un scroll vertical fantasma
+        // (sin contenido), sobre todo dentro de un Sheet alto en mobile.
+        positionMethod="fixed"
         className="isolate z-50"
       >
         <SelectPrimitive.Popup

@@ -147,7 +147,7 @@ export default function PendientesPage() {
       <div className="space-y-4">
         {/* Buscador + acciones */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative w-80">
+          <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por código (P-001), descripción o TAG..."
@@ -157,15 +157,16 @@ export default function PendientesPage() {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Button onClick={() => openNew()} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nuevo pendiente
-            </Button>
             <FiltersTrigger
               open={filtersOpen}
               onOpenChange={setFiltersOpen}
               activeCount={activeFilters.length}
             />
+            <Button onClick={() => openNew()} className="gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nuevo pendiente</span>
+              <span className="sm:hidden">Nuevo</span>
+            </Button>
           </div>
         </div>
 
@@ -309,8 +310,60 @@ export default function PendientesPage() {
           </FilterField>
         </FiltersSheet>
 
-        {/* Tabla */}
-        <div className="rounded-lg border bg-white overflow-hidden">
+        {/* Cards (solo mobile) */}
+        <div className="md:hidden space-y-2">
+          {isLoading ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              Cargando...
+            </div>
+          ) : items.length === 0 ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              No hay pendientes que coincidan con los filtros.
+            </div>
+          ) : (
+            items.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-lg border bg-white p-3 space-y-2 active:bg-blue-50 transition-colors cursor-pointer"
+                onClick={() => openDetalle(p.id)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-xs text-blue-700">{p.codigoFormateado}</p>
+                    <p className="text-sm font-medium line-clamp-2">{p.descripcion}</p>
+                    {(p.subSistemaNombre || p.subSistemaCodigo) && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {p.subSistemaNombre ?? p.subSistemaCodigo}
+                      </p>
+                    )}
+                    {p.elementoTag && (
+                      <p className="text-xs text-muted-foreground truncate font-mono">{p.elementoTag}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
+                      {ESTADO_LABEL[p.estadoNombre ?? ""] ?? p.estadoNombre}
+                    </span>
+                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
+                      {PRIORIDAD[p.prioridad]}
+                    </span>
+                  </div>
+                </div>
+                {(p.responsableNombre || p.fechaCierreEstimado) && (
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground border-t pt-2">
+                    <span className="truncate">{p.responsableNombre || "Sin responsable"}</span>
+                    {p.fechaCierreEstimado && (
+                      <span className="font-mono shrink-0">{p.fechaCierreEstimado}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Tabla (solo desktop) */}
+        <div className="hidden md:block rounded-lg border bg-white overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>

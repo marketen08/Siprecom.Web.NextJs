@@ -9,6 +9,8 @@ export interface ProyectoOpcion {
   permitirRegistroFisico: boolean
   permitirRegistroDigital: boolean
   registrosFisicosPreFirmados: boolean
+  /** Maqueta 3D efectiva (global AND proyecto) para este proyecto. */
+  maqueta3d: boolean
 }
 
 export function useGetMisProyectos() {

@@ -16,6 +16,7 @@ import { PRIORIDAD } from "../types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Combobox } from "@/components/ui/combobox"
@@ -139,7 +140,7 @@ export function PendienteForm({
             )}
           />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField
               control={form.control}
               name="categoriaId"
@@ -191,7 +192,7 @@ export function PendienteForm({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField
               control={form.control}
               name="prioridad"
@@ -270,9 +271,9 @@ export function PendienteForm({
             Localización (opcional)
           </p>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <FormLabel>Sistema</FormLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-2 content-start">
+              <Label>Sistema</Label>
               <Select value={sistemaId || NONE} onValueChange={(v) => { const value = v ?? NONE; setSistemaId(value === NONE ? "" : value) }}>
                 <SelectTrigger>
                   <SelectValue>
@@ -344,7 +345,7 @@ export function PendienteForm({
             )}
           />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField
               control={form.control}
               name="especialidadId"

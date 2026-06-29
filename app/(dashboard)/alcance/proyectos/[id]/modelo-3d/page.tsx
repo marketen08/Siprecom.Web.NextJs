@@ -224,6 +224,20 @@ function ModeloPageContent() {
     setActualId(archivo.id)
   }
 
+  // Maqueta 3D deshabilitada (global o por proyecto). Guard para deep-links: el
+  // botón de acceso ya se oculta, pero la URL es accesible directamente.
+  if (proyecto && proyecto.funcionalidadesEfectivas?.MAQUETA_3D === false) {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <Box className="mx-auto h-10 w-10 text-gray-300" />
+        <h1 className="mt-3 text-lg font-semibold text-gray-900">Maqueta 3D deshabilitada</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          La funcionalidad de modelo 3D no está habilitada para este proyecto.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">

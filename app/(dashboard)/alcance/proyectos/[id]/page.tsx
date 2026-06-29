@@ -13,6 +13,10 @@ import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
+import {
+  useGetFuncionalidadesProyecto,
+  useSetFuncionalidadProyecto,
+} from "@/features/proyectos/api/use-funcionalidades-proyecto"
 import { useGetFirmasConfig } from "@/features/proyectos/api/use-get-firmas-config"
 import { useSaveFirmasConfig } from "@/features/proyectos/api/use-save-firmas-config"
 import { useGetFirmasPendientes } from "@/features/proyectos/api/use-get-firmas-pendientes"
@@ -85,24 +89,28 @@ function ProyectoDetailContent() {
     <div className="space-y-6 max-w-3xl">
 
       {/* Acciones */}
-      <div className="flex items-center justify-end">
-        <Link
-          href={`/alcance/proyectos/${id}/modelo-3d`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
-        >
-          <Box className="h-4 w-4" />
-          Modelo 3D
-        </Link>
-      </div>
+      {proyecto.funcionalidadesEfectivas?.MAQUETA_3D !== false && (
+        <div className="flex items-center justify-end">
+          <Link
+            href={`/alcance/proyectos/${id}/modelo-3d`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+          >
+            <Box className="h-4 w-4" />
+            Modelo 3D
+          </Link>
+        </div>
+      )}
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-0">
+      {/* Tabs — scrollables en horizontal cuando no entran (mobile). overflow-y-hidden
+          evita el scroll vertical fantasma: poner overflow-x:auto fuerza overflow-y a
+          'auto', y el -mb-px de los botones alcanza para disparar 1px de scroll. */}
+      <div className="border-b border-gray-200 overflow-x-auto overflow-y-hidden">
+        <nav className="flex gap-0 w-max min-w-full">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 tab === t.id
                   ? "border-blue-600 text-blue-700"
                   : "border-transparent text-gray-500 hover:text-gray-700"
@@ -199,7 +207,7 @@ function FechaEstimadaFinSection({ proyectoId }: { proyectoId: string }) {
           {resumen.porNivel.length > 0 && (
             <>
               <Separator />
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 overflow-x-auto">
                 <p className="text-xs font-medium text-gray-700">Por nivel</p>
                 <table className="w-full text-xs">
                   <thead>
@@ -271,25 +279,13 @@ const FLAGS: {
     descripcion: "Permite registrar avance de tareas sin completar un registro asociado.",
   },
   {
-    campo: "PermitirDescargarPlanillas",
-    label: "Descarga de planillas",
-    descripcion: "Habilita la descarga de planillas en blanco en formato PDF.",
-  },
-  {
     campo: "PermitirDescargarProcedimientos",
     label: "Descarga de procedimientos",
     descripcion: "Habilita la descarga de documentos de procedimientos.",
   },
-  {
-    campo: "PermitirDescargarRegistros",
-    label: "Descarga de registros",
-    descripcion: "Permite descargar los registros completados en PDF.",
-  },
-  {
-    campo: "PermitirTestFuncional",
-    label: "Test funcional",
-    descripcion: "Habilita la funcionalidad de test funcional para el proyecto.",
-  },
+  // Nota: PermitirDescargarPlanillas, PermitirDescargarRegistros y PermitirTestFuncional
+  // existen en la entidad/DTO pero no gatean ningún comportamiento todavía, así que no se
+  // muestran acá. La columna se conserva en la DB por si se reactivan.
 ]
 
 const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
@@ -299,10 +295,7 @@ const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermiteAdjuntos:                 "permiteAdjuntos",
   NivelesSecuenciales:             "nivelesSecuenciales",
   PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
-  PermitirDescargarPlanillas:      "permitirDescargarPlanillas",
   PermitirDescargarProcedimientos: "permitirDescargarProcedimientos",
-  PermitirDescargarRegistros:      "permitirDescargarRegistros",
-  PermitirTestFuncional:           "permitirTestFuncional",
 }
 
 function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
@@ -358,6 +351,62 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
               <Toggle
                 checked={localFlags[flag.campo]}
                 onChange={(v) => handleToggle(flag.campo, v)}
+                disabled={disabled}
+              />
+            </div>
+          </div>
+        )
+      })}
+
+      <FuncionalidadesProyecto proyectoId={proyecto.id} />
+    </div>
+  )
+}
+
+// ─── Funcionalidades (feature flags por proyecto) ─────────────────────────────
+
+function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
+  const { data, isLoading } = useGetFuncionalidadesProyecto(proyectoId)
+  const setFuncionalidad = useSetFuncionalidadProyecto(proyectoId)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  async function handleToggle(clave: string, habilitada: boolean) {
+    setSaving(clave)
+    try {
+      await setFuncionalidad.mutateAsync({ clave, habilitada })
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  if (isLoading || !data || data.length === 0) return null
+
+  return (
+    <div className="space-y-3 pt-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funcionalidades</p>
+      {data.map((f) => {
+        // Si el SuperAdmin la apagó globalmente, no se puede activar por proyecto.
+        const bloqueadaGlobal = !f.habilitadaGlobal
+        const disabled = saving !== null || bloqueadaGlobal
+        return (
+          <div
+            key={f.clave}
+            className={`flex items-center justify-between gap-4 rounded-lg border bg-white p-4 ${bloqueadaGlobal ? "opacity-60" : ""}`}
+          >
+            <div className="space-y-0.5 min-w-0">
+              <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
+              <p className="text-xs text-muted-foreground">{f.descripcion}</p>
+              {bloqueadaGlobal && (
+                <p className="text-xs text-amber-600">
+                  Deshabilitada globalmente por el administrador del sistema.
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              {saving === f.clave && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+              <Toggle
+                checked={f.habilitadaProyecto}
+                onChange={(v) => handleToggle(f.clave, v)}
                 disabled={disabled}
               />
             </div>
@@ -454,7 +503,9 @@ function UsuarioCombobox({
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const { data, isFetching } = useGetUsuarios({ nombre: search || undefined, pageSize: 10, page: 1 })
+  // isLocked: false → excluye usuarios dados de baja (bloqueados): no deben poder
+  // agregarse a un proyecto.
+  const { data, isFetching } = useGetUsuarios({ nombre: search || undefined, pageSize: 10, page: 1, isLocked: false })
   const resultados = (data as any)?.data ?? []
 
   useEffect(() => {
@@ -547,7 +598,8 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
   const { data: asignacionesRaw } = useGetUsuariosRoles(proyectoId)
   const asignar = useAsignarUsuarioRol(proyectoId)
   const eliminarRol = useDeleteUsuarioRol(proyectoId)
-  const { data: usuariosRaw } = useGetUsuarios({ pageSize: 200 })
+  // isLocked: false → excluye usuarios dados de baja: no deben poder asignarse a un rol de firma.
+  const { data: usuariosRaw } = useGetUsuarios({ pageSize: 200, isLocked: false })
 
   const asignaciones = asignacionesRaw?.data ?? []
   const usuarios = usuariosRaw?.data ?? []
@@ -708,7 +760,7 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
             </div>
 
             {/* Campos */}
-            <div className="flex-1 grid grid-cols-2 gap-2">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Rol *</label>
                 <Input
@@ -729,7 +781,7 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
               </div>
 
               {/* Obligatorio */}
-              <div className="col-span-2 flex items-center justify-between pt-1">
+              <div className="sm:col-span-2 flex items-center justify-between pt-1">
                 <div className="flex items-center gap-2">
                   <Toggle
                     checked={slot.esObligatorio}
@@ -875,26 +927,28 @@ function UsuariosRolesSection({
         })}
       </div>
 
-      {/* Formulario para agregar asignación */}
-      <div className="flex items-end gap-2 flex-wrap">
-        <div className="space-y-2">
+      {/* Formulario para agregar asignación. En mobile se apila a ancho completo;
+          en desktop queda en fila. Los <select> nativos llevan w-full + min-w-0
+          para no desbordar la pantalla cuando un nombre de usuario es largo. */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+        <div className="space-y-2 w-full sm:w-auto">
           <label className="block text-xs font-medium text-gray-600">Rol</label>
           <select
             value={rolSeleccionado}
             onChange={(e) => setRolSeleccionado(e.target.value)}
-            className="h-8 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="h-8 w-full sm:w-44 min-w-0 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Seleccionar rol...</option>
             {roles.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 w-full sm:w-auto">
           <label className="block text-xs font-medium text-gray-600">Usuario</label>
           <select
             value={userSeleccionado}
             onChange={(e) => setUserSeleccionado(e.target.value)}
-            className="h-8 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="h-8 w-full sm:w-52 min-w-0 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Seleccionar usuario...</option>
             {usuarios.map((u) => (
@@ -907,7 +961,7 @@ function UsuariosRolesSection({
           type="button"
           size="sm"
           variant="outline"
-          className="gap-1.5 self-end"
+          className="gap-1.5 w-full sm:w-auto sm:self-end"
           onClick={handleAsignar}
           disabled={!rolSeleccionado || !userSeleccionado || isAsignando}
         >

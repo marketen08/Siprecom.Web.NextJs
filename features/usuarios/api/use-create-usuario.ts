@@ -8,6 +8,8 @@ export interface CreateUsuarioInput {
   nombre?: string
   apellido?: string
   proyectoId?: string
+  /** Empresa (cliente o contratista) a la que pertenece. Obligatorio. */
+  clienteId: string
 }
 
 export function useCreateUsuario() {

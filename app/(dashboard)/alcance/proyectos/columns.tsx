@@ -23,7 +23,18 @@ const ESTADO_COLORS: Record<number, string> = {
   7: "bg-slate-100 text-slate-600",
 }
 
-function RowActions({ proyecto }: { proyecto: Proyecto }) {
+/** Badge de estado del proyecto. Reutilizado por la tabla (desktop) y las cards (mobile). */
+export function EstadoBadge({ estado }: { estado: number }) {
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ESTADO_COLORS[estado] ?? ""}`}
+    >
+      {ESTADO_PROYECTO[estado as keyof typeof ESTADO_PROYECTO] ?? estado}
+    </span>
+  )
+}
+
+export function RowActions({ proyecto }: { proyecto: Proyecto }) {
   const { open } = useOpenProyecto()
   const deleteMutation = useDeleteProyecto()
 
@@ -72,16 +83,7 @@ export const columns: ColumnDef<Proyecto>[] = [
   {
     accessorKey: "estado",
     header: "Estado",
-    cell: ({ row }) => {
-      const estado = row.original.estado
-      return (
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ESTADO_COLORS[estado] ?? ""}`}
-        >
-          {ESTADO_PROYECTO[estado] ?? estado}
-        </span>
-      )
-    },
+    cell: ({ row }) => <EstadoBadge estado={row.original.estado} />,
   },
   {
     accessorKey: "clienteNombre",

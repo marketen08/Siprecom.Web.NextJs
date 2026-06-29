@@ -1,180 +1,235 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Loader2, Download, Upload, AlertTriangle, CheckCircle2, Tags } from "lucide-react"
+import {
+  AlertCircle, CheckCircle2, Download, FileSpreadsheet, Loader2, Play, Tags, Upload,
+} from "lucide-react"
 
-import { Card } from "@/components/ui/card"
+import {
+  descargarPlantillaCatalogos,
+  useImportCatalogosExcelApply,
+  useImportCatalogosExcelPreview,
+  type ImportCatalogosPreview,
+} from "@/features/catalogos/api/use-import-catalogos-excel"
+import type { ImportEntidadResumen } from "@/features/importacion/types"
+
 import { Button } from "@/components/ui/button"
 import {
-  exportarCatalogos,
-  parseFileJson,
-  useImportCatalogosPreview,
-  useImportCatalogosApply,
-  type CatalogoModo,
-} from "@/features/catalogos/api/use-import-export"
-
-const MODOS: { value: CatalogoModo; label: string; help: string }[] = [
-  { value: "omitir", label: "Omitir los que ya existen", help: "Saltea especialidades/tipos cuyo nombre ya existe." },
-  { value: "reemplazar", label: "Reemplazar los que ya existen", help: "Actualiza los datos del existente (conserva el vínculo con tareas/elementos)." },
-]
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from "@/components/ui/card"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table"
 
 export default function CatalogosExportImportPage() {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [data, setData] = useState<unknown | null>(null)
-  const [fileName, setFileName] = useState("")
-  const [parseError, setParseError] = useState<string | null>(null)
-  const [modo, setModo] = useState<CatalogoModo>("omitir")
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [preview, setPreview] = useState<ImportCatalogosPreview | null>(null)
+  const [applyMensaje, setApplyMensaje] = useState<string | null>(null)
+  const [errorGlobal, setErrorGlobal] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const previewMut = useImportCatalogosPreview()
-  const applyMut = useImportCatalogosApply()
-  const preview = previewMut.data?.data
-  const resultado = applyMut.data?.data
+  const previewMut = useImportCatalogosExcelPreview()
+  const applyMut = useImportCatalogosExcelApply()
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setFileName(file.name)
-    setParseError(null)
-    applyMut.reset()
-    previewMut.reset()
-    try {
-      const json = await parseFileJson<unknown>(file)
-      setData(json)
-      previewMut.mutate(json)
-    } catch (err) {
-      setData(null)
-      setParseError(err instanceof Error ? err.message : "Archivo inválido.")
-    }
+  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    setArchivo(e.target.files?.[0] ?? null)
+    setPreview(null)
+    setApplyMensaje(null)
+    setErrorGlobal(null)
   }
 
   function reset() {
-    setData(null)
-    setFileName("")
-    setParseError(null)
-    previewMut.reset()
-    applyMut.reset()
-    if (fileRef.current) fileRef.current.value = ""
+    setArchivo(null)
+    setPreview(null)
+    setApplyMensaje(null)
+    setErrorGlobal(null)
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
+  async function handlePreview() {
+    if (!archivo) return
+    setApplyMensaje(null)
+    setErrorGlobal(null)
+    try {
+      const resp = await previewMut.mutateAsync(archivo)
+      setPreview(resp.data)
+    } catch (e) {
+      setErrorGlobal((e as Error).message)
+    }
+  }
+
+  async function handleApply() {
+    if (!archivo) return
+    setApplyMensaje(null)
+    setErrorGlobal(null)
+    try {
+      const resp = await applyMut.mutateAsync(archivo)
+      setPreview(resp.data.preview)
+      setApplyMensaje(resp.data.mensaje)
+      if (resp.data.aplicado) {
+        setArchivo(null)
+        if (inputRef.current) inputRef.current.value = ""
+      }
+    } catch (e) {
+      setErrorGlobal((e as Error).message)
+    }
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="space-y-6 max-w-5xl">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
           <Tags className="h-6 w-6 text-blue-700" />
           Exportar / Importar tipos de elemento
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Incluye también las <strong>especialidades</strong> (de las que dependen los tipos). Catálogos
-          globales: migralos a otro ambiente antes de importar las tareas, que los referencian.
+        <p className="text-sm text-muted-foreground mt-1">
+          Catálogos globales en Excel: hoja <strong>Especialidades</strong> y hoja{" "}
+          <strong>TiposElemento</strong> (los tipos referencian su especialidad por nombre).
+          Soporta crear, modificar y eliminar en una sola operación, con una columna{" "}
+          <code className="text-xs">Accion</code> por fila.
         </p>
       </div>
 
-      <Card className="p-6 space-y-3">
-        <div>
-          <h2 className="font-semibold text-gray-800">Exportar todos</h2>
-          <p className="text-sm text-muted-foreground">Descarga un JSON con las especialidades y los tipos de elemento.</p>
-        </div>
-        <Button onClick={exportarCatalogos} className="gap-2">
-          <Download className="h-4 w-4" /> Exportar catálogos
-        </Button>
-      </Card>
-
-      <Card className="p-6 space-y-4">
-        <div>
-          <h2 className="font-semibold text-gray-800">Importar</h2>
-          <p className="text-sm text-muted-foreground">
-            Se matchean por <strong>nombre</strong>. Las especialidades se crean antes que los tipos.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input ref={fileRef} type="file" accept=".json,application/json" onChange={onFile} className="hidden" />
-          <Button variant="outline" className="gap-2" onClick={() => fileRef.current?.click()}>
-            <Upload className="h-4 w-4" /> Elegir archivo
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            Paso 1 — Descargar plantilla
+          </CardTitle>
+          <CardDescription>
+            Bajá un Excel con los catálogos actuales. Las filas vienen marcadas como SKIP.
+            Cambiá <code className="text-xs">Accion</code> a CREATE / UPDATE / DELETE según
+            corresponda. El match es por <strong>Nombre</strong> (case-insensitive).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" size="sm" onClick={descargarPlantillaCatalogos} className="gap-2">
+            <Download className="h-4 w-4" />
+            Descargar plantilla actual
           </Button>
-          {fileName && <span className="text-sm text-muted-foreground truncate">{fileName}</span>}
-          {(data || parseError) && (
-            <Button variant="ghost" size="sm" onClick={reset} className="ml-auto">Limpiar</Button>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-gray-600">Qué hacer con los que ya existen:</p>
-          <div className="space-y-1">
-            {MODOS.map((m) => (
-              <label key={m.value} className="flex items-start gap-2 cursor-pointer rounded-md px-1 py-0.5 hover:bg-gray-50">
-                <input type="radio" name="modo-cat" className="mt-0.5 h-4 w-4" checked={modo === m.value} onChange={() => setModo(m.value)} />
-                <span className="text-sm">
-                  <span className="font-medium">{m.label}</span>
-                  <span className="block text-[11px] text-muted-foreground">{m.help}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {parseError && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" /> <p>{parseError}</p>
-          </div>
-        )}
-
-        {previewMut.isPending && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="h-4 w-4 animate-spin" /> Validando…
-          </div>
-        )}
-
-        {preview && (
-          <div className="space-y-3">
-            <p className="text-sm">
-              Especialidades: <strong>{preview.especialidadesTotal}</strong> ({preview.especialidadesYaExisten} ya existen) ·
-              Tipos: <strong>{preview.tiposTotal}</strong> ({preview.tiposYaExisten} ya existen).
-            </p>
-            {preview.conflictos.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-destructive">Conflictos ({preview.conflictos.length}):</p>
-                <ul className="space-y-1 max-h-48 overflow-y-auto">
-                  {preview.conflictos.map((c, i) => (
-                    <li key={i} className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{c}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {!resultado && (
-              <div className="flex items-center gap-2">
-                <Button onClick={() => data && applyMut.mutate({ data, modo })} disabled={!preview.esAplicable || applyMut.isPending} className="gap-2">
-                  {applyMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  Importar catálogos
-                </Button>
-                {!preview.esAplicable && <span className="text-xs text-destructive">Resolvé los conflictos antes de importar.</span>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {applyMut.isError && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-            <p>No se pudo importar.{applyMut.error instanceof Error ? ` ${applyMut.error.message}` : ""}</p>
-          </div>
-        )}
-
-        {resultado && (
-          <div className="space-y-2">
-            <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" /> <p>{resultado.mensaje}</p>
-            </div>
-            {resultado.errores.length > 0 && (
-              <ul className="space-y-1 max-h-48 overflow-y-auto">
-                {resultado.errores.map((e, i) => (
-                  <li key={i} className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{e}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Paso 2 — Subir y previsualizar
+          </CardTitle>
+          <CardDescription>
+            Subí el archivo editado. Vas a ver el resumen de qué se va a crear, actualizar y eliminar,
+            y los errores si los hay. No se aplica nada hasta que confirmes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".xlsx"
+              onChange={onPickFile}
+              className="text-sm file:mr-3 file:rounded file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
+            />
+            {archivo && <Button variant="ghost" size="sm" onClick={reset}>Quitar</Button>}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={handlePreview} disabled={!archivo || previewMut.isPending} className="gap-2">
+              {previewMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              Previsualizar
+            </Button>
+          </div>
+
+          {errorGlobal && (
+            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{errorGlobal}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {preview && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Preview</CardTitle>
+            <CardDescription>Operaciones que se van a aplicar si confirmás.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+              <ResumenCard titulo="Especialidades" resumen={preview.especialidades} />
+              <ResumenCard titulo="Tipos de elemento" resumen={preview.tiposElemento} />
+            </div>
+
+            {preview.errores.length > 0 ? (
+              <div className="rounded-md border">
+                <div className="flex items-center gap-2 px-3 py-2 border-b bg-red-50">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <p className="text-sm font-medium text-red-700">
+                    {preview.errores.length} error{preview.errores.length !== 1 ? "es" : ""} —
+                    el archivo no se puede aplicar hasta que los corrijas.
+                  </p>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-32">Hoja</TableHead>
+                      <TableHead className="w-20">Fila</TableHead>
+                      <TableHead className="w-44">Columna</TableHead>
+                      <TableHead>Mensaje</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {preview.errores.map((e, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs">{e.hoja}</TableCell>
+                        <TableCell className="font-mono text-xs">{e.filaExcel}</TableCell>
+                        <TableCell className="font-mono text-xs">{e.columna ?? "—"}</TableCell>
+                        <TableCell className="text-sm">{e.mensaje}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-sm text-green-700 flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4" />
+                Sin errores. El archivo está listo para aplicar.
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <Button onClick={handleApply} disabled={!preview.esAplicable || applyMut.isPending || !archivo} className="gap-2">
+                {applyMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                Aplicar importación
+              </Button>
+              {!preview.esAplicable && preview.errores.length === 0 && (
+                <span className="text-xs text-muted-foreground">
+                  No hay operaciones a aplicar (todas las filas están en SKIP).
+                </span>
+              )}
+            </div>
+
+            {applyMensaje && (
+              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">{applyMensaje}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function ResumenCard({ titulo, resumen }: { titulo: string; resumen: ImportEntidadResumen }) {
+  return (
+    <div className="rounded-md border p-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</p>
+      <div className="mt-2 flex items-center gap-3 text-sm">
+        <span className="text-green-700">+{resumen.creates}</span>
+        <span className="text-blue-700">~{resumen.updates}</span>
+        <span className="text-red-700">−{resumen.deletes}</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">Total: {resumen.total}</p>
     </div>
   )
 }

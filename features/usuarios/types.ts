@@ -11,9 +11,13 @@ export interface Usuario {
   profileImageUrl?: string
   proyectoId?: string
   clienteId?: string
+  /** Nombre de la empresa (cliente o contratista). Viene en los listados. */
+  clienteNombre?: string
   sociedadId?: string
   terminalId?: string
   color?: string
+  /** Roles asignados al usuario. Viene en los listados. */
+  roles?: string[]
 }
 
 export interface UsuarioUpdateInput {

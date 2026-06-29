@@ -15,6 +15,12 @@ export type MenuItem = {
    * electrónicas que gestionar. Lo evalúa el Sidebar.
    */
   requiereFirmas?: boolean
+  /**
+   * Clave de funcionalidad (catálogo de feature flags) requerida para ver el
+   * item. Se oculta si la función no está efectivamente habilitada en el
+   * proyecto activo. Lo evalúa el Sidebar. Ej: "MAQUETA_3D".
+   */
+  requiereFuncionalidad?: string
 }
 
 export const menu: MenuItem[] = [
@@ -31,7 +37,7 @@ export const menu: MenuItem[] = [
       { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
       { label: "Avance por elementos",    href: "/ejecucion/elementos" },
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
-      { label: "Modelo 3D",               href: "/ejecucion/modelo-3d" },
+      { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
       { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true },
     ],
   },
@@ -123,6 +129,7 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Reporte de concurrencia", href: "/licenciamiento/concurrencia" },
       { label: "Licencias", href: "/licenciamiento/licencias" },
+      { label: "Funcionalidades", href: "/licenciamiento/funcionalidades" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
       { label: "Datos de muestra", href: "/licenciamiento/datos-muestra" },
       {
@@ -240,5 +247,6 @@ export const segmentLabels: Record<string, string> = {
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",
   licencias:               "Licencias",
+  funcionalidades:         "Funcionalidades",
   concurrencia:            "Reporte de concurrencia",
 }

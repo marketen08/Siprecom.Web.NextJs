@@ -18,8 +18,8 @@ import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-s
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
-import { PRIORIDAD } from "@/features/elementos/types"
-import { columns } from "./columns"
+import { PRIORIDAD, type Elemento } from "@/features/elementos/types"
+import { columns, RowActions, PRIORIDAD_COLOR } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
@@ -242,7 +242,7 @@ function ElementosPageContent() {
       <div className="space-y-4">
         {/* Buscador + Nuevo elemento + Filtros */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative w-80">
+          <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nombre, TAG, PID o Testpack..."
@@ -252,15 +252,16 @@ function ElementosPageContent() {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Button onClick={open} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nuevo elemento
-            </Button>
             <FiltersTrigger
               open={filtersOpen}
               onOpenChange={setFiltersOpen}
               activeCount={activeFilters.length}
             />
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nuevo elemento</span>
+              <span className="sm:hidden">Nuevo</span>
+            </Button>
           </div>
         </div>
 
@@ -365,8 +366,48 @@ function ElementosPageContent() {
           </FilterField>
         </FiltersSheet>
 
-        {/* Tabla */}
-        <DataTableWrapper isFetching={isFetching && !isLoading}>
+        {/* Cards (solo mobile) */}
+        <div className="md:hidden space-y-2">
+          {isLoading ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              Cargando...
+            </div>
+          ) : (data?.data ?? []).length === 0 ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              No se encontraron elementos.
+            </div>
+          ) : (
+            (data?.data ?? []).map((e: Elemento) => (
+              <div key={e.id} className="rounded-lg border bg-white p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-sm font-medium truncate">{e.tag}</p>
+                    <p className="text-sm truncate">{e.nombre}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {e.subSistemaCodigo ?? "—"}
+                      {e.elementoTipoNombre ? ` · ${e.elementoTipoNombre}` : ""}
+                    </p>
+                    {(e.pid || e.testpack) && (
+                      <p className="text-xs text-muted-foreground font-mono truncate">
+                        {e.pid ? `PID ${e.pid}` : ""}{e.pid && e.testpack ? " · " : ""}{e.testpack ? `TP ${e.testpack}` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <span className={`text-xs font-medium shrink-0 ${PRIORIDAD_COLOR[e.prioridad] ?? ""}`}>
+                    {e.prioridadTexto || "—"}
+                  </span>
+                </div>
+                <div className="flex justify-end border-t pt-2">
+                  <RowActions elemento={e} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Tabla (solo desktop) */}
+        <div className="hidden md:block">
+          <DataTableWrapper isFetching={isFetching && !isLoading}>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -407,7 +448,8 @@ function ElementosPageContent() {
               )}
             </TableBody>
           </Table>
-        </DataTableWrapper>
+          </DataTableWrapper>
+        </div>
 
         {/* Total + Paginación */}
         <div className="flex items-center justify-between text-sm text-muted-foreground">
