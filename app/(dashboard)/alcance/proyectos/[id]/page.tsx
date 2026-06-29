@@ -279,25 +279,13 @@ const FLAGS: {
     descripcion: "Permite registrar avance de tareas sin completar un registro asociado.",
   },
   {
-    campo: "PermitirDescargarPlanillas",
-    label: "Descarga de planillas",
-    descripcion: "Habilita la descarga de planillas en blanco en formato PDF.",
-  },
-  {
     campo: "PermitirDescargarProcedimientos",
     label: "Descarga de procedimientos",
     descripcion: "Habilita la descarga de documentos de procedimientos.",
   },
-  {
-    campo: "PermitirDescargarRegistros",
-    label: "Descarga de registros",
-    descripcion: "Permite descargar los registros completados en PDF.",
-  },
-  {
-    campo: "PermitirTestFuncional",
-    label: "Test funcional",
-    descripcion: "Habilita la funcionalidad de test funcional para el proyecto.",
-  },
+  // Nota: PermitirDescargarPlanillas, PermitirDescargarRegistros y PermitirTestFuncional
+  // existen en la entidad/DTO pero no gatean ningún comportamiento todavía, así que no se
+  // muestran acá. La columna se conserva en la DB por si se reactivan.
 ]
 
 const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
@@ -307,10 +295,7 @@ const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermiteAdjuntos:                 "permiteAdjuntos",
   NivelesSecuenciales:             "nivelesSecuenciales",
   PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
-  PermitirDescargarPlanillas:      "permitirDescargarPlanillas",
   PermitirDescargarProcedimientos: "permitirDescargarProcedimientos",
-  PermitirDescargarRegistros:      "permitirDescargarRegistros",
-  PermitirTestFuncional:           "permitirTestFuncional",
 }
 
 function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
