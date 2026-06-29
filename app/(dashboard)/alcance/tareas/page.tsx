@@ -13,6 +13,7 @@ import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
 import { NewTareaSheet } from "@/features/tareas/components/new-tarea-sheet"
 import { EditTareaSheet } from "@/features/tareas/components/edit-tarea-sheet"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
 import { PRIORIDAD } from "@/features/tareas/types"
@@ -50,6 +51,7 @@ const ALL = "__all__"
 export default function TareasPage() {
   const [search, setSearch] = useState("")
   const [elementoTipoId, setElementoTipoId] = useState<string>(ALL)
+  const [especialidadId, setEspecialidadId] = useState<string>(ALL)
   const [nivelId, setNivelId] = useState<string>(ALL)
   const [planillaId, setPlanillaId] = useState<string>(ALL)
   const [prioridad, setPrioridad] = useState<string>(ALL)
@@ -62,6 +64,7 @@ export default function TareasPage() {
     pageSize,
     nombre: search || undefined,
     elementoTipoId: elementoTipoId !== ALL ? elementoTipoId : undefined,
+    especialidadId: especialidadId !== ALL ? especialidadId : undefined,
     nivelId: nivelId !== ALL ? nivelId : undefined,
     planillaId: planillaId !== ALL ? planillaId : undefined,
     prioridad: prioridad !== ALL ? Number(prioridad) : undefined,
@@ -69,14 +72,35 @@ export default function TareasPage() {
   const { open } = useNewTarea()
 
   const { data: tiposRaw } = useGetElementosTiposSelect()
+  const { data: especialidadesRaw } = useGetEspecialidades()
   const { data: nivelesRaw } = useGetNivelesSelect()
   const { data: planillasRaw } = useGetPlanillasSelect()
   const tipos = (tiposRaw as any)?.data ?? []
+  const especialidades = (especialidadesRaw as any)?.data ?? []
   const niveles = (nivelesRaw as any)?.data ?? (Array.isArray(nivelesRaw) ? nivelesRaw : [])
   const planillas = (planillasRaw as any)?.data ?? []
 
+  // El select de Tipo de elemento se acota a la especialidad elegida (cada tipo
+  // pertenece a una especialidad). Sin especialidad seleccionada, muestra todos.
+  const tiposFiltrados =
+    especialidadId !== ALL
+      ? tipos.filter((t: any) => t.especialidadId === especialidadId)
+      : tipos
+
+  // Al cambiar la especialidad, si el tipo elegido ya no pertenece a ella, lo limpiamos.
+  function handleEspecialidadChange(v: string) {
+    const next = v ?? ALL
+    setEspecialidadId(next)
+    if (next !== ALL && elementoTipoId !== ALL) {
+      const t = tipos.find((x: any) => x.id === elementoTipoId)
+      if (!t || t.especialidadId !== next) setElementoTipoId(ALL)
+    }
+    setPage(1)
+  }
+
   function clearFiltros() {
     setElementoTipoId(ALL)
+    setEspecialidadId(ALL)
     setNivelId(ALL)
     setPlanillaId(ALL)
     setPrioridad(ALL)
@@ -91,6 +115,14 @@ export default function TareasPage() {
       id: "tipo",
       label: `Tipo: ${t?.nombre ?? "—"}`,
       onRemove: () => { setElementoTipoId(ALL); setPage(1) },
+    })
+  }
+  if (especialidadId !== ALL) {
+    const e = especialidades.find((x: any) => x.id === especialidadId)
+    activeFilters.push({
+      id: "especialidad",
+      label: `Especialidad: ${e?.nombre ?? "—"}`,
+      onRemove: () => { setEspecialidadId(ALL); setPage(1) },
     })
   }
   if (nivelId !== ALL) {
@@ -168,11 +200,34 @@ export default function TareasPage() {
           onClearAll={clearFiltros}
           hasActiveFilters={activeFilters.length > 0}
         >
+          <FilterField label="Especialidad">
+            <Select
+              value={especialidadId}
+              onValueChange={handleEspecialidadChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {especialidadId === ALL
+                    ? "Todas las especialidades"
+                    : especialidades.find((e: any) => e.id === especialidadId)?.nombre ?? "Especialidad"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas las especialidades</SelectItem>
+                {especialidades.map((e: any) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
           <FilterField label="Tipo de elemento">
             <Combobox
               options={[
                 { value: ALL, label: "Todos los tipos" },
-                ...tipos.map((t: any) => ({ value: t.id, label: t.nombre })),
+                ...tiposFiltrados.map((t: any) => ({ value: t.id, label: t.nombre })),
               ]}
               value={elementoTipoId}
               onChange={(v) => { setElementoTipoId(v); setPage(1) }}
