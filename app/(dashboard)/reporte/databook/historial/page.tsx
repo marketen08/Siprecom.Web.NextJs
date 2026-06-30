@@ -131,13 +131,13 @@ export default function DatabookHistorialPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[28px]"></TableHead>
+                <TableHead className="w-7"></TableHead>
                 <TableHead>SubSistema</TableHead>
                 <TableHead>Filtros</TableHead>
                 <TableHead>Solicitado</TableHead>
                 <TableHead>Estado / Progreso</TableHead>
                 <TableHead>Páginas / Peso</TableHead>
-                <TableHead className="text-right w-[160px]">Acciones</TableHead>
+                <TableHead className="text-right w-40">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -203,12 +203,20 @@ function FilaJob({
     <TableRow>
       <TableCell className="align-top pt-3">{icono}</TableCell>
       <TableCell className="align-top">
-        <div className="text-sm font-medium text-gray-900">
-          {job.subSistemaCodigo} — {job.subSistemaNombre}
-        </div>
-        {job.sistemaCodigo && (
-          <div className="text-xs text-muted-foreground">
-            Sistema: {job.sistemaCodigo}{job.sistemaNombre ? ` — ${job.sistemaNombre}` : ""}
+        {job.subSistemaCodigo ? (
+          <>
+            <div className="text-sm font-medium text-gray-900">
+              {job.subSistemaCodigo} — {job.subSistemaNombre}
+            </div>
+            {job.sistemaCodigo && (
+              <div className="text-xs text-muted-foreground">
+                Sistema: {job.sistemaCodigo}{job.sistemaNombre ? ` — ${job.sistemaNombre}` : ""}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-sm font-medium text-gray-900 italic">
+            Todos los subsistemas
           </div>
         )}
       </TableCell>
@@ -242,7 +250,7 @@ function FilaJob({
           </>
         )}
         {job.estado === EstadoDatabookJob.ERROR && job.mensajeError && (
-          <div className="text-xs text-red-700 mt-0.5 max-w-[280px] line-clamp-3">
+          <div className="text-xs text-red-700 mt-0.5 max-w-70 line-clamp-3">
             {job.mensajeError}
           </div>
         )}

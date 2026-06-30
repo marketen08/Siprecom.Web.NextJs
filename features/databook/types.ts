@@ -11,7 +11,11 @@ export type EstadoDatabookJobValue =
 
 /** Body del POST /databooks para encolar la generación. */
 export interface DatabookSolicitudInput {
-  subSistemaId: string
+  /**
+   * Opcional. Null/vacío = todos los subsistemas del proyecto activo. Útil para
+   * databooks por Nivel (ej. "todo PRECOMISIONADO").
+   */
+  subSistemaId?: string | null
   nivelId?: string | null
   especialidadId?: string | null
   notificarPorEmail: boolean
@@ -27,9 +31,10 @@ export interface DatabookJob {
   id: string
   proyectoId: string
 
-  subSistemaId: string
-  subSistemaCodigo: string
-  subSistemaNombre: string
+  /** Null cuando el databook abarca todos los subsistemas del proyecto. */
+  subSistemaId: string | null
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
   sistemaCodigo: string | null
   sistemaNombre: string | null
 

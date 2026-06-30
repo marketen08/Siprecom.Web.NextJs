@@ -64,19 +64,24 @@ function DatabookFormContent() {
     e.preventDefault()
     setFormError(null)
 
-    if (!subSistemaId) {
-      setFormError("Tenés que elegir un SubSistema.")
-      return
+    // SubSistema es opcional: null = todos los del proyecto. Pero si el user no
+    // eligió ninguna restricción (ni subsistema ni nivel ni especialidad), le
+    // avisamos: el databook va a abarcar TODO el proyecto y puede ser enorme.
+    if (!subSistemaId && !nivelId && !especialidadId) {
+      const ok = window.confirm(
+        "Vas a generar un databook de TODO el proyecto (todos los subsistemas, niveles y especialidades). " +
+        "Esto puede tardar varios minutos y resultar en un PDF muy grande. ¿Continuar?",
+      )
+      if (!ok) return
     }
 
     try {
       await solicitar.mutateAsync({
-        subSistemaId,
+        subSistemaId:     subSistemaId   || null,
         nivelId:          nivelId        || null,
         especialidadId:   especialidadId || null,
         notificarPorEmail: notificarEmail,
       })
-      // Una vez encolado, llevamos al historial — desde ahí ve el progreso.
       router.push("/reporte/databook/historial")
     } catch (err) {
       setFormError((err as Error).message)
@@ -142,24 +147,22 @@ function DatabookFormContent() {
           </p>
         </div>
 
-        {/* SubSistema (requerido) */}
+        {/* SubSistema (opcional) */}
         <div className="space-y-1.5">
-          <Label className="flex items-center gap-1.5">
-            SubSistema <span className="text-red-600">*</span>
-          </Label>
+          <Label>SubSistema</Label>
           <Select
-            value={subSistemaId || ""}
-            onValueChange={(v) => setSubSistemaId(v ?? "")}
-            disabled={subsistemasVisibles.length === 0}
+            value={subSistemaId || ALL}
+            onValueChange={(v) => setSubSistemaId(!v || v === ALL ? "" : v)}
           >
             <SelectTrigger>
               <SelectValue>
                 {subSel
                   ? `${subSel.codigo} — ${subSel.nombre}`
-                  : "Seleccioná un subsistema"}
+                  : "Todos los subsistemas"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={ALL}>Todos los subsistemas del proyecto</SelectItem>
               {subsistemasVisibles.map((ss) => (
                 <SelectItem key={ss.id} value={ss.id}>
                   {ss.codigo} — {ss.nombre}
@@ -167,6 +170,10 @@ function DatabookFormContent() {
               ))}
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            Opcional. Si lo dejás en &quot;todos&quot;, combinalo con un Nivel o Especialidad
+            para no generar un PDF demasiado grande.
+          </p>
         </div>
 
         {/* Nivel (opcional) */}
@@ -251,7 +258,7 @@ function DatabookFormContent() {
         <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
           <Button
             type="submit"
-            disabled={solicitar.isPending || !subSistemaId}
+            disabled={solicitar.isPending}
             className="bg-blue-900 hover:bg-blue-800 gap-2"
           >
             {solicitar.isPending

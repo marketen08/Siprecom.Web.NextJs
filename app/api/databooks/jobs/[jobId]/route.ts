@@ -19,7 +19,6 @@ export async function DELETE(
   const res = await backendFetch(request, `/databooks/jobs/${jobId}`, {
     method: "DELETE",
   })
-  if (res.status === 204) return new Response(null, { status: 204 })
   const data = await res.json().catch(() => ({ message: "Error" }))
   return Response.json(data, { status: res.status })
 }

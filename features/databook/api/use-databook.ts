@@ -70,9 +70,15 @@ export function useGetDatabookJob(jobId: string | null) {
 }
 
 /**
- * Descarga el PDF. Pide la SAS URL al backend y dispara la descarga del browser
- * usando un anchor temporal — el browser baja directo desde Azure Blob sin
- * pasar por nuestro proxy (más rápido para PDFs grandes).
+ * Descarga el PDF. Pide la SAS URL al backend (que ya viene con header
+ * Content-Disposition: attachment incrustado) y dispara la descarga.
+ * El browser baja directo desde Azure Blob sin pasar por el proxy.
+ *
+ * target=_blank: el atributo download del anchor NO funciona cuando la URL
+ * es cross-origin (Azure). Como el backend ya fuerza Content-Disposition,
+ * en navegadores modernos el download arranca solo. _blank es defense in
+ * depth — si por algún motivo el header no se respeta, el PDF abre en una
+ * nueva pestaña en lugar de reemplazar la actual.
  */
 export async function descargarDatabook(jobId: string): Promise<void> {
   const resp = await apiClient.get<DatabookDescargaResponse>(
@@ -83,8 +89,8 @@ export async function descargarDatabook(jobId: string): Promise<void> {
   const a = document.createElement("a")
   a.href = resp.url
   a.download = resp.fileName ?? "databook.pdf"
-  // Sin target=_blank: queremos que la descarga arranque en la misma pestaña
-  // para que el SAS sea consumido inmediatamente sin pop-up blocker.
+  a.target = "_blank"
+  a.rel = "noopener noreferrer"
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
