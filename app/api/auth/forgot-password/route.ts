@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+const API_URL = process.env.API_URL
 
 // POST /api/auth/forgot-password — anónimo (no requiere token). Proxy directo al backend.
 export async function POST(request: NextRequest) {
