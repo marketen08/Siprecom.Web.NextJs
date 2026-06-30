@@ -1,7 +1,8 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Pencil, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { BookText, Pencil, Trash2 } from "lucide-react"
 
 import type { SubSistema } from "@/features/subsistemas/types"
 import { useOpenSubSistema } from "@/features/subsistemas/hooks/use-open-subsistema"
@@ -9,13 +10,35 @@ import { useDeleteSubSistema } from "@/features/subsistemas/api/use-delete-subsi
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 function RowActions({ subsistema }: { subsistema: SubSistema }) {
   const { open } = useOpenSubSistema()
   const deleteMutation = useDeleteSubSistema()
 
+  // Atajo al generador de databook con el subsistema pre-cargado. Llevamos
+  // también el sistemaId para que el filtro del form quede coherente y
+  // la lista de subsistemas no recargue desde cero.
+  const databookHref = `/reporte/databook?subSistemaId=${encodeURIComponent(subsistema.id)}&sistemaId=${encodeURIComponent(subsistema.sistemaId)}`
+
   return (
     <div className="flex items-center gap-1 justify-end">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-blue-700 hover:text-blue-900 hover:bg-blue-50"
+          >
+            <Link href={databookHref}>
+              <BookText className="h-4 w-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Generar Databook de este SubSistema</TooltipContent>
+      </Tooltip>
+
       <Button
         variant="ghost"
         size="icon"
