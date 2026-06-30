@@ -18,6 +18,7 @@ import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
 import { useResendInvite } from "@/features/usuarios/api/use-resend-invite"
+import { useCambiarLoginMethod } from "@/features/usuarios/api/use-cambiar-login-method"
 import { useSetProyectoActivoAdmin } from "@/features/usuarios/api/use-set-proyecto-activo-admin"
 import { useDeactivateUsuario } from "@/features/usuarios/api/use-deactivate-usuario"
 import { useDeactivateUsuarioPermanent } from "@/features/usuarios/api/use-deactivate-usuario-permanent"
@@ -219,6 +220,9 @@ function TabDatos({ usuario }: { usuario: any }) {
         )}
       </div>
 
+      {/* Método de ingreso (Microsoft ↔ mail+contraseña) */}
+      <MetodoIngresoSection usuario={usuario} />
+
       {/* Restablecer contraseña */}
       <div className="space-y-3">
         <Separator />
@@ -311,6 +315,85 @@ function TabDatos({ usuario }: { usuario: any }) {
 
       {/* Estado del usuario — baja / reactivación */}
       <EstadoUsuarioSection usuario={usuario} />
+    </div>
+  )
+}
+
+// ─── Método de ingreso (Microsoft ↔ mail+contraseña) ─────────────────────────
+
+function MetodoIngresoSection({ usuario }: { usuario: any }) {
+  const cambiar = useCambiarLoginMethod(usuario.id)
+  const [confirming, setConfirming] = useState(false)
+  const [mensaje, setMensaje] = useState<string | null>(null)
+
+  // 0 = mail+contraseña, 1 = Microsoft
+  const esMicrosoft = (usuario.loginMethod ?? 0) === 1
+  const destino = esMicrosoft ? 0 : 1
+
+  async function handleConfirm() {
+    setMensaje(null)
+    const resp = (await cambiar.mutateAsync(destino)) as any
+    setMensaje(resp?.message ?? "Método de ingreso actualizado.")
+    setConfirming(false)
+  }
+
+  return (
+    <div className="space-y-3">
+      <Separator />
+      <div className="flex items-center gap-2">
+        {esMicrosoft ? <Mail className="h-4 w-4 text-muted-foreground" /> : <KeyRound className="h-4 w-4 text-muted-foreground" />}
+        <h3 className="text-sm font-semibold text-gray-700">Método de ingreso</h3>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${esMicrosoft ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
+          {esMicrosoft ? "Microsoft (SSO)" : "Mail + contraseña"}
+        </span>
+        <span className="text-xs text-muted-foreground">método actual</span>
+      </div>
+
+      {mensaje && (
+        <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" /> <span>{mensaje}</span>
+        </div>
+      )}
+
+      {!confirming ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => { setConfirming(true); setMensaje(null) }}
+          disabled={cambiar.isPending}
+        >
+          {esMicrosoft ? <KeyRound className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+          {esMicrosoft ? "Cambiar a mail + contraseña" : "Cambiar a Microsoft"}
+        </Button>
+      ) : (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+            <p className="text-sm">
+              {esMicrosoft
+                ? "El usuario pasará a ingresar con mail y contraseña. Le vamos a enviar un email para que defina su contraseña, y dejará de poder entrar con Microsoft."
+                : "El usuario pasará a ingresar con su cuenta de Microsoft (SSO). Se le quitará la contraseña local: ya no podrá entrar con mail y contraseña."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" className="gap-1.5" onClick={handleConfirm} disabled={cambiar.isPending}>
+              {cambiar.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {cambiar.isPending ? "Cambiando..." : "Sí, cambiar"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={cambiar.isPending}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {cambiar.isError && (
+        <p className="text-sm text-red-600">{(cambiar.error as Error)?.message ?? "Error al cambiar el método"}</p>
+      )}
     </div>
   )
 }
