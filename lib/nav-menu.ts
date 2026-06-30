@@ -133,6 +133,7 @@ export const menu: MenuItem[] = [
       { label: "Funcionalidades", href: "/licenciamiento/funcionalidades" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
       { label: "Datos de muestra", href: "/licenciamiento/datos-muestra" },
+    { label: "Avance demo", href: "/licenciamiento/avance-demo" },
       {
         label: "Exportar / Importar",
         children: [
@@ -227,6 +228,7 @@ export const segmentLabels: Record<string, string> = {
   "listado-indice": "Listado índice",
   databook:      "Databook",
   historial:     "Historial",
+  "avance-demo": "Avance demo",
   avance:        "Avance",
   especialidades: "Especialidades",
   estadisticas:                "Estadísticas",
