@@ -88,7 +88,8 @@ export default function TareasPage() {
       : tipos
 
   // Al cambiar la especialidad, si el tipo elegido ya no pertenece a ella, lo limpiamos.
-  function handleEspecialidadChange(v: string) {
+  // El Select de Base UI pasa `string | null` — toleramos ambos y normalizamos a ALL.
+  function handleEspecialidadChange(v: string | null) {
     const next = v ?? ALL
     setEspecialidadId(next)
     if (next !== ALL && elementoTipoId !== ALL) {
