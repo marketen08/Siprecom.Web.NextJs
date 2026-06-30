@@ -10,6 +10,14 @@ const COOKIE_OPTS = {
   path: "/",
 }
 
+// Borra las cookies de auth matcheando el path con el que se setearon ("/"). Sin
+// el path explícito, el Set-Cookie de borrado toma el default-path del request
+// (/api/...) y NO elimina la cookie real → queda viva.
+function clearAuthCookies(response: NextResponse): void {
+  response.cookies.set("accessToken", "", { ...COOKIE_OPTS, maxAge: 0 })
+  response.cookies.set("refreshToken", "", { ...COOKIE_OPTS, maxAge: 0 })
+}
+
 // 401 por sesión reemplazada (login en otro dispositivo): borra cookies y
 // propaga el code para que el cliente muestre el mensaje correcto.
 function sesionReemplazada(): NextResponse {
@@ -17,8 +25,7 @@ function sesionReemplazada(): NextResponse {
     { message: "Tu sesión se cerró porque iniciaste sesión en otro dispositivo.", code: "SESSION_SUPERSEDED" },
     { status: 401 },
   )
-  r.cookies.delete("accessToken")
-  r.cookies.delete("refreshToken")
+  clearAuthCookies(r)
   return r
 }
 
@@ -92,8 +99,7 @@ export async function backendFetch(
     const refBody = await refreshRes.clone().json().catch(() => null)
     if (refBody?.code === "SESSION_SUPERSEDED") return sesionReemplazada()
     const response = NextResponse.json({ message: "Sesión expirada" }, { status: 401 })
-    response.cookies.delete("accessToken")
-    response.cookies.delete("refreshToken")
+    clearAuthCookies(response)
     return response
   }
 

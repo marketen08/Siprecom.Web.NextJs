@@ -9,6 +9,8 @@
  *  3. Si el refresh falla, redirige a /login
  */
 
+import { useAuthStore } from "@/store/auth-store"
+
 // Singleton promise para evitar múltiples llamadas simultáneas al refresh
 let refreshPromise: Promise<boolean> | null = null
 
@@ -25,6 +27,11 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 function redirectToLogin(reason?: string): never {
+  // Logout local SIEMPRE: si el user persiste en el store (localStorage), los
+  // componentes/queries siguen actuando como "logueado" y el RouteGuard rebota a
+  // /dashboard → loop de 401 (había que borrar datos del navegador a mano). Al
+  // limpiarlo, /login se queda y muestra el form. getState() funciona fuera de React.
+  try { useAuthStore.getState().clearUser() } catch { /* noop */ }
   window.location.href = reason ? `/login?reason=${reason}` : "/login"
   throw new Error("Sesión expirada")
 }
