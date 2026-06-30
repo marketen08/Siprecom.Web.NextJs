@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowRight, BookText, Loader2, Sparkles } from "lucide-react"
+import { AlertTriangle, ArrowRight, BookText, Loader2, Sparkles } from "lucide-react"
 
 import { useSolicitarDatabook } from "@/features/databook/api/use-databook"
 
@@ -17,6 +17,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const ALL = "__all__"
 
@@ -34,6 +38,7 @@ function DatabookFormContent() {
   const [especialidadId, setEspecialidadId] = useState<string>("")
   const [notificarEmail, setNotificarEmail] = useState(false)
   const [formError, setFormError]           = useState<string | null>(null)
+  const [warningOpen, setWarningOpen]       = useState(false)
 
   // Catálogos.
   const sistemas         = useGetSistemasSelect().data?.data ?? []
@@ -60,21 +65,24 @@ function DatabookFormContent() {
 
   const solicitar = useSolicitarDatabook()
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setFormError(null)
 
     // SubSistema es opcional: null = todos los del proyecto. Pero si el user no
     // eligió ninguna restricción (ni subsistema ni nivel ni especialidad), le
-    // avisamos: el databook va a abarcar TODO el proyecto y puede ser enorme.
+    // avisamos via AlertDialog: el databook va a abarcar TODO el proyecto y
+    // puede ser enorme. La confirmación dispara enviarSolicitud(); cancelar
+    // lo cierra sin enviar.
     if (!subSistemaId && !nivelId && !especialidadId) {
-      const ok = window.confirm(
-        "Vas a generar un databook de TODO el proyecto (todos los subsistemas, niveles y especialidades). " +
-        "Esto puede tardar varios minutos y resultar en un PDF muy grande. ¿Continuar?",
-      )
-      if (!ok) return
+      setWarningOpen(true)
+      return
     }
+    void enviarSolicitud()
+  }
 
+  async function enviarSolicitud() {
+    setWarningOpen(false)
     try {
       await solicitar.mutateAsync({
         subSistemaId:     subSistemaId   || null,
@@ -284,6 +292,49 @@ function DatabookFormContent() {
           <li>Adjuntos de cada registro (PDFs e imágenes en JPG/PNG/TIFF/BMP).</li>
         </ul>
       </div>
+
+      {/* Confirmación para databooks "sin filtros" — todo el proyecto. */}
+      <AlertDialog open={warningOpen} onOpenChange={setWarningOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              Databook de todo el proyecto
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              No elegiste filtros. El databook va a incluir{" "}
+              <strong className="text-foreground">todos los subsistemas, niveles y especialidades</strong> del proyecto.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <ul className="my-1 space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+              <span>La generación puede tardar <strong>varios minutos</strong>.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+              <span>El PDF resultante puede pesar <strong>cientos de MB</strong>.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+              <span>Si querés algo más chico, cancelá y elegí al menos un <strong>Nivel</strong> o <strong>Especialidad</strong>.</span>
+            </li>
+          </ul>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={enviarSolicitud}
+              className="bg-amber-600 hover:bg-amber-700 focus-visible:ring-amber-700/40"
+            >
+              Continuar de todos modos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
