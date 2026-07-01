@@ -5,6 +5,9 @@ export const elementoTipoSchema = z.object({
   especialidadId: z.string().min(1, "La especialidad es requerida"),
   horasAdicionalesDefault: z.number().min(0),
   impactoFactorDefault: z.number().min(0),
+  permiteAgruparEnTestPack: z.boolean(),
+  permiteAgruparEnBasicFunction: z.boolean(),
 })
 
-export type ElementoTipoFormValues = z.infer<typeof elementoTipoSchema>
+export type ElementoTipoFormInput = z.input<typeof elementoTipoSchema>
+export type ElementoTipoFormValues = z.output<typeof elementoTipoSchema>

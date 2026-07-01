@@ -19,6 +19,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface ElementoTipoFormProps {
   defaultValues?: Partial<ElementoTipo>
@@ -46,6 +53,8 @@ export function ElementoTipoForm({
       especialidadId: defaultValues?.especialidadId ?? "",
       horasAdicionalesDefault: defaultValues?.horasAdicionalesDefault ?? 0,
       impactoFactorDefault: defaultValues?.impactoFactorDefault ?? 1,
+      permiteAgruparEnTestPack: defaultValues?.permiteAgruparEnTestPack ?? false,
+      permiteAgruparEnBasicFunction: defaultValues?.permiteAgruparEnBasicFunction ?? false,
     },
   })
 
@@ -142,6 +151,72 @@ export function ElementoTipoForm({
                       onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Agrupamiento por defecto (paquetes de prueba) */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Agrupamiento por defecto (paquetes de prueba)
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Cada elemento de este tipo hereda estos flags. Se puede sobreescribir por elemento en su form.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="permiteAgruparEnTestPack"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Agrupable en Pressure Test Pack</FormLabel>
+                  <Select
+                    disabled={isPending}
+                    value={field.value ? "true" : "false"}
+                    onValueChange={(v) => field.onChange(v === "true")}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue>{field.value ? "Sí" : "No"}</SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="false">No</SelectItem>
+                      <SelectItem value="true">Sí</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="permiteAgruparEnBasicFunction"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Agrupable en Basic Function</FormLabel>
+                  <Select
+                    disabled={isPending}
+                    value={field.value ? "true" : "false"}
+                    onValueChange={(v) => field.onChange(v === "true")}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue>{field.value ? "Sí" : "No"}</SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="false">No</SelectItem>
+                      <SelectItem value="true">Sí</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -70,8 +70,14 @@ export default function TestGroupsPage() {
           </div>
 
           <Select value={tipoFilter} onValueChange={(v) => { setTipoFilter(v ?? TIPO_ALL); setPage(1) }}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Todos los tipos" />
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Todos los tipos">
+                {tipoFilter === TIPO_ALL
+                  ? "Todos los tipos"
+                  : tipoFilter === String(TIPO_TEST_GROUP.PRESSURE)
+                    ? "Pressure Test Pack"
+                    : "Basic Function"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={TIPO_ALL}>Todos los tipos</SelectItem>

@@ -539,7 +539,9 @@ export function ElementoForm({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue>
+                          {field.value === null ? "Heredar del tipo" : field.value ? "Sí" : "No"}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -570,7 +572,9 @@ export function ElementoForm({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue>
+                          {field.value === null ? "Heredar del tipo" : field.value ? "Sí" : "No"}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>

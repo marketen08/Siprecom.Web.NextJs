@@ -177,7 +177,17 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                       onValueChange={(v) => field.onChange(!v || v === "__none__" ? null : parseInt(v, 10))}
                     >
                       <FormControl>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {field.value === METODO_PRUEBA.HIDROSTATICA
+                              ? "Hidrostática"
+                              : field.value === METODO_PRUEBA.NEUMATICA
+                                ? "Neumática"
+                                : field.value === METODO_PRUEBA.VACIO
+                                  ? "Vacío"
+                                  : "—"}
+                          </SelectValue>
+                        </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="__none__">—</SelectItem>
@@ -248,7 +258,15 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                     onValueChange={(v) => field.onChange(!v || v === "__none__" ? null : parseInt(v, 10))}
                   >
                     <FormControl>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue>
+                          {field.value === TIPO_PRUEBA_FUNCIONAL.FTS
+                            ? "FTS"
+                            : field.value === TIPO_PRUEBA_FUNCIONAL.OTS
+                              ? "OTS"
+                              : "—"}
+                        </SelectValue>
+                      </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="__none__">—</SelectItem>

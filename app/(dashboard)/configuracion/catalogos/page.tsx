@@ -86,7 +86,9 @@ export default function CatalogosExportImportPage() {
           Catálogos globales en Excel: hoja <strong>Especialidades</strong> y hoja{" "}
           <strong>TiposElemento</strong> (los tipos referencian su especialidad por nombre).
           Soporta crear, modificar y eliminar en una sola operación, con una columna{" "}
-          <code className="text-xs">Accion</code> por fila.
+          <code className="text-xs">Accion</code> por fila. Incluye los flags de agrupamiento
+          por defecto (<code className="text-xs">PermiteAgruparEnTestPack</code> /{" "}
+          <code className="text-xs">PermiteAgruparEnBasicFunction</code>) para los tipos.
         </p>
       </div>
 

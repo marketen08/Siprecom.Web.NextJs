@@ -152,7 +152,13 @@ export default function AsignacionPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <Select value={tipoFilter} onValueChange={(v) => { setTipoFilter(v ?? TIPO_ALL); setTestGroupId(null) }}>
             <SelectTrigger className="w-56">
-              <SelectValue placeholder="Todos los tipos" />
+              <SelectValue placeholder="Todos los tipos">
+                {tipoFilter === TIPO_ALL
+                  ? "Todos los tipos"
+                  : tipoFilter === String(TIPO_TEST_GROUP.PRESSURE)
+                    ? "Pressure Test Pack"
+                    : "Basic Function"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={TIPO_ALL}>Todos los tipos</SelectItem>
@@ -163,7 +169,14 @@ export default function AsignacionPage() {
 
           <Select value={testGroupId ?? ""} onValueChange={(v) => { setTestGroupId(v || null); setSelectedDisp(new Set()); setSelectedAsig(new Set()) }}>
             <SelectTrigger className="w-96">
-              <SelectValue placeholder="Elegí un paquete de prueba" />
+              <SelectValue placeholder="Elegí un paquete de prueba">
+                {(() => {
+                  const tg = testGroups.find((x) => x.id === testGroupId)
+                  return tg
+                    ? `${tg.codigo} — ${tg.nombre || "(sin nombre)"} [${tg.tipoTexto}]`
+                    : "Elegí un paquete de prueba"
+                })()}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {testGroups.length === 0 && (
@@ -204,7 +217,13 @@ export default function AsignacionPage() {
             </div>
             <Select value={subFilter} onValueChange={(v) => setSubFilter(v ?? SUB_ALL)}>
               <SelectTrigger className="w-72">
-                <SelectValue placeholder="Todos los subsistemas" />
+                <SelectValue placeholder="Todos los subsistemas">
+                  {(() => {
+                    if (subFilter === SUB_ALL) return "Todos los subsistemas"
+                    const s = subs.find((x) => x.id === subFilter)
+                    return s ? `${s.codigo} — ${s.nombre}` : "Todos los subsistemas"
+                  })()}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={SUB_ALL}>Todos los subsistemas</SelectItem>

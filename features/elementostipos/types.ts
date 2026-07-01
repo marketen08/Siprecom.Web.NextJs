@@ -7,6 +7,8 @@ export interface ElementoTipo {
   especialidadColor: string | null
   horasAdicionalesDefault: number
   impactoFactorDefault: number
+  permiteAgruparEnTestPack: boolean
+  permiteAgruparEnBasicFunction: boolean
   createdAt: string
   createdByNombre: string
   updatedAt: string
@@ -19,6 +21,8 @@ export interface ElementoTipoCreateInput {
   especialidadId: string
   horasAdicionalesDefault: number
   impactoFactorDefault: number
+  permiteAgruparEnTestPack: boolean
+  permiteAgruparEnBasicFunction: boolean
 }
 
 export interface ElementoTipoUpdateInput {
@@ -26,4 +30,6 @@ export interface ElementoTipoUpdateInput {
   especialidadId: string
   horasAdicionalesDefault: number
   impactoFactorDefault: number
+  permiteAgruparEnTestPack: boolean
+  permiteAgruparEnBasicFunction: boolean
 }
