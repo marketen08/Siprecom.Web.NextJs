@@ -12,6 +12,21 @@ export const PRIORIDAD_COLOR: Record<number, string> = {
   4: "bg-red-100 text-red-700",
 }
 
+// Espejo del enum TipoAsignacionTarea del backend.
+export const TIPO_ASIGNACION_TAREA = {
+  ELEMENTO_INDIVIDUAL: 1,
+  TEST_GROUP_PRESSURE: 2,
+  TEST_GROUP_BASIC_FUNCTION: 3,
+} as const
+
+export type TipoAsignacionTarea = (typeof TIPO_ASIGNACION_TAREA)[keyof typeof TIPO_ASIGNACION_TAREA]
+
+export const TIPO_ASIGNACION_LABEL: Record<number, string> = {
+  1: "Por elemento",
+  2: "Por Pressure Test Pack",
+  3: "Por Basic Function",
+}
+
 export interface Tarea {
   id: string
   codigo: number
@@ -34,6 +49,8 @@ export interface Tarea {
   terminalNombre?: string
   horasBase: number
   impactoBase: number
+  tipoAsignacion: TipoAsignacionTarea
+  tipoAsignacionTexto?: string
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string
@@ -51,6 +68,7 @@ export interface TareaCreateInput {
   prioridad: number
   horasBase: number
   impactoBase: number
+  tipoAsignacion: number
 }
 
 export interface TareaUpdateInput {
@@ -65,4 +83,5 @@ export interface TareaUpdateInput {
   prioridad: number
   horasBase: number
   impactoBase: number
+  tipoAsignacion: number
 }

@@ -4,7 +4,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import { Copy, Pencil, Trash2 } from "lucide-react"
 
 import type { Tarea } from "@/features/tareas/types"
-import { PRIORIDAD, PRIORIDAD_COLOR } from "@/features/tareas/types"
+import { PRIORIDAD, PRIORIDAD_COLOR, TIPO_ASIGNACION_LABEL, TIPO_ASIGNACION_TAREA } from "@/features/tareas/types"
 import { useOpenTarea } from "@/features/tareas/hooks/use-open-tarea"
 import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
 import { useDeleteTarea } from "@/features/tareas/api/use-delete-tarea"
@@ -118,6 +118,25 @@ export const columns: ColumnDef<Tarea>[] = [
     cell: ({ row }) => (
       <span className="text-sm text-right tabular-nums">{row.original.horasBase}</span>
     ),
+  },
+  {
+    accessorKey: "tipoAsignacion",
+    header: "Se instancia por",
+    cell: ({ row }) => {
+      const t = row.original.tipoAsignacion
+      const label = TIPO_ASIGNACION_LABEL[t] ?? row.original.tipoAsignacionTexto ?? "Por elemento"
+      const cls =
+        t === TIPO_ASIGNACION_TAREA.ELEMENTO_INDIVIDUAL
+          ? "border-gray-300 text-gray-700 bg-gray-50"
+          : t === TIPO_ASIGNACION_TAREA.TEST_GROUP_PRESSURE
+            ? "border-blue-300 text-blue-700 bg-blue-50"
+            : "border-purple-300 text-purple-700 bg-purple-50"
+      return (
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${cls}`}>
+          {label}
+        </span>
+      )
+    },
   },
   {
     id: "actions",
