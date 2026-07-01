@@ -27,6 +27,13 @@ export interface Elemento {
   pid: string
   testpack: string
   observaciones: string
+  // TestGroups F2
+  moduloId: string | null
+  moduloNombre: string | null
+  areaIds: string[]
+  /** Override del flag del tipo. null = usar el heredado. */
+  permiteAgruparEnTestPack: boolean | null
+  permiteAgruparEnBasicFunction: boolean | null
   createdAt: string
   createdByNombre: string
   updatedAt: string
@@ -46,6 +53,10 @@ export interface ElementoCreateInput {
   pid: string
   testpack: string
   observaciones: string
+  moduloId: string | null
+  areaIds: string[]
+  permiteAgruparEnTestPack: boolean | null
+  permiteAgruparEnBasicFunction: boolean | null
 }
 
 export interface ElementoUpdateInput {
@@ -63,6 +74,10 @@ export interface ElementoUpdateInput {
   pid: string
   testpack: string
   observaciones: string
+  moduloId: string | null
+  areaIds: string[]
+  permiteAgruparEnTestPack: boolean | null
+  permiteAgruparEnBasicFunction: boolean | null
 }
 
 /** Coincide con el enum CampoTipoDato del backend. */

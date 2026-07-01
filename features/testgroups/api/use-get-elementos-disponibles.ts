@@ -1,0 +1,25 @@
+import { useQuery } from "@tanstack/react-query"
+import { apiClient } from "@/lib/api-client"
+import type { ApiResponse } from "@/features/proyectos/types"
+import type { ElementoAsignable } from "./use-get-elementos-asignados"
+
+interface Params {
+  testGroupId: string | null
+  subSistemaId?: string
+  search?: string
+}
+
+export function useGetElementosDisponibles({ testGroupId, subSistemaId, search }: Params) {
+  return useQuery({
+    queryKey: ["testgroups", testGroupId, "elementos-disponibles", { subSistemaId, search }],
+    queryFn: () =>
+      apiClient.get<ApiResponse<ElementoAsignable[]>>(
+        `/api/testgroups/${testGroupId}/elementos-disponibles`,
+        {
+          ...(subSistemaId ? { subSistemaId } : {}),
+          ...(search ? { search } : {}),
+        }
+      ),
+    enabled: !!testGroupId,
+  })
+}

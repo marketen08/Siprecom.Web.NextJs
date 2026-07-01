@@ -10,6 +10,8 @@ import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-s
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetModulosSelect } from "@/features/modulos/api/use-get-modulos-select"
+import { useGetAreasSelect } from "@/features/areas/api/use-get-areas-select"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -49,6 +51,11 @@ export function ElementoForm({
   const { data: subSistemasData, isLoading: loadingSubSistemas } = useGetSubSistemasSelect()
   const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
   const { data: especialidadesData } = useGetEspecialidades()
+  const { data: modulosData, isLoading: loadingModulos } = useGetModulosSelect()
+  const { data: areasData, isLoading: loadingAreas } = useGetAreasSelect()
+
+  const modulos = modulosData?.data ?? []
+  const areas = areasData?.data ?? []
 
   const tipos = (tiposData as any)?.data ?? []
   const especialidades = especialidadesData?.data ?? []
@@ -72,6 +79,10 @@ export function ElementoForm({
       pid: defaultValues?.pid ?? "",
       testpack: defaultValues?.testpack ?? "",
       observaciones: defaultValues?.observaciones ?? "",
+      moduloId: defaultValues?.moduloId ?? null,
+      areaIds: defaultValues?.areaIds ?? [],
+      permiteAgruparEnTestPack: defaultValues?.permiteAgruparEnTestPack ?? null,
+      permiteAgruparEnBasicFunction: defaultValues?.permiteAgruparEnBasicFunction ?? null,
     },
   })
 
@@ -418,6 +429,161 @@ export function ElementoForm({
               </FormItem>
             )}
           />
+        </div>
+
+        <Separator />
+
+        {/* Agrupamiento (paquetes de prueba) */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Agrupamiento (paquetes de prueba)
+          </p>
+
+          <FormField
+            control={form.control}
+            name="moduloId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Módulo <span className="text-muted-foreground font-normal">(opcional)</span>
+                </FormLabel>
+                <Select
+                  disabled={isPending || loadingModulos}
+                  value={field.value ?? "__none__"}
+                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingModulos ? "Cargando..." : "Sin módulo"}>
+                        {(() => {
+                          const m = modulos.find((x) => x.id === field.value)
+                          return m ? `${m.codigo} — ${m.nombre}` : "Sin módulo"
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin módulo</SelectItem>
+                    {modulos.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.codigo} — {m.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="areaIds"
+            render={({ field }) => {
+              const selected: string[] = field.value ?? []
+              const toggle = (id: string) => {
+                if (selected.includes(id)) field.onChange(selected.filter((x) => x !== id))
+                else field.onChange([...selected, id])
+              }
+              return (
+                <FormItem>
+                  <FormLabel>
+                    Áreas <span className="text-muted-foreground font-normal">(opcional, múltiple)</span>
+                  </FormLabel>
+                  <div className="rounded-md border border-input p-2 max-h-40 overflow-y-auto flex flex-col gap-1">
+                    {loadingAreas ? (
+                      <p className="text-xs text-muted-foreground">Cargando áreas...</p>
+                    ) : areas.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No hay áreas definidas.</p>
+                    ) : (
+                      areas.map((a) => (
+                        <label
+                          key={a.id}
+                          className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-muted cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected.includes(a.id)}
+                            onChange={() => toggle(a.id)}
+                            disabled={isPending}
+                            className="h-4 w-4 accent-blue-900"
+                          />
+                          <span className="font-mono text-xs">{a.codigo}</span>
+                          <span>—</span>
+                          <span>{a.nombre}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="permiteAgruparEnTestPack"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Agrupable en TestPack <span className="text-muted-foreground font-normal">(override)</span>
+                  </FormLabel>
+                  <Select
+                    disabled={isPending}
+                    value={field.value === null ? "__inherit__" : field.value ? "true" : "false"}
+                    onValueChange={(v) =>
+                      field.onChange(v === "__inherit__" ? null : v === "true")
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__inherit__">Heredar del tipo</SelectItem>
+                      <SelectItem value="true">Sí</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="permiteAgruparEnBasicFunction"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Agrupable en BasicFunction <span className="text-muted-foreground font-normal">(override)</span>
+                  </FormLabel>
+                  <Select
+                    disabled={isPending}
+                    value={field.value === null ? "__inherit__" : field.value ? "true" : "false"}
+                    onValueChange={(v) =>
+                      field.onChange(v === "__inherit__" ? null : v === "true")
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__inherit__">Heredar del tipo</SelectItem>
+                      <SelectItem value="true">Sí</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
 
         {/* Botones */}

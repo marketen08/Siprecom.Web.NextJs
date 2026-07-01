@@ -88,6 +88,8 @@ export const menu: MenuItem[] = [
       { label: "Tareas",       href: "/alcance/tareas" },
       { label: "Áreas",        href: "/alcance/areas" },
       { label: "Módulos",      href: "/alcance/modulos" },
+      { label: "Paquetes de prueba", href: "/alcance/test-groups" },
+      { label: "Asignar a paquetes",  href: "/alcance/test-groups/asignacion" },
       {
         label: "Importar",
         children: [
@@ -258,4 +260,6 @@ export const segmentLabels: Record<string, string> = {
   concurrencia:            "Reporte de concurrencia",
   areas:                   "Áreas",
   modulos:                 "Módulos",
+  "test-groups":           "Paquetes de prueba",
+  asignacion:              "Asignar a paquetes",
 }
