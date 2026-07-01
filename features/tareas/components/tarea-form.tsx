@@ -302,12 +302,15 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                   <Combobox
                     options={[
                       { value: "", label: "Ninguna" },
-                      ...planillas.map((p: any) => ({ value: p.id, label: p.nombre })),
+                      ...planillas.map((p: any) => ({
+                        value: p.id,
+                        label: p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre,
+                      })),
                     ]}
                     value={field.value || ""}
                     onChange={(v) => field.onChange(v)}
                     placeholder="Ninguna"
-                    searchPlaceholder="Buscar planilla..."
+                    searchPlaceholder="Buscar por código o nombre..."
                     emptyMessage="Sin planillas"
                     disabled={isPending || loadingPlanillas}
                   />

@@ -138,7 +138,7 @@ export const menu: MenuItem[] = [
       { label: "Funcionalidades", href: "/licenciamiento/funcionalidades" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
       { label: "Datos de muestra", href: "/licenciamiento/datos-muestra" },
-    { label: "Avance demo", href: "/licenciamiento/avance-demo" },
+      { label: "Avance demo", href: "/licenciamiento/avance-demo" },
       {
         label: "Exportar / Importar",
         children: [
