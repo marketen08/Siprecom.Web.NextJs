@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import type { TestGroup, TipoTestGroup } from "../types"
+import type { EstadoTestGroup, TestGroup, TipoTestGroup } from "../types"
 import type { PagedResponse } from "@/features/proyectos/types"
 
 interface Params {
@@ -9,12 +9,21 @@ interface Params {
   nombre?: string
   tipo?: TipoTestGroup
   subSistemaId?: string
+  /** Lista de estados a incluir. Ej: [2, 3] para ACTIVO + COMPLETADO. Se envía como CSV. */
+  estados?: EstadoTestGroup[]
+  especialidadId?: string
 }
 
 export function useGetTestGroups(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, tipo, subSistemaId } = params
+  const {
+    page = 1, pageSize = 10, nombre, tipo, subSistemaId, estados, especialidadId,
+  } = params
+  const estadosCsv = estados && estados.length > 0 ? estados.join(",") : undefined
   return useQuery({
-    queryKey: ["testgroups", { page, pageSize, nombre, tipo, subSistemaId }],
+    queryKey: [
+      "testgroups",
+      { page, pageSize, nombre, tipo, subSistemaId, estadosCsv, especialidadId },
+    ],
     queryFn: () =>
       apiClient.get<PagedResponse<TestGroup>>("/api/testgroups", {
         page,
@@ -22,6 +31,8 @@ export function useGetTestGroups(params: Params = {}) {
         ...(nombre ? { nombre } : {}),
         ...(tipo != null ? { tipo } : {}),
         ...(subSistemaId ? { subSistemaId } : {}),
+        ...(estadosCsv ? { estados: estadosCsv } : {}),
+        ...(especialidadId ? { especialidadId } : {}),
       }),
   })
 }

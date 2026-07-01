@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { ColumnDef } from "@tanstack/react-table"
 import { CheckCircle2, Lock, Pencil, PlayCircle, RefreshCw, RotateCcw, Trash2, Users } from "lucide-react"
 
@@ -135,7 +136,14 @@ export const columns: ColumnDef<TestGroup>[] = [
   {
     accessorKey: "codigo",
     header: "Código",
-    cell: ({ row }) => <span className="font-mono text-sm font-medium">{row.original.codigo}</span>,
+    cell: ({ row }) => (
+      <Link
+        href={`/alcance/test-groups/${row.original.id}`}
+        className="font-mono text-sm font-medium text-blue-700 hover:underline"
+      >
+        {row.original.codigo}
+      </Link>
+    ),
   },
   {
     accessorKey: "tipo",

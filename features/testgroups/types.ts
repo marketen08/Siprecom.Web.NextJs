@@ -54,6 +54,8 @@ export interface TestGroup {
 
   cantidadElementos: number
   cantidadTareas: number
+  cantidadTareasTerminales: number
+  porcentajeAvance: number
 
   createdAt: string
   createdByNombre: string
