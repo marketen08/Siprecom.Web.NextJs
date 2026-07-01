@@ -9,6 +9,8 @@ import { useGetElementosDisponibles } from "@/features/testgroups/api/use-get-el
 import { useAsignarElementos } from "@/features/testgroups/api/use-asignar-elementos"
 import { useDesasignarElemento } from "@/features/testgroups/api/use-desasignar-elemento"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
+import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { TIPO_TEST_GROUP, type TipoTestGroup } from "@/features/testgroups/types"
 
 import { Badge } from "@/components/ui/badge"
@@ -20,6 +22,8 @@ import {
 
 const TIPO_ALL = "__all__"
 const SUB_ALL = "__all__"
+const TIPO_ELEM_ALL = "__all__"
+const ESP_ALL = "__all__"
 
 interface ListaProps {
   titulo: string
@@ -84,6 +88,8 @@ export default function AsignacionPage() {
   const [tipoFilter, setTipoFilter] = useState<string>(TIPO_ALL)
   const [testGroupId, setTestGroupId] = useState<string | null>(null)
   const [subFilter, setSubFilter] = useState<string>(SUB_ALL)
+  const [especialidadFilter, setEspecialidadFilter] = useState<string>(ESP_ALL)
+  const [tipoElemFilter, setTipoElemFilter] = useState<string>(TIPO_ELEM_ALL)
   const [search, setSearch] = useState("")
 
   const [selectedDisp, setSelectedDisp] = useState<Set<string>>(new Set())
@@ -97,11 +103,27 @@ export default function AsignacionPage() {
 
   const { data: subsData } = useGetSubSistemasSelect()
   const subs = subsData?.data ?? []
+  // Usamos las variantes "usadas/usados" — solo especialidades y tipos con al
+  // menos un Elemento en el proyecto activo. Evita ofrecer opciones que darían
+  // lista vacía al filtrar.
+  const { data: tiposData } = useGetElementosTiposUsados()
+  const tiposElem = (tiposData as any)?.data ?? []
+  const { data: espData } = useGetEspecialidadesUsadas()
+  const especialidades = espData?.data ?? []
+
+  // Al cambiar la especialidad, si el tipo elegido no pertenece a esa especialidad, lo reseteo.
+  const tiposElemFiltrados = useMemo(() => {
+    if (especialidadFilter === ESP_ALL) return tiposElem
+    return (tiposElem as Array<{ id: string; nombre: string; especialidadId?: string }>)
+      .filter((t) => t.especialidadId === especialidadFilter)
+  }, [tiposElem, especialidadFilter])
 
   const { data: asignadosData, isLoading: loadingAsignados } = useGetElementosAsignados(testGroupId)
   const { data: dispData, isLoading: loadingDisp } = useGetElementosDisponibles({
     testGroupId,
     subSistemaId: subFilter === SUB_ALL ? undefined : subFilter,
+    elementoTipoId: tipoElemFilter === TIPO_ELEM_ALL ? undefined : tipoElemFilter,
+    especialidadId: especialidadFilter === ESP_ALL ? undefined : especialidadFilter,
     search: search || undefined,
   })
 
@@ -229,6 +251,55 @@ export default function AsignacionPage() {
                 <SelectItem value={SUB_ALL}>Todos los subsistemas</SelectItem>
                 {subs.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={especialidadFilter}
+              onValueChange={(v) => {
+                const value = v ?? ESP_ALL
+                setEspecialidadFilter(value)
+                // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpio.
+                if (value !== ESP_ALL && tipoElemFilter !== TIPO_ELEM_ALL) {
+                  const t = tiposElem.find((x: any) => x.id === tipoElemFilter)
+                  if (t?.especialidadId !== value) setTipoElemFilter(TIPO_ELEM_ALL)
+                }
+              }}
+            >
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Todas las especialidades">
+                  {(() => {
+                    if (especialidadFilter === ESP_ALL) return "Todas las especialidades"
+                    const e = especialidades.find((x) => x.id === especialidadFilter)
+                    return e ? (e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre) : "Todas las especialidades"
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ESP_ALL}>Todas las especialidades</SelectItem>
+                {especialidades.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={tipoElemFilter} onValueChange={(v) => setTipoElemFilter(v ?? TIPO_ELEM_ALL)}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Todos los tipos de elemento">
+                  {(() => {
+                    if (tipoElemFilter === TIPO_ELEM_ALL) return "Todos los tipos de elemento"
+                    const t = tiposElem.find((x: any) => x.id === tipoElemFilter)
+                    return t ? t.nombre : "Todos los tipos de elemento"
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TIPO_ELEM_ALL}>Todos los tipos de elemento</SelectItem>
+                {tiposElemFiltrados.map((t: any) => (
+                  <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
