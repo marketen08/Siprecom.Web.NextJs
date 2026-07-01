@@ -53,6 +53,7 @@ export const menu: MenuItem[] = [
           { label: "Tareas realizadas",      href: "/reporte/tareas" },
           { label: "Listado de pendientes",  href: "/reporte/pendientes" },
           { label: "Databook por subsistema", href: "/reporte/databook" },
+          { label: "Certificados RFC/RFSU/AOC", href: "/reporte/certificados" },
         ],
       },
       {
@@ -233,6 +234,7 @@ export const segmentLabels: Record<string, string> = {
   reporte:       "Reporte",
   "listado-indice": "Listado índice",
   databook:      "Databook",
+  certificados:  "Certificados",
   historial:     "Historial",
   "avance-demo": "Avance demo",
   avance:        "Avance",
