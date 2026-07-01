@@ -40,6 +40,25 @@ export default function ProcedimientosExportImportPage() {
     previewMut.reset()
     try {
       const json = await parseFileJson<unknown>(file)
+
+      // Validación local: la deserialización de .NET es case-insensitive pero exige
+      // que la propiedad exista con el nombre correcto. Chequeamos formato mínimo
+      // para dar un error claro antes de mandarlo al backend.
+      const obj = json as Record<string, unknown> | null
+      const procs = obj?.procedimientos ?? obj?.Procedimientos
+      if (!Array.isArray(procs)) {
+        setData(null)
+        setParseError(
+          "El JSON no tiene la propiedad 'procedimientos'. ¿Es un archivo exportado desde esta pantalla?",
+        )
+        return
+      }
+      if (procs.length === 0) {
+        setData(null)
+        setParseError("El archivo no contiene procedimientos.")
+        return
+      }
+
       setData(json)
       previewMut.mutate(json)
     } catch (err) {
@@ -137,6 +156,18 @@ export default function ProcedimientosExportImportPage() {
         {previewMut.isPending && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Loader2 className="h-4 w-4 animate-spin" /> Validando archivo…
+          </div>
+        )}
+
+        {previewMut.isError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-medium">No se pudo validar el archivo.</p>
+              <p className="text-xs whitespace-pre-wrap">
+                {previewMut.error instanceof Error ? previewMut.error.message : "Error inesperado."}
+              </p>
+            </div>
           </div>
         )}
 
