@@ -107,6 +107,11 @@ export interface FiltroVisor {
    * el viewer aplica el ghost aunque no haya otros criterios.
    */
   ocultarNoVinculadas: boolean
+  /**
+   * IDs de TestGroups (Paquetes de prueba, Fase 7). Filtra Elementos que están
+   * asignados a alguno de los packs indicados (via TestGroupElemento activa).
+   */
+  testGroupIds: string[]
 }
 
 /** Valores del enum EstadoVisualElemento del backend. Sin "Rechazado": una tarea
@@ -130,6 +135,7 @@ export function isFiltroVacio(f: FiltroVisor): boolean {
     && f.nivelIds.length === 0
     && f.estadosVisuales.length === 0
     && !f.ocultarNoVinculadas
+    && f.testGroupIds.length === 0
 }
 
 export function filtroVacio(): FiltroVisor {
@@ -140,6 +146,7 @@ export function filtroVacio(): FiltroVisor {
     nivelIds: [],
     estadosVisuales: [],
     ocultarNoVinculadas: false,
+    testGroupIds: [],
   }
 }
 

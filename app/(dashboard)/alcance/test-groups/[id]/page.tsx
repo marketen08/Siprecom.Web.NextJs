@@ -4,7 +4,7 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  ArrowLeft, CheckCircle2, ClipboardList, Info, Layers, ListChecks,
+  ArrowLeft, CheckCircle2, ClipboardList, Download, Info, Layers, ListChecks,
   Loader2, Play, RotateCcw, XCircle,
 } from "lucide-react"
 
@@ -69,7 +69,17 @@ export default function TestGroupDetallePage({
             <p className="text-sm text-muted-foreground">{tg.nombre || "(sin nombre)"} · {tg.tipoTexto}</p>
           </div>
         </div>
-        <EstadoBadge estado={tg.estado} texto={tg.estadoTexto} />
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            {/* Enlace directo al proxy — el browser dispara la descarga.
+                Con `download` forzamos "guardar como" en vez de abrir inline. */}
+            <a href={`/api/testgroups/${tg.id}/pdf`} download={`${tg.codigo}.pdf`}>
+              <Download className="h-4 w-4" />
+              PDF
+            </a>
+          </Button>
+          <EstadoBadge estado={tg.estado} texto={tg.estadoTexto} />
+        </div>
       </div>
 
       {/* Tabs */}

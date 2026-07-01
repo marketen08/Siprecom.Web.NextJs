@@ -6,7 +6,17 @@ import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-s
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
+import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
+import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, type EstadoTestGroup } from "@/features/testgroups/types"
 import { EstadoVisualIds, filtroVacio, isFiltroVacio, type FiltroVisor } from "../types"
+
+// Para el panel del visor 3D nos interesan solo los packs que están en juego:
+// ACTIVO y COMPLETADO. BORRADOR no llega a highlightear (aún no cerró el alcance)
+// y CERRADO es archivo.
+const ESTADOS_EN_EJECUCION: EstadoTestGroup[] = [
+  ESTADO_TEST_GROUP.ACTIVO,
+  ESTADO_TEST_GROUP.COMPLETADO,
+]
 
 interface Props {
   filtro: FiltroVisor
@@ -48,6 +58,10 @@ export function FiltrosVisorPanel({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       : (nivelesRaw as any)?.data ?? []) as Array<{ id: string; nombre: string; posicion?: number }>
   const nivelesOrdenados = [...niveles].sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0))
+
+  // TestGroups activos + completados del proyecto — para "aislar" packs en el visor.
+  const { data: testGroupsData } = useGetTestGroups({ estados: ESTADOS_EN_EJECUCION })
+  const testGroups = testGroupsData?.data ?? []
 
   // Si hay sistemas seleccionados, mostramos solo los subsistemas que les pertenecen.
   // Ordenados por código (numérico natural: SS1, SS2, … SS10), no alfabético por nombre.
@@ -181,6 +195,21 @@ export function FiltrosVisorPanel({
               else set.add(id)
               onChange({ ...filtro, estadosVisuales: Array.from(set) })
             }}
+          />
+        </Seccion>
+
+        <Seccion
+          titulo="Paquetes de prueba"
+          selectedCount={filtro.testGroupIds.length}
+        >
+          <ChecklistMulti
+            items={testGroups.map((tg) => ({
+              id: tg.id,
+              label: `${tg.codigo} · ${tg.nombre || "(sin nombre)"} [${tg.tipo === TIPO_TEST_GROUP.PRESSURE ? "P" : "BF"}]`,
+            }))}
+            selectedIds={filtro.testGroupIds}
+            onToggle={(id) => toggleSet(filtro.testGroupIds, id, (next) => ({ testGroupIds: next }))}
+            empty="Sin paquetes en ejecución. Activá al menos uno en Alcance → Paquetes de prueba."
           />
         </Seccion>
 
