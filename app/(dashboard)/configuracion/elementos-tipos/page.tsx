@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   useReactTable,
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import { FileSpreadsheet, Plus, Search } from "lucide-react"
 
 import { useGetElementosTipos } from "@/features/elementostipos/api/use-get-elementostipos"
 import { useNewElementoTipo } from "@/features/elementostipos/hooks/use-new-elementotipo"
@@ -102,10 +103,18 @@ export default function ElementosTiposPage() {
             </SelectContent>
           </Select>
 
-          <Button onClick={open} className="gap-2 ml-auto">
-            <Plus className="h-4 w-4" />
-            Nuevo tipo
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/configuracion/catalogos">
+                <FileSpreadsheet className="h-4 w-4" />
+                Importar
+              </Link>
+            </Button>
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nuevo tipo
+            </Button>
+          </div>
         </div>
 
         {/* Tabla */}
