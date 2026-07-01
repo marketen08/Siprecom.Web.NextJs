@@ -86,6 +86,8 @@ export const menu: MenuItem[] = [
       { label: "Subsistemas",  href: "/alcance/subsistemas" },
       { label: "Elementos",    href: "/alcance/elementos" },
       { label: "Tareas",       href: "/alcance/tareas" },
+      { label: "Áreas",        href: "/alcance/areas" },
+      { label: "Módulos",      href: "/alcance/modulos" },
       {
         label: "Importar",
         children: [
@@ -254,4 +256,6 @@ export const segmentLabels: Record<string, string> = {
   licencias:               "Licencias",
   funcionalidades:         "Funcionalidades",
   concurrencia:            "Reporte de concurrencia",
+  areas:                   "Áreas",
+  modulos:                 "Módulos",
 }
