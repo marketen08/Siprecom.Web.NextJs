@@ -6,8 +6,8 @@ import { Search, FileDown } from "lucide-react"
 import { useGetAvanceElementos } from "@/features/avance/api/use-get-avance-elementos"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
-import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
-import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
+import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { useGetTareasSelect } from "@/features/tareas/api/use-get-tareas-select"
 import { PRIORIDAD } from "@/features/elementos/types"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
@@ -123,9 +123,9 @@ function AvanceElementosContent() {
 
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
-  const { data: tiposRaw } = useGetElementosTiposSelect()
+  const { data: tiposRaw } = useGetElementosTiposUsados()
   const { data: tareasRaw } = useGetTareasSelect()
-  const { data: especialidadesRaw } = useGetEspecialidades()
+  const { data: especialidadesRaw } = useGetEspecialidadesUsadas()
 
   const sistemas = sistemasRaw?.data ?? []
   const todosSubSistemas = subSistemasRaw?.data ?? []
