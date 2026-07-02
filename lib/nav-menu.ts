@@ -63,6 +63,8 @@ export const menu: MenuItem[] = [
         children: [
           { label: "Resumen",                      href: "/estadisticas" },
           { label: "Avance por subsistemas",       href: "/estadisticas/avance-subsistemas" },
+          { label: "Avance por áreas",             href: "/estadisticas/avance-areas" },
+          { label: "Avance por módulos",           href: "/estadisticas/avance-modulos" },
           { label: "Cuantitativo por subsistemas", href: "/estadisticas/cuantitativo-subsistemas" },
           { label: "Avance programado",            href: "/estadisticas/avance-programado" },
           { label: "Estado de pendientes",         href: "/estadisticas/estado-pendientes" },
@@ -249,6 +251,8 @@ export const segmentLabels: Record<string, string> = {
   versiones:                   "Versiones",
   manual:                      "Planificación manual",
   "avance-subsistemas":        "Avance por subsistemas",
+  "avance-areas":              "Avance por áreas",
+  "avance-modulos":            "Avance por módulos",
   "cuantitativo-subsistemas":  "Cuantitativo por subsistemas",
   "avance-programado":         "Avance programado",
   "estado-pendientes":         "Estado de pendientes",

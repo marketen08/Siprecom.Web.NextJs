@@ -32,6 +32,23 @@ export interface AvanceSubsistemaFilters {
   especialidadId?: string
 }
 
+/**
+ * Espejo del backend AvanceAgrupacionFilteredDTO. Sirve tanto para Área como
+ * para Módulo (los campos son idénticos). El chart y la página no distinguen.
+ */
+export interface AvanceAgrupacionFilteredDTO {
+  id: string
+  codigo: string
+  nombre: string
+  descripcion: string | null
+  cantidadElementos: number
+  totalTareas: number
+  completadas: number
+  porcentajeAvance: number
+}
+
+export type AvanceAgrupacionFilters = AvanceSubsistemaFilters
+
 export interface ElementosPorSubsistemaDTO {
   subSistemaId: string
   codigo: string
