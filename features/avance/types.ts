@@ -24,11 +24,29 @@ export interface AvanceElementoDTO extends AvanceDTO {
   subSistemaNombre: string | null
 }
 
+export interface AvanceSubSistemaNivelDTO {
+  nivelId: string
+  nivelNombre: string
+  nivelPosicion: number
+  fechaInicio: string | null
+  fechaFin: string | null
+  totalTareas: number
+  tareasTerminales: number
+  porcentajeAvance: number
+  completado: boolean
+}
+
 export interface AvanceSubSistemaDTO extends AvanceDTO {
   /** True si el subsistema tiene un PDF de plano cargado. */
   tienePlano: boolean
   /** Nombre del archivo (para tooltip). Null si no hay plano. */
   planoNombreArchivo: string | null
+  /** Desglose por nivel: fechas planificadas + avance parcial. Ordenado por posicion. */
+  niveles?: AvanceSubSistemaNivelDTO[]
+  /** Sistema padre (poblado en el endpoint de detalle). */
+  sistemaId?: string
+  sistemaCodigo?: string | null
+  sistemaNombre?: string | null
 }
 
 export interface AvanceSistemaDTO extends AvanceDTO {
