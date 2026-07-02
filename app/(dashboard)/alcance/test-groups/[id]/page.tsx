@@ -4,7 +4,7 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  ArrowLeft, CheckCircle2, ClipboardList, Download, FileText, Info, Layers, ListChecks,
+  ArrowLeft, Award, CheckCircle2, ClipboardList, Download, FileText, Info, Layers, ListChecks,
   Loader2, Play, RotateCcw, XCircle,
 } from "lucide-react"
 
@@ -83,6 +83,27 @@ export default function TestGroupDetallePage({
         </div>
       </div>
 
+      {/* Banner de certificado activo (F6.2). Cuando este pack forma parte de un RFC/RFSU/AOC
+          emitido, todos los cambios están bloqueados hasta que se revoque desde /reporte/certificados. */}
+      {tg.tieneCertificadoActivo && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 flex items-start gap-2 text-sm text-amber-900">
+          <Award className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+          <div className="flex-1">
+            <div className="font-medium">
+              Este paquete forma parte del {tg.certificadoActivoTipoTexto} del subsistema
+              {tg.certificadoActivoEmitidoEn && (
+                <> · emitido el {new Date(tg.certificadoActivoEmitidoEn).toLocaleDateString("es-AR")}</>
+              )}
+              {tg.certificadoActivoEmitidoPorNombre && <> por {tg.certificadoActivoEmitidoPorNombre}</>}
+            </div>
+            <div className="text-xs mt-0.5">
+              Los cambios en composición, tareas y estado están bloqueados. Para modificarlo,
+              revocá el certificado desde <Link href="/reporte/certificados" className="underline">Reporte · Certificados</Link>.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="border-b flex items-center gap-1 overflow-x-auto">
         <TabButton current={tab} value="info" onClick={setTab} icon={Info}>Info</TabButton>
@@ -97,8 +118,8 @@ export default function TestGroupDetallePage({
 
       {/* Contenido */}
       {tab === "info" && <TabInfo tg={tg} isPressure={isPressure} />}
-      {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO} />}
-      {tab === "tareas" && <TabTareas testGroupId={tg.id} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR} />}
+      {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} />}
+      {tab === "tareas" && <TabTareas testGroupId={tg.id} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} />}
       {tab === "progreso" && <TabProgreso testGroupId={tg.id} />}
     </div>
   )

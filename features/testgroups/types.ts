@@ -57,6 +57,13 @@ export interface TestGroup {
   cantidadTareasTerminales: number
   porcentajeAvance: number
 
+  // F6.2 — certificado activo (RFC/RFSU/AOC) que cubre este pack. Bloquea cambios.
+  tieneCertificadoActivo?: boolean
+  certificadoActivoTipo?: number | null
+  certificadoActivoTipoTexto?: string | null
+  certificadoActivoEmitidoEn?: string | null
+  certificadoActivoEmitidoPorNombre?: string | null
+
   createdAt: string
   createdByNombre: string
   updatedAt: string
