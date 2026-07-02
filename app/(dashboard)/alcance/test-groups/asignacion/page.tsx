@@ -11,7 +11,14 @@ import { useDesasignarElemento } from "@/features/testgroups/api/use-desasignar-
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
-import { TIPO_TEST_GROUP, type TipoTestGroup } from "@/features/testgroups/types"
+import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, type EstadoTestGroup, type TipoTestGroup } from "@/features/testgroups/types"
+
+// La asignación solo tiene sentido sobre packs "en juego" (BORRADOR o ACTIVO).
+// COMPLETADO y CERRADO no aceptan cambios de composición.
+const ESTADOS_ASIGNABLES: EstadoTestGroup[] = [
+  ESTADO_TEST_GROUP.BORRADOR,
+  ESTADO_TEST_GROUP.ACTIVO,
+]
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -98,7 +105,7 @@ export default function AsignacionPage() {
   const tipoParam: TipoTestGroup | undefined =
     tipoFilter === TIPO_ALL ? undefined : (parseInt(tipoFilter, 10) as TipoTestGroup)
 
-  const { data: tgData } = useGetTestGroups({ tipo: tipoParam })
+  const { data: tgData } = useGetTestGroups({ tipo: tipoParam, estados: ESTADOS_ASIGNABLES })
   const testGroups = tgData?.data ?? []
 
   const { data: subsData } = useGetSubSistemasSelect()

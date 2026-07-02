@@ -251,25 +251,29 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
               name="tipoPruebaFuncional"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipo de prueba</FormLabel>
+                  <FormLabel>
+                    Tipo de prueba <span className="text-destructive">*</span>
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      (FTS → alimenta RFSU; OTS → alimenta AOC)
+                    </span>
+                  </FormLabel>
                   <Select
                     disabled={isPending}
-                    value={field.value == null ? "__none__" : String(field.value)}
-                    onValueChange={(v) => field.onChange(!v || v === "__none__" ? null : parseInt(v, 10))}
+                    value={field.value == null ? "" : String(field.value)}
+                    onValueChange={(v) => v && field.onChange(parseInt(v, 10))}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue>
+                        <SelectValue placeholder="Elegí FTS u OTS">
                           {field.value === TIPO_PRUEBA_FUNCIONAL.FTS
                             ? "FTS"
                             : field.value === TIPO_PRUEBA_FUNCIONAL.OTS
                               ? "OTS"
-                              : "—"}
+                              : ""}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="__none__">—</SelectItem>
                       <SelectItem value={String(TIPO_PRUEBA_FUNCIONAL.FTS)}>FTS</SelectItem>
                       <SelectItem value={String(TIPO_PRUEBA_FUNCIONAL.OTS)}>OTS</SelectItem>
                     </SelectContent>

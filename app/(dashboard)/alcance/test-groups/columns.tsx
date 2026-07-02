@@ -184,6 +184,30 @@ export const columns: ColumnDef<TestGroup>[] = [
     ),
   },
   {
+    id: "progreso",
+    header: "Progreso",
+    cell: ({ row }) => {
+      const tg = row.original
+      if (tg.cantidadTareas === 0) {
+        return <span className="text-xs text-muted-foreground">—</span>
+      }
+      const pct = tg.porcentajeAvance ?? 0
+      return (
+        <div className="flex items-center gap-2 min-w-35">
+          <div className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+            <div
+              className={`h-full ${pct >= 100 ? "bg-green-600" : "bg-blue-600"}`}
+              style={{ width: `${Math.min(100, pct)}%` }}
+            />
+          </div>
+          <span className="text-[11px] tabular-nums text-muted-foreground w-14 text-right">
+            {tg.cantidadTareasTerminales ?? 0}/{tg.cantidadTareas} · {pct}%
+          </span>
+        </div>
+      )
+    },
+  },
+  {
     id: "actions",
     cell: ({ row }) => <RowActions tg={row.original} />,
   },
