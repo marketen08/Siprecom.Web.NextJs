@@ -38,3 +38,8 @@ export interface AvanceSistemaDTO extends AvanceDTO {
 export interface AvanceProyectoDTO extends AvanceDTO {
   sistemas: AvanceSistemaDTO[]
 }
+
+export interface AvanceAgrupacionDTO extends AvanceDTO {
+  descripcion: string | null
+  cantidadElementos: number
+}
