@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { BarChart3, BarChart, LineChart, PieChart } from "lucide-react"
+import { BarChart3, BarChart, CalendarRange, LineChart, Map, PackageOpen, PieChart, TrendingUp } from "lucide-react"
 
 const tarjetas = [
   {
@@ -7,6 +7,18 @@ const tarjetas = [
     titulo: "Avance por subsistemas",
     descripcion: "% de avance de cada subsistema en barras horizontales.",
     Icon: BarChart3,
+  },
+  {
+    href: "/estadisticas/avance-areas",
+    titulo: "Avance por áreas",
+    descripcion: "% de avance de cada área del proyecto.",
+    Icon: Map,
+  },
+  {
+    href: "/estadisticas/avance-modulos",
+    titulo: "Avance por módulos",
+    descripcion: "% de avance por módulo (paquete de trabajo).",
+    Icon: PackageOpen,
   },
   {
     href: "/estadisticas/cuantitativo-subsistemas",
@@ -19,6 +31,18 @@ const tarjetas = [
     titulo: "Avance programado",
     descripcion: "Curva S: programado vs completado por semana.",
     Icon: LineChart,
+  },
+  {
+    href: "/estadisticas/planificacion-gantt",
+    titulo: "Planificación (Gantt)",
+    descripcion: "Ventanas por subsistema × nivel en el tiempo, coloreadas por estado.",
+    Icon: CalendarRange,
+  },
+  {
+    href: "/estadisticas/skyline",
+    titulo: "Skyline — carga programada",
+    descripcion: "Distribución de hitos por mes o semana. Detecta picos de trabajo.",
+    Icon: TrendingUp,
   },
   {
     href: "/estadisticas/estado-pendientes",
