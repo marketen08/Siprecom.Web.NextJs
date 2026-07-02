@@ -2,9 +2,9 @@
 
 import { use, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
-  ArrowLeft, CheckCircle2, ClipboardList, Download, Info, Layers, ListChecks,
+  ArrowLeft, CheckCircle2, ClipboardList, Download, FileText, Info, Layers, ListChecks,
   Loader2, Play, RotateCcw, XCircle,
 } from "lucide-react"
 
@@ -15,6 +15,7 @@ import {
   useGetTareasPack, ESTADO_TAREA, ESTADO_TAREA_LABEL, type EstadoTarea, type TestGroupTareaItem,
 } from "@/features/testgroups/api/use-get-tareas-pack"
 import { useCambiarEstadoTarea } from "@/features/testgroups/api/use-cambiar-estado-tarea"
+import { useIniciarRegistroTarea } from "@/features/testgroups/api/use-iniciar-registro-tarea"
 import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
 
 import { Badge } from "@/components/ui/badge"
@@ -288,6 +289,11 @@ function TareaRow({
   tarea: TestGroupTareaItem; testGroupId: string; bloqueado: boolean
 }) {
   const cambiar = useCambiarEstadoTarea()
+  const iniciarRegistro = useIniciarRegistroTarea()
+  const router = useRouter()
+
+  const tienePlanilla = !!tarea.tareaPlanillaId
+  const tieneRegistro = !!tarea.registroId
 
   const canIniciar = tarea.estado === ESTADO_TAREA.PENDIENTE
   const canCompletar = tarea.estado === ESTADO_TAREA.EN_PROCESO
@@ -304,6 +310,20 @@ function TareaRow({
   const runChange = (estado: EstadoTarea, motivoRechazo?: string) =>
     cambiar.mutateAsync({ testGroupId, tareaId: tarea.id, estado, motivoRechazo })
 
+  // Abre (o crea+abre) el registro de la planilla en el editor. Volver acá al terminar.
+  const returnTo = `/ejecucion/test-groups/${testGroupId}`
+  const irAPlanilla = async () => {
+    if (tieneRegistro) {
+      router.push(`/ejecucion/registros/${tarea.registroId}?returnTo=${encodeURIComponent(returnTo)}`)
+      return
+    }
+    const res = await iniciarRegistro.mutateAsync({ testGroupId, tareaId: tarea.id })
+    const registroId = res?.data?.registroId
+    if (registroId) {
+      router.push(`/ejecucion/registros/${registroId}?returnTo=${encodeURIComponent(returnTo)}`)
+    }
+  }
+
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{tarea.tareaCodigo}</TableCell>
@@ -314,7 +334,27 @@ function TareaRow({
       <TableCell className="text-xs text-muted-foreground">{fmtFecha(tarea.fechaFinalizacion)}</TableCell>
       <TableCell>
         <div className="flex items-center gap-1 justify-end">
-          {!bloqueado && canIniciar && (
+          {/* Con planilla: un botón único que crea/reanuda el registro y navega al editor. */}
+          {!bloqueado && tienePlanilla && tarea.estado !== ESTADO_TAREA.RECHAZADO && tarea.estado !== ESTADO_TAREA.CANCELADO && (
+            <Button
+              size="sm"
+              className={`h-7 gap-1 text-xs ${tarea.estado === ESTADO_TAREA.COMPLETADO ? "" : "bg-blue-700 hover:bg-blue-600"}`}
+              variant={tarea.estado === ESTADO_TAREA.COMPLETADO ? "outline" : "default"}
+              onClick={irAPlanilla}
+              disabled={iniciarRegistro.isPending}
+            >
+              {iniciarRegistro.isPending
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <FileText className="h-3 w-3" />}
+              {tarea.estado === ESTADO_TAREA.COMPLETADO
+                ? "Ver planilla"
+                : tieneRegistro
+                  ? "Continuar planilla"
+                  : "Completar planilla"}
+            </Button>
+          )}
+          {/* Sin planilla: flujo legacy de estados sin registro. */}
+          {!bloqueado && !tienePlanilla && canIniciar && (
             <Button size="sm" variant="outline" className="h-7 gap-1 text-xs"
               onClick={() => runChange(ESTADO_TAREA.EN_PROCESO)}
               disabled={cambiar.isPending}
@@ -322,7 +362,7 @@ function TareaRow({
               <Play className="h-3 w-3" /> Iniciar
             </Button>
           )}
-          {!bloqueado && canCompletar && (
+          {!bloqueado && !tienePlanilla && canCompletar && (
             <Button size="sm" className="h-7 gap-1 text-xs bg-green-700 hover:bg-green-600"
               onClick={() => runChange(ESTADO_TAREA.COMPLETADO)}
               disabled={cambiar.isPending}

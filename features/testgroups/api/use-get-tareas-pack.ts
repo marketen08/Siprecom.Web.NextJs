@@ -25,6 +25,18 @@ export const ESTADO_TAREA_LABEL: Record<number, string> = {
   7: "Firmado",
 }
 
+// Espejo del enum EstadoRegistro del backend.
+export const ESTADO_REGISTRO = {
+  BORRADOR: 1,
+  EN_PROCESO: 2,
+  COMPLETADO: 3,
+  FIRMADO: 4,
+  APROBADO: 5,
+  RECHAZADO: 6,
+} as const
+
+export type EstadoRegistro = (typeof ESTADO_REGISTRO)[keyof typeof ESTADO_REGISTRO]
+
 export interface TestGroupTareaItem {
   id: string
   testGroupId: string
@@ -40,6 +52,9 @@ export interface TestGroupTareaItem {
   porcentajeAvance: number
   motivoRechazo: string | null
   observaciones: string | null
+  tareaPlanillaId: string | null
+  registroId: string | null
+  registroEstado: EstadoRegistro | null
 }
 
 export function useGetTareasPack(testGroupId: string | null) {
