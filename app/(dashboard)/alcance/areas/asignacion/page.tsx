@@ -1,0 +1,338 @@
+"use client"
+
+import { useMemo, useState } from "react"
+import { ArrowLeft, ArrowRight, MapPin, Search } from "lucide-react"
+
+import { useGetAreas } from "@/features/areas/api/use-get-areas"
+import { useGetElementosAsignadosArea, type ElementoAsignable } from "@/features/areas/api/use-get-elementos-asignados-area"
+import { useGetElementosDisponiblesArea } from "@/features/areas/api/use-get-elementos-disponibles-area"
+import { useAsignarElementosArea } from "@/features/areas/api/use-asignar-elementos-area"
+import { useDesasignarElementoArea } from "@/features/areas/api/use-desasignar-elemento-area"
+import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
+import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
+
+const SUB_ALL = "__all__"
+const TIPO_ELEM_ALL = "__all__"
+const ESP_ALL = "__all__"
+
+interface ListaProps {
+  titulo: string
+  vacio: string
+  items: ElementoAsignable[]
+  selected: Set<string>
+  onToggle: (id: string) => void
+  isLoading: boolean
+  right?: React.ReactNode
+}
+
+function ListaElementos({ titulo, vacio, items, selected, onToggle, isLoading, right }: ListaProps) {
+  return (
+    <div className="flex flex-col rounded-lg border bg-card min-h-125">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
+        <h3 className="font-semibold text-sm">{titulo}</h3>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{items.length}</span>
+          {right}
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1 max-h-125">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground p-3">Cargando...</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground p-3">{vacio}</p>
+        ) : (
+          items.map((el) => (
+            <label
+              key={el.id}
+              className={`flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer hover:bg-muted text-sm ${
+                selected.has(el.id) ? "bg-blue-50 dark:bg-blue-950/20" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(el.id)}
+                onChange={() => onToggle(el.id)}
+                className="h-4 w-4 accent-blue-900"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs">{el.tag}</span>
+                  {el.elementoTipoNombre && (
+                    <Badge variant="outline" className="text-[10px]">{el.elementoTipoNombre}</Badge>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {el.nombre}
+                  {el.subSistemaCodigo && ` · ${el.subSistemaCodigo}`}
+                </div>
+              </div>
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function AsignacionAreasPage() {
+  const [areaId, setAreaId] = useState<string | null>(null)
+  const [subFilter, setSubFilter] = useState<string>(SUB_ALL)
+  const [espFilter, setEspFilter] = useState<string>(ESP_ALL)
+  const [tipoElemFilter, setTipoElemFilter] = useState<string>(TIPO_ELEM_ALL)
+  const [search, setSearch] = useState("")
+
+  const [selectedDisp, setSelectedDisp] = useState<Set<string>>(new Set())
+  const [selectedAsig, setSelectedAsig] = useState<Set<string>>(new Set())
+
+  const { data: areasData } = useGetAreas()
+  const areas = areasData?.data ?? []
+
+  const { data: subsData } = useGetSubSistemasSelect()
+  const subs = subsData?.data ?? []
+  const { data: tiposData } = useGetElementosTiposUsados()
+  const tiposElem = (tiposData as any)?.data ?? []
+  const { data: espData } = useGetEspecialidadesUsadas()
+  const especialidades = espData?.data ?? []
+
+  const tiposElemFiltrados = useMemo(() => {
+    if (espFilter === ESP_ALL) return tiposElem
+    return (tiposElem as Array<{ id: string; nombre: string; especialidadId?: string }>)
+      .filter((t) => t.especialidadId === espFilter)
+  }, [tiposElem, espFilter])
+
+  const { data: asignadosData, isLoading: loadingAsignados } = useGetElementosAsignadosArea(areaId)
+  const { data: dispData, isLoading: loadingDisp } = useGetElementosDisponiblesArea({
+    areaId,
+    subSistemaId: subFilter === SUB_ALL ? undefined : subFilter,
+    elementoTipoId: tipoElemFilter === TIPO_ELEM_ALL ? undefined : tipoElemFilter,
+    especialidadId: espFilter === ESP_ALL ? undefined : espFilter,
+    search: search || undefined,
+  })
+
+  const asignados = asignadosData?.data ?? []
+  const disponibles = dispData?.data ?? []
+
+  const asignarMutation = useAsignarElementosArea()
+  const desasignarMutation = useDesasignarElementoArea()
+
+  const areaActual = useMemo(() => areas.find((a) => a.id === areaId), [areas, areaId])
+
+  const toggleDisp = (id: string) => {
+    setSelectedDisp((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+  const toggleAsig = (id: string) => {
+    setSelectedAsig((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleAsignar = async () => {
+    if (!areaId || selectedDisp.size === 0) return
+    await asignarMutation.mutateAsync({
+      areaId,
+      elementoIds: Array.from(selectedDisp),
+    })
+    setSelectedDisp(new Set())
+  }
+
+  const handleDesasignar = async () => {
+    if (!areaId || selectedAsig.size === 0) return
+    for (const elementoId of Array.from(selectedAsig)) {
+      await desasignarMutation.mutateAsync({ areaId, elementoId })
+    }
+    setSelectedAsig(new Set())
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header con selector de Área */}
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <MapPin className="h-4 w-4 text-blue-700 shrink-0" />
+
+          <Select
+            value={areaId ?? ""}
+            onValueChange={(v) => {
+              setAreaId(v || null)
+              setSelectedDisp(new Set())
+              setSelectedAsig(new Set())
+            }}
+          >
+            <SelectTrigger className="w-96">
+              <SelectValue placeholder="Elegí un área">
+                {(() => {
+                  const a = areas.find((x) => x.id === areaId)
+                  return a
+                    ? `${a.codigo} — ${a.nombre}`
+                    : "Elegí un área"
+                })()}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {areas.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  Sin áreas definidas. Creá una en Alcance → Áreas.
+                </div>
+              )}
+              {areas.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.codigo} — {a.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {areaActual && areaActual.descripcion && (
+            <Badge variant="outline" className="ml-auto max-w-sm truncate">
+              {areaActual.descripcion}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {!areaId ? (
+        <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">
+          Elegí un área para empezar a asignar elementos.
+        </div>
+      ) : (
+        <>
+          {/* Filtros de la lista de disponibles */}
+          <div className="rounded-lg border bg-card p-3 flex items-center gap-3 flex-wrap">
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar TAG, nombre, PID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={subFilter} onValueChange={(v) => setSubFilter(v ?? SUB_ALL)}>
+              <SelectTrigger className="w-72">
+                <SelectValue placeholder="Todos los subsistemas">
+                  {(() => {
+                    if (subFilter === SUB_ALL) return "Todos los subsistemas"
+                    const s = subs.find((x) => x.id === subFilter)
+                    return s ? `${s.codigo} — ${s.nombre}` : "Todos los subsistemas"
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SUB_ALL}>Todos los subsistemas</SelectItem>
+                {subs.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={espFilter}
+              onValueChange={(v) => {
+                const value = v ?? ESP_ALL
+                setEspFilter(value)
+                // Si el tipo seleccionado dejó de pertenecer a la nueva especialidad, lo limpio.
+                if (value !== ESP_ALL && tipoElemFilter !== TIPO_ELEM_ALL) {
+                  const t = tiposElem.find((x: any) => x.id === tipoElemFilter)
+                  if (t?.especialidadId !== value) setTipoElemFilter(TIPO_ELEM_ALL)
+                }
+              }}
+            >
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Todas las especialidades">
+                  {(() => {
+                    if (espFilter === ESP_ALL) return "Todas las especialidades"
+                    const e = especialidades.find((x) => x.id === espFilter)
+                    return e ? (e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre) : "Todas las especialidades"
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ESP_ALL}>Todas las especialidades</SelectItem>
+                {especialidades.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={tipoElemFilter} onValueChange={(v) => setTipoElemFilter(v ?? TIPO_ELEM_ALL)}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Todos los tipos de elemento">
+                  {(() => {
+                    if (tipoElemFilter === TIPO_ELEM_ALL) return "Todos los tipos de elemento"
+                    const t = tiposElem.find((x: any) => x.id === tipoElemFilter)
+                    return t ? t.nombre : "Todos los tipos de elemento"
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TIPO_ELEM_ALL}>Todos los tipos de elemento</SelectItem>
+                {tiposElemFiltrados.map((t: any) => (
+                  <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Dos columnas + botones */}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4">
+            <ListaElementos
+              titulo="Disponibles"
+              vacio="Sin elementos que cumplan los filtros."
+              items={disponibles}
+              selected={selectedDisp}
+              onToggle={toggleDisp}
+              isLoading={loadingDisp}
+            />
+
+            <div className="flex md:flex-col items-center justify-center gap-3">
+              <Button
+                onClick={handleAsignar}
+                disabled={selectedDisp.size === 0 || asignarMutation.isPending}
+                className="gap-2 bg-blue-900 hover:bg-blue-800"
+                size="sm"
+              >
+                <ArrowRight className="h-4 w-4" />
+                Asignar {selectedDisp.size > 0 ? `(${selectedDisp.size})` : ""}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDesasignar}
+                disabled={selectedAsig.size === 0 || desasignarMutation.isPending}
+                className="gap-2"
+                size="sm"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Quitar {selectedAsig.size > 0 ? `(${selectedAsig.size})` : ""}
+              </Button>
+            </div>
+
+            <ListaElementos
+              titulo="Asignados al área"
+              vacio="Todavía no hay elementos asignados."
+              items={asignados}
+              selected={selectedAsig}
+              onToggle={toggleAsig}
+              isLoading={loadingAsignados}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
