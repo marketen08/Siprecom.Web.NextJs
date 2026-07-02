@@ -95,6 +95,71 @@ export function useGetIfcPrincipal(proyectoId: string | null | undefined) {
   })
 }
 
+/**
+ * Descarga el JSON portable de una maqueta. Solo re-usable en el mismo tenant
+ * de APS — el ApsObjectKey/ApsUrn referencian storage compartido.
+ */
+export async function descargarMaquetaJson(
+  proyectoId: string,
+  archivoId: string,
+  nombreSugerido?: string,
+): Promise<void> {
+  const res = await fetch(`/api/proyectos/${proyectoId}/ifc/${archivoId}/export-json`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body?.message ?? `HTTP ${res.status} al exportar la maqueta.`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  const cd = res.headers.get("content-disposition") ?? ""
+  const m = /filename="?([^"]+)"?/.exec(cd)
+  a.download = m?.[1] ?? `${nombreSugerido ?? "maqueta"}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+export interface ImportMaquetaPreview {
+  nombre: string
+  disciplina?: string | null
+  formatoArchivo: number
+  cantidadEntidades: number
+  apsListo: boolean
+  advertencias: string[]
+}
+
+export interface ImportMaquetaResultado {
+  aplicado: boolean
+  archivoIdCreado?: string | null
+  entidadesImportadas: number
+  mensaje?: string | null
+}
+
+export function usePreviewImportMaqueta(proyectoId: string) {
+  return useMutation({
+    mutationFn: (data: unknown) =>
+      apiClient.post<ApiResponse<ImportMaquetaPreview>>(
+        `/api/proyectos/${proyectoId}/ifc/import-json/preview`,
+        data as object,
+      ),
+  })
+}
+
+export function useImportarMaqueta(proyectoId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { data: unknown; marcarComoPrincipal: boolean }) =>
+      apiClient.post<ApiResponse<ImportMaquetaResultado>>(
+        `/api/proyectos/${proyectoId}/ifc/import-json?marcarComoPrincipal=${params.marcarComoPrincipal}`,
+        params.data as object,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK(proyectoId) }),
+  })
+}
+
 export function useDeleteIfcArchivo(proyectoId: string) {
   const qc = useQueryClient()
   return useMutation({

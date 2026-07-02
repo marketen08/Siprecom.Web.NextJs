@@ -3,16 +3,18 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Cloud, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, ScanSearch, Star, Trash2, Wrench,
+  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Loader2, Palette, RefreshCw, ScanSearch, Star, Trash2, Wrench,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import {
+  descargarMaquetaJson,
   useDeleteIfcArchivo,
   useGetIfcArchivos,
   useMarcarIfcPrincipal,
 } from "@/features/modelo-3d/api/use-ifc-archivos"
+import { ImportarMaquetaJsonSheet } from "@/features/modelo-3d/components/importar-maqueta-json-dialog"
 import {
   resolverEntidadesPorGuids,
   getGuidsPorElemento,
@@ -65,6 +67,7 @@ function ModeloPageContent() {
 
   const [openUpload, setOpenUpload] = useState(false)
   const [openAps, setOpenAps] = useState(false)
+  const [openImportJson, setOpenImportJson] = useState(false)
 
   useBreadcrumb(
     proyecto
@@ -278,6 +281,10 @@ function ModeloPageContent() {
               Colores por estado
             </Button>
           )}
+          <Button onClick={() => setOpenImportJson(true)} variant="outline" className="gap-2">
+            <FileJson className="h-4 w-4" />
+            Importar JSON
+          </Button>
           <Button onClick={() => setOpenAps(true)} variant="outline" className="gap-2">
             <Cloud className="h-4 w-4" />
             Importar de Autodesk
@@ -320,6 +327,7 @@ function ModeloPageContent() {
               onReBootstrap={() => reBootstrap.mutateAsync(a.id)}
               onMarcarPrincipal={() => marcarPrincipal.mutateAsync(a.id)}
               onEliminar={() => eliminar.mutateAsync(a.id)}
+              onExportarJson={() => descargarMaquetaJson(id, a.id, a.nombre)}
             />
           ))}
         </div>
@@ -410,6 +418,11 @@ function ModeloPageContent() {
         open={openAps}
         onClose={() => setOpenAps(false)}
       />
+      <ImportarMaquetaJsonSheet
+        proyectoId={id}
+        open={openImportJson}
+        onClose={() => setOpenImportJson(false)}
+      />
     </div>
   )
 }
@@ -418,7 +431,7 @@ function ModeloPageContent() {
 
 function ArchivoCard({
   archivo, activo, loading, disabledVisualizar, procesando, reBootstrapeando, marcandoPrincipal,
-  onVisualizar, onProcesar, onReBootstrap, onMarcarPrincipal, onEliminar,
+  onVisualizar, onProcesar, onReBootstrap, onMarcarPrincipal, onEliminar, onExportarJson,
 }: {
   archivo: ProyectoIfcArchivo
   activo: boolean
@@ -432,7 +445,13 @@ function ArchivoCard({
   onReBootstrap: () => Promise<unknown>
   onMarcarPrincipal: () => Promise<unknown>
   onEliminar: () => Promise<unknown>
+  onExportarJson: () => Promise<unknown>
 }) {
+  const [exportando, setExportando] = useState(false)
+  const handleExportar = async () => {
+    setExportando(true)
+    try { await onExportarJson() } finally { setExportando(false) }
+  }
   const mb = archivo.tamanioBytes
     ? Math.round((archivo.tamanioBytes / (1024 * 1024)) * 10) / 10
     : null
@@ -518,6 +537,15 @@ function ArchivoCard({
             <ScanSearch className="h-3.5 w-3.5" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={handleExportar}
+          disabled={exportando}
+          className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors disabled:opacity-50"
+          title="Exportar a JSON (para reutilizar en otro proyecto)"
+        >
+          {exportando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+        </button>
         <ConfirmActionDialog
           trigger={reBootstrapeando
             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
