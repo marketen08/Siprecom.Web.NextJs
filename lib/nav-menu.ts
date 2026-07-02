@@ -35,9 +35,9 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Avance por sistemas",     href: "/ejecucion/sistemas" },
       { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
+      { label: "Avance por elementos",    href: "/ejecucion/elementos" },
       { label: "Avance por áreas",        href: "/ejecucion/areas" },
       { label: "Avance por módulos",      href: "/ejecucion/modulos" },
-      { label: "Avance por elementos",    href: "/ejecucion/elementos" },
       { label: "Paquetes de prueba",       href: "/ejecucion/test-groups" },
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },

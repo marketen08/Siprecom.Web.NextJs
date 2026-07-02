@@ -38,17 +38,59 @@ interface ListaProps {
   items: ElementoAsignable[]
   selected: Set<string>
   onToggle: (id: string) => void
+  /**
+   * Reemplaza `selected` con `ids`. La página lo usa para "seleccionar todo"
+   * (pasando los ids de todos los items visibles) o "deseleccionar todo"
+   * (pasando un Set vacío).
+   */
+  onReplace: (ids: Set<string>) => void
   isLoading: boolean
   right?: React.ReactNode
 }
 
-function ListaElementos({ titulo, vacio, items, selected, onToggle, isLoading, right }: ListaProps) {
+function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, isLoading, right }: ListaProps) {
+  // Contamos cuántos de los ítems visibles están seleccionados. En el modelo,
+  // `selected` puede tener ids de una carga previa (ej. antes de aplicar un filtro)
+  // por eso comparamos contra `items` (los visibles ahora).
+  const seleccionadosVisibles = items.reduce((acc, x) => acc + (selected.has(x.id) ? 1 : 0), 0)
+  const hayItems = items.length > 0
+  const todosSeleccionados = hayItems && seleccionadosVisibles === items.length
+  const algunosSeleccionados = seleccionadosVisibles > 0 && !todosSeleccionados
+
+  function toggleAll() {
+    if (todosSeleccionados) {
+      // Quitar del set solo los visibles (preservar cualquier selección "invisible").
+      const visiblesIds = new Set(items.map((x) => x.id))
+      const next = new Set<string>()
+      for (const id of selected) if (!visiblesIds.has(id)) next.add(id)
+      onReplace(next)
+    } else {
+      // Sumar los visibles al set.
+      const next = new Set(selected)
+      for (const x of items) next.add(x.id)
+      onReplace(next)
+    }
+  }
+
   return (
     <div className="flex flex-col rounded-lg border bg-card min-h-[500px]">
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
-        <h3 className="font-semibold text-sm">{titulo}</h3>
+        <label className={`flex items-center gap-2 ${hayItems ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+          <input
+            type="checkbox"
+            checked={todosSeleccionados}
+            disabled={!hayItems}
+            onChange={toggleAll}
+            ref={(el) => { if (el) el.indeterminate = algunosSeleccionados }}
+            className="h-4 w-4 accent-blue-900"
+            aria-label={todosSeleccionados ? "Deseleccionar todo" : "Seleccionar todo"}
+          />
+          <h3 className="font-semibold text-sm">{titulo}</h3>
+        </label>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{items.length}</span>
+          <span className="text-xs text-muted-foreground">
+            {seleccionadosVisibles > 0 ? `${seleccionadosVisibles}/${items.length}` : items.length}
+          </span>
           {right}
         </div>
       </div>
@@ -320,6 +362,7 @@ export default function AsignacionPage() {
               items={disponibles}
               selected={selectedDisp}
               onToggle={toggleDisp}
+              onReplace={setSelectedDisp}
               isLoading={loadingDisp}
             />
 
@@ -351,6 +394,7 @@ export default function AsignacionPage() {
               items={asignados}
               selected={selectedAsig}
               onToggle={toggleAsig}
+              onReplace={setSelectedAsig}
               isLoading={loadingAsignados}
             />
           </div>
