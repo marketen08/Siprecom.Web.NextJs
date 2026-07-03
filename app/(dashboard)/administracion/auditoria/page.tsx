@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useMemo, useState } from "react"
-import { ChevronDown, ChevronRight, FileSpreadsheet, History, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronRight, FileSpreadsheet, History, Loader2, RefreshCw } from "lucide-react"
 
 import { descargarAuditoriaExcel, useAuditoria } from "@/features/auditoria/api/use-auditoria"
 import {
@@ -76,7 +76,7 @@ export default function AuditoriaPage() {
     search: search || undefined,
   }
 
-  const { data, isLoading, isFetching } = useAuditoria(filtros, page, pageSize, esSuperAdmin && todosLosProyectos)
+  const { data, isLoading, isFetching, refetch } = useAuditoria(filtros, page, pageSize, esSuperAdmin && todosLosProyectos)
   const paged = data?.data
   const items = paged?.items ?? []
   const total = paged?.total ?? 0
@@ -120,6 +120,18 @@ export default function AuditoriaPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="gap-2"
+            title="Volver a consultar los logs con los filtros actuales"
+          >
+            {isFetching
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <RefreshCw className="h-4 w-4" />}
+            Actualizar
+          </Button>
           <Button
             variant="outline"
             onClick={() => descargarAuditoriaExcel(filtros, esSuperAdmin && todosLosProyectos)}
@@ -323,8 +335,10 @@ export default function AuditoriaPage() {
                       </TableCell>
                       <TableCell className="py-2 text-sm">
                         <div className="font-medium">{it.usuarioNombre ?? "—"}</div>
-                        {it.ipAddress && (
-                          <div className="text-[10px] text-muted-foreground">{it.ipAddress}</div>
+                        {it.usuarioEmail && (
+                          <div className="text-[10px] text-muted-foreground" title={it.ipAddress ? `IP: ${it.ipAddress}` : undefined}>
+                            {it.usuarioEmail}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="py-2 text-sm">

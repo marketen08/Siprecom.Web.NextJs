@@ -9,6 +9,7 @@ export interface AuditoriaRow {
   fecha: string
   usuarioId: string | null
   usuarioNombre: string | null
+  usuarioEmail: string | null
   ipAddress: string | null
   entidad: string
   entidadId: string
@@ -67,6 +68,16 @@ export const ENTIDAD_LABEL: Record<string, string> = {
   ProyectoFuncionalidad: "Funcionalidad del proyecto",
   ProyectoUsuarioRol: "Rol de usuario en proyecto",
   ApplicationUser: "Usuario",
+  Cliente: "Cliente",
+  Sociedad: "Sociedad",
+  Proyecto: "Proyecto",
+  Terminal: "Terminal",
+  Campo: "Campo",
+  PendienteCategoria: "Categoría de pendientes",
+  PendienteTipo: "Tipo de pendiente",
+  PendienteEstado: "Estado de pendiente",
+  ElementoArea: "Vínculo elemento ↔ área",
+  ProyectoIfcArchivo: "Maqueta 3D",
 }
 
 /** Grupos lógicos para el filtro rápido. Cada valor es una lista de nombres técnicos. */
