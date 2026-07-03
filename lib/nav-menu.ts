@@ -36,6 +36,7 @@ export const menu: MenuItem[] = [
       { label: "Avance por sistemas",     href: "/ejecucion/sistemas" },
       { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
       { label: "Avance por elementos",    href: "/ejecucion/elementos" },
+      { label: "Listado de tareas",       href: "/ejecucion/tareas" },
       { label: "Avance por áreas",        href: "/ejecucion/areas" },
       { label: "Avance por módulos",      href: "/ejecucion/modulos" },
       { label: "Paquetes de prueba",       href: "/ejecucion/test-groups" },

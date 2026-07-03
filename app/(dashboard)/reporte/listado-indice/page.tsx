@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2 } from "lucide-react"
+
+import { descargarTareasExcel } from "@/features/tareas-listado/api/use-tareas-listado"
+import type { EstadoET } from "@/features/tareas-listado/types"
 
 import {
   buildListadoIndicePdfUrl,
@@ -260,6 +263,23 @@ function ListadoIndiceContent() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => descargarTareasExcel({
+              // Mismos filtros que el PDF, adaptando `estado` (singular) a `estados` (array).
+              sistemaId: filtros.sistemaId,
+              subSistemaId: filtros.subSistemaId,
+              especialidadId: filtros.especialidadId,
+              elementoTipoId: filtros.elementoTipoId,
+              nivelId: filtros.nivelId,
+              estados: filtros.estado != null ? [filtros.estado as EstadoET] : undefined,
+            })}
+            disabled={isLoading}
+            className="gap-2"
+            title="Descarga las mismas tareas del reporte como .xlsx"
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Excel
+          </Button>
           <Button onClick={descargar} disabled={downloading || isLoading} className="gap-2">
             {downloading
               ? <Loader2 className="h-4 w-4 animate-spin" />

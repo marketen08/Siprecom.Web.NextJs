@@ -1,6 +1,6 @@
 "use client"
 
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Label, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import type { EstadoBarra, SkylineBucket } from "../lib/gantt"
 
@@ -43,6 +43,18 @@ export function SkylineChart({ buckets, granularidadLabel = "mes" }: Props) {
   const maxTotal = Math.max(1, ...buckets.map((b) => b.total))
   const alto = Math.max(280, Math.min(600, buckets.length * 6 + 260))
 
+  // Bucket que contiene "hoy" para dibujar la línea vertical. Con eje X categórico,
+  // la ReferenceLine se dibuja centrada en la categoría cuya label pasamos.
+  const hoyLabel = (() => {
+    const ahora = Date.now()
+    for (let i = 0; i < buckets.length; i++) {
+      const inicio = buckets[i].ts
+      const fin = i < buckets.length - 1 ? buckets[i + 1].ts : Infinity
+      if (ahora >= inicio && ahora < fin) return buckets[i].label
+    }
+    return null
+  })()
+
   return (
     <div className="rounded-lg border bg-white p-3">
       <div className="text-xs text-muted-foreground mb-2">
@@ -73,6 +85,18 @@ export function SkylineChart({ buckets, granularidadLabel = "mes" }: Props) {
           <Bar dataKey="proximo"    stackId="s" fill={COLOR.proximo}    name={NOMBRE.proximo} />
           <Bar dataKey="vencido"    stackId="s" fill={COLOR.vencido}    name={NOMBRE.vencido} />
           <Bar dataKey="futuro"     stackId="s" fill={COLOR.futuro}     name={NOMBRE.futuro} radius={[2, 2, 0, 0]} />
+          {hoyLabel && (
+            <ReferenceLine x={hoyLabel} stroke="#2563eb" strokeWidth={2} ifOverflow="visible">
+              <Label
+                value="hoy"
+                position="insideTop"
+                offset={6}
+                fill="#1d4ed8"
+                fontSize={11}
+                fontWeight={600}
+              />
+            </ReferenceLine>
+          )}
         </BarChart>
       </ResponsiveContainer>
     </div>

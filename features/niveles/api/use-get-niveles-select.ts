@@ -1,10 +1,24 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 
+interface NivelSelectItem { id: string; nombre: string; posicion: number }
+interface NivelesResponse { data: NivelSelectItem[] }
+
+/**
+ * Normaliza la respuesta a `{ data: NivelSelectItem[] }`.
+ * El backend devuelve el array PLANO (no envuelto en `{data}`) — algunos
+ * consumidores esperan envelope. Este helper unifica.
+ */
+function normalizarRespuesta(raw: unknown): NivelesResponse {
+  if (Array.isArray(raw)) return { data: raw as NivelSelectItem[] }
+  const wrapped = raw as { data?: NivelSelectItem[] } | null
+  return { data: wrapped?.data ?? [] }
+}
+
 export function useGetNivelesSelect() {
-  return useQuery({
+  return useQuery<NivelesResponse>({
     queryKey: ["niveles", "select"],
-    queryFn: () => apiClient.get("/api/niveles"),
+    queryFn: async () => normalizarRespuesta(await apiClient.get("/api/niveles")),
   })
 }
 
@@ -18,8 +32,8 @@ export function useGetNivelesSelect() {
  * nada.
  */
 export function useGetNivelesUsadosSelect() {
-  return useQuery({
+  return useQuery<NivelesResponse>({
     queryKey: ["niveles", "usados-en-proyecto"],
-    queryFn: () => apiClient.get("/api/niveles/usados"),
+    queryFn: async () => normalizarRespuesta(await apiClient.get("/api/niveles/usados")),
   })
 }
