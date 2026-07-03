@@ -78,6 +78,10 @@ export function AddCampoModal({
   const [campoSearch, setCampoSearch] = useState("")
   const [renderMode, setRenderMode] = useState<CampoListaRenderMode>(0)
   const [tamano, setTamano] = useState<number>(CAMPO_TAMANO_DEFAULT)
+  // Flag para forzar modo Personalizado aunque el valor coincida con una opción
+  // predefinida — necesario para que el input numérico aparezca al elegir
+  // "Personalizado" con un tamaño que ya está en la lista.
+  const [modoPersonalizado, setModoPersonalizado] = useState(false)
   // Opciones temporales para nuevo campo Lista (se crean tras crear el Campo).
   const [tempOpciones, setTempOpciones] = useState<Array<{ valor: string; etiqueta: string }>>([])
   // Opción marcada como valor por defecto (por su `valor`). Se persiste como
@@ -144,6 +148,7 @@ export function AddCampoModal({
     setCampoSearch("")
     setRenderMode(0)
     setTamano(CAMPO_TAMANO_DEFAULT)
+    setModoPersonalizado(false)
     setTempOpciones([])
     setOpcionDefaultValor(null)
     setOpcionInput({ valor: "", etiqueta: "" })
@@ -256,7 +261,10 @@ export function AddCampoModal({
     // Checklist (3) se renderiza siempre como tabla a ancho completo (ignora el
     // Tamano en el PDF/web). Forzamos el ancho a 12 para que la config refleje la
     // realidad y no quede, p.ej., en un tercio.
-    if (next === 3) setTamano(12)
+    if (next === 3) {
+      setTamano(12)
+      setModoPersonalizado(false)
+    }
     if (tab === "new" && next === 3 && tempOpciones.length === 0) {
       // Sí/No/NA es un orden semántico explícito, no alfabético: activamos manual.
       setTempOpciones([
@@ -354,15 +362,16 @@ export function AddCampoModal({
               <Select
                 disabled={renderMode === 3}
                 value={(() => {
+                  if (modoPersonalizado) return "-1"
                   const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
                   return String(match?.value ?? -1)
                 })()}
                 onValueChange={(v) => {
                   const num = Number(v)
                   if (num === -1) {
-                    // Personalizado: dejá el actual, mostrar input numérico
-                    if (CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano)) setTamano(tamano)
+                    setModoPersonalizado(true)
                   } else {
+                    setModoPersonalizado(false)
                     setTamano(num)
                   }
                 }}
@@ -370,6 +379,7 @@ export function AddCampoModal({
                 <SelectTrigger className="flex-1">
                   <SelectValue>
                     {(() => {
+                      if (modoPersonalizado) return `Personalizado (${tamano})`
                       const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
                       return match ? match.label : `Personalizado (${tamano})`
                     })()}
@@ -381,7 +391,7 @@ export function AddCampoModal({
                   ))}
                 </SelectContent>
               </Select>
-              {!CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano) && (
+              {(modoPersonalizado || !CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano)) && (
                 <Input
                   type="number"
                   min={1}

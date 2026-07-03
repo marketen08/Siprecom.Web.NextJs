@@ -45,6 +45,9 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const [newOpcionValor, setNewOpcionValor] = useState("")
   const [newOpcionEtiqueta, setNewOpcionEtiqueta] = useState("")
   const [addingOpcion, setAddingOpcion] = useState(false)
+  // Flag para forzar modo Personalizado en el selector de ancho aunque el valor
+  // coincida con una opción predefinida.
+  const [modoPersonalizado, setModoPersonalizado] = useState(false)
 
   const removeMutation = useRemoveCampo()
   const updateMutation = useUpdateCampo()
@@ -383,15 +386,16 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             <div className="flex items-center gap-2">
               <Select
                 value={(() => {
+                  if (modoPersonalizado) return "-1"
                   const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === campo.tamano)
                   return String(match?.value ?? -1)
                 })()}
                 onValueChange={(v) => {
                   const num = Number(v)
                   if (num === -1) {
-                    // Personalizado: no aplicamos cambio aún, solo cambia la UI a mostrar input
-                    handleTamanoChange(campo.tamano || 4)
+                    setModoPersonalizado(true)
                   } else {
+                    setModoPersonalizado(false)
                     handleTamanoChange(num)
                   }
                 }}
@@ -400,6 +404,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                 <SelectTrigger className="h-8 text-sm flex-1">
                   <SelectValue>
                     {(() => {
+                      if (modoPersonalizado) return `Personalizado (${campo.tamano})`
                       const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === campo.tamano)
                       return match ? match.label : `Personalizado (${campo.tamano})`
                     })()}
@@ -411,7 +416,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   ))}
                 </SelectContent>
               </Select>
-              {!CAMPO_TAMANO_OPCIONES.some((o) => o.value === campo.tamano) && (
+              {(modoPersonalizado || !CAMPO_TAMANO_OPCIONES.some((o) => o.value === campo.tamano)) && (
                 <Input
                   type="number"
                   min={1}

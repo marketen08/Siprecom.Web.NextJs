@@ -83,13 +83,17 @@ export interface CampoTablaFila {
 /** Opciones predefinidas de tamaño en grilla 12. -1 = personalizado (input numérico). */
 export const CAMPO_TAMANO_OPCIONES = [
   { label: "Completo (12)", value: 12 },
+  { label: "Ancho (10)", value: 10 },
+  { label: "Tres cuartos (9)", value: 9 },
+  { label: "Dos tercios (8)", value: 8 },
   { label: "Medio (6)", value: 6 },
   { label: "Tercio (4)", value: 4 },
   { label: "Cuarto (3)", value: 3 },
+  { label: "Sexto (2)", value: 2 },
   { label: "Personalizado", value: -1 },
 ] as const
 
-export const CAMPO_TAMANO_DEFAULT = 4
+export const CAMPO_TAMANO_DEFAULT = 6
 
 /** Cómo se renderiza un campo Lista en formularios y PDFs. Otros tipos lo ignoran. */
 export type CampoListaRenderMode = 0 | 1 | 2 | 3
