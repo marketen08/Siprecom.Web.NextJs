@@ -1,11 +1,13 @@
 "use client"
 
-import { MapPin } from "lucide-react"
+import { Fragment, useState } from "react"
+import { ChevronDown, ChevronRight, MapPin } from "lucide-react"
 
 import { useGetAvancePorAreas } from "@/features/avance/api/use-get-avance-areas"
 import type { AvanceAgrupacionDTO } from "@/features/avance/types"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
+import { NivelesDetalle, ProximaMetaCelda } from "@/features/avance/components/niveles-cells"
 
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -14,6 +16,15 @@ import {
 export default function AvanceAreasPage() {
   const { data, isLoading } = useGetAvancePorAreas()
   const areas: AvanceAgrupacionDTO[] = data?.data ?? []
+
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
+  function toggleExpandido(id: string) {
+    setExpandidos((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -51,6 +62,7 @@ export default function AvanceAreasPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead className="font-semibold text-gray-700 w-32">Código</TableHead>
               <TableHead className="font-semibold text-gray-700">
                 <div className="flex items-center gap-1.5">
@@ -60,43 +72,74 @@ export default function AvanceAreasPage() {
               </TableHead>
               <TableHead className="font-semibold text-gray-700 w-28 text-right">Elementos</TableHead>
               <TableHead className="font-semibold text-gray-700 w-56">Avance</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-52">Próxima meta</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center w-24">Estados</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                   Cargando...
                 </TableCell>
               </TableRow>
             ) : areas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                   No hay áreas con datos. Definí áreas en Alcance → Áreas y asigná elementos.
                 </TableCell>
               </TableRow>
             ) : (
-              areas.map((a) => (
-                <TableRow key={a.id} className="hover:bg-blue-50 transition-colors">
-                  <TableCell className="py-3 font-mono text-sm text-gray-600">{a.codigo}</TableCell>
-                  <TableCell className="py-3">
-                    <div className="font-medium">{a.nombre}</div>
-                    {a.descripcion && (
-                      <div className="text-xs text-muted-foreground truncate max-w-md">{a.descripcion}</div>
+              areas.map((a) => {
+                const tieneNiveles = (a.niveles?.length ?? 0) > 0
+                const abierto = expandidos.has(a.id)
+                return (
+                  <Fragment key={a.id}>
+                    <TableRow className="hover:bg-blue-50 transition-colors">
+                      <TableCell
+                        className="py-3 w-8"
+                        onClick={() => { if (tieneNiveles) toggleExpandido(a.id) }}
+                      >
+                        {tieneNiveles && (
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-gray-200 text-gray-500"
+                            aria-label={abierto ? "Colapsar" : "Expandir"}
+                          >
+                            {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </button>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3 font-mono text-sm text-gray-600">{a.codigo}</TableCell>
+                      <TableCell className="py-3">
+                        <div className="font-medium">{a.nombre}</div>
+                        {a.descripcion && (
+                          <div className="text-xs text-muted-foreground truncate max-w-md">{a.descripcion}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3 text-right text-sm tabular-nums text-gray-600">
+                        {a.cantidadElementos}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <BarraAvance porcentaje={a.porcentajeAvance} />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <ProximaMetaCelda niveles={a.niveles} />
+                      </TableCell>
+                      <TableCell className="py-3 text-center">
+                        <EstadosPopover avance={a} />
+                      </TableCell>
+                    </TableRow>
+                    {abierto && tieneNiveles && (
+                      <TableRow className="bg-gray-50/70">
+                        <TableCell colSpan={7} className="py-3">
+                          <NivelesDetalle niveles={a.niveles!} />
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell className="py-3 text-right text-sm tabular-nums text-gray-600">
-                    {a.cantidadElementos}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <BarraAvance porcentaje={a.porcentajeAvance} />
-                  </TableCell>
-                  <TableCell className="py-3 text-center">
-                    <EstadosPopover avance={a} />
-                  </TableCell>
-                </TableRow>
-              ))
+                  </Fragment>
+                )
+              })
             )}
           </TableBody>
         </Table>

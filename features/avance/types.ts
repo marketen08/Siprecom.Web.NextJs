@@ -60,4 +60,6 @@ export interface AvanceProyectoDTO extends AvanceDTO {
 export interface AvanceAgrupacionDTO extends AvanceDTO {
   descripcion: string | null
   cantidadElementos: number
+  /** Desglose por nivel (áreas/módulos) — mismo shape que subsistemas. */
+  niveles?: AvanceSubSistemaNivelDTO[]
 }

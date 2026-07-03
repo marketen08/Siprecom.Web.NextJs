@@ -1,11 +1,13 @@
 "use client"
 
-import { Box } from "lucide-react"
+import { Fragment, useState } from "react"
+import { Box, ChevronDown, ChevronRight } from "lucide-react"
 
 import { useGetAvancePorModulos } from "@/features/avance/api/use-get-avance-modulos"
 import type { AvanceAgrupacionDTO } from "@/features/avance/types"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
+import { NivelesDetalle, ProximaMetaCelda } from "@/features/avance/components/niveles-cells"
 
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -17,6 +19,15 @@ const SIN_MODULO = "__sin_modulo__"
 export default function AvanceModulosPage() {
   const { data, isLoading } = useGetAvancePorModulos()
   const modulos: AvanceAgrupacionDTO[] = data?.data ?? []
+
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
+  function toggleExpandido(id: string) {
+    setExpandidos((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -64,6 +75,7 @@ export default function AvanceModulosPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead className="font-semibold text-gray-700 w-32">Código</TableHead>
               <TableHead className="font-semibold text-gray-700">
                 <div className="flex items-center gap-1.5">
@@ -73,49 +85,77 @@ export default function AvanceModulosPage() {
               </TableHead>
               <TableHead className="font-semibold text-gray-700 w-28 text-right">Elementos</TableHead>
               <TableHead className="font-semibold text-gray-700 w-56">Avance</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-52">Próxima meta</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center w-24">Estados</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                   Cargando...
                 </TableCell>
               </TableRow>
             ) : modulos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                   No hay módulos definidos ni elementos sin módulo.
                 </TableCell>
               </TableRow>
             ) : (
               modulos.map((m) => {
                 const esSinModulo = m.id === SIN_MODULO
+                const tieneNiveles = (m.niveles?.length ?? 0) > 0
+                const abierto = expandidos.has(m.id)
                 return (
-                  <TableRow
-                    key={m.id}
-                    className={`hover:bg-blue-50 transition-colors ${esSinModulo ? "bg-muted/20" : ""}`}
-                  >
-                    <TableCell className="py-3 font-mono text-sm text-gray-600">{m.codigo}</TableCell>
-                    <TableCell className="py-3">
-                      <div className={`font-medium ${esSinModulo ? "italic text-muted-foreground" : ""}`}>
-                        {m.nombre}
-                      </div>
-                      {m.descripcion && (
-                        <div className="text-xs text-muted-foreground truncate max-w-md">{m.descripcion}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-3 text-right text-sm tabular-nums text-gray-600">
-                      {m.cantidadElementos}
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <BarraAvance porcentaje={m.porcentajeAvance} />
-                    </TableCell>
-                    <TableCell className="py-3 text-center">
-                      <EstadosPopover avance={m} />
-                    </TableCell>
-                  </TableRow>
+                  <Fragment key={m.id}>
+                    <TableRow
+                      className={`hover:bg-blue-50 transition-colors ${esSinModulo ? "bg-muted/20" : ""}`}
+                    >
+                      <TableCell
+                        className="py-3 w-8"
+                        onClick={() => { if (tieneNiveles) toggleExpandido(m.id) }}
+                      >
+                        {tieneNiveles && (
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-gray-200 text-gray-500"
+                            aria-label={abierto ? "Colapsar" : "Expandir"}
+                          >
+                            {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </button>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3 font-mono text-sm text-gray-600">{m.codigo}</TableCell>
+                      <TableCell className="py-3">
+                        <div className={`font-medium ${esSinModulo ? "italic text-muted-foreground" : ""}`}>
+                          {m.nombre}
+                        </div>
+                        {m.descripcion && (
+                          <div className="text-xs text-muted-foreground truncate max-w-md">{m.descripcion}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3 text-right text-sm tabular-nums text-gray-600">
+                        {m.cantidadElementos}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <BarraAvance porcentaje={m.porcentajeAvance} />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <ProximaMetaCelda niveles={m.niveles} />
+                      </TableCell>
+                      <TableCell className="py-3 text-center">
+                        <EstadosPopover avance={m} />
+                      </TableCell>
+                    </TableRow>
+                    {abierto && tieneNiveles && (
+                      <TableRow className="bg-gray-50/70">
+                        <TableCell colSpan={7} className="py-3">
+                          <NivelesDetalle niveles={m.niveles!} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
                 )
               })
             )}
