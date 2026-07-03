@@ -135,6 +135,7 @@ export const menu: MenuItem[] = [
     minRole: "Admin",
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios" },
+      { label: "Control de cambios", href: "/administracion/auditoria" },
       // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
     ],
   },
@@ -223,6 +224,8 @@ export function requiredRoleForPath(pathname: string): AppRole | null {
 // Etiquetas para segmentos dinámicos o rutas sin entrada en el menú
 export const segmentLabels: Record<string, string> = {
   dashboard:     "Dashboard",
+  administracion: "Administración",
+  auditoria:     "Control de cambios",
   ejecucion:     "Ejecución",
   registros:     "Registros",
   checklist:     "Checklist",
