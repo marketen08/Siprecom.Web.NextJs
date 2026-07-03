@@ -6,7 +6,7 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search, FileSpreadsheet, FileJson } from "lucide-react"
+import { Plus, Search, FileSpreadsheet, FileJson, Sparkles } from "lucide-react"
 
 import { useGetPlanillas } from "@/features/planillas/api/use-get-planillas"
 import { useNewPlanilla } from "@/features/planillas/hooks/use-new-planilla"
@@ -14,6 +14,7 @@ import { NewPlanillaSheet } from "@/features/planillas/components/new-planilla-s
 import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla-sheet"
 import { ImportExcelSheet } from "@/features/planillas/components/import-excel-sheet"
 import { ImportJsonSheet } from "@/features/planillas/components/import-json-sheet"
+import { GenerarConIASheet } from "@/features/planillas/components/generar-con-ia-sheet"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -37,6 +38,7 @@ export default function PlanillasPage() {
   const { open } = useNewPlanilla()
   const [importOpen, setImportOpen] = useState(false)
   const [importJsonOpen, setImportJsonOpen] = useState(false)
+  const [generarIAOpen, setGenerarIAOpen] = useState(false)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -55,6 +57,7 @@ export default function PlanillasPage() {
       <EditPlanillaSheet />
       <ImportExcelSheet open={importOpen} onClose={() => setImportOpen(false)} />
       <ImportJsonSheet open={importJsonOpen} onClose={() => setImportJsonOpen(false)} />
+      <GenerarConIASheet open={generarIAOpen} onClose={() => setGenerarIAOpen(false)} />
 
       <div className="space-y-4">
         {/* Buscador + Acciones */}
@@ -69,6 +72,10 @@ export default function PlanillasPage() {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button onClick={() => setGenerarIAOpen(true)} variant="outline" className="gap-2">
+              <Sparkles className="h-4 w-4 text-purple-600" />
+              Generar con IA
+            </Button>
             <Button onClick={() => setImportOpen(true)} variant="outline" className="gap-2">
               <FileSpreadsheet className="h-4 w-4 text-green-600" />
               Importar desde Excel

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest } from "next/server"
 import type { ExcelParsePayload, PlanillaImportada } from "@/features/planillas/import-types"
+import { consumirIA } from "../_shared"
 
 // Instanciación lazy: el cliente se crea en la request, no al cargar el módulo.
 // Así el build nunca depende de ANTHROPIC_API_KEY. En producción la key es un
@@ -64,6 +65,12 @@ export async function POST(request: NextRequest) {
 
     if (!body.filas || body.filas.length === 0) {
       return Response.json({ error: "No se recibieron datos del archivo" }, { status: 400 })
+    }
+
+    // Rate limit: consumimos ANTES de gastar tokens en Anthropic.
+    const rl = await consumirIA(request)
+    if (!rl.ok) {
+      return Response.json({ error: rl.message }, { status: rl.status })
     }
 
     // Convertir la matriz a texto tabular para Claude

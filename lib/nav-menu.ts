@@ -146,6 +146,7 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Reporte de concurrencia", href: "/licenciamiento/concurrencia" },
       { label: "Licencias", href: "/licenciamiento/licencias" },
+      { label: "Funciones de IA", href: "/licenciamiento/ia" },
       { label: "Funcionalidades", href: "/licenciamiento/funcionalidades" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
       { label: "Datos de muestra", href: "/licenciamiento/datos-muestra" },
@@ -277,6 +278,7 @@ export const segmentLabels: Record<string, string> = {
   licencias:               "Licencias",
   funcionalidades:         "Funcionalidades",
   concurrencia:            "Reporte de concurrencia",
+  ia:                      "Funciones de IA",
   areas:                   "Áreas",
   modulos:                 "Módulos",
   "test-groups":           "Paquetes de prueba",
