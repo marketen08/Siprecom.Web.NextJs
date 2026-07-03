@@ -83,10 +83,13 @@ Recibirás un CATÁLOGO de campos ya existentes en el sistema. Antes de crear un
 - "Fecha de inicio" ≈ "Fecha de arranque"
 - "Firma técnico" ≈ "Firma del técnico responsable"
 
-Si encontrás match → devolvé "campoIdExistente" con el id exacto del catálogo. Igual devolvé "etiqueta" y "tipoDato" (para la preview). No inventes ids.
-Si NO hay match razonable → dejás "campoIdExistente" en null y se creará uno nuevo.
+Si encontrás match → devolvé "campoIdExistente" con el id EXACTO del catálogo, **copiado verbatim** (mismo casing y guiones que aparece en la tabla que te paso). Igual devolvé "etiqueta" y "tipoDato" (para la preview).
 
-Priorizá reusar. Es más grave crear un duplicado que dejar el usuario ajustar una etiqueta después.
+**REGLA DURA**: si tenés cualquier duda de que un id existe en el catálogo, poné "campoIdExistente": null. NO inventes GUIDs, no adivines, no modifiques uno que veas parecido. Un id inventado hace que el sistema tire error y el usuario pierda la generación entera. Es mejor crear un campo nuevo por error que inventar un id.
+
+Si NO hay match razonable → "campoIdExistente": null y se creará uno nuevo.
+
+Priorizá reusar cuando el match es CLARO. En la duda, campo nuevo.
 
 ## Regla CRÍTICA — datos que YA vienen en el header/footer
 

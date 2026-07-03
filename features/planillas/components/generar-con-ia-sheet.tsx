@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Sparkles,
@@ -9,6 +10,7 @@ import {
   ChevronRight,
   Loader2,
   CheckCircle2,
+  ArrowRight,
   AlertCircle,
   Recycle,
 } from "lucide-react"
@@ -121,12 +123,18 @@ export function GenerarConIASheet({ open, onClose }: Props) {
   const [errorMsg, setErrorMsg] = useState("")
   const [progreso, setProgreso] = useState("")
   const [planilla, setPlanilla] = useState<PlanillaEditable | null>(null)
+  const [planillaCreada, setPlanillaCreada] = useState<{
+    id: string
+    codigo: string
+    nombre: string
+  } | null>(null)
 
   function resetear() {
     setStep("descripcion")
     setErrorMsg("")
     setProgreso("")
     setPlanilla(null)
+    setPlanillaCreada(null)
   }
 
   function cerrar() {
@@ -176,7 +184,38 @@ export function GenerarConIASheet({ open, onClose }: Props) {
       const data: PlanillaImportada = await resultado.json()
       // Refresco del saldo después de un consumo exitoso.
       qc.invalidateQueries({ queryKey: ["ia", "uso"] })
-      setPlanilla(toEditable(data))
+
+      // Sanitizamos campoIdExistente: la IA a veces alucina GUIDs que no están
+      // en el catálogo. Si el id no matchea (case-insensitive) un id real, lo
+      // borramos → el flujo lo trata como campo nuevo. Sin este saneo, el POST
+      // /api/planillas/{id}/campos falla con "CampoId: El campo no existe".
+      const idsCatalogo = new Set(camposData.map((c) => c.id.toLowerCase()))
+      const sanitized: PlanillaImportada = {
+        ...data,
+        secciones: data.secciones.map((s) => ({
+          ...s,
+          campos: s.campos.map((c) => {
+            if (
+              c.campoIdExistente &&
+              !idsCatalogo.has(c.campoIdExistente.toLowerCase())
+            ) {
+              // eslint-disable-next-line no-console
+              console.warn("IA propuso id no existente, se creará campo nuevo:", c.campoIdExistente, c.etiqueta)
+              return { ...c, campoIdExistente: undefined }
+            }
+            // Normalizamos al casing exacto del catálogo (defensivo).
+            if (c.campoIdExistente) {
+              const real = camposData.find(
+                (x) => x.id.toLowerCase() === c.campoIdExistente!.toLowerCase(),
+              )
+              if (real) return { ...c, campoIdExistente: real.id }
+            }
+            return c
+          }),
+        })),
+      }
+
+      setPlanilla(toEditable(sanitized))
       setStep("preview")
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Error inesperado")
@@ -241,9 +280,18 @@ export function GenerarConIASheet({ open, onClose }: Props) {
     setErrorMsg("")
 
     try {
-      // 1. Crear planilla base
+      // 1. Crear planilla base. El código lo generamos del nombre + timestamp
+      // para garantizar unicidad de (Codigo, Version) — sin esto, la segunda
+      // planilla generada con codigo=null falla contra el índice UQ del back.
+      // El usuario puede editar el código después desde el detalle de la planilla.
       setProgreso("Creando planilla...")
+      const codigoPlanilla = (planilla.nombre || "PL")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "_")
+        .replace(/_+/g, "_")
+        .slice(0, 30) + "_" + Date.now().toString().slice(-6)
       const planillaResp = await apiClient.post<{ data: Planilla }>("/api/planillas", {
+        codigo: codigoPlanilla,
         nombre: planilla.nombre,
         requiereFirma: true,
         permiteAdjuntos: false,
@@ -278,23 +326,38 @@ export function GenerarConIASheet({ open, onClose }: Props) {
             // Reuso: usamos el id del catálogo tal cual — sin POST /api/campos.
             campoId = campo.campoIdExistente
           } else {
-            // Nuevo: creamos el campo global.
+            // Nuevo: creamos el campo global. El código final es
+            // `${slug}_${timestamp6}` — max 30 + 1 + 6 = 37 chars, bajo el
+            // cap del DTO (50 chars).
             const codigo = campo.etiqueta
               .toUpperCase()
               .replace(/[^A-Z0-9]/g, "_")
               .replace(/_+/g, "_")
-              .slice(0, 50)
+              .slice(0, 30)
 
-            const campoResp = await apiClient.post<{ data: { id: string } }>("/api/campos", {
-              codigo: `${codigo}_${Date.now()}`,
+            // NumeroFilas solo si es un entero válido; el DTO del back es int
+            // NO nullable con default 3, así que mandar null falla la
+            // deserialización con "$.numeroFilas: The JSON value could not be
+            // converted to System.Int32". Solo lo mandamos para Tabla dinámica.
+            const nf =
+              campo.tipoDato === 9 &&
+              typeof campo.numeroFilas === "number" &&
+              Number.isFinite(campo.numeroFilas)
+                ? Math.max(1, Math.min(100, Math.floor(campo.numeroFilas)))
+                : undefined
+            const camposBody: Record<string, unknown> = {
+              codigo: `${codigo}_${Date.now().toString().slice(-6)}`,
               etiqueta: campo.etiqueta,
               tipoDato: campo.tipoDato,
               esObligatorioDefault: campo.esObligatorio,
               permiteObservacion: false,
               permiteAdjunto: false,
-              // Sólo Tabla dinámica usa numeroFilas. En matriz el back lo ignora.
-              numeroFilas: campo.tipoDato === 9 ? campo.numeroFilas : undefined,
-            })
+            }
+            if (nf !== undefined) camposBody.numeroFilas = nf
+            const campoResp = await apiClient.post<{ data: { id: string } }>(
+              "/api/campos",
+              camposBody,
+            )
             campoId = campoResp.data.id
 
             // Si es Tabla, creamos columnas y filas predefinidas del campo global.
@@ -343,6 +406,11 @@ export function GenerarConIASheet({ open, onClose }: Props) {
       }
 
       setProgreso("")
+      setPlanillaCreada({
+        id: planillaId,
+        codigo: codigoPlanilla,
+        nombre: planilla.nombre,
+      })
       setStep("ok")
       qc.invalidateQueries({ queryKey: ["planillas"] })
     } catch (err: unknown) {
@@ -479,11 +547,38 @@ export function GenerarConIASheet({ open, onClose }: Props) {
 
           {/* STEP: ok */}
           {step === "ok" && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
               <p className="font-semibold text-lg text-gray-800">¡Planilla creada!</p>
-              <p className="text-sm text-muted-foreground">La planilla se creó correctamente.</p>
-              <Button onClick={cerrar}>Cerrar</Button>
+
+              {planillaCreada && (
+                <div className="w-full max-w-md rounded-lg border bg-gray-50 p-4 space-y-1.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0 w-16">Código</span>
+                    <span className="font-mono text-sm text-gray-800 break-all">
+                      {planillaCreada.codigo}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0 w-16">Nombre</span>
+                    <span className="text-sm font-medium text-gray-800">
+                      {planillaCreada.nombre}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                {planillaCreada && (
+                  <Button asChild onClick={cerrar}>
+                    <Link href={`/configuracion/planillas/${planillaCreada.id}`}>
+                      Ir al diseño
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </Button>
+                )}
+                <Button variant="outline" onClick={cerrar}>Cerrar</Button>
+              </div>
             </div>
           )}
 
