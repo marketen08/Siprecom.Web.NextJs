@@ -93,8 +93,13 @@ export const ENTIDAD_GRUPOS: Array<{ key: string; label: string; entidades: stri
   },
   {
     key: "catalogos",
-    label: "Catálogos",
-    entidades: ["Nivel", "Especialidad", "ElementoTipo", "Procedimiento", "Planilla", "PlanillaCampo", "PlanillaSeccion"],
+    label: "Catálogos globales",
+    entidades: ["Nivel", "Especialidad", "ElementoTipo", "Procedimiento"],
+  },
+  {
+    key: "planillas",
+    label: "Planillas y formularios",
+    entidades: ["Planilla", "PlanillaCampo", "PlanillaSeccion"],
   },
 ]
 

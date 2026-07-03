@@ -51,11 +51,27 @@ export default function AuditoriaPage() {
   const { data: usuariosData } = useGetUsuarios({ pageSize: 200 })
   const usuarios = usuariosData?.data ?? []
 
+  const entidadesGrupo = useMemo(() => {
+    if (grupo === ALL) return null
+    return ENTIDAD_GRUPOS.find((g) => g.key === grupo)?.entidades ?? []
+  }, [grupo])
+
+  // Composición del filtro por entidad:
+  //  - Si hay chips individuales seleccionadas → esos ganan (refinamiento dentro del grupo).
+  //  - Si no hay chips pero hay grupo → todas las entidades del grupo.
+  //  - Si no hay nada → sin filtro (todas).
+  const entidadesFiltro: string[] | undefined =
+    entidades.size > 0
+      ? Array.from(entidades)
+      : entidadesGrupo && entidadesGrupo.length > 0
+        ? entidadesGrupo
+        : undefined
+
   const filtros: AuditoriaFiltros = {
     desde: desde || undefined,
     hasta: hasta || undefined,
     usuarioId: usuarioId || undefined,
-    entidades: entidades.size > 0 ? Array.from(entidades) : undefined,
+    entidades: entidadesFiltro,
     acciones: acciones.size > 0 ? Array.from(acciones) : undefined,
     search: search || undefined,
   }
@@ -65,11 +81,6 @@ export default function AuditoriaPage() {
   const items = paged?.items ?? []
   const total = paged?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-  const entidadesGrupo = useMemo(() => {
-    if (grupo === ALL) return null
-    return ENTIDAD_GRUPOS.find((g) => g.key === grupo)?.entidades ?? []
-  }, [grupo])
 
   function toggleEntidad(e: string) {
     setEntidades((prev) => {
@@ -146,14 +157,14 @@ export default function AuditoriaPage() {
               <SelectTrigger className="mt-0.5 h-9">
                 <SelectValue placeholder="Todos">
                   {usuarioId
-                    ? usuarios.find((u) => u.id === usuarioId)?.nombre ?? usuarioId
+                    ? labelUsuario(usuarios.find((u) => u.id === usuarioId))
                     : "Todos"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Todos</SelectItem>
                 {usuarios.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>{u.nombre || u.email || u.id}</SelectItem>
+                  <SelectItem key={u.id} value={u.id}>{labelUsuario(u)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -185,10 +196,11 @@ export default function AuditoriaPage() {
           </div>
         </div>
 
-        {/* Chips: entidades del grupo elegido */}
+        {/* Chips: entidades del grupo elegido. Sin ninguna seleccionada, filtra por
+            todas las del grupo. Al elegir una o más, sólo esas quedan como filtro. */}
         {entidadesGrupo && entidadesGrupo.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] text-muted-foreground font-medium mr-1">Entidades:</span>
+            <span className="text-[11px] text-muted-foreground font-medium mr-1">Refinar:</span>
             {entidadesGrupo.map((e) => {
               const activa = entidades.has(e)
               return (
@@ -398,4 +410,16 @@ function DiffTable({ cambios }: { cambios: import("@/features/auditoria/types").
 function formatValor(v: string | null): string {
   if (v == null || v === "") return "—"
   return v
+}
+
+/**
+ * Etiqueta del select de usuario: "Nombre Apellido — email". Si falta el nombre o el
+ * apellido cae al email; si tampoco hay, al userName o id.
+ */
+function labelUsuario(u: import("@/features/usuarios/types").Usuario | undefined): string {
+  if (!u) return "—"
+  const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
+  if (nombreCompleto && u.email) return `${nombreCompleto} — ${u.email}`
+  if (nombreCompleto) return nombreCompleto
+  return u.email || u.userName || u.id
 }
