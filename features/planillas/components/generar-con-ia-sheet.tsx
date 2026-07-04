@@ -178,7 +178,11 @@ export function GenerarConIASheet({ open, onClose }: Props) {
         const err = await resultado.json().catch(() => ({ error: "Error desconocido" }))
         // Un 429/403 igual consume ciclo — refrescamos el saldo por las dudas.
         qc.invalidateQueries({ queryKey: ["ia", "uso"] })
-        throw new Error(err.error ?? "Error al generar la planilla")
+        // Concatenamos error + details (si vino) para mostrar el diagnóstico
+        // completo — típicamente el details explica si fue un truncado por
+        // max_tokens o un JSON malformado, con los primeros chars del raw.
+        const msg = [err.error, err.details].filter(Boolean).join("\n\n")
+        throw new Error(msg || "Error al generar la planilla")
       }
 
       const data: PlanillaImportada = await resultado.json()
@@ -540,7 +544,9 @@ export function GenerarConIASheet({ open, onClose }: Props) {
             <div className="flex flex-col items-center justify-center py-10 gap-4">
               <AlertCircle className="h-10 w-10 text-red-500" />
               <p className="font-medium text-gray-700">Ocurrió un error</p>
-              <p className="text-sm text-muted-foreground text-center max-w-sm">{errorMsg}</p>
+              <p className="text-sm text-muted-foreground text-center max-w-md whitespace-pre-wrap wrap-break-word">
+                {errorMsg}
+              </p>
               <Button onClick={resetear} variant="outline">Intentar de nuevo</Button>
             </div>
           )}

@@ -122,7 +122,9 @@ Concentrate SOLO en los campos específicos de la disciplina de la planilla (par
 
 ## Formato de salida
 
-Devolvé ÚNICAMENTE un JSON válido con esta estructura exacta, sin texto adicional ni bloques \`\`\`:
+**REGLA ABSOLUTA DE SALIDA**: tu respuesta debe empezar con \`{\` y terminar con \`}\`. Cero texto antes, cero texto después, cero bloques de código \`\`\`, cero comentarios, cero explicaciones. Si tenés dudas sobre algún campo, ponelo con un valor sensato pero seguí devolviendo SOLO el JSON. La respuesta se parsea automáticamente — cualquier caracter fuera del objeto rompe el sistema.
+
+Devolvé ÚNICAMENTE un JSON válido con esta estructura exacta:
 
 {
   "nombre": "string",
@@ -193,7 +195,9 @@ Generá la estructura JSON de la planilla siguiendo las reglas del sistema. Reus
     const client = getAnthropic()
     const message = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      // 8192 (max de Sonnet) — con 4096 planillas medianas con muchos campos
+      // truncaban el JSON a la mitad y JSON.parse fallaba.
+      max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
     })
@@ -203,20 +207,39 @@ Generá la estructura JSON de la planilla siguiendo las reglas del sistema. Reus
       return Response.json({ error: "Respuesta inesperada del modelo" }, { status: 500 })
     }
 
-    // Extraer JSON de la respuesta (puede venir dentro de ```json ... ``` igual
-    // que en la route de Excel — Claude a veces lo envuelve pese al pedido).
-    let jsonText = content.text.trim()
-    const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/)
-    if (jsonMatch) {
-      jsonText = jsonMatch[1].trim()
+    const rawText = content.text
+    const stopReason = message.stop_reason
+
+    // Extraer JSON de la respuesta. La IA puede:
+    //  1. Devolver JSON puro (path feliz).
+    //  2. Envolverlo en ```json ... ```.
+    //  3. Anteceder texto ("Acá va la planilla:") + JSON.
+    //  4. Combinar 2 y 3.
+    // Estrategia: prioridad al bloque cercado, sino al primer "{" hasta el
+    // último "}" — que cubre 3 y 4.
+    let jsonText = rawText.trim()
+    const fencedMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (fencedMatch) {
+      jsonText = fencedMatch[1].trim()
+    } else {
+      const firstBrace = jsonText.indexOf("{")
+      const lastBrace = jsonText.lastIndexOf("}")
+      if (firstBrace >= 0 && lastBrace > firstBrace) {
+        jsonText = jsonText.slice(firstBrace, lastBrace + 1)
+      }
     }
 
     let planilla: PlanillaImportada
     try {
       planilla = JSON.parse(jsonText)
     } catch {
+      // Ayudamos al usuario a entender qué falló. Si stop_reason fue
+      // "max_tokens", casi seguro es truncado — sugerimos acortar la descripción.
+      const detalle = stopReason === "max_tokens"
+        ? "La respuesta se cortó por el límite de tokens. Probá con una descripción más breve o dividí la planilla en varias."
+        : `La respuesta no era un JSON parseable. Primeros 400 chars: ${rawText.slice(0, 400)}`
       return Response.json(
-        { error: "El modelo no devolvió un JSON válido", raw: jsonText },
+        { error: "El modelo no devolvió un JSON válido", details: detalle, raw: rawText.slice(0, 2000) },
         { status: 500 },
       )
     }
