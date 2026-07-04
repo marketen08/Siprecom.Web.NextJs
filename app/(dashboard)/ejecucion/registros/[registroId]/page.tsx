@@ -21,10 +21,8 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
 
-import { useGetTestpackGrupo } from "@/features/elementos-tareas/api/use-get-testpack-grupo"
-
 import type { RegistroValorInput } from "@/features/registros/types"
-import type { ElementoTarea, TestpackPropagacionResult } from "@/features/elementos-tareas/types"
+import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
 
 // Hook local: la lista por elemento ya existe pero no hay uno por ID; lo inlineamos acá.
@@ -151,16 +149,6 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
 
-  // Testpack: grupo de hermanos con la misma tarea. Si hay afectables, ofrecemos el
-  // checkbox "aplicar a todo el testpack" (pre-marcado, el usuario puede destildarlo).
-  const { data: grupoRaw } = useGetTestpackGrupo(elementoTareaId)
-  const grupoTestpack = grupoRaw?.data
-  const testpackAfectables = grupoTestpack?.cantidadAfectables ?? 0
-  const testpackInmutables = grupoTestpack?.cantidadInmutables ?? 0
-  const mostrarTestpack = (grupoTestpack?.tieneTestpack ?? false) && testpackAfectables > 0
-  const [aplicarATestpack, setAplicarATestpack] = useState(true)
-  const [propagacion, setPropagacion] = useState<TestpackPropagacionResult | null>(null)
-
   const isLoading = loadingDetalle || loadingEstructura
   const isReadOnly = registro?.estado === "COMPLETADO" || registro?.estado === "FIRMADO" || registro?.estado === "APROBADO"
 
@@ -268,27 +256,13 @@ export default function RegistroFormPage({ params }: PageProps) {
     return Object.keys(newErrors).length === 0
   }
 
-  // Tras completar: si hubo propagación al testpack, nos quedamos y mostramos el
-  // resumen; si no, volvemos como antes.
-  function handlePostCompletar(res: any) {
-    const prop: TestpackPropagacionResult | null =
-      res?.data?.testpackPropagacion ?? res?.testpackPropagacion ?? null
-    if (prop && (prop.cantidadPropagados > 0 || prop.cantidadSalteados > 0)) {
-      setPropagacion(prop)
-      window.scrollTo({ top: 0, behavior: "smooth" })
-    } else {
-      router.back()
-    }
-  }
-
   async function handleSubmitDigital() {
     if (!validate()) return
-    const res = await completarDigital.mutateAsync({
+    await completarDigital.mutateAsync({
       observaciones: observaciones || null,
       valores: buildValores(),
-      aplicarATestpack: mostrarTestpack && aplicarATestpack,
     })
-    handlePostCompletar(res)
+    router.back()
   }
 
   async function handleSubmitFisico() {
@@ -296,9 +270,8 @@ export default function RegistroFormPage({ params }: PageProps) {
     const fd = new FormData()
     fd.append("Archivo", archivoFisico)
     if (observaciones) fd.append("Observaciones", observaciones)
-    if (mostrarTestpack && aplicarATestpack) fd.append("AplicarATestpack", "true")
-    const res = await completarFisico.mutateAsync(fd)
-    handlePostCompletar(res)
+    await completarFisico.mutateAsync(fd)
+    router.back()
   }
 
   const isSaving = completarDigital.isPending || completarFisico.isPending
@@ -309,65 +282,6 @@ export default function RegistroFormPage({ params }: PageProps) {
     elemento?.elementoTipoNombre,
     elemento?.elementoTipoEspecialidadNombre,
   ].filter(Boolean) as string[]
-
-  const tagsAfectables = (grupoTestpack?.miembros ?? [])
-    .filter((m) => !m.esInmutable)
-    .map((m) => m.tag)
-    .filter(Boolean)
-    .join(", ")
-
-  // Checkbox "aplicar a todo el testpack": mismo bloque para el form digital y el físico.
-  const testpackCheckbox = mostrarTestpack && !isReadOnly ? (
-    <label className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 p-3 cursor-pointer">
-      <input
-        type="checkbox"
-        checked={aplicarATestpack}
-        onChange={(e) => setAplicarATestpack(e.target.checked)}
-        className="mt-0.5 h-4 w-4 accent-blue-700"
-      />
-      <div className="text-sm">
-        <span className="font-medium text-gray-800">
-          Aplicar a todo el testpack{grupoTestpack?.testpack ? ` (${grupoTestpack.testpack})` : ""}
-        </span>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Marca como completados los {testpackAfectables} elemento(s) con esta misma tarea:{" "}
-          <span className="font-mono">{tagsAfectables}</span>.
-          {testpackInmutables > 0 && ` ${testpackInmutables} ya firmado(s) se omiten.`}
-        </p>
-      </div>
-    </label>
-  ) : null
-
-  // Banner de resultado tras propagar al testpack.
-  const propagacionBanner = propagacion ? (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-1.5">
-      <p className="text-sm font-semibold text-emerald-800 inline-flex items-center gap-1.5">
-        <CheckCircle2 className="h-4 w-4" />
-        Aplicado a {propagacion.cantidadPropagados} elemento(s) del testpack
-        {propagacion.testpack ? ` (${propagacion.testpack})` : ""}
-      </p>
-      {propagacion.cantidadPropagados > 0 && (
-        <p className="text-xs text-emerald-700">
-          <span className="font-mono">
-            {propagacion.propagados.map((m) => m.tag).filter(Boolean).join(", ")}
-          </span>
-        </p>
-      )}
-      {propagacion.cantidadSalteados > 0 && (
-        <p className="text-xs text-amber-700">
-          {propagacion.cantidadSalteados} omitido(s) por estar ya firmados:{" "}
-          <span className="font-mono">
-            {propagacion.salteados.map((m) => m.tag).filter(Boolean).join(", ")}
-          </span>
-        </p>
-      )}
-      <div className="pt-1">
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
-          Volver
-        </Button>
-      </div>
-    </div>
-  ) : null
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -426,8 +340,6 @@ export default function RegistroFormPage({ params }: PageProps) {
         )}
       </div>
 
-      {propagacionBanner}
-
       {!isReadOnly && showToggle && (
         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
           <button
@@ -480,8 +392,6 @@ export default function RegistroFormPage({ params }: PageProps) {
               rows={3}
             />
           </div>
-
-          {testpackCheckbox}
 
           <Button
             onClick={handleSubmitFisico}
@@ -564,8 +474,6 @@ export default function RegistroFormPage({ params }: PageProps) {
               rows={3}
             />
           </div>
-
-          {!isReadOnly && testpackCheckbox}
 
           {!isReadOnly && (
             <div className="flex flex-col items-end gap-2 pb-4">

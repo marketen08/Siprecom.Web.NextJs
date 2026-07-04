@@ -77,7 +77,6 @@ export function ElementoForm({
       horasAdicionales: defaultValues?.horasAdicionales ?? 0,
       impactoFactor: defaultValues?.impactoFactor ?? 1,
       pid: defaultValues?.pid ?? "",
-      testpack: defaultValues?.testpack ?? "",
       observaciones: defaultValues?.observaciones ?? "",
       moduloId: defaultValues?.moduloId ?? null,
       areaIds: defaultValues?.areaIds ?? [],
@@ -343,19 +342,6 @@ export function ElementoForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="testpack"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Testpack <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                <FormControl>
-                  <Input placeholder="Ej: TP-001" disabled={isPending} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
 
         <Separator />

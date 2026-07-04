@@ -25,7 +25,6 @@ export interface Elemento {
   horasAdicionales: number
   impactoFactor: number
   pid: string
-  testpack: string
   observaciones: string
   // TestGroups F2
   moduloId: string | null
@@ -51,7 +50,6 @@ export interface ElementoCreateInput {
   horasAdicionales: number
   impactoFactor: number
   pid: string
-  testpack: string
   observaciones: string
   moduloId: string | null
   areaIds: string[]
@@ -72,7 +70,6 @@ export interface ElementoUpdateInput {
   horasAdicionales: number
   impactoFactor: number
   pid: string
-  testpack: string
   observaciones: string
   moduloId: string | null
   areaIds: string[]

@@ -10,7 +10,6 @@ export const elementoSchema = z.object({
   horasAdicionales: z.number().min(0),
   impactoFactor: z.number().min(0),
   pid: z.string().optional().default(""),
-  testpack: z.string().optional().default(""),
   observaciones: z.string(),
   // TestGroups F2
   moduloId: z.string().nullable().optional().default(null),

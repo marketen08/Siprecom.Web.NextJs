@@ -51,7 +51,7 @@ export function ElementosPanel({ onSeleccionar, elementoSeleccionadoId }: Props)
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar por TAG, nombre, PID o testpack…"
+          placeholder="Buscar por TAG, nombre o PID…"
           value={busqueda}
           onChange={(e) => handleBusqueda(e.target.value)}
           className="pl-9 h-9"

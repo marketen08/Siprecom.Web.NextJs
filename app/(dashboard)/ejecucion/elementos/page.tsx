@@ -534,7 +534,6 @@ function AvanceElementosContent() {
               <TableHead className="font-semibold text-gray-700 w-44">Tipo</TableHead>
               <TableHead className="font-semibold text-gray-700 w-24">Prioridad</TableHead>
               <TableHead className="font-semibold text-gray-700 w-28">PID</TableHead>
-              <TableHead className="font-semibold text-gray-700 w-28">Testpack</TableHead>
               <TableHead className="font-semibold text-gray-700 w-52">Avance</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center w-24">Estados</TableHead>
             </TableRow>
@@ -599,7 +598,6 @@ function AvanceElementosContent() {
                     <PrioridadBadge prioridad={e.prioridadTexto} />
                   </TableCell>
                   <TableCell className="font-mono text-sm text-gray-500">{e.pid ?? "—"}</TableCell>
-                  <TableCell className="font-mono text-sm text-gray-500">{e.testpack ?? "—"}</TableCell>
                   <TableCell>
                     <BarraAvance porcentaje={e.porcentajeAvance} />
                   </TableCell>

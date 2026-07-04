@@ -112,13 +112,6 @@ export const columns: ColumnDef<Elemento>[] = [
     ),
   },
   {
-    accessorKey: "testpack",
-    header: "Testpack",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs text-muted-foreground">{row.original.testpack || "—"}</span>
-    ),
-  },
-  {
     id: "actions",
     cell: ({ row }) => <RowActions elemento={row.original} />,
   },

@@ -151,7 +151,6 @@ const CAMPO_LABEL: Record<string, string> = {
   PlanillaId: "Planilla",
   ProcedimientoId: "Procedimiento",
   Pid: "PID",
-  Testpack: "Testpack",
   Observaciones: "Observaciones",
   MotivoRechazo: "Motivo de rechazo",
 }

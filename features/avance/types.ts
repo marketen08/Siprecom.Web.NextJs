@@ -19,7 +19,6 @@ export interface AvanceElementoDTO extends AvanceDTO {
   elementoTipoEspecialidadNombre: string | null
   prioridadTexto: string
   pid: string | null
-  testpack: string | null
   subSistemaCodigo: string | null
   subSistemaNombre: string | null
 }

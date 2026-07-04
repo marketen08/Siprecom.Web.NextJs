@@ -6,7 +6,7 @@ import type { PagedResponse } from "@/features/proyectos/types"
 interface Params {
   page?: number
   pageSize?: number
-  /** Búsqueda libre: matchea Nombre OR Tag OR PID OR Testpack. */
+  /** Búsqueda libre: matchea Nombre OR Tag OR PID. */
   nombre?: string
   sistemaId?: string
   subSistemaId?: string

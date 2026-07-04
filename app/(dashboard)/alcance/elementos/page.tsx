@@ -245,7 +245,7 @@ function ElementosPageContent() {
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nombre, TAG, PID o Testpack..."
+              placeholder="Buscar por nombre, TAG o PID..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               className="pl-9"
@@ -387,9 +387,9 @@ function ElementosPageContent() {
                       {e.subSistemaCodigo ?? "—"}
                       {e.elementoTipoNombre ? ` · ${e.elementoTipoNombre}` : ""}
                     </p>
-                    {(e.pid || e.testpack) && (
+                    {e.pid && (
                       <p className="text-xs text-muted-foreground font-mono truncate">
-                        {e.pid ? `PID ${e.pid}` : ""}{e.pid && e.testpack ? " · " : ""}{e.testpack ? `TP ${e.testpack}` : ""}
+                        PID {e.pid}
                       </p>
                     )}
                   </div>

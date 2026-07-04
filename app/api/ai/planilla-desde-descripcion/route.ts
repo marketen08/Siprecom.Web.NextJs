@@ -99,7 +99,7 @@ Siprecom agrega automáticamente en TODAS las planillas los siguientes datos. NO
 - Nombre de la planilla, código de la planilla, versión de la planilla
 - Fecha del registro / fecha de la firma
 - Proyecto, cliente y contratista
-- Elemento (TAG / PID / Testpack) — se imprime en la franja superior
+- Elemento (TAG / PID) — se imprime en la franja superior
 - Sistema y subsistema del elemento
 - Especialidad y tipo de elemento
 - Usuario que carga la planilla y usuario firmante
@@ -110,7 +110,7 @@ Siprecom agrega automáticamente en TODAS las planillas los siguientes datos. NO
 
 ### Consecuencia práctica
 
-NO propongas campos como: "Código", "Fecha", "Proyecto", "Cliente", "Contratista", "Sistema", "Subsistema", "TAG", "PID", "Testpack", "Elemento", "Nombre del operador", "Observaciones", "Firma del técnico", "Firma del supervisor", ni ninguna variante equivalente. Ya están.
+NO propongas campos como: "Código", "Fecha", "Proyecto", "Cliente", "Contratista", "Sistema", "Subsistema", "TAG", "PID", "Elemento", "Nombre del operador", "Observaciones", "Firma del técnico", "Firma del supervisor", ni ninguna variante equivalente. Ya están.
 
 Concentrate SOLO en los campos específicos de la disciplina de la planilla (parámetros técnicos, mediciones, resultados de la prueba, condiciones, verificaciones puntuales del procedimiento).
 

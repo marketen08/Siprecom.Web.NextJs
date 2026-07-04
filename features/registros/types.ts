@@ -1,5 +1,3 @@
-import type { TestpackPropagacionResult } from "@/features/elementos-tareas/types"
-
 export interface RegistroValor {
   id: string
   registroId: string
@@ -64,11 +62,6 @@ export interface RegistroDetalle {
    * como default editable.
    */
   valoresPrecargados?: RegistroValorPrecargado[]
-  /**
-   * Resultado de la propagación al grupo de Testpack cuando la carga se hizo con
-   * "aplicar a todo el testpack". Null si no se propagó. Solo viene al completar.
-   */
-  testpackPropagacion?: TestpackPropagacionResult | null
 }
 
 export interface RegistroValorPrecargado {
@@ -95,8 +88,6 @@ export interface CompletarDigitalInput {
   fechaTerminado?: string | null
   observaciones?: string | null
   valores: RegistroValorInput[]
-  /** Si true y el elemento tiene testpack, propaga el estado al grupo al completar. */
-  aplicarATestpack?: boolean
 }
 
 export interface RegistroFirmaSlot {

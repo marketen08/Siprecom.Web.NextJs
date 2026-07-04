@@ -92,10 +92,8 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
   }
 
   function handleAbrirFormulario(tarea: ElementoTarea) {
-    // Hermano cubierto por testpack: no tiene registro propio, abrimos el compartido.
-    const rid = tarea.registroId ?? tarea.registroEfectivoId
-    if (!rid) return
-    router.push(`/ejecucion/registros/${rid}`)
+    if (!tarea.registroId) return
+    router.push(`/ejecucion/registros/${tarea.registroId}`)
   }
 
   function handleCargarPdf(tarea: ElementoTarea) {
@@ -146,7 +144,6 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                 {avance?.elementoTipoNombre        && <DataItem label="Tipo"         value={avance.elementoTipoNombre} />}
                 {avance?.elementoTipoEspecialidadNombre  && <DataItem label="Especialidad" value={avance.elementoTipoEspecialidadNombre} />}
                 {elemento.pid      && <DataItem label="PID"      value={elemento.pid} />}
-                {elemento.testpack && <DataItem label="Testpack" value={elemento.testpack} />}
                 {elemento.horasAdicionales > 0 && (
                   <DataItem label="Hs. adicionales" value={String(elemento.horasAdicionales)} />
                 )}
@@ -328,11 +325,6 @@ function TareaCard({
             )}
           </div>
           <p className="font-medium text-sm text-gray-900">{tarea.tareaNombre}</p>
-          {tarea.esTestpackPropagado && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-violet-700 bg-violet-50 rounded px-1.5 py-0.5 font-medium w-fit">
-              <Paperclip className="h-3 w-3" /> Completado vía testpack
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <EstadoBadge tarea={tarea} />
@@ -417,24 +409,12 @@ function TareaCard({
       <AlertDialog open={reiniciarOpen} onOpenChange={setReiniciarOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {tarea.esTestpackPropagado ? "¿Quitar del testpack?" : "¿Reiniciar tarea?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>¿Reiniciar tarea?</AlertDialogTitle>
             <AlertDialogDescription>
-              {tarea.esTestpackPropagado ? (
-                <>
-                  Esta tarea fue completada como parte de un testpack. Se desvinculará del
-                  grupo y volverá a <strong>PENDIENTE</strong>; el registro del grupo y los
-                  demás elementos no se modifican.
-                </>
-              ) : (
-                <>
-                  Se descartará el registro actual y todos los valores cargados
-                  {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
-                  La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
-                  Esta acción no se puede deshacer.
-                </>
-              )}
+              Se descartará el registro actual y todos los valores cargados
+              {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
+              La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
+              Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -511,34 +491,6 @@ function buildTareaMenuItems({
   // y los registros sin firma requerida tienen firmasTotal === 0, así que quedan excluidos.
   const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
   const cargarRegistroLabel = fisicoPreFirmado ? "Cargar registro firmado" : "Cargar registro"
-
-  // Hermano cubierto por testpack: no tiene registro propio (la carga y la firma se
-  // gestionan desde el elemento líder). Sólo ofrecemos ver/descargar el registro
-  // compartido y, si no es inmutable, "quitar del testpack" (lo desvincula del grupo).
-  if (tarea.esTestpackPropagado && tarea.registroEfectivoId) {
-    const rid = tarea.registroEfectivoId
-    if (tarea.esFisico) {
-      items.push({ kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${rid}/pdf`) })
-      items.push({ kind: "item", label: "Ver registro / adjuntos", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
-    } else {
-      items.push({ kind: "item", label: "Ver registro", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
-      items.push({ kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${rid}/pdf`) })
-    }
-    // Reiniciar un hermano cubierto sólo lo saca del grupo (no toca el registro líder).
-    // El backend lo permite en COMPLETADO/RECHAZADO; FIRMADO/APROBADO son inmutables.
-    if (tarea.estado === 3 || tarea.estado === 5) {
-      items.push({ kind: "separator" })
-      items.push({
-        kind: "item",
-        label: "Quitar del testpack",
-        icon: RotateCcw,
-        onSelect: onRequestReiniciar,
-        disabled: isReiniciando,
-        variant: "destructive",
-      })
-    }
-    return items
-  }
 
   // Acciones primarias por estado
   switch (tarea.estado) {
