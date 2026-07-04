@@ -32,7 +32,7 @@ import {
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban, BookOpen,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
-  MoreVertical, Paperclip, PenLine, RotateCcw,
+  Link2, MoreVertical, Paperclip, PenLine, RotateCcw,
 } from "lucide-react"
 import {
   AlertDialog,
@@ -44,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { DependenciasSheet } from "@/features/elementos-tareas/components/dependencias-sheet"
 
 interface Props {
   elementoId: string | null
@@ -238,6 +239,7 @@ function TareaCard({
 }) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
+  const [dependenciasOpen, setDependenciasOpen] = useState(false)
   // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
   // y los registros sin firma requerida tienen firmasTotal === 0, así que quedan excluidos.
   const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
@@ -287,6 +289,7 @@ function TareaCard({
     onAdjuntarArchivo: () => adjuntoInputRef.current?.click(),
     onDescargarProcedimiento: handleDescargarProcedimiento,
     onRequestReiniciar: () => setReiniciarOpen(true),
+    onAbrirDependencias: () => setDependenciasOpen(true),
     isIniciando,
     isReiniciando,
     showFirmas,
@@ -429,6 +432,15 @@ function TareaCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DependenciasSheet
+        open={dependenciasOpen}
+        onClose={() => setDependenciasOpen(false)}
+        elementoTareaId={tarea.id}
+        elementoTag={tarea.elementoTag}
+        tareaNombre={tarea.tareaNombre}
+        elementoId={tarea.elementoId}
+      />
     </div>
   )
 }
@@ -454,6 +466,7 @@ function buildTareaMenuItems({
   onCargarPdf,
   onAdjuntarArchivo,
   onRequestReiniciar,
+  onAbrirDependencias,
   isIniciando,
   isReiniciando,
   showFirmas,
@@ -474,6 +487,7 @@ function buildTareaMenuItems({
   onAdjuntarArchivo: () => void
   onDescargarProcedimiento: () => void
   onRequestReiniciar: () => void
+  onAbrirDependencias: () => void
   isIniciando: boolean
   isReiniciando: boolean
   showFirmas: boolean
@@ -635,6 +649,15 @@ function buildTareaMenuItems({
       onSelect: onToggleFirmas,
     })
   }
+
+  // Dependencias: precedentes y sucesores dentro del proyecto.
+  if (items.length > 0) items.push({ kind: "separator" })
+  items.push({
+    kind: "item",
+    label: "Dependencias",
+    icon: Link2,
+    onSelect: onAbrirDependencias,
+  })
 
   // Reiniciar tarea: descarta el registro y vuelve a PENDIENTE.
   // Disponible cuando hay registro abierto o cerrado-no-final (EN_PROCESO, COMPLETADO, RECHAZADO).
