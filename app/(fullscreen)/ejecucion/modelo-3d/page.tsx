@@ -19,11 +19,14 @@ import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor
 import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-colores-estado"
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
+import { useColoresPorTestGroupToggle } from "@/features/modelo-3d/hooks/use-colores-por-testgroup"
+import { LeyendaColoresTestGroup } from "@/features/modelo-3d/components/leyenda-colores-testgroup"
 import {
   ApsTranslationStatus,
   EstadoProcesamientoIfc,
   FormatoArchivo3d,
   type ColoresPorEstado,
+  type ColoresPorTestGroup,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
@@ -34,6 +37,7 @@ interface ViewerHandle {
   fitToGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
+  applyColorPorTestGroup: (buckets: ColoresPorTestGroup | null) => Promise<void>
   resize: () => void
   dispose: () => void
 }
@@ -115,6 +119,26 @@ function ModeloEjecucionContent() {
     // el estado de cada Elemento (cuenta solo las tareas de esos niveles).
     filtro: filtroVisor.filtro,
   })
+
+  // F7 del roadmap TestGroups: colorización por pack. Mutuamente excluyente con
+  // Colores por estado — al prender uno, se apaga el otro (useEffect abajo).
+  const coloresTestGroup = useColoresPorTestGroupToggle({
+    proyectoId: proyectoActivo?.id ?? null,
+    archivoId: archivo?.id ?? null,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
+    applyColorPorTestGroup: (b) => viewerRef.current?.applyColorPorTestGroup(b) ?? Promise.resolve(),
+    filtro: filtroVisor.filtro,
+  })
+
+  // Mutex: solo un modo de colorización activo a la vez.
+  useEffect(() => {
+    if (coloresEstado.activo && coloresTestGroup.activo) coloresTestGroup.setActivo(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coloresEstado.activo])
+  useEffect(() => {
+    if (coloresTestGroup.activo && coloresEstado.activo) coloresEstado.setActivo(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coloresTestGroup.activo])
 
   const archivoActualIdRef = useRef<string | null>(null)
   archivoActualIdRef.current = archivo?.id ?? null
@@ -447,6 +471,19 @@ function ModeloEjecucionContent() {
           </button>
           <button
             type="button"
+            onClick={() => coloresTestGroup.setActivo((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
+              coloresTestGroup.activo
+                ? "text-sky-700 bg-sky-50 border-sky-200"
+                : "text-gray-600 hover:bg-gray-50"
+            }`}
+            title="Pintar entidades con color según el TestGroup al que pertenecen"
+          >
+            <Palette className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Colores por pack</span>
+          </button>
+          <button
+            type="button"
             onClick={() => {
               setMostrarPanelElementos((v) => !v)
               setMostrarPanelEntidades(false)
@@ -518,6 +555,11 @@ function ModeloEjecucionContent() {
           {coloresEstado.activo && (
             <div className="absolute top-3 left-3 z-10">
               <LeyendaColoresEstado buckets={coloresEstado.buckets} loading={coloresEstado.loading} />
+            </div>
+          )}
+          {coloresTestGroup.activo && (
+            <div className="absolute top-3 left-3 z-10">
+              <LeyendaColoresTestGroup buckets={coloresTestGroup.buckets} loading={coloresTestGroup.loading} />
             </div>
           )}
           {actualHintVisible(viewerReady, archivoCargadoId, entidadSeleccionada, resolviendoPick) && (

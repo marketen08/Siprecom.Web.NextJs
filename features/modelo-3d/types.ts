@@ -176,6 +176,27 @@ export interface ColoresPorEstado {
   tareasCompletadas: number
 }
 
+/**
+ * F7 del roadmap TestGroups: buckets de IfcGuids agrupados por TestGroup.
+ * Un elemento en más de un pack se asigna al primero por (tipo asc, código asc).
+ */
+export interface ColoresPorTestGroupBucket {
+  testGroupId: string
+  codigo: string
+  nombre: string
+  tipo: number
+  tipoTexto: string
+  guids: string[]
+  cantidadElementos: number
+}
+
+export interface ColoresPorTestGroup {
+  buckets: ColoresPorTestGroupBucket[]
+  /** GUIDs de elementos sin pack asignado. Vacío cuando se filtra por TestGroupIds. */
+  sinTestGroup: string[]
+  sinTestGroupElementos: number
+}
+
 export interface CrearProyectoDesdeIfcInput {
   nombre: string
   clienteId: string

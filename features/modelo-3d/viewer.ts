@@ -53,6 +53,12 @@ export interface ViewerHandle {
    */
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   /**
+   * F7 del roadmap TestGroups: pinta cada TestGroup con un color de una paleta
+   * cíclica de 12 colores. Los elementos sin pack quedan grises (bucket
+   * sinTestGroup). Pasá null para volver a los colores IFC originales.
+   */
+  applyColorPorTestGroup: (buckets: BucketsPorTestGroup | null) => Promise<void>
+  /**
    * Notifica al viewer que su contenedor cambió de tamaño. En @thatopen +
    * three.js esto fuerza al renderer/camera a re-leer las dimensiones del
    * container (sin esto el click se desfasa cuando un sidebar empuja el canvas).
@@ -67,6 +73,35 @@ export interface BucketsPorEstado {
   enCurso: string[]
   completados: string[]
 }
+
+/** Buckets para F7 (colores por TestGroup). Cada bucket puede llevar su propio índice de paleta. */
+export interface BucketsPorTestGroup {
+  buckets: Array<{ testGroupId: string; guids: string[] }>
+  sinTestGroup: string[]
+}
+
+/**
+ * Paleta cíclica de 12 colores para F7. Colores cualitativos distinguibles.
+ * Cada TestGroup toma color por índice del bucket módulo 12. El orden viene
+ * del backend (Tipo asc, Codigo asc), así que Pressure y BF quedan agrupados
+ * por color en la leyenda.
+ */
+export const TESTGROUP_PALETTE = [
+  0x0ea5e9, // sky-500
+  0xf59e0b, // amber-500
+  0x10b981, // emerald-500
+  0xef4444, // red-500
+  0x8b5cf6, // violet-500
+  0x14b8a6, // teal-500
+  0xf97316, // orange-500
+  0x6366f1, // indigo-500
+  0xec4899, // pink-500
+  0x84cc16, // lime-500
+  0x06b6d4, // cyan-500
+  0xa855f7, // purple-500
+] as const
+
+export const TESTGROUP_SIN_PACK_COLOR = 0x94a3b8 // slate-400
 
 export interface CreateViewerOptions {
   /**
@@ -297,6 +332,52 @@ export async function createViewer(
     colorPorEstadoActive = true
   }
 
+  // F7 del roadmap TestGroups: color por pack. Un array de colores THREE.Color
+  // pre-cacheado a partir de TESTGROUP_PALETTE — evita crear objetos por corrida.
+  const TG_PALETTE_THREE = TESTGROUP_PALETTE.map((hex) => new THREE.Color(hex))
+  const TG_SIN_PACK_THREE = new THREE.Color(TESTGROUP_SIN_PACK_COLOR)
+  let colorPorTestGroupActive = false
+
+  async function applyColorPorTestGroup(buckets: BucketsPorTestGroup | null): Promise<void> {
+    if (!currentModel || disposed) return
+
+    if (buckets === null) {
+      if (colorPorTestGroupActive) {
+        await currentModel.resetColor(undefined)
+        colorPorTestGroupActive = false
+      }
+      return
+    }
+
+    async function resolverIds(guids: string[]): Promise<number[]> {
+      if (guids.length === 0) return []
+      const ids = await currentModel!.getLocalIdsByGuids(guids)
+      return ids.filter((id): id is number => typeof id === "number")
+    }
+
+    // Resolvemos todos los buckets + los "sin pack" en paralelo.
+    const idsPorBucket = await Promise.all(
+      buckets.buckets.map((b) => resolverIds(b.guids)),
+    )
+    const idsSinPack = await resolverIds(buckets.sinTestGroup)
+
+    if (colorPorTestGroupActive) {
+      await currentModel.resetColor(undefined)
+    }
+
+    // Cada bucket toma color por índice módulo largo de la paleta.
+    for (let i = 0; i < idsPorBucket.length; i++) {
+      const ids = idsPorBucket[i]
+      if (ids.length === 0) continue
+      const color = TG_PALETTE_THREE[i % TG_PALETTE_THREE.length]
+      await currentModel.setColor(ids, color)
+    }
+    if (idsSinPack.length > 0) {
+      await currentModel.setColor(idsSinPack, TG_SIN_PACK_THREE)
+    }
+    colorPorTestGroupActive = true
+  }
+
   async function applyGhost(
     visibleGuids: string[] | null,
     _opts?: { hide?: boolean },  // IFC ignora — siempre atenúa con gris+opacidad
@@ -402,5 +483,5 @@ export async function createViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadIfc, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, resize, dispose }
+  return { loadIfc, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
 }

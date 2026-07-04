@@ -46,6 +46,11 @@ export interface UnifiedViewerHandle {
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   /**
+   * F7 del roadmap TestGroups: pinta cada TestGroup con un color de la paleta
+   * de 12 colores. Pasá null para volver al color IFC original.
+   */
+  applyColorPorTestGroup: (buckets: BucketsPorTestGroup | null) => Promise<void>
+  /**
    * Notifica al viewer que su contenedor cambió de tamaño. Lo llaman las
    * páginas vía ResizeObserver para evitar que el click se desfase cuando
    * un panel lateral empuja el canvas.
@@ -58,6 +63,11 @@ export interface BucketsPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
+}
+
+export interface BucketsPorTestGroup {
+  buckets: Array<{ testGroupId: string; guids: string[] }>
+  sinTestGroup: string[]
 }
 
 export interface CreateUnifiedViewerOptions {

@@ -88,6 +88,11 @@ export interface ApsViewerHandle {
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   /**
+   * F7 del roadmap TestGroups: pinta cada TestGroup con un color de una paleta
+   * cíclica de 12 colores. Pasá null para volver a los colores originales.
+   */
+  applyColorPorTestGroup: (buckets: BucketsPorTestGroup | null) => Promise<void>
+  /**
    * Notifica al viewer que su contenedor cambió de tamaño. Recalcula offset y
    * dimensiones internas — sin esto, los clicks se desfasan cuando el panel
    * de filtros u otro elemento del layout empuja el canvas.
@@ -101,6 +106,19 @@ export interface BucketsPorEstado {
   enCurso: string[]
   completados: string[]
 }
+
+/** F7: buckets de IfcGuids agrupados por TestGroup para el modo APS/NWD. */
+export interface BucketsPorTestGroup {
+  buckets: Array<{ testGroupId: string; guids: string[] }>
+  sinTestGroup: string[]
+}
+
+/** Paleta cíclica para F7 — misma que viewer.ts (IFC) para consistencia. */
+const TESTGROUP_PALETTE_APS = [
+  0x0ea5e9, 0xf59e0b, 0x10b981, 0xef4444, 0x8b5cf6, 0x14b8a6,
+  0xf97316, 0x6366f1, 0xec4899, 0x84cc16, 0x06b6d4, 0xa855f7,
+] as const
+const TESTGROUP_SIN_PACK_COLOR_APS = 0x94a3b8
 
 export interface CreateApsViewerOptions {
   /**
@@ -515,6 +533,45 @@ export async function createApsViewer(
     viewer.impl.invalidate(true, true, true)
   }
 
+  // F7 del roadmap TestGroups: pinta cada TestGroup con su color. No hace auto-
+  // isolate porque los packs suelen cubrir sólo una parte del alcance — que las
+  // entidades sin pack queden con su color original es un feedback visual válido
+  // (o gris si el backend las devolvió en sinTestGroup).
+  async function applyColorPorTestGroup(buckets: BucketsPorTestGroup | null): Promise<void> {
+    if (!currentModel) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = currentModel
+
+    if (buckets === null) {
+      m.clearThemingColors?.()
+      viewer.impl.invalidate(true, true, true)
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
+    const setColorHex = (ids: number[], hex: number) => {
+      const r = ((hex >> 16) & 0xff) / 255
+      const g = ((hex >> 8) & 0xff) / 255
+      const b = (hex & 0xff) / 255
+      const v4 = new THREE.Vector4(r, g, b, 1)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const id of ids) m.setThemingColor(id, v4, true)
+    }
+
+    m.clearThemingColors?.()
+    for (let i = 0; i < buckets.buckets.length; i++) {
+      const b = buckets.buckets[i]
+      const ids = guidsToIds(b.guids)
+      if (ids.length === 0) continue
+      const hex = TESTGROUP_PALETTE_APS[i % TESTGROUP_PALETTE_APS.length]
+      setColorHex(ids, hex)
+    }
+    const idsSinPack = guidsToIds(buckets.sinTestGroup)
+    if (idsSinPack.length > 0) setColorHex(idsSinPack, TESTGROUP_SIN_PACK_COLOR_APS)
+    viewer.impl.invalidate(true, true, true)
+  }
+
   function guidsToIds(guids: string[]): number[] {
     const out: number[] = []
     for (const g of guids) {
@@ -546,7 +603,7 @@ export async function createApsViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadModel, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, resize, dispose }
+  return { loadModel, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
 }
 
 /** Convierte un GUID sintético "aps-{dbId}" a dbId numérico. Si no matchea, null. */

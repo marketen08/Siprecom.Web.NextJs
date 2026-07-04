@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   ColoresPorEstado,
+  ColoresPorTestGroup,
   EntidadFiltro,
   FiltroResultado,
   FiltroVisor,
@@ -184,6 +185,41 @@ export function useColoresPorEstado(
     queryFn: () =>
       apiClient.post<ApiResponse<ColoresPorEstado>>(
         `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-estado`,
+        body,
+      ),
+  })
+}
+
+/**
+ * F7 del roadmap TestGroups: trae buckets de GUIDs agrupados por TestGroup.
+ * Respeta Sistema/SubSistema/Especialidad del filtro visor y — si vienen —
+ * los TestGroupIds seleccionados (solo esos packs aparecen).
+ * NivelIds no aplica: un TestGroup no tiene "nivel" semánticamente.
+ */
+export function useColoresPorTestGroup(
+  proyectoId: string | null,
+  archivoId: string | null,
+  activo: boolean,
+  filtro?: FiltroVisor | null,
+) {
+  const body = {
+    sistemaIds:      filtro?.sistemaIds      ?? [],
+    subSistemaIds:   filtro?.subSistemaIds   ?? [],
+    especialidadIds: filtro?.especialidadIds ?? [],
+    testGroupIds:    filtro?.testGroupIds    ?? [],
+  }
+  return useQuery({
+    queryKey: [
+      "ifc", archivoId, "colores-por-testgroup",
+      body.sistemaIds.join(","),
+      body.subSistemaIds.join(","),
+      body.especialidadIds.join(","),
+      body.testGroupIds.join(","),
+    ],
+    enabled: activo && !!proyectoId && !!archivoId,
+    queryFn: () =>
+      apiClient.post<ApiResponse<ColoresPorTestGroup>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-testgroup`,
         body,
       ),
   })
