@@ -16,7 +16,10 @@ export interface ImportPreview {
   sistemas: ImportEntidadResumen
   subsistemas: ImportEntidadResumen
   elementos: ImportEntidadResumen
+  /** Errores mostrados (cap 100). Si totalErrores > errores.length, la UI debe indicarlo. */
   errores: ImportError[]
+  /** Total real de errores del import (puede ser mayor a errores.length por el cap del server). */
+  totalErrores: number
   esAplicable: boolean
 }
 
@@ -24,6 +27,47 @@ export interface ImportResultado {
   aplicado: boolean
   preview: ImportPreview
   mensaje: string
+}
+
+// ── Estado del job de import (T1+F del roadmap de imports) ──────────────────
+
+export type ImportacionEstado =
+  | "Encolado"
+  | "Parseando"
+  | "Validando"
+  | "AplicandoSistemas"
+  | "AplicandoSubsistemas"
+  | "AplicandoElementos"
+  | "SincronizandoTareas"
+  | "SincronizandoDependencias"
+  | "VinculandoModelo3D"
+  | "Completado"
+  | "Fallido"
+  | "CanceladoPorError"
+
+export interface ImportacionFaseTiming {
+  fase: string
+  milisegundosTotal: number
+  filasProcesadas: number | null
+}
+
+export interface ImportacionJobEstado {
+  jobId: string
+  estado: number // enum ordinal — el server también manda estadoTexto
+  estadoTexto: ImportacionEstado
+  proyectoId: string
+  usuarioId: string
+  iniciadoEn: string
+  finalizadoEn: string | null
+  duracionMs: number | null
+  mensajeActual: string
+  porcentajeAvance: number
+  totalFilas: number
+  filasProcesadas: number
+  timings: ImportacionFaseTiming[]
+  mensajeFinal: string | null
+  error: string | null
+  preview: ImportPreview | null
 }
 
 /** Preview de importación de Pendientes (hoja única, un solo resumen). */
