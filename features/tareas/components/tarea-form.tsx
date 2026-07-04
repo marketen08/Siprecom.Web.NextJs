@@ -13,6 +13,7 @@ import { useGetEspecialidades } from "@/features/especialidades/api/use-especial
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
 import { useGetProcedimientosSelect } from "@/features/procedimientos/api/use-get-procedimientos-select"
+import { useGetTareasSelect } from "@/features/tareas/api/use-get-tareas-select"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -49,12 +50,14 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   const { data: nivelesData, isLoading: loadingNiveles } = useGetNivelesSelect()
   const { data: planillasData, isLoading: loadingPlanillas } = useGetPlanillasSelect()
   const { data: procedimientosData, isLoading: loadingProcedimientos } = useGetProcedimientosSelect()
+  const { data: tareasData, isLoading: loadingTareas } = useGetTareasSelect()
 
   const tipos = (tiposData as any)?.data ?? []
   const especialidades = especialidadesData?.data ?? []
   const niveles = (nivelesData as any)?.data ?? (Array.isArray(nivelesData) ? nivelesData : [])
   const planillas = (planillasData as any)?.data ?? []
   const procedimientos = (procedimientosData as any)?.data ?? []
+  const tareasCatalogo = (tareasData as any)?.data ?? []
 
   // Especialidad seleccionada (requerida). Helper de UI: filtra el listado de
   // tipos. NO se manda al backend (queda implícita por el tipo elegido).
@@ -74,6 +77,8 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
       horasBase: defaultValues?.horasBase ?? 4,
       impactoBase: defaultValues?.impactoBase ?? 1,
       tipoAsignacion: defaultValues?.tipoAsignacion ?? 1,
+      tareaPrecedenteId: defaultValues?.tareaPrecedenteId ?? null,
+      lagDias: defaultValues?.lagDias ?? 0,
     },
   })
 
@@ -100,14 +105,34 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
     [tiposFiltrados]
   )
 
+  // Opciones de tarea precedente: todas las tareas del catálogo menos la propia
+  // (si estamos editando). Los ciclos transitivos los valida el backend con un
+  // mensaje explícito — acá no calculamos la cadena inversa.
+  const tareaPrecedenteOptions = useMemo(() => {
+    const currentId = defaultValues?.id
+    return [
+      { value: "", label: "Ninguna" },
+      ...(tareasCatalogo as Array<{ id: string; codigo: number; nombre: string }>)
+        .filter((t) => !currentId || t.id !== currentId)
+        .map((t) => ({
+          value: t.id,
+          label: `${t.codigo} — ${t.nombre}`,
+        })),
+    ]
+  }, [tareasCatalogo, defaultValues?.id])
+
   const handleSubmit = (values: TareaFormValues) => {
     if (!especialidadId) {
       setEspecialidadError("La especialidad es requerida")
       return
     }
+    // Si no hay precedente, forzamos lagDias=0 y limpiamos el id.
+    const precedenteId = values.tareaPrecedenteId || null
     onSubmit({
       ...values,
       procedimientoId: values.procedimientoId || undefined,
+      tareaPrecedenteId: precedenteId,
+      lagDias: precedenteId ? values.lagDias : 0,
     })
   }
 
@@ -442,6 +467,71 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
               </FormItem>
             )}
           />
+        </div>
+
+        <Separator />
+
+        {/* Dependencia catalogal (opcional) */}
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Dependencia
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Si esta tarea depende de otra dentro del <strong>mismo elemento</strong>, seleccionala
+              acá. El sistema no permitirá empezar esta tarea hasta que se complete la precedente
+              (+ los días de espera).
+            </p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name="tareaPrecedenteId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tarea precedente <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={tareaPrecedenteOptions}
+                    value={field.value ?? ""}
+                    onChange={(v) => field.onChange(v ? v : null)}
+                    placeholder="Ninguna"
+                    searchPlaceholder="Buscar por código o nombre..."
+                    emptyMessage="Sin tareas"
+                    disabled={isPending || loadingTareas}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {form.watch("tareaPrecedenteId") ? (
+            <FormField
+              control={form.control}
+              name="lagDias"
+              render={({ field }) => (
+                <FormItem className="max-w-40">
+                  <FormLabel>Días de espera</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={365}
+                      step={1}
+                      disabled={isPending}
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                    />
+                  </FormControl>
+                  <p className="text-[11px] text-muted-foreground">
+                    0 = arranca el día siguiente al fin del predecesor.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
         </div>
 
         <div className="flex gap-3 pt-2">

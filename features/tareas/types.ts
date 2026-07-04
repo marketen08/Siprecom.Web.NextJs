@@ -51,6 +51,9 @@ export interface Tarea {
   impactoBase: number
   tipoAsignacion: TipoAsignacionTarea
   tipoAsignacionTexto?: string
+  tareaPrecedenteId?: string | null
+  tareaPrecedenteNombre?: string | null
+  lagDias: number
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string
@@ -69,6 +72,8 @@ export interface TareaCreateInput {
   horasBase: number
   impactoBase: number
   tipoAsignacion: number
+  tareaPrecedenteId?: string | null
+  lagDias?: number
 }
 
 export interface TareaUpdateInput {
@@ -84,4 +89,6 @@ export interface TareaUpdateInput {
   horasBase: number
   impactoBase: number
   tipoAsignacion: number
+  tareaPrecedenteId?: string | null
+  lagDias?: number
 }
