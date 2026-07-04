@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CheckCircle2, Loader2, RotateCcw, Save, X } from "lucide-react"
+import { CheckCircle2, Loader2, RotateCcw, Save, X, FileSpreadsheet } from "lucide-react"
+import { ImportFechasSheet } from "@/features/planificacion/components/import-fechas-sheet"
 
 import {
   useActualizarFechasBulk,
@@ -71,6 +72,8 @@ function sameDay(originalIso: string | null, editValue: string | null): boolean 
 }
 
 export default function PlanificacionManualPage() {
+  const [importOpen, setImportOpen] = useState(false)
+
   // Filtros — todos opcionales. Cuando un campo está vacío significa "todos".
   const [sistemaId, setSistemaId] = useState<string>("")
   const [subSistemaId, setSubSistemaId] = useState<string>("")
@@ -194,6 +197,10 @@ export default function PlanificacionManualPage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
+          <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2">
+            <FileSpreadsheet className="h-4 w-4 text-green-600" />
+            Importar desde Excel
+          </Button>
           {cambiosCount > 0 && (
             <Button variant="outline" onClick={descartarTodo} className="gap-2" disabled={guardar.isPending}>
               <RotateCcw className="h-4 w-4" />
@@ -210,6 +217,8 @@ export default function PlanificacionManualPage() {
           </Button>
         </div>
       </div>
+
+      <ImportFechasSheet open={importOpen} onClose={() => setImportOpen(false)} />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
