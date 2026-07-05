@@ -105,21 +105,59 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
     [tiposFiltrados]
   )
 
-  // Opciones de tarea precedente: todas las tareas del catálogo menos la propia
-  // (si estamos editando). Los ciclos transitivos los valida el backend con un
-  // mensaje explícito — acá no calculamos la cadena inversa.
+  // Opciones de tarea precedente: solo tareas del catálogo con MISMO ElementoTipo
+  // + MISMO TipoAsignacion, menos la propia (si estamos editando). Ciclos
+  // transitivos los valida el backend — acá no calculamos la cadena inversa.
+  //
+  // El filtro por ElementoTipoId es la restricción crítica: la dependencia solo
+  // se materializa cuando ambas tareas coexisten en el mismo elemento, y un
+  // elemento tiene un único tipo. Cross-tipo era un no-op silencioso.
+  const elementoTipoIdActual = form.watch("elementoTipoId")
+  const tipoAsignacionActual = form.watch("tipoAsignacion")
+
   const tareaPrecedenteOptions = useMemo(() => {
     const currentId = defaultValues?.id
+    if (!elementoTipoIdActual) return [{ value: "", label: "Ninguna" }]
+
     return [
       { value: "", label: "Ninguna" },
-      ...(tareasCatalogo as Array<{ id: string; codigo: number; nombre: string }>)
-        .filter((t) => !currentId || t.id !== currentId)
+      ...(tareasCatalogo as Array<{
+        id: string
+        codigo: number
+        nombre: string
+        elementoTipoId?: string
+        tipoAsignacion?: number
+      }>)
+        .filter((t) => (!currentId || t.id !== currentId)
+          && t.elementoTipoId === elementoTipoIdActual
+          && t.tipoAsignacion === tipoAsignacionActual)
         .map((t) => ({
           value: t.id,
           label: `${t.codigo} — ${t.nombre}`,
         })),
     ]
-  }, [tareasCatalogo, defaultValues?.id])
+  }, [tareasCatalogo, defaultValues?.id, elementoTipoIdActual, tipoAsignacionActual])
+
+  // Si cambia el ElementoTipo o el TipoAsignacion, limpiamos el precedente para
+  // que no quede apuntando a una tarea que dejó de ser compatible.
+  useEffect(() => {
+    const actual = form.getValues("tareaPrecedenteId")
+    if (!actual) return
+    const sigueValida = (tareasCatalogo as Array<{ id: string; elementoTipoId?: string; tipoAsignacion?: number }>)
+      .some((t) => t.id === actual
+        && t.elementoTipoId === elementoTipoIdActual
+        && t.tipoAsignacion === tipoAsignacionActual)
+    if (!sigueValida) {
+      form.setValue("tareaPrecedenteId", null)
+      form.setValue("lagDias", 0)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elementoTipoIdActual, tipoAsignacionActual])
+
+  // Cuántas tareas del mismo tipo hay (excluyendo la propia). Si son 0, el
+  // combobox se muestra deshabilitado con un hint — sino el usuario queda
+  // buscando por qué el listado está vacío.
+  const cantidadOtrasTareas = Math.max(0, tareaPrecedenteOptions.length - 1)
 
   const handleSubmit = (values: TareaFormValues) => {
     if (!especialidadId) {
@@ -495,12 +533,26 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                     options={tareaPrecedenteOptions}
                     value={field.value ?? ""}
                     onChange={(v) => field.onChange(v ? v : null)}
-                    placeholder="Ninguna"
+                    placeholder={
+                      !elementoTipoIdActual
+                        ? "Elegí primero el tipo de elemento"
+                        : cantidadOtrasTareas === 0
+                        ? "No hay otras tareas para este tipo"
+                        : "Ninguna"
+                    }
                     searchPlaceholder="Buscar por código o nombre..."
-                    emptyMessage="Sin tareas"
-                    disabled={isPending || loadingTareas}
+                    emptyMessage="Sin tareas compatibles"
+                    disabled={isPending || loadingTareas
+                      || !elementoTipoIdActual
+                      || cantidadOtrasTareas === 0}
                   />
                 </FormControl>
+                {elementoTipoIdActual && cantidadOtrasTareas === 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    No hay otras tareas cargadas en este tipo de elemento. Creá al menos una
+                    antes de poder definir precedentes.
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}
