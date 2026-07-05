@@ -3,6 +3,7 @@
 import { useRef, useState, type ComponentType } from "react"
 import { useRouter } from "next/navigation"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
+import { useGetAvanceElemento } from "@/features/avance/api/use-get-avance-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
 import { useReiniciarTarea } from "@/features/elementos-tareas/api/use-reiniciar-tarea"
@@ -53,10 +54,15 @@ interface Props {
   onClose: () => void
 }
 
-export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Props) {
+export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onClose }: Props) {
   const router = useRouter()
   const { data: elementoRaw, isLoading: loadingElemento } = useGetElemento(elementoId)
   const { data: tareasRaw, isLoading: loadingTareas } = useGetElementosTareasPorElemento(elementoId)
+  // Cuando el sheet se abre desde la lista, `avanceProp` viene con la fila. Cuando se
+  // abre por URL directa (elemento fuera de la página cargada) llega null — pedimos el
+  // avance individual al backend para que se muestren la barra, los estados y el resto.
+  const { data: avanceRaw } = useGetAvanceElemento(!avanceProp && open ? elementoId : null)
+  const avance = avanceProp ?? avanceRaw?.data ?? null
   const iniciarMutation = useIniciarTarea()
   const reiniciarMutation = useReiniciarTarea()
 
@@ -76,15 +82,43 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
   // (conservador) hasta que carga el proyecto, así no ofrecemos algo no permitido.
   const permitirDescargarProcedimientos = proyecto?.permitirDescargarProcedimientos ?? false
 
+  // Error de gates al iniciar (predecesores incompletos, niveles secuenciales,
+  // etc). Se muestra en un AlertDialog dedicado; el mensaje viene del backend
+  // que ya explica qué falta y por qué.
+  const [errorIniciar, setErrorIniciar] = useState<string | null>(null)
+
+  // Consulta el gate sin efectos. Devuelve null si puede arrancar, o el mensaje
+  // del bloqueo. Se usa antes de navegar al form de carga (físico/digital) para
+  // evitar que el usuario llegue a la pantalla de subida y recién ahí vea el
+  // error.
+  async function verificarGate(tareaId: string): Promise<string | null> {
+    try {
+      const res = await fetch(`/api/elementos-tareas/${tareaId}/puede-ejecutar`)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return json?.message ?? "No se pudo verificar la tarea."
+      const puede = json?.data?.puedeEjecutar
+      if (puede === false) return json?.data?.motivo ?? json?.message ?? "La tarea no está disponible todavía."
+      return null
+    } catch {
+      // Si la verificación misma falla, dejamos pasar — el endpoint de subida
+      // vuelve a validar y es la fuente de verdad.
+      return null
+    }
+  }
+
   async function handleIniciar(tarea: ElementoTarea) {
-    const result = await iniciarMutation.mutateAsync(tarea.id) as any
-    // El backend devuelve la ET actualizada con registroId — navegamos al form.
-    // No llamamos onClose() antes: la navegación desmonta el sheet naturalmente,
-    // y conservamos el ?elementoId en la URL para que el back del browser reabra
-    // el sheet con el contexto intacto.
-    const registroId = result?.data?.registroId ?? result?.registroId
-    if (registroId) {
-      router.push(`/ejecucion/registros/${registroId}`)
+    try {
+      const result = await iniciarMutation.mutateAsync(tarea.id) as any
+      // El backend devuelve la ET actualizada con registroId — navegamos al form.
+      // No llamamos onClose() antes: la navegación desmonta el sheet naturalmente,
+      // y conservamos el ?elementoId en la URL para que el back del browser reabra
+      // el sheet con el contexto intacto.
+      const registroId = result?.data?.registroId ?? result?.registroId
+      if (registroId) {
+        router.push(`/ejecucion/registros/${registroId}`)
+      }
+    } catch (err) {
+      setErrorIniciar((err as Error)?.message ?? "No se pudo iniciar la tarea.")
     }
   }
 
@@ -92,13 +126,23 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
     await reiniciarMutation.mutateAsync(tarea.id)
   }
 
-  function handleAbrirFormulario(tarea: ElementoTarea) {
+  async function handleAbrirFormulario(tarea: ElementoTarea) {
     if (!tarea.registroId) return
+    // Cuando la tarea está EN_PROCESO o RECHAZADO y el usuario va a completar/re-completar,
+    // el completar del backend ya vuelve a validar el gate — pero verificamos acá para no
+    // hacerle entrar al formulario si igual no va a poder guardar.
+    const bloqueo = await verificarGate(tarea.id)
+    if (bloqueo) { setErrorIniciar(bloqueo); return }
     router.push(`/ejecucion/registros/${tarea.registroId}`)
   }
 
-  function handleCargarPdf(tarea: ElementoTarea) {
+  async function handleCargarPdf(tarea: ElementoTarea) {
     if (!tarea.planillaId) return
+    // La página de carga arranca con "Iniciar" (si está PENDIENTE) y después sube el PDF;
+    // ambos endpoints ya validan el gate. Chequeamos acá para bloquear ANTES de navegar y
+    // que el usuario vea el motivo sin ir/volver.
+    const bloqueo = await verificarGate(tarea.id)
+    if (bloqueo) { setErrorIniciar(bloqueo); return }
     router.push(`/checklist/${tarea.planillaId}/${tarea.id}`)
   }
 
@@ -142,8 +186,16 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
                 Datos del elemento
               </h3>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                {avance?.elementoTipoNombre        && <DataItem label="Tipo"         value={avance.elementoTipoNombre} />}
-                {avance?.elementoTipoEspecialidadNombre  && <DataItem label="Especialidad" value={avance.elementoTipoEspecialidadNombre} />}
+                {/* Preferimos los datos del elemento — están siempre presentes cuando la
+                    página lo carga por id. `avance` es fallback y puede venir null si el
+                    sheet se abrió por URL directa con el elemento fuera de la página de
+                    la lista. */}
+                {(elemento.elementoTipoNombre ?? avance?.elementoTipoNombre) && (
+                  <DataItem label="Tipo" value={(elemento.elementoTipoNombre ?? avance?.elementoTipoNombre)!} />
+                )}
+                {(elemento.elementoTipoEspecialidadNombre ?? avance?.elementoTipoEspecialidadNombre) && (
+                  <DataItem label="Especialidad" value={(elemento.elementoTipoEspecialidadNombre ?? avance?.elementoTipoEspecialidadNombre)!} />
+                )}
                 {elemento.pid      && <DataItem label="PID"      value={elemento.pid} />}
                 {elemento.horasAdicionales > 0 && (
                   <DataItem label="Hs. adicionales" value={String(elemento.horasAdicionales)} />
@@ -204,6 +256,20 @@ export function ElementoDetalleSheet({ elementoId, avance, open, onClose }: Prop
           </section>
         </div>
       </SheetContent>
+
+      <AlertDialog open={errorIniciar !== null} onOpenChange={(v) => !v && setErrorIniciar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No se puede iniciar la tarea</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {errorIniciar}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setErrorIniciar(null)}>Entendido</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   )
 }
