@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import type { ApiResponse } from "@/features/proyectos/types"
+import type { ApiResponse, PagedResponse } from "@/features/proyectos/types"
 import type {
   PlanificacionFechaCambio,
   PlanificacionFechasBulkResult,
@@ -16,16 +16,19 @@ export function useGetPlanificacionTareas(filtros: PlanificacionTareasFiltros) {
   if (filtros.subSistemaId)    params.subSistemaId    = filtros.subSistemaId
   if (filtros.nivelId)         params.nivelId         = filtros.nivelId
   if (filtros.especialidadId)  params.especialidadId  = filtros.especialidadId
+  if (filtros.elementoTipoId)  params.elementoTipoId  = filtros.elementoTipoId
   if (filtros.estado != null)  params.estado          = String(filtros.estado)
   if (filtros.origen != null)  params.origen          = String(filtros.origen)
   if (filtros.sinFecha)        params.sinFecha        = "true"
+  params.page     = String(filtros.page ?? 1)
+  params.pageSize = String(filtros.pageSize ?? 20)
 
   return useQuery({
     queryKey: [...QK, params],
     queryFn: () =>
-      apiClient.get<ApiResponse<PlanificacionTareaItem[]>>(
+      apiClient.get<ApiResponse<PagedResponse<PlanificacionTareaItem>>>(
         "/api/planificacion/tareas",
-        Object.keys(params).length > 0 ? params : undefined,
+        params,
       ),
   })
 }

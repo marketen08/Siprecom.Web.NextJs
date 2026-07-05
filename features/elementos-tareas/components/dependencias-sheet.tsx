@@ -79,7 +79,7 @@ export function DependenciasSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto mt-4 px-1 pb-6 space-y-6">
+        <div className="flex-1 overflow-y-auto mt-6 px-4 pb-6 space-y-6">
           {isLoading && (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

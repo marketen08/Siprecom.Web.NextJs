@@ -304,7 +304,7 @@ export function ImportExcelSheet({ open, onClose }: Props) {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto mt-4 px-1 pb-6 space-y-4">
+        <div className="flex-1 overflow-y-auto mt-6 px-4 pb-6 space-y-4">
 
           {/* STEP: upload */}
           {step === "upload" && (
