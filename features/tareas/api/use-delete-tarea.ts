@@ -7,6 +7,7 @@ export function useDeleteTarea() {
     mutationFn: (id: string) => apiClient.delete(`/api/tareas/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tareas"] })
+      qc.invalidateQueries({ queryKey: ["tareas-select"] })
     },
   })
 }

@@ -43,6 +43,7 @@ export function EditTareaSheet() {
           ) : tarea ? (
             <>
               <TareaForm
+                key={tarea.id}
                 defaultValues={tarea}
                 onSubmit={onSubmit}
                 isPending={mutation.isPending}
