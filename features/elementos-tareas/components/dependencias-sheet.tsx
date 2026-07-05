@@ -18,6 +18,9 @@ import { useQuery } from "@tanstack/react-query"
 import type { PagedResponse } from "@/features/proyectos/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 
+import { useAuthStore } from "@/store/auth-store"
+import { meetsRole } from "@/lib/roles"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +55,12 @@ export function DependenciasSheet({
 }: Props) {
   const { data: raw, isLoading, isError } = useGetDependencias(elementoTareaId)
   const resumen = raw?.data
+
+  // Modificar dependencias es alcance: solo Supervisor y arriba pueden crear/editar/borrar.
+  // El backend igual bloquea (Admin,Supervisor en POST/PUT/DELETE), pero acá evitamos
+  // mostrar controles inútiles a un User.
+  const userRoles = useAuthStore((s) => s.user?.roles)
+  const puedeModificar = meetsRole(userRoles, "Supervisor")
 
   const [agregandoDireccion, setAgregandoDireccion] = useState<Direccion | null>(null)
 
@@ -90,14 +99,16 @@ export function DependenciasSheet({
                     <h3 className="text-sm font-semibold text-gray-900">Predecesores</h3>
                     <Badge variant="secondary">{resumen.predecesores.length}</Badge>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setAgregandoDireccion("predecesor")}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Agregar
-                  </Button>
+                  {puedeModificar && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setAgregandoDireccion("predecesor")}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Agregar
+                    </Button>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Tareas que <strong>deben terminar</strong> antes de que ésta pueda arrancar.
@@ -107,7 +118,7 @@ export function DependenciasSheet({
                 ) : (
                   <div className="space-y-1.5">
                     {resumen.predecesores.map((d) => (
-                      <DependenciaFila key={d.id} dep={d} lado="predecesor" />
+                      <DependenciaFila key={d.id} dep={d} lado="predecesor" puedeModificar={puedeModificar} />
                     ))}
                   </div>
                 )}
@@ -123,14 +134,16 @@ export function DependenciasSheet({
                     <h3 className="text-sm font-semibold text-gray-900">Sucesores</h3>
                     <Badge variant="secondary">{resumen.sucesores.length}</Badge>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setAgregandoDireccion("sucesor")}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Agregar
-                  </Button>
+                  {puedeModificar && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setAgregandoDireccion("sucesor")}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Agregar
+                    </Button>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Tareas que <strong>no pueden arrancar</strong> hasta que ésta se complete.
@@ -140,7 +153,7 @@ export function DependenciasSheet({
                 ) : (
                   <div className="space-y-1.5">
                     {resumen.sucesores.map((d) => (
-                      <DependenciaFila key={d.id} dep={d} lado="sucesor" />
+                      <DependenciaFila key={d.id} dep={d} lado="sucesor" puedeModificar={puedeModificar} />
                     ))}
                   </div>
                 )}
@@ -164,7 +177,7 @@ export function DependenciasSheet({
 
 // ─── Fila de dependencia ────────────────────────────────────────────────────
 
-function DependenciaFila({ dep, lado }: { dep: Dependencia; lado: "predecesor" | "sucesor" }) {
+function DependenciaFila({ dep, lado, puedeModificar }: { dep: Dependencia; lado: "predecesor" | "sucesor"; puedeModificar: boolean }) {
   // Punta "otra": si lado=predecesor, esta fila muestra al PREDECESOR (la ET del OTRO lado).
   const otraTag = lado === "predecesor" ? dep.predecesorTag : dep.sucesorTag
   const otraTarea = lado === "predecesor" ? dep.predecesorTareaNombre : dep.sucesorTareaNombre
@@ -209,16 +222,18 @@ function DependenciaFila({ dep, lado }: { dep: Dependencia; lado: "predecesor" |
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
-          onClick={() => setConfirmarBorrar(true)}
-          disabled={deleteM.isPending}
-          title="Eliminar dependencia"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        {puedeModificar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+            onClick={() => setConfirmarBorrar(true)}
+            disabled={deleteM.isPending}
+            title="Eliminar dependencia"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -264,13 +279,15 @@ function DependenciaFila({ dep, lado }: { dep: Dependencia; lado: "predecesor" |
               <X className="h-3 w-3" />
             </Button>
           </>
-        ) : (
+        ) : puedeModificar ? (
           <button
             className="text-blue-700 hover:underline"
             onClick={() => setEditandoLag(true)}
           >
             {dep.lagDias} día(s) — editar
           </button>
+        ) : (
+          <span>{dep.lagDias} día(s)</span>
         )}
       </div>
 
