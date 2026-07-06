@@ -20,6 +20,7 @@ import {
 import { useCambiarEstadoTarea } from "@/features/testgroups/api/use-cambiar-estado-tarea"
 import { useIniciarRegistroTarea } from "@/features/testgroups/api/use-iniciar-registro-tarea"
 import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
+import { useCanWrite } from "@/lib/use-roles"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -57,6 +58,7 @@ export default function TestGroupDetallePage({
 
   const { data, isLoading } = useGetTestGroup(id)
   const tg = data?.data
+  const canWrite = useCanWrite()
 
   if (isLoading) {
     return <div className="p-6 flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando…</div>
@@ -85,16 +87,18 @@ export default function TestGroupDetallePage({
               PDF
             </a>
           </Button>
-          <TestGroupActionsMenu
-            tg={{ id: tg.id, codigo: tg.codigo, estado: tg.estado }}
-            variant="labeled"
-            onAfterDelete={() => router.push(backHref)}
-          />
+          {canWrite && (
+            <TestGroupActionsMenu
+              tg={{ id: tg.id, codigo: tg.codigo, estado: tg.estado }}
+              variant="labeled"
+              onAfterDelete={() => router.push(backHref)}
+            />
+          )}
         </div>
       </div>
       {/* Sheet de edición controlado por useOpenTestGroup — se abre al elegir "Editar"
-          desde el menú de acciones del header. */}
-      <EditTestGroupSheet />
+          desde el menú de acciones del header. Solo se monta si hay rol de escritura. */}
+      {canWrite && <EditTestGroupSheet />}
 
       {/* Banner de certificado activo (F6.2). Cuando este pack forma parte de un RFC/RFSU/AOC
           emitido, todos los cambios están bloqueados hasta que se revoque desde /reporte/certificados. */}
@@ -129,10 +133,13 @@ export default function TestGroupDetallePage({
         <TabButton current={tab} value="progreso" onClick={setTab} icon={ListChecks}>Progreso</TabButton>
       </div>
 
-      {/* Contenido */}
+      {/* Contenido — para Consultor/Auditor forzamos `bloqueado` para ocultar todas
+          las acciones de mutación (asignar/desasignar elementos, cambiar estado de
+          tarea, cargar planilla física). El backend igual devolvería 403; esto
+          evita mostrar botones que no van a funcionar. */}
       {tab === "info" && <TabInfo tg={tg} isPressure={isPressure} />}
-      {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} />}
-      {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} />}
+      {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} />}
+      {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} />}
       {tab === "progreso" && <TabProgreso testGroupId={tg.id} />}
     </div>
   )

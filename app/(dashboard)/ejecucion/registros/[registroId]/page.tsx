@@ -20,6 +20,7 @@ import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
+import { useCanWrite } from "@/lib/use-roles"
 
 import type { RegistroValorInput } from "@/features/registros/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
@@ -112,6 +113,9 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const completarDigital = useCompletarDigital(registroId)
   const completarFisico = useCompletarFisico(registroId)
+  // Consultor/Auditor: solo lectura del registro (form navegable, adjuntos y firmas
+  // visibles, pero sin poder guardar/completar/firmar/subir).
+  const canWrite = useCanWrite()
 
   // Form state: { [planillaCampoId]: value }
   const [valores, setValores] = useState<Record<string, string>>({})
@@ -150,7 +154,11 @@ export default function RegistroFormPage({ params }: PageProps) {
   const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
 
   const isLoading = loadingDetalle || loadingEstructura
-  const isReadOnly = registro?.estado === "COMPLETADO" || registro?.estado === "FIRMADO" || registro?.estado === "APROBADO"
+  // Consultor/Auditor fuerzan modo readonly aunque el registro esté editable.
+  const isReadOnly = !canWrite
+    || registro?.estado === "COMPLETADO"
+    || registro?.estado === "FIRMADO"
+    || registro?.estado === "APROBADO"
 
   // Breadcrumb dinámico: Ejecución → Registros → {Elemento (link)} → {Tarea}
   // El nombre del elemento es link a la pantalla de elementos con el sheet
@@ -285,6 +293,20 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {/* Banner de solo lectura para Consultor/Auditor: el registro se ve completo
+          (formulario navegable, adjuntos, firmas) pero sin poder guardar ni firmar. */}
+      {!canWrite && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2 text-sm text-blue-900">
+          <Lock className="h-4 w-4 mt-0.5 shrink-0 text-blue-700" />
+          <div>
+            <p className="font-medium">Modo solo lectura</p>
+            <p className="text-xs">
+              Podés ver el registro y descargar el PDF, pero no cargar valores, firmar ni subir archivos.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header de contexto */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-1">
@@ -499,13 +521,13 @@ export default function RegistroFormPage({ params }: PageProps) {
           sigue aceptando adjuntos para sumar evidencia/fotos posteriores. */}
       <RegistroAdjuntos
         registroId={registroId}
-        permiteSubir={permiteAdjuntos}
-        readOnly={registro.estado === "RECHAZADO"}
+        permiteSubir={permiteAdjuntos && canWrite}
+        readOnly={registro.estado === "RECHAZADO" || !canWrite}
       />
 
       {/* ── Firmas ── */}
       {(registro.estado === "COMPLETADO" || registro.estado === "FIRMADO") && (
-        <FirmasSection registroId={registroId} />
+        <FirmasSection registroId={registroId} canWrite={canWrite} />
       )}
     </div>
   )
@@ -513,7 +535,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
 // ─── Sección de firmas ────────────────────────────────────────────────────────
 
-function FirmasSection({ registroId }: { registroId: string }) {
+function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite: boolean }) {
   const { data: raw, isLoading } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
   const miFirmaQuery = useGetMiFirma()
@@ -628,7 +650,7 @@ function FirmasSection({ registroId }: { registroId: string }) {
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : canWrite ? (
             <Button
               size="sm"
               variant="outline"
@@ -638,6 +660,11 @@ function FirmasSection({ registroId }: { registroId: string }) {
               <PenLine className="h-3.5 w-3.5" />
               Firmar registro
             </Button>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+              <Lock className="h-3 w-3" />
+              Sin firmas cargadas
+            </span>
           )}
         </div>
       </div>
@@ -683,7 +710,7 @@ function FirmasSection({ registroId }: { registroId: string }) {
                     <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
                     <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
-                ) : slot.puedeFirearUsuarioActual ? (
+                ) : canWrite && slot.puedeFirearUsuarioActual ? (
                   !esActivo && (
                     <Button
                       size="sm"

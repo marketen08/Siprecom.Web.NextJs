@@ -11,6 +11,7 @@ import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
 import { useDownloadProcedimiento } from "@/features/procedimientos/api/use-download-procedimiento"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
+import { useCanWrite } from "@/lib/use-roles"
 import type { AvanceElementoDTO } from "@/features/avance/types"
 import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
 import { BarraAvance } from "@/components/barra-avance"
@@ -65,6 +66,8 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   const avance = avanceProp ?? avanceRaw?.data ?? null
   const iniciarMutation = useIniciarTarea()
   const reiniciarMutation = useReiniciarTarea()
+  // Consultor/Auditor: solo lectura — ver TareaCard/buildTareaMenuItems.
+  const canWrite = useCanWrite()
 
   const elemento = elementoRaw?.data
   const tareas = tareasRaw?.data ?? []
@@ -247,6 +250,7 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
                         fisicoPreFirmado={fisicoPreFirmado}
                         permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                         permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+                        canWrite={canWrite}
                       />
                     ))}
                   </div>
@@ -289,6 +293,7 @@ function TareaCard({
   fisicoPreFirmado,
   permiteAdjuntosProyecto,
   permitirDescargarProcedimientos,
+  canWrite,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
@@ -302,6 +307,7 @@ function TareaCard({
   fisicoPreFirmado: boolean
   permiteAdjuntosProyecto: boolean
   permitirDescargarProcedimientos: boolean
+  canWrite: boolean
 }) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
@@ -367,6 +373,7 @@ function TareaCard({
     adjuntandoPending: uploadAdjunto.isPending,
     descargandoProcedimientoPending: downloadProcedimiento.isPending,
     permitirDescargarProcedimientos,
+    canWrite,
   })
 
   const busy = isIniciando || uploadAdjunto.isPending || downloadProcedimiento.isPending
@@ -545,6 +552,7 @@ function buildTareaMenuItems({
   onDescargarProcedimiento,
   descargandoProcedimientoPending,
   permitirDescargarProcedimientos,
+  canWrite,
 }: {
   tarea: ElementoTarea
   onIniciar: (t: ElementoTarea) => void
@@ -565,6 +573,9 @@ function buildTareaMenuItems({
   adjuntandoPending: boolean
   descargandoProcedimientoPending: boolean
   permitirDescargarProcedimientos: boolean
+  /** Si es false (Consultor/Auditor), se filtran acciones de escritura y las
+   * que combinan ver+editar se renombran a "Ver...". */
+  canWrite: boolean
 }): MenuItem[] {
   const items: MenuItem[] = []
   // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
@@ -738,6 +749,44 @@ function buildTareaMenuItems({
       disabled: isReiniciando,
       variant: "destructive",
     })
+  }
+
+  // Rol solo lectura: filtramos las acciones de escritura y renombramos las
+  // ambiguas (ver + editar) para que quede claro que solo van a poder mirar.
+  // El backend igualmente devuelve 403 si intentan enviar; esto es UX.
+  if (!canWrite) {
+    const escrituraPura = new Set([
+      "Iniciar tarea",
+      "Cargar registro",
+      "Cargar registro firmado",
+      "Adjuntar archivo",
+      "Reiniciar tarea",
+    ])
+    const renombrar: Record<string, string> = {
+      "Completar formulario": "Ver formulario",
+      "Ver y firmar": "Ver registro",
+      "Revisar y re-completar": "Ver registro",
+    }
+    let out = items
+      .filter(item => item.kind === "separator" || !escrituraPura.has(item.label))
+      .map(item => {
+        if (item.kind !== "item") return item
+        const nuevo = renombrar[item.label]
+        return nuevo ? { ...item, label: nuevo, variant: "default" as const } : item
+      })
+    // Colapsar separadores duplicados y quitar los que quedaron al principio o final.
+    const collapsed: MenuItem[] = []
+    for (const it of out) {
+      if (it.kind === "separator") {
+        if (collapsed.length === 0) continue
+        if (collapsed[collapsed.length - 1].kind === "separator") continue
+      }
+      collapsed.push(it)
+    }
+    while (collapsed.length > 0 && collapsed[collapsed.length - 1].kind === "separator") {
+      collapsed.pop()
+    }
+    return collapsed
   }
 
   return items
