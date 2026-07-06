@@ -35,6 +35,11 @@ export interface CategoriaEstado {
   listoParaEmitir: boolean
   emitido: CertificadoEmitido | null
   noAplica: boolean
+  // Gate por nivel (OPERCOM) — contadores de tareas del subsistema con el
+  // mismo nivel que los packs. Con validarNivelActivo=false son informativos.
+  tareasNivelTotal: number
+  tareasNivelCompletas: number
+  tareasNivelListas: boolean
 }
 
 export interface SubsistemaCertificadoEstado {
@@ -47,6 +52,15 @@ export interface SubsistemaCertificadoEstado {
   rfc: CategoriaEstado
   rfsu: CategoriaEstado
   aoc: CategoriaEstado
+  // Pendientes (punch list) del subsistema — total (todas las categorías) y
+  // abiertos segregados por categoría A/B. Los C nunca bloquean.
+  pendientesTotal: number
+  pendientesAbiertosA: number
+  pendientesAbiertosB: number
+  // Flags OPERCOM efectivos del proyecto — mismos valores en todas las filas.
+  validarNivelActivo: boolean
+  validarPendientesAActivo: boolean
+  validarPendientesBActivo: boolean
 }
 
 export interface EmitirCertificadoInput {

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, Award, Download, Loader2 } from "lucide-react"
+import { AlertTriangle, Award, CheckCircle2, Download, Info, Loader2 } from "lucide-react"
 
 import {
   useEmitirCertificado, useGetCertificadosEstado, useRevocarCertificado,
@@ -57,6 +57,34 @@ export default function CertificadosPage() {
         100% de los packs de esa categoría están terminales, y "cierra" los packs — para modificarlos
         hay que revocarlo primero.
       </p>
+
+      {/* Banner OPERCOM — cuando alguno de los gates opcionales está activo, avisamos
+          qué se está validando extra. Toma los flags del primer resultado (son iguales
+          para todo el proyecto). */}
+      {filas.length > 0 && (
+        filas[0].validarNivelActivo
+        || filas[0].validarPendientesAActivo
+        || filas[0].validarPendientesBActivo
+      ) && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2 text-sm text-blue-900">
+          <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-700" />
+          <div className="flex-1 space-y-0.5">
+            <div className="font-medium">Validaciones OPERCOM habilitadas para este proyecto</div>
+            <ul className="text-xs list-disc pl-4 space-y-0.5">
+              {filas[0].validarNivelActivo && (
+                <li>Emisión bloqueada si quedan tareas del nivel del certificado sin completar en el subsistema.</li>
+              )}
+              {filas[0].validarPendientesAActivo && (
+                <li>Emisión bloqueada si el subsistema tiene pendientes <strong>categoría A</strong> sin cerrar.</li>
+              )}
+              {filas[0].validarPendientesBActivo && (
+                <li>Emisión bloqueada si el subsistema tiene pendientes <strong>categoría B</strong> sin cerrar.</li>
+              )}
+              <li className="text-blue-800/80">Los pendientes categoría C nunca bloquean.</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -142,18 +170,19 @@ function Fila({ fila }: { fila: SubsistemaCertificadoEstado }) {
         <div className="font-mono text-sm font-medium">{fila.subSistemaCodigo}</div>
         <div className="text-xs text-muted-foreground line-clamp-1">{fila.subSistemaNombre}</div>
       </TableCell>
-      <TableCell><Celda cat={fila.rfc} tipo={TIPO_CERTIFICADO.RFC} subSistemaId={fila.subSistemaId} /></TableCell>
-      <TableCell><Celda cat={fila.rfsu} tipo={TIPO_CERTIFICADO.RFSU} subSistemaId={fila.subSistemaId} /></TableCell>
-      <TableCell><Celda cat={fila.aoc} tipo={TIPO_CERTIFICADO.AOC} subSistemaId={fila.subSistemaId} /></TableCell>
+      <TableCell><Celda cat={fila.rfc} tipo={TIPO_CERTIFICADO.RFC} fila={fila} /></TableCell>
+      <TableCell><Celda cat={fila.rfsu} tipo={TIPO_CERTIFICADO.RFSU} fila={fila} /></TableCell>
+      <TableCell><Celda cat={fila.aoc} tipo={TIPO_CERTIFICADO.AOC} fila={fila} /></TableCell>
     </TableRow>
   )
 }
 
 function Celda({
-  cat, tipo, subSistemaId,
+  cat, tipo, fila,
 }: {
-  cat: CategoriaEstado; tipo: TipoCertificado; subSistemaId: string
+  cat: CategoriaEstado; tipo: TipoCertificado; fila: SubsistemaCertificadoEstado
 }) {
+  const subSistemaId = fila.subSistemaId
   const emitir = useEmitirCertificado()
   const revocar = useRevocarCertificado()
 
@@ -246,7 +275,12 @@ function Celda({
     )
   }
 
-  // Pendiente
+  // Pendiente / bloqueado por gates OPERCOM
+  const packsOk = cat.cantidadPacks > 0 && cat.cantidadPacksTerminales === cat.cantidadPacks
+  const nivelBlock = fila.validarNivelActivo && !cat.tareasNivelListas
+  const pendBlockA = fila.validarPendientesAActivo && fila.pendientesAbiertosA > 0
+  const pendBlockB = fila.validarPendientesBActivo && fila.pendientesAbiertosB > 0
+  const pendBlock = pendBlockA || pendBlockB
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
@@ -270,6 +304,39 @@ function Celda({
       {cat.cantidadPacks === 0 && (
         <div className="text-[11px] text-muted-foreground italic">
           No hay packs de esta categoría en el subsistema.
+        </div>
+      )}
+      {/* Cuando los packs están al 100% pero un gate OPERCOM bloquea, mostramos
+          la razón concreta con badge ámbar. */}
+      {packsOk && (nivelBlock || pendBlock) && (
+        <div className="text-[11px] space-y-0.5 pt-0.5">
+          {nivelBlock && (
+            <div className="flex items-center gap-1 text-amber-800">
+              <AlertTriangle className="h-3 w-3" />
+              <span className="tabular-nums">
+                Tareas nivel: {cat.tareasNivelCompletas}/{cat.tareasNivelTotal}
+              </span>
+            </div>
+          )}
+          {pendBlockA && (
+            <div className="flex items-center gap-1 text-amber-800">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{fila.pendientesAbiertosA} pendiente(s) A sin cerrar</span>
+            </div>
+          )}
+          {pendBlockB && (
+            <div className="flex items-center gap-1 text-amber-800">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{fila.pendientesAbiertosB} pendiente(s) B sin cerrar</span>
+            </div>
+          )}
+        </div>
+      )}
+      {/* Info neutra cuando los gates están inactivos pero hay datos que aporten contexto. */}
+      {packsOk && !nivelBlock && !pendBlock && cat.tareasNivelTotal > 0 && (
+        <div className="flex items-center gap-1 text-[11px] text-emerald-700 pt-0.5">
+          <CheckCircle2 className="h-3 w-3" />
+          <span className="tabular-nums">Tareas nivel: {cat.tareasNivelCompletas}/{cat.tareasNivelTotal}</span>
         </div>
       )}
     </div>
