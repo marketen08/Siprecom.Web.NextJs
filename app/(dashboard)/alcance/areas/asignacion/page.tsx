@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, MapPin, Search } from "lucide-react"
 
 import { useGetAreas } from "@/features/areas/api/use-get-areas"
@@ -33,13 +33,28 @@ interface ListaProps {
   onReplace: (ids: Set<string>) => void
   isLoading: boolean
   right?: React.ReactNode
+  /** Paginación opcional. Cuando total > pageSize, se muestran controles al pie. */
+  page?: number
+  pageSize?: number
+  total?: number
+  onPageChange?: (p: number) => void
 }
 
-function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, isLoading, right }: ListaProps) {
+function ListaElementos({
+  titulo, vacio, items, selected, onToggle, onReplace, isLoading, right,
+  page, pageSize, total, onPageChange,
+}: ListaProps) {
   const seleccionadosVisibles = items.reduce((acc, x) => acc + (selected.has(x.id) ? 1 : 0), 0)
   const hayItems = items.length > 0
   const todosSeleccionados = hayItems && seleccionadosVisibles === items.length
   const algunosSeleccionados = seleccionadosVisibles > 0 && !todosSeleccionados
+
+  // Total efectivo: si hay paginación, `total` viene del backend; sino usamos `items.length`.
+  const totalDisplay = total ?? items.length
+  const totalPages = total && pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1
+  const hayPaginacion = totalPages > 1 && page && onPageChange
+  // Cuando hay paginación, `selected.size` puede incluir ítems de otras páginas.
+  const seleccionadosTotales = selected.size
 
   function toggleAll() {
     if (todosSeleccionados) {
@@ -71,12 +86,16 @@ function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, i
         </label>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {seleccionadosVisibles > 0 ? `${seleccionadosVisibles}/${items.length}` : items.length}
+            {hayPaginacion
+              ? (seleccionadosTotales > 0
+                  ? `${seleccionadosTotales} sel · ${totalDisplay}`
+                  : `${items.length} de ${totalDisplay}`)
+              : (seleccionadosVisibles > 0 ? `${seleccionadosVisibles}/${totalDisplay}` : totalDisplay)}
           </span>
           {right}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1 max-h-125">
+      <div className={`flex-1 overflow-y-auto p-2 flex flex-col gap-1 ${hayPaginacion ? "max-h-110" : "max-h-125"}`}>
         {isLoading ? (
           <p className="text-sm text-muted-foreground p-3">Cargando...</p>
         ) : items.length === 0 ? (
@@ -111,6 +130,31 @@ function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, i
           ))
         )}
       </div>
+      {hayPaginacion && (
+        <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
+          <span>Página {page} de {totalPages}</span>
+          <div className="flex gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onPageChange!(Math.max(1, page! - 1))}
+              disabled={page === 1}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onPageChange!(page! + 1)}
+              disabled={page! >= totalPages}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -124,6 +168,18 @@ export default function AsignacionAreasPage() {
 
   const [selectedDisp, setSelectedDisp] = useState<Set<string>>(new Set())
   const [selectedAsig, setSelectedAsig] = useState<Set<string>>(new Set())
+
+  // Paginación de la lista Disponibles. Los seleccionados sobreviven al cambio de página
+  // porque `selectedDisp` es un Set fuera del render de la lista — podés marcar en pág 1,
+  // saltar a pág 3, marcar más, volver a pág 1 y todo sigue seleccionado.
+  const [page, setPage] = useState(1)
+  const pageSize = 50
+
+  // Reset de página al cambiar de área o cualquier filtro — sino podés quedar en pág 5
+  // con 2 páginas totales viendo lista vacía sin entender por qué.
+  useEffect(() => {
+    setPage(1)
+  }, [areaId, subFilter, espFilter, tipoElemFilter, search])
 
   const { data: areasData } = useGetAreas()
   const areas = areasData?.data ?? []
@@ -148,10 +204,14 @@ export default function AsignacionAreasPage() {
     elementoTipoId: tipoElemFilter === TIPO_ELEM_ALL ? undefined : tipoElemFilter,
     especialidadId: espFilter === ESP_ALL ? undefined : espFilter,
     search: search || undefined,
+    page,
+    pageSize,
   })
 
   const asignados = asignadosData?.data ?? []
-  const disponibles = dispData?.data ?? []
+  const disponibles = dispData?.data?.data ?? []
+  const disponiblesTotal = dispData?.data?.total ?? 0
+  const disponiblesTotalPages = Math.max(1, Math.ceil(disponiblesTotal / pageSize))
 
   const asignarMutation = useAsignarElementosArea()
   const desasignarMutation = useDesasignarElementoArea()
@@ -332,6 +392,10 @@ export default function AsignacionAreasPage() {
               onToggle={toggleDisp}
               onReplace={setSelectedDisp}
               isLoading={loadingDisp}
+              page={page}
+              pageSize={pageSize}
+              total={disponiblesTotal}
+              onPageChange={setPage}
             />
 
             <div className="flex md:flex-col items-center justify-center gap-3">
