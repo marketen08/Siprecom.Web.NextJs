@@ -51,11 +51,12 @@ export default function CertificadosPage() {
       </div>
 
       <p className="text-sm text-muted-foreground max-w-4xl">
-        Cada subsistema puede emitir 3 certificados que consumen los paquetes de prueba de su
-        alcance: <strong>RFC</strong> (Pressure Test Packs), <strong>RFSU</strong> (Basic Function FTS)
-        y <strong>AOC</strong> (Basic Function OTS). Un certificado solo se puede emitir cuando el
-        100% de los packs de esa categoría están terminales, y "cierra" los packs — para modificarlos
-        hay que revocarlo primero.
+        Cada subsistema puede emitir 4 certificados: <strong>MC</strong> (Mechanical Completion —
+        se valida por las tareas del Nivel MC del proyecto, sin packs),
+        <strong> RFC</strong> (Pressure Test Packs), <strong>RFSU</strong> (Basic Function FTS)
+        y <strong>AOC</strong> (Basic Function OTS). MC solo aplica si el proyecto tiene configurado
+        el Nivel MC. Un certificado solo se puede emitir cuando el 100% de sus items están terminales,
+        y "cierra" esos items — para modificarlos hay que revocarlo primero.
       </p>
 
       {/* Banner OPERCOM — cuando alguno de los gates opcionales está activo, avisamos
@@ -65,12 +66,30 @@ export default function CertificadosPage() {
         filas[0].validarNivelActivo
         || filas[0].validarPendientesAActivo
         || filas[0].validarPendientesBActivo
+        || filas[0].rfcRequiereMcActivo
+        || filas[0].mcConfigurado
       ) && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2 text-sm text-blue-900">
           <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-700" />
           <div className="flex-1 space-y-0.5">
             <div className="font-medium">Validaciones habilitadas para este proyecto</div>
             <ul className="text-xs list-disc pl-4 space-y-0.5">
+              {filas[0].mcConfigurado && (
+                <li>
+                  Nivel MC configurado: <strong>{filas[0].nivelMcNombre}</strong>.
+                  El certificado MC se emite cuando todas las tareas de este Nivel están completas
+                  en el subsistema.
+                </li>
+              )}
+              {filas[0].rfcRequiereMcActivo && (
+                <li>
+                  El <strong>RFC</strong> exige que el <strong>MC</strong> esté emitido previamente
+                  en el mismo subsistema.
+                  {!filas[0].mcConfigurado && (
+                    <span className="text-amber-800"> ⚠ Este gate no se puede satisfacer: el Nivel MC no está configurado.</span>
+                  )}
+                </li>
+              )}
               {filas[0].validarNivelActivo && (
                 <li>Emisión bloqueada si quedan tareas del nivel del certificado sin completar en el subsistema.</li>
               )}
@@ -132,6 +151,7 @@ export default function CertificadosPage() {
             <TableRow>
               <TableHead className="w-32">Sistema</TableHead>
               <TableHead className="w-48">Subsistema</TableHead>
+              <TableHead>MC · Nivel MC</TableHead>
               <TableHead>RFC · Pressure</TableHead>
               <TableHead>RFSU · BF FTS</TableHead>
               <TableHead>AOC · BF OTS</TableHead>
@@ -140,13 +160,13 @@ export default function CertificadosPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   <Loader2 className="inline h-4 w-4 animate-spin mr-1" /> Cargando…
                 </TableCell>
               </TableRow>
             ) : filas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   Sin subsistemas que cumplan el filtro.
                 </TableCell>
               </TableRow>
@@ -170,6 +190,7 @@ function Fila({ fila }: { fila: SubsistemaCertificadoEstado }) {
         <div className="font-mono text-sm font-medium">{fila.subSistemaCodigo}</div>
         <div className="text-xs text-muted-foreground line-clamp-1">{fila.subSistemaNombre}</div>
       </TableCell>
+      <TableCell><Celda cat={fila.mc} tipo={TIPO_CERTIFICADO.MC} fila={fila} /></TableCell>
       <TableCell><Celda cat={fila.rfc} tipo={TIPO_CERTIFICADO.RFC} fila={fila} /></TableCell>
       <TableCell><Celda cat={fila.rfsu} tipo={TIPO_CERTIFICADO.RFSU} fila={fila} /></TableCell>
       <TableCell><Celda cat={fila.aoc} tipo={TIPO_CERTIFICADO.AOC} fila={fila} /></TableCell>
@@ -186,8 +207,34 @@ function Celda({
   const emitir = useEmitirCertificado()
   const revocar = useRevocarCertificado()
 
+  // MC no tiene packs — el KPI viene por tareas del Nivel MC. Reusamos los mismos
+  // campos numéricos pero con labels y semantics distintas.
+  const isMc = tipo === TIPO_CERTIFICADO.MC
+  const totalItems = isMc ? cat.tareasNivelTotal : cat.cantidadPacks
+  const itemsListos = isMc ? cat.tareasNivelCompletas : cat.cantidadPacksTerminales
+  const pctItems = isMc && cat.tareasNivelTotal > 0
+    ? Math.round((cat.tareasNivelCompletas / cat.tareasNivelTotal) * 100)
+    : cat.porcentajeAvance
+  const emptyLabel = isMc ? "Sin tareas del Nivel MC en el subsistema." : "No hay packs de esta categoría en el subsistema."
+  const listoBadge = isMc
+    ? `${itemsListos}/${totalItems} tareas · 100%`
+    : `${itemsListos}/${totalItems} · 100%`
+
   if (cat.noAplica) {
-    return <span className="text-xs text-muted-foreground italic">n/a</span>
+    return (
+      <div className="space-y-0.5">
+        <span className="text-xs text-muted-foreground italic">n/a</span>
+        {isMc && !fila.mcConfigurado && (
+          <div
+            className="flex items-start gap-1 text-[10px] text-amber-700"
+            title="El proyecto no tiene configurado el Nivel MC. Configuralo en Configuración del proyecto."
+          >
+            <Info className="h-2.5 w-2.5 mt-0.5 shrink-0" />
+            <span>Nivel MC no configurado</span>
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (cat.emitido) {
@@ -243,7 +290,7 @@ function Celda({
             Listo
           </Badge>
           <span className="text-[11px] text-muted-foreground tabular-nums">
-            {cat.cantidadPacksTerminales}/{cat.cantidadPacks} · 100%
+            {listoBadge}
           </span>
         </div>
         <ConfirmActionDialog
@@ -256,8 +303,10 @@ function Celda({
           title={`¿Emitir certificado ${TIPO_CERTIFICADO_LABEL[tipo]}?`}
           description={
             <>
-              Al emitir, los {cat.cantidadPacks} paquete(s) incluidos quedan cerrados
-              a cambios. Para modificarlos hay que revocar el certificado primero.
+              Al emitir, {isMc
+                ? `las ${totalItems} tarea(s) del Nivel MC quedan cerradas a cambios`
+                : `los ${totalItems} paquete(s) incluidos quedan cerrados a cambios`}.
+              Para modificarlos hay que revocar el certificado primero.
               Se genera un PDF con la firma electrónica del usuario emisor.
             </>
           }
@@ -276,43 +325,55 @@ function Celda({
   }
 
   // Pendiente / bloqueado por gates OPERCOM
-  const packsOk = cat.cantidadPacks > 0 && cat.cantidadPacksTerminales === cat.cantidadPacks
-  const nivelBlock = fila.validarNivelActivo && cat.nivelInferible && cat.tareasNivelTotal > 0 && !cat.tareasNivelListas
+  const itemsOk = totalItems > 0 && itemsListos === totalItems
+  // Nivel-block solo aplica a packs (RFC/RFSU/AOC). En MC el gate por nivel ES el
+  // conteo principal, no un extra: ya se refleja en itemsOk/pctItems.
+  const nivelBlock = !isMc && fila.validarNivelActivo && cat.nivelInferible && cat.tareasNivelTotal > 0 && !cat.tareasNivelListas
   const pendBlockA = fila.validarPendientesAActivo && fila.pendientesAbiertosA > 0
   const pendBlockB = fila.validarPendientesBActivo && fila.pendientesAbiertosB > 0
   const pendBlock = pendBlockA || pendBlockB
+  // Gate RFC↔MC visible como bloqueo cuando el flag exige MC y MC no está emitido.
+  const rfcMcBlock = tipo === TIPO_CERTIFICADO.RFC
+    && fila.rfcRequiereMcActivo
+    && fila.mc.emitido == null
   // Casos "gate activo pero no aplica" — la UI los expone para no engañar al usuario.
-  const nivelNoInferible = fila.validarNivelActivo && cat.cantidadPacks > 0 && !cat.nivelInferible
-  const nivelSinTareas = fila.validarNivelActivo && cat.nivelInferible && cat.tareasNivelTotal === 0
+  const nivelNoInferible = !isMc && fila.validarNivelActivo && cat.cantidadPacks > 0 && !cat.nivelInferible
+  const nivelSinTareas = !isMc && fila.validarNivelActivo && cat.nivelInferible && cat.tareasNivelTotal === 0
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50 text-[10px]">
-          {cat.cantidadPacks === 0 ? "Sin packs" : "En progreso"}
+          {totalItems === 0 ? (isMc ? "Sin tareas MC" : "Sin packs") : "En progreso"}
         </Badge>
-        {cat.cantidadPacks > 0 && (
+        {totalItems > 0 && (
           <span className="text-[11px] text-muted-foreground tabular-nums">
-            {cat.cantidadPacksTerminales}/{cat.cantidadPacks} · {cat.porcentajeAvance}%
+            {itemsListos}/{totalItems} · {pctItems}%
           </span>
         )}
       </div>
-      {cat.cantidadPacks > 0 && (
+      {totalItems > 0 && (
         <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
           <div
             className="h-full bg-blue-600"
-            style={{ width: `${Math.min(100, cat.porcentajeAvance)}%` }}
+            style={{ width: `${Math.min(100, pctItems)}%` }}
           />
         </div>
       )}
-      {cat.cantidadPacks === 0 && (
+      {totalItems === 0 && (
         <div className="text-[11px] text-muted-foreground italic">
-          No hay packs de esta categoría en el subsistema.
+          {emptyLabel}
         </div>
       )}
-      {/* Cuando los packs están al 100% pero un gate OPERCOM bloquea, mostramos
+      {/* Cuando los items están al 100% pero un gate OPERCOM bloquea, mostramos
           la razón concreta con badge ámbar. */}
-      {packsOk && (nivelBlock || pendBlock) && (
+      {itemsOk && (nivelBlock || pendBlock || rfcMcBlock) && (
         <div className="text-[11px] space-y-0.5 pt-0.5">
+          {rfcMcBlock && (
+            <div className="flex items-center gap-1 text-amber-800">
+              <AlertTriangle className="h-3 w-3" />
+              <span>Requiere MC emitido</span>
+            </div>
+          )}
           {nivelBlock && (
             <div className="flex items-center gap-1 text-amber-800">
               <AlertTriangle className="h-3 w-3" />
@@ -335,15 +396,15 @@ function Celda({
           )}
         </div>
       )}
-      {/* Info neutra: nivel OK con datos que aporten contexto. */}
-      {packsOk && !nivelBlock && !pendBlock && cat.tareasNivelTotal > 0 && cat.tareasNivelListas && (
+      {/* Info neutra: nivel OK con datos que aporten contexto (solo RFC/RFSU/AOC). */}
+      {!isMc && itemsOk && !nivelBlock && !pendBlock && cat.tareasNivelTotal > 0 && cat.tareasNivelListas && (
         <div className="flex items-center gap-1 text-[11px] text-emerald-700 pt-0.5">
           <CheckCircle2 className="h-3 w-3" />
           <span className="tabular-nums">Tareas nivel: {cat.tareasNivelCompletas}/{cat.tareasNivelTotal}</span>
         </div>
       )}
       {/* Transparencia: flag activo pero el gate por nivel no aplica. */}
-      {packsOk && !nivelBlock && !pendBlock && nivelNoInferible && (
+      {itemsOk && !nivelBlock && !pendBlock && nivelNoInferible && (
         <div
           className="flex items-start gap-1 text-[11px] text-amber-700 pt-0.5"
           title="Las tareas del catálogo asociadas a los packs no tienen Nivel asignado. La validación por nivel no se aplica — configurá los NivelIds del catálogo para activarla."
@@ -352,7 +413,7 @@ function Celda({
           <span>Nivel no configurado en el catálogo — no se valida por nivel.</span>
         </div>
       )}
-      {packsOk && !nivelBlock && !pendBlock && nivelSinTareas && (
+      {itemsOk && !nivelBlock && !pendBlock && nivelSinTareas && (
         <div
           className="flex items-start gap-1 text-[11px] text-slate-600 pt-0.5"
           title="El subsistema no tiene ElementoTareas individuales del nivel de estos packs. La validación se resuelve solo con los packs."

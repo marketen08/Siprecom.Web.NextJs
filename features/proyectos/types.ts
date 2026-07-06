@@ -43,6 +43,12 @@ export interface Proyecto {
    */
   apsTagProperties: string | null
   /**
+   * Nivel del catálogo que representa "Mechanical Completion" en este proyecto.
+   * Cuando es null, el certificado MC queda en "no aplica" en todo el proyecto.
+   */
+  nivelMcId: string | null
+  nivelMcNombre: string | null
+  /**
    * Estado efectivo (global AND proyecto) de cada funcionalidad toggleable, por
    * clave del catálogo. Ej: { MAQUETA_3D: true }. Solo viene en el detalle del
    * proyecto (GET /proyectos/{id}).

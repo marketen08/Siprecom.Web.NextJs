@@ -3,6 +3,7 @@ export const TIPO_CERTIFICADO = {
   RFC: 1,
   RFSU: 2,
   AOC: 3,
+  MC: 4,
 } as const
 
 export type TipoCertificado = (typeof TIPO_CERTIFICADO)[keyof typeof TIPO_CERTIFICADO]
@@ -11,12 +12,14 @@ export const TIPO_CERTIFICADO_LABEL: Record<number, string> = {
   1: "RFC",
   2: "RFSU",
   3: "AOC",
+  4: "MC",
 }
 
 export const TIPO_CERTIFICADO_NOMBRE: Record<number, string> = {
   1: "Ready For Commissioning",
   2: "Ready For Startup",
   3: "Acceptance Of Commissioning",
+  4: "Mechanical Completion",
 }
 
 export interface CertificadoEmitido {
@@ -53,6 +56,7 @@ export interface SubsistemaCertificadoEstado {
   sistemaId: string
   sistemaCodigo: string | null
   sistemaNombre: string | null
+  mc: CategoriaEstado
   rfc: CategoriaEstado
   rfsu: CategoriaEstado
   aoc: CategoriaEstado
@@ -65,6 +69,14 @@ export interface SubsistemaCertificadoEstado {
   validarNivelActivo: boolean
   validarPendientesAActivo: boolean
   validarPendientesBActivo: boolean
+  // MC: si el flag CERT_RFC_REQUIERE_MC exige que el MC esté emitido antes
+  // de habilitar el RFC. Si mcConfigurado = false y este flag está prendido,
+  // el gate queda insatisfacible.
+  rfcRequiereMcActivo: boolean
+  // true si Proyecto.NivelMcId está configurado. Sino MC queda en "no aplica".
+  mcConfigurado: boolean
+  // Nombre del Nivel MC configurado (solo para display en la UI).
+  nivelMcNombre: string | null
 }
 
 export interface EmitirCertificadoInput {

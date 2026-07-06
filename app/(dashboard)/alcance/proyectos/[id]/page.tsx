@@ -13,6 +13,8 @@ import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
+import { useUpdateProyectoNivelMc } from "@/features/proyectos/api/use-update-proyecto-nivel-mc"
+import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import {
   useGetFuncionalidadesProyecto,
   useSetFuncionalidadProyecto,
@@ -37,6 +39,9 @@ import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -358,7 +363,67 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
         )
       })}
 
+      <NivelMcSelector proyecto={proyecto} />
+
       <FuncionalidadesProyecto proyectoId={proyecto.id} />
+    </div>
+  )
+}
+
+// ─── Nivel MC (Mechanical Completion) ─────────────────────────────────────────
+
+const NIVEL_MC_NONE = "__none__"
+
+function NivelMcSelector({ proyecto }: { proyecto: Proyecto }) {
+  const { data: nivelesRaw, isLoading } = useGetNivelesSelect()
+  const update = useUpdateProyectoNivelMc(proyecto.id)
+  const [saving, setSaving] = useState(false)
+
+  const niveles = (nivelesRaw?.data ?? []).slice().sort((a, b) => a.posicion - b.posicion)
+  const currentId = proyecto.nivelMcId ?? NIVEL_MC_NONE
+
+  async function handleChange(v: string | null) {
+    const nivelMcId = !v || v === NIVEL_MC_NONE ? null : v
+    setSaving(true)
+    try {
+      await update.mutateAsync({ nivelMcId })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-white p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-gray-900">Nivel para MC (Mechanical Completion)</p>
+        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Elegí el Nivel del catálogo que representa "Mechanical Completion" en este proyecto.
+        El certificado MC del subsistema se calcula contra las tareas cuyo Nivel coincide.
+        Si dejás "Sin configurar", MC queda en "no aplica" en el reporte de certificados.
+      </p>
+      <Select
+        value={currentId}
+        onValueChange={handleChange}
+        disabled={isLoading || saving}
+      >
+        <SelectTrigger className="w-full max-w-xs">
+          <SelectValue placeholder="Sin configurar">
+            {currentId === NIVEL_MC_NONE
+              ? "Sin configurar"
+              : niveles.find((n) => n.id === currentId)?.nombre ?? proyecto.nivelMcNombre ?? "—"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NIVEL_MC_NONE}>Sin configurar</SelectItem>
+          {niveles.map((n) => (
+            <SelectItem key={n.id} value={n.id}>
+              {n.nombre}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
