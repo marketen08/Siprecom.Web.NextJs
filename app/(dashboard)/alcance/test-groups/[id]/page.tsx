@@ -4,11 +4,12 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  Award, CheckCircle2, ClipboardList, Download, FileText, Info, Layers, ListChecks,
-  Loader2, Play, RotateCcw, XCircle,
+  Award, BookOpen, CheckCircle2, ClipboardList, Download, FileDown, FileText, FileUp,
+  Info, Layers, ListChecks, Loader2, MoreHorizontal, Play, RotateCcw, XCircle,
 } from "lucide-react"
 
 import { useGetTestGroup } from "@/features/testgroups/api/use-get-testgroup"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useGetElementosAsignados } from "@/features/testgroups/api/use-get-elementos-asignados"
 import { useDesasignarElemento } from "@/features/testgroups/api/use-desasignar-elemento"
 import { TestGroupActionsMenu } from "@/features/testgroups/components/testgroup-actions-menu"
@@ -24,6 +25,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -125,7 +132,7 @@ export default function TestGroupDetallePage({
       {/* Contenido */}
       {tab === "info" && <TabInfo tg={tg} isPressure={isPressure} />}
       {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} />}
-      {tab === "tareas" && <TabTareas testGroupId={tg.id} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} />}
+      {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} />}
       {tab === "progreso" && <TabProgreso testGroupId={tg.id} />}
     </div>
   )
@@ -274,9 +281,16 @@ function TabElementos({ testGroupId, bloqueado }: { testGroupId: string; bloquea
 
 // ─── TAB: Tareas (ejecución) ──────────────────────────────────────────────
 
-function TabTareas({ testGroupId, bloqueado }: { testGroupId: string; bloqueado: boolean }) {
+function TabTareas({ testGroupId, proyectoId, bloqueado }: { testGroupId: string; proyectoId: string; bloqueado: boolean }) {
   const { data, isLoading } = useGetTareasPack(testGroupId)
   const tareas = data?.data ?? []
+
+  // Flags del proyecto — mismos que usa el sheet de detalle de elemento en /ejecucion.
+  const { data: proyectoRaw } = useGetProyecto(proyectoId)
+  const proyecto = proyectoRaw?.data
+  const permitirFisico = proyecto?.permitirRegistroFisico ?? false
+  const preFirmado = proyecto?.registrosFisicosPreFirmados ?? false
+  const permitirDescargarProcedimientos = proyecto?.permitirDescargarProcedimientos ?? false
 
   return (
     <Card className="p-0 overflow-hidden">
@@ -304,7 +318,17 @@ function TabTareas({ testGroupId, bloqueado }: { testGroupId: string; bloqueado:
               </TableCell>
             </TableRow>
           ) : (
-            tareas.map((t) => <TareaRow key={t.id} tarea={t} testGroupId={testGroupId} bloqueado={bloqueado} />)
+            tareas.map((t) => (
+              <TareaRow
+                key={t.id}
+                tarea={t}
+                testGroupId={testGroupId}
+                bloqueado={bloqueado}
+                permitirFisico={permitirFisico}
+                preFirmado={preFirmado}
+                permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+              />
+            ))
           )}
         </TableBody>
       </Table>
@@ -313,9 +337,14 @@ function TabTareas({ testGroupId, bloqueado }: { testGroupId: string; bloqueado:
 }
 
 function TareaRow({
-  tarea, testGroupId, bloqueado,
+  tarea, testGroupId, bloqueado, permitirFisico, preFirmado, permitirDescargarProcedimientos,
 }: {
-  tarea: TestGroupTareaItem; testGroupId: string; bloqueado: boolean
+  tarea: TestGroupTareaItem
+  testGroupId: string
+  bloqueado: boolean
+  permitirFisico: boolean
+  preFirmado: boolean
+  permitirDescargarProcedimientos: boolean
 }) {
   const cambiar = useCambiarEstadoTarea()
   const iniciarRegistro = useIniciarRegistroTarea()
@@ -422,10 +451,86 @@ function TareaRow({
               onConfirm={() => runChange(ESTADO_TAREA.PENDIENTE)}
             />
           )}
+
+          {/* Menú compacto con las acciones secundarias — mismo patrón que el sheet
+              de detalle del elemento en ejecución. */}
+          {(() => {
+            // Cargar registro firmado: si el proyecto permite físico, la tarea tiene
+            // planilla y el estado admite subir (mismo criterio que la vista de elemento).
+            const puedeCargarFisico =
+              !bloqueado && permitirFisico && tienePlanilla &&
+              (tarea.estado === ESTADO_TAREA.PENDIENTE
+                || tarea.estado === ESTADO_TAREA.EN_PROCESO
+                || tarea.estado === ESTADO_TAREA.RECHAZADO)
+            const puedeDescargarProcedimiento =
+              permitirDescargarProcedimientos && tarea.tareaProcedimientoTieneArchivo
+            const hayAlgo = tienePlanilla || tieneRegistro || puedeCargarFisico || puedeDescargarProcedimiento
+
+            if (!hayAlgo) return null
+
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Más acciones">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-56">
+                  {tienePlanilla && (
+                    <DropdownMenuItem onClick={() => triggerDownload(
+                      `/api/planillas/${tarea.tareaPlanillaId}/pdf/blanco/testgroup/${tarea.id}`
+                    )}>
+                      <Download className="h-4 w-4" />
+                      Descargar planilla en blanco
+                    </DropdownMenuItem>
+                  )}
+                  {puedeCargarFisico && (
+                    <DropdownMenuItem
+                      render={
+                        <a href={`/checklist/testgroup/${tarea.tareaPlanillaId}/${testGroupId}/${tarea.id}`} />
+                      }
+                    >
+                      <FileUp className="h-4 w-4" />
+                      {preFirmado ? "Cargar registro firmado" : "Cargar planilla física"}
+                    </DropdownMenuItem>
+                  )}
+                  {tieneRegistro && (
+                    <DropdownMenuItem onClick={() => triggerDownload(
+                      `/api/registros/${tarea.registroId}/pdf`
+                    )}>
+                      <FileDown className="h-4 w-4" />
+                      Descargar PDF del registro
+                    </DropdownMenuItem>
+                  )}
+                  {puedeDescargarProcedimiento && (
+                    <DropdownMenuItem onClick={() => triggerDownload(
+                      `/api/procedimientos/${tarea.tareaProcedimientoId}/download`
+                    )}>
+                      <BookOpen className="h-4 w-4" />
+                      Descargar procedimiento
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          })()}
         </div>
       </TableCell>
     </TableRow>
   )
+}
+
+// Fuerza la descarga programáticamente. El browser respeta el Content-Disposition
+// del backend (filename) sin cambiar de pestaña.
+function triggerDownload(url: string) {
+  const a = document.createElement("a")
+  a.href = url
+  a.rel = "noopener"
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 }
 
 function EstadoTareaBadge({ estado }: { estado: EstadoTarea }) {

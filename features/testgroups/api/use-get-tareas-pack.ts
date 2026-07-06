@@ -55,6 +55,11 @@ export interface TestGroupTareaItem {
   tareaPlanillaId: string | null
   registroId: string | null
   registroEstado: EstadoRegistro | null
+  // Procedimiento opcional de la Tarea del catálogo. Se muestra "Descargar
+  // procedimiento" solo si `tareaProcedimientoTieneArchivo`.
+  tareaProcedimientoId: string | null
+  tareaProcedimientoNombre: string | null
+  tareaProcedimientoTieneArchivo: boolean
 }
 
 export function useGetTareasPack(testGroupId: string | null) {
