@@ -62,3 +62,28 @@ export interface AvanceAgrupacionDTO extends AvanceDTO {
   /** Desglose por nivel (áreas/módulos) — mismo shape que subsistemas. */
   niveles?: AvanceSubSistemaNivelDTO[]
 }
+
+/** KPIs complementarios al avance operativo: hitos por categoría + fases por Nivel. */
+export interface AvanceHitosFasesDTO {
+  rfc: HitoCategoriaDTO
+  rfsu: HitoCategoriaDTO
+  aoc: HitoCategoriaDTO
+  fases: AvanceFaseDTO[]
+  /** Tareas del proyecto cuyo catálogo no tiene NivelId — quedan fuera de fases. */
+  tareasSinNivel: number
+}
+
+export interface HitoCategoriaDTO {
+  total: number
+  terminales: number
+  porcentaje: number
+}
+
+export interface AvanceFaseDTO {
+  nivelId: string
+  nivelNombre: string
+  posicion: number
+  total: number
+  completadas: number
+  porcentaje: number
+}

@@ -2,9 +2,12 @@
 
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
+import { useGetAvanceHitosYFases } from "@/features/avance/api/use-get-avance-hitos-fases"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { BarraAvance } from "@/components/barra-avance"
-import type { AvanceSistemaDTO, AvanceDTO } from "@/features/avance/types"
+import type {
+  AvanceSistemaDTO, AvanceDTO, AvanceHitosFasesDTO, HitoCategoriaDTO, AvanceFaseDTO,
+} from "@/features/avance/types"
 import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -132,15 +135,167 @@ function SistemaRow({ sistema }: { sistema: AvanceSistemaDTO }) {
   )
 }
 
+// ─── Hitos + Fases ───────────────────────────────────────────────────────────
+
+/**
+ * Panel complementario al avance operativo. Muestra:
+ * - Hitos: %packs terminales por categoría (RFC/RFSU/AOC).
+ * - Fases: %tareas por Nivel del catálogo (Precom/Comm/…).
+ *
+ * No reemplaza el % de proyecto (tareas individuales), es una vista paralela.
+ */
+function HitosFasesPanel({
+  hitosFases,
+  isLoading,
+}: {
+  hitosFases: AvanceHitosFasesDTO | undefined
+  isLoading: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-56" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Skeleton className="h-40" />
+          <Skeleton className="h-40" />
+        </div>
+      </div>
+    )
+  }
+
+  if (!hitosFases) return null
+
+  const totalHitos =
+    hitosFases.rfc.total + hitosFases.rfsu.total + hitosFases.aoc.total
+  const hayFases = hitosFases.fases.length > 0
+
+  if (totalHitos === 0 && !hayFases) return null
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-gray-800">
+          Avance por hitos y fases
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Complemento al avance operativo — no lo reemplaza. Los hitos son los TestGroups
+          terminales por categoría; las fases agrupan tareas por Nivel del catálogo.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Hitos */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Hitos (TestGroups)</h3>
+            <span className="text-[11px] text-muted-foreground">
+              % de packs terminales (Completado o Cerrado)
+            </span>
+          </div>
+          {totalHitos === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-4 text-center">
+              El proyecto todavía no tiene TestGroups cargados.
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              <HitoRow label="RFC" nombre="Ready For Commissioning" hito={hitosFases.rfc} />
+              <HitoRow label="RFSU" nombre="Ready For Start-Up" hito={hitosFases.rfsu} />
+              <HitoRow label="AOC" nombre="Acceptance Of Commissioning" hito={hitosFases.aoc} />
+            </div>
+          )}
+        </div>
+
+        {/* Fases */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Fases (por Nivel)</h3>
+            <span className="text-[11px] text-muted-foreground">% de tareas terminadas</span>
+          </div>
+          {!hayFases ? (
+            <p className="text-xs text-muted-foreground italic py-4 text-center">
+              Ninguna tarea del catálogo tiene Nivel asignado.
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {hitosFases.fases.map((f) => (
+                <FaseRow key={f.nivelId} fase={f} />
+              ))}
+              {hitosFases.tareasSinNivel > 0 && (
+                <p className="text-[11px] text-muted-foreground pt-1">
+                  {fmt(hitosFases.tareasSinNivel)} tarea(s) sin Nivel asignado (no computan
+                  en fases).
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HitoRow({
+  label,
+  nombre,
+  hito,
+}: {
+  label: string
+  nombre: string
+  hito: HitoCategoriaDTO
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-24 shrink-0">
+        <div className="font-mono text-xs font-semibold text-blue-800">{label}</div>
+        <div className="text-[10px] text-muted-foreground truncate">{nombre}</div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <BarraAvance porcentaje={Number(hito.porcentaje)} />
+      </div>
+      <div className="min-w-24 text-right shrink-0">
+        <div className="text-sm font-semibold tabular-nums text-gray-800">
+          {Number(hito.porcentaje).toFixed(1)}%
+        </div>
+        <div className="text-[10px] text-muted-foreground tabular-nums">
+          {fmt(hito.terminales)}/{fmt(hito.total)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FaseRow({ fase }: { fase: AvanceFaseDTO }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-32 shrink-0 truncate">
+        <span className="text-xs font-medium text-gray-800">{fase.nivelNombre}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <BarraAvance porcentaje={Number(fase.porcentaje)} />
+      </div>
+      <div className="min-w-24 text-right shrink-0">
+        <div className="text-sm font-semibold tabular-nums text-gray-800">
+          {Number(fase.porcentaje).toFixed(1)}%
+        </div>
+        <div className="text-[10px] text-muted-foreground tabular-nums">
+          {fmt(fase.completadas)}/{fmt(fase.total)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { data: perfil } = useGetPerfil()
   const { data: proyectosData } = useGetMisProyectos()
   const { data, isLoading } = useGetAvanceProyecto(perfil?.proyectoId)
+  const { data: hitosFasesData, isLoading: isLoadingHitos } = useGetAvanceHitosYFases()
 
   const avance = data?.data
   const sistemas: AvanceSistemaDTO[] = avance?.sistemas ?? []
+  const hitosFases = hitosFasesData?.data
 
   const proyectoActivo = proyectosData?.find((p) => p.esActivo)
   const estadoTexto = proyectoActivo
@@ -209,6 +364,12 @@ export default function DashboardPage() {
           />
         </div>
       )}
+
+      {/* separador */}
+      <div className="border-t border-dashed border-gray-200" />
+
+      {/* Hitos + fases (complementarios al avance operativo) */}
+      <HitosFasesPanel hitosFases={hitosFases} isLoading={isLoadingHitos} />
 
       {/* separador */}
       <div className="border-t border-dashed border-gray-200" />
