@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Search } from "lucide-react"
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
 import { useGetElementosAsignados, type ElementoAsignable } from "@/features/testgroups/api/use-get-elementos-asignados"
 import { useGetElementosDisponibles } from "@/features/testgroups/api/use-get-elementos-disponibles"
+import { fetchElementosDisponiblesIds } from "@/features/testgroups/api/use-get-elementos-disponibles-ids"
 import { useAsignarElementos } from "@/features/testgroups/api/use-asignar-elementos"
 import { useDesasignarElemento } from "@/features/testgroups/api/use-desasignar-elemento"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
@@ -51,12 +52,20 @@ interface ListaProps {
   pageSize?: number
   total?: number
   onPageChange?: (p: number) => void
+  /**
+   * Callback para "seleccionar todos los N que coinciden con los filtros" cross-page.
+   * Devuelve los IDs matched — la lista los agrega al `selected`. Cuando está seteado
+   * y hay paginación, aparece un banner después de marcar el checkbox del header.
+   */
+  onSelectAllMatched?: () => Promise<string[]>
 }
 
 function ListaElementos({
   titulo, vacio, items, selected, onToggle, onReplace, isLoading, right,
-  page, pageSize, total, onPageChange,
+  page, pageSize, total, onPageChange, onSelectAllMatched,
 }: ListaProps) {
+  const [cargandoMatched, setCargandoMatched] = useState(false)
+  const [expandidoMatched, setExpandidoMatched] = useState(false)
   // Contamos cuántos de los ítems visibles están seleccionados. En el modelo,
   // `selected` puede tener ids de una carga previa (ej. antes de aplicar un filtro)
   // por eso comparamos contra `items` (los visibles ahora).
@@ -72,6 +81,7 @@ function ListaElementos({
   const seleccionadosTotales = selected.size
 
   function toggleAll() {
+    setExpandidoMatched(false)
     if (todosSeleccionados) {
       // Quitar del set solo los visibles (preservar cualquier selección "invisible").
       const visiblesIds = new Set(items.map((x) => x.id))
@@ -85,6 +95,24 @@ function ListaElementos({
       onReplace(next)
     }
   }
+
+  async function seleccionarMatched() {
+    if (!onSelectAllMatched) return
+    setCargandoMatched(true)
+    try {
+      const ids = await onSelectAllMatched()
+      const next = new Set(selected)
+      for (const id of ids) next.add(id)
+      onReplace(next)
+      setExpandidoMatched(true)
+    } finally {
+      setCargandoMatched(false)
+    }
+  }
+
+  const mostrarBannerExpandir =
+    hayPaginacion && !!onSelectAllMatched && todosSeleccionados
+    && !expandidoMatched && totalDisplay > seleccionadosTotales
 
   return (
     <div className="flex flex-col rounded-lg border bg-card min-h-125">
@@ -112,6 +140,27 @@ function ListaElementos({
           {right}
         </div>
       </div>
+      {mostrarBannerExpandir && (
+        <div className="px-4 py-2 bg-blue-50 border-b text-xs text-blue-900 flex items-center gap-2 flex-wrap">
+          <span>
+            Se seleccionaron los <strong>{seleccionadosVisibles}</strong> de esta página.
+          </span>
+          <button
+            className="text-blue-700 font-medium hover:underline disabled:opacity-50"
+            onClick={seleccionarMatched}
+            disabled={cargandoMatched}
+          >
+            {cargandoMatched
+              ? "Cargando..."
+              : `Seleccionar los ${totalDisplay} que coinciden con los filtros`}
+          </button>
+        </div>
+      )}
+      {expandidoMatched && seleccionadosTotales > items.length && (
+        <div className="px-4 py-2 bg-blue-50 border-b text-xs text-blue-900">
+          Se seleccionaron los <strong>{seleccionadosTotales}</strong> que coinciden con los filtros.
+        </div>
+      )}
       <div className={`flex-1 overflow-y-auto p-2 flex flex-col gap-1 ${hayPaginacion ? "max-h-115" : "max-h-125"}`}>
         {isLoading ? (
           <p className="text-sm text-muted-foreground p-3">Cargando...</p>
@@ -438,6 +487,11 @@ export default function AsignacionPage() {
               pageSize={pageSize}
               total={disponiblesTotal}
               onPageChange={setPageDisp}
+              onSelectAllMatched={
+                testGroupId
+                  ? () => fetchElementosDisponiblesIds({ testGroupId, ...filtrosComunes })
+                  : undefined
+              }
             />
 
             <div className="flex md:flex-col items-center justify-center gap-3">
