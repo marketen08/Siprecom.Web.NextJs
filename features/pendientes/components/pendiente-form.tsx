@@ -41,6 +41,12 @@ interface PendienteFormProps {
   onSubmit: (values: PendienteFormValues) => void
   isPending: boolean
   onCancel: () => void
+  /**
+   * En modo edición el responsable no se puede cambiar desde este formulario
+   * (va por el workflow "Asignar responsable"). Cuando es true, el campo
+   * queda visible pero deshabilitado y con una nota aclaratoria.
+   */
+  readonlyResponsable?: boolean
 }
 
 const NONE = "__none__"
@@ -50,6 +56,7 @@ export function PendienteForm({
   onSubmit,
   isPending,
   onCancel,
+  readonlyResponsable = false,
 }: PendienteFormProps) {
   const { data: perfil } = useGetPerfil()
   const { data: categoriasRaw } = useGetPendienteCategorias()
@@ -241,7 +248,11 @@ export function PendienteForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Responsable</FormLabel>
-                <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => v && field.onChange(v)}
+                  disabled={isPending || readonlyResponsable}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Asignar a un usuario del proyecto">
@@ -257,6 +268,11 @@ export function PendienteForm({
                     ))}
                   </SelectContent>
                 </Select>
+                {readonlyResponsable && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Para reasignar, usá la acción de workflow en el detalle del pendiente.
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}

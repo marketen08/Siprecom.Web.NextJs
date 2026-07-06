@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
-  Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X,
+  Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
 } from "lucide-react"
 
 import { useOpenPendiente } from "../hooks/use-open-pendiente"
@@ -11,6 +11,9 @@ import { useGetPendiente } from "../api/use-get-pendiente"
 import { useAgregarComentario } from "../api/use-agregar-comentario"
 import { useSubirAdjunto, useEliminarAdjunto } from "../api/use-adjuntos"
 import { usePendienteTransicion } from "../api/use-pendiente-workflow"
+import { useUpdatePendiente } from "../api/use-update-pendiente"
+import { PendienteForm } from "./pendiente-form"
+import type { PendienteFormValues } from "../schema"
 import {
   ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR,
 } from "../types"
@@ -31,6 +34,14 @@ export function PendienteDetalleSheet() {
   const { id, isOpen, close } = useOpenPendiente()
   const { data, isLoading } = useGetPendiente(id)
   const p = data?.data
+  const [isEditing, setIsEditing] = useState(false)
+
+  // Al cambiar de pendiente o cerrar el sheet, salimos del modo edición.
+  useEffect(() => {
+    if (!isOpen) setIsEditing(false)
+  }, [isOpen, id])
+
+  const puedeEditar = p?.estadoId === PENDIENTE_ESTADO_IDS.ABIERTO
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
@@ -48,10 +59,22 @@ export function PendienteDetalleSheet() {
                 <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
+                {puedeEditar && !isEditing && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto gap-1.5 h-7 text-xs"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Pencil className="h-3 w-3" /> Editar
+                  </Button>
+                )}
               </SheetTitle>
-              <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
-                {p.descripcion}
-              </SheetDescription>
+              {!isEditing && (
+                <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {p.descripcion}
+                </SheetDescription>
+              )}
             </>
           ) : (
             <SheetTitle>Pendiente</SheetTitle>
@@ -62,6 +85,11 @@ export function PendienteDetalleSheet() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 px-4">
             <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
           </div>
+        ) : p && isEditing ? (
+          <EditarPendiente
+            pendiente={p}
+            onDone={() => setIsEditing(false)}
+          />
         ) : p ? (
           <div className="mt-4 px-4 pb-8 space-y-6">
             {/* Datos principales */}
@@ -377,6 +405,72 @@ function Historial({
         )}
       </div>
     </section>
+  )
+}
+
+// ─── Editar ──────────────────────────────────────────────────────────────
+
+function EditarPendiente({
+  pendiente,
+  onDone,
+}: {
+  pendiente: {
+    id: string
+    categoriaId: string
+    tipoId: string
+    responsableId: string
+    descripcion: string
+    prioridad: number
+    fechaCierreEstimado: string
+    subSistemaId: string | null
+    elementoId: string | null
+    especialidadId: string | null
+    pid: string | null
+    circuito: string | null
+  }
+  onDone: () => void
+}) {
+  const update = useUpdatePendiente(pendiente.id)
+
+  const onSubmit = async (values: PendienteFormValues) => {
+    // El endpoint PUT /pendientes/{id} no toca responsable — se ignora.
+    await update.mutateAsync({
+      categoriaId: values.categoriaId,
+      tipoId: values.tipoId,
+      descripcion: values.descripcion,
+      prioridad: values.prioridad,
+      fechaCierreEstimado: values.fechaCierreEstimado,
+      subSistemaId: values.subSistemaId ?? null,
+      elementoId: values.elementoId ?? null,
+      especialidadId: values.especialidadId ?? null,
+      pid: values.pid ?? null,
+      circuito: values.circuito ?? null,
+    })
+    onDone()
+  }
+
+  return (
+    <div className="mt-4 px-4 pb-8">
+      <PendienteForm
+        defaultValues={{
+          categoriaId: pendiente.categoriaId,
+          tipoId: pendiente.tipoId,
+          responsableId: pendiente.responsableId,
+          descripcion: pendiente.descripcion,
+          prioridad: pendiente.prioridad,
+          fechaCierreEstimado: pendiente.fechaCierreEstimado.substring(0, 10),
+          subSistemaId: pendiente.subSistemaId,
+          elementoId: pendiente.elementoId,
+          especialidadId: pendiente.especialidadId,
+          pid: pendiente.pid,
+          circuito: pendiente.circuito,
+        }}
+        onSubmit={onSubmit}
+        isPending={update.isPending}
+        onCancel={onDone}
+        readonlyResponsable
+      />
+    </div>
   )
 }
 
