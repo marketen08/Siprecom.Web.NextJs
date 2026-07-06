@@ -116,7 +116,6 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Especialidades",    href: "/configuracion/especialidades" },
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
-      { label: "Importar tipos", href: "/configuracion/catalogos" },
       { label: "Niveles",           href: "/configuracion/niveles" },
       { label: "Campos",            href: "/configuracion/campos" },
       { label: "Planillas",         href: "/configuracion/planillas" },
@@ -154,7 +153,6 @@ export const menu: MenuItem[] = [
         children: [
           { label: "Planillas",         href: "/licenciamiento/planillas" },
           { label: "Procedimientos",    href: "/licenciamiento/procedimientos" },
-          { label: "Tipos de elementos", href: "/configuracion/catalogos" },
         ],
       },
     ],
