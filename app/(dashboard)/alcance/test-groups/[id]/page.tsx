@@ -4,13 +4,15 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  ArrowLeft, Award, CheckCircle2, ClipboardList, Download, FileText, Info, Layers, ListChecks,
+  Award, CheckCircle2, ClipboardList, Download, FileText, Info, Layers, ListChecks,
   Loader2, Play, RotateCcw, XCircle,
 } from "lucide-react"
 
 import { useGetTestGroup } from "@/features/testgroups/api/use-get-testgroup"
 import { useGetElementosAsignados } from "@/features/testgroups/api/use-get-elementos-asignados"
 import { useDesasignarElemento } from "@/features/testgroups/api/use-desasignar-elemento"
+import { TestGroupActionsMenu } from "@/features/testgroups/components/testgroup-actions-menu"
+import { EditTestGroupSheet } from "@/features/testgroups/components/edit-testgroup-sheet"
 import {
   useGetTareasPack, ESTADO_TAREA, ESTADO_TAREA_LABEL, type EstadoTarea, type TestGroupTareaItem,
 } from "@/features/testgroups/api/use-get-tareas-pack"
@@ -36,6 +38,7 @@ export default function TestGroupDetallePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
+  const router = useRouter()
   const [tab, setTab] = useState<Tab>("info")
   const pathname = usePathname()
 
@@ -61,16 +64,12 @@ export default function TestGroupDetallePage({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-            <Link href={backHref}><ArrowLeft className="h-4 w-4" /></Link>
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight font-mono">{tg.codigo}</h1>
-            <p className="text-sm text-muted-foreground">{tg.nombre || "(sin nombre)"} · {tg.tipoTexto}</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight font-mono">{tg.codigo}</h1>
+          <p className="text-sm text-muted-foreground">{tg.nombre || "(sin nombre)"} · {tg.tipoTexto}</p>
         </div>
         <div className="flex items-center gap-2">
+          <EstadoBadge estado={tg.estado} texto={tg.estadoTexto} />
           <Button asChild variant="outline" size="sm" className="gap-2">
             {/* Enlace directo al proxy — el browser dispara la descarga.
                 Con `download` forzamos "guardar como" en vez de abrir inline. */}
@@ -79,9 +78,16 @@ export default function TestGroupDetallePage({
               PDF
             </a>
           </Button>
-          <EstadoBadge estado={tg.estado} texto={tg.estadoTexto} />
+          <TestGroupActionsMenu
+            tg={{ id: tg.id, codigo: tg.codigo, estado: tg.estado }}
+            variant="labeled"
+            onAfterDelete={() => router.push(backHref)}
+          />
         </div>
       </div>
+      {/* Sheet de edición controlado por useOpenTestGroup — se abre al elegir "Editar"
+          desde el menú de acciones del header. */}
+      <EditTestGroupSheet />
 
       {/* Banner de certificado activo (F6.2). Cuando este pack forma parte de un RFC/RFSU/AOC
           emitido, todos los cambios están bloqueados hasta que se revoque desde /reporte/certificados. */}

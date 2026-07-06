@@ -103,13 +103,7 @@ export const menu: MenuItem[] = [
         ],
       },
       { label: "Módulos",      href: "/alcance/modulos" },
-      {
-        label: "Paquetes de prueba",
-        children: [
-          { label: "Crear",   href: "/alcance/test-groups" },
-          { label: "Asignar", href: "/alcance/test-groups/asignacion" },
-        ],
-      },
+      { label: "Paquetes de prueba", href: "/alcance/test-groups" },
       {
         label: "Importar",
         children: [

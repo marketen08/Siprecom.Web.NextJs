@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowRight, Search } from "lucide-react"
 
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
@@ -228,8 +229,23 @@ function ListaElementos({
 }
 
 export default function AsignacionPage() {
+  // useSearchParams necesita Suspense para no romper el static rendering.
+  return (
+    <Suspense>
+      <AsignacionPageContent />
+    </Suspense>
+  )
+}
+
+function AsignacionPageContent() {
+  // Pre-selección desde la URL — se dispara desde el dropdown de acciones en
+  // /alcance/test-groups. Solo aplica en el mount inicial; después el user
+  // puede cambiarlo normalmente desde el Select.
+  const searchParams = useSearchParams()
+  const testGroupIdFromUrl = searchParams.get("testGroupId")
+
   const [tipoFilter, setTipoFilter] = useState<string>(TIPO_ALL)
-  const [testGroupId, setTestGroupId] = useState<string | null>(null)
+  const [testGroupId, setTestGroupId] = useState<string | null>(testGroupIdFromUrl)
   const [subFilter, setSubFilter] = useState<string>(SUB_ALL)
   const [especialidadFilter, setEspecialidadFilter] = useState<string>(ESP_ALL)
   const [tipoElemFilter, setTipoElemFilter] = useState<string>(TIPO_ELEM_ALL)
@@ -249,6 +265,17 @@ export default function AsignacionPage() {
     setPageDisp(1)
     setPageAsig(1)
   }, [testGroupId, subFilter, especialidadFilter, tipoElemFilter, search])
+
+  // Si el usuario navega de vuelta a esta página con otro testGroupId en la URL
+  // (ej. abrió el dropdown de acciones de otro pack), sincronizamos el state.
+  useEffect(() => {
+    if (testGroupIdFromUrl && testGroupIdFromUrl !== testGroupId) {
+      setTestGroupId(testGroupIdFromUrl)
+      setSelectedDisp(new Set())
+      setSelectedAsig(new Set())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testGroupIdFromUrl])
 
   const tipoParam: TipoTestGroup | undefined =
     tipoFilter === TIPO_ALL ? undefined : (parseInt(tipoFilter, 10) as TipoTestGroup)
