@@ -426,7 +426,7 @@ function AsignacionPageContent() {
         </div>
         {tgActual && !permiteMultiSubsistema && (
           <p className="text-xs text-muted-foreground">
-            Este proyecto restringe los paquetes a un único subsistema (OPERCOM).
+            Este proyecto restringe los paquetes a un único subsistema.
             Solo se muestran los elementos del subsistema <strong>{tgActual.subSistemaCodigo ?? "—"}</strong>.
             Habilitá "TestGroups multi-subsistema" en las funcionalidades del proyecto para permitir cross-subsistema.
           </p>

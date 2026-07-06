@@ -40,6 +40,10 @@ export interface CategoriaEstado {
   tareasNivelTotal: number
   tareasNivelCompletas: number
   tareasNivelListas: boolean
+  // true si los packs de la categoría tienen al menos una Tarea del catálogo
+  // con NivelId asignado. false = catálogo sin niveles → el gate por nivel
+  // no puede aplicar aunque el flag esté prendido. La UI lo señaliza.
+  nivelInferible: boolean
 }
 
 export interface SubsistemaCertificadoEstado {

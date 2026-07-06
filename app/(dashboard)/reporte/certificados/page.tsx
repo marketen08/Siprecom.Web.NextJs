@@ -69,7 +69,7 @@ export default function CertificadosPage() {
         <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2 text-sm text-blue-900">
           <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-700" />
           <div className="flex-1 space-y-0.5">
-            <div className="font-medium">Validaciones OPERCOM habilitadas para este proyecto</div>
+            <div className="font-medium">Validaciones habilitadas para este proyecto</div>
             <ul className="text-xs list-disc pl-4 space-y-0.5">
               {filas[0].validarNivelActivo && (
                 <li>Emisión bloqueada si quedan tareas del nivel del certificado sin completar en el subsistema.</li>
@@ -277,10 +277,13 @@ function Celda({
 
   // Pendiente / bloqueado por gates OPERCOM
   const packsOk = cat.cantidadPacks > 0 && cat.cantidadPacksTerminales === cat.cantidadPacks
-  const nivelBlock = fila.validarNivelActivo && !cat.tareasNivelListas
+  const nivelBlock = fila.validarNivelActivo && cat.nivelInferible && cat.tareasNivelTotal > 0 && !cat.tareasNivelListas
   const pendBlockA = fila.validarPendientesAActivo && fila.pendientesAbiertosA > 0
   const pendBlockB = fila.validarPendientesBActivo && fila.pendientesAbiertosB > 0
   const pendBlock = pendBlockA || pendBlockB
+  // Casos "gate activo pero no aplica" — la UI los expone para no engañar al usuario.
+  const nivelNoInferible = fila.validarNivelActivo && cat.cantidadPacks > 0 && !cat.nivelInferible
+  const nivelSinTareas = fila.validarNivelActivo && cat.nivelInferible && cat.tareasNivelTotal === 0
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
@@ -332,11 +335,30 @@ function Celda({
           )}
         </div>
       )}
-      {/* Info neutra cuando los gates están inactivos pero hay datos que aporten contexto. */}
-      {packsOk && !nivelBlock && !pendBlock && cat.tareasNivelTotal > 0 && (
+      {/* Info neutra: nivel OK con datos que aporten contexto. */}
+      {packsOk && !nivelBlock && !pendBlock && cat.tareasNivelTotal > 0 && cat.tareasNivelListas && (
         <div className="flex items-center gap-1 text-[11px] text-emerald-700 pt-0.5">
           <CheckCircle2 className="h-3 w-3" />
           <span className="tabular-nums">Tareas nivel: {cat.tareasNivelCompletas}/{cat.tareasNivelTotal}</span>
+        </div>
+      )}
+      {/* Transparencia: flag activo pero el gate por nivel no aplica. */}
+      {packsOk && !nivelBlock && !pendBlock && nivelNoInferible && (
+        <div
+          className="flex items-start gap-1 text-[11px] text-amber-700 pt-0.5"
+          title="Las tareas del catálogo asociadas a los packs no tienen Nivel asignado. La validación por nivel no se aplica — configurá los NivelIds del catálogo para activarla."
+        >
+          <Info className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>Nivel no configurado en el catálogo — no se valida por nivel.</span>
+        </div>
+      )}
+      {packsOk && !nivelBlock && !pendBlock && nivelSinTareas && (
+        <div
+          className="flex items-start gap-1 text-[11px] text-slate-600 pt-0.5"
+          title="El subsistema no tiene ElementoTareas individuales del nivel de estos packs. La validación se resuelve solo con los packs."
+        >
+          <Info className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>Sin tareas individuales del nivel — solo se valida por packs.</span>
         </div>
       )}
     </div>
