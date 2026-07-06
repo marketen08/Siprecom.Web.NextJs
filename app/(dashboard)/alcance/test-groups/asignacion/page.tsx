@@ -7,6 +7,7 @@ import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
 import { useGetElementosAsignados, type ElementoAsignable } from "@/features/testgroups/api/use-get-elementos-asignados"
 import { useGetElementosDisponibles } from "@/features/testgroups/api/use-get-elementos-disponibles"
 import { fetchElementosDisponiblesIds } from "@/features/testgroups/api/use-get-elementos-disponibles-ids"
+import { fetchElementosAsignadosIds } from "@/features/testgroups/api/use-get-elementos-asignados-ids"
 import { useAsignarElementos } from "@/features/testgroups/api/use-asignar-elementos"
 import { useDesasignarElemento } from "@/features/testgroups/api/use-desasignar-elemento"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
@@ -528,6 +529,11 @@ export default function AsignacionPage() {
               pageSize={pageSize}
               total={asignadosTotal}
               onPageChange={setPageAsig}
+              onSelectAllMatched={
+                testGroupId
+                  ? () => fetchElementosAsignadosIds({ testGroupId, ...filtrosComunes })
+                  : undefined
+              }
             />
           </div>
         </>

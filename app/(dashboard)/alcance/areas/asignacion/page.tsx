@@ -7,6 +7,7 @@ import { useGetAreas } from "@/features/areas/api/use-get-areas"
 import { useGetElementosAsignadosArea, type ElementoAsignable } from "@/features/areas/api/use-get-elementos-asignados-area"
 import { useGetElementosDisponiblesArea } from "@/features/areas/api/use-get-elementos-disponibles-area"
 import { fetchElementosDisponiblesIdsArea } from "@/features/areas/api/use-get-elementos-disponibles-ids-area"
+import { fetchElementosAsignadosIdsArea } from "@/features/areas/api/use-get-elementos-asignados-ids-area"
 import { useAsignarElementosArea } from "@/features/areas/api/use-asignar-elementos-area"
 import { useDesasignarElementoArea } from "@/features/areas/api/use-desasignar-elemento-area"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
@@ -501,6 +502,11 @@ export default function AsignacionAreasPage() {
               pageSize={pageSize}
               total={asignadosTotal}
               onPageChange={setPageAsig}
+              onSelectAllMatched={
+                areaId
+                  ? () => fetchElementosAsignadosIdsArea({ areaId, ...filtrosComunes })
+                  : undefined
+              }
             />
           </div>
         </>
