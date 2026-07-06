@@ -1,15 +1,22 @@
 // Jerarquía de roles globales, alineada con el backend (JwtHandler.ExpandRoles):
-// SuperAdmin > Admin > Supervisor > User. Un rol superior habilita todo lo del
-// inferior. El chequeo es por NIVEL (no por includes), así funciona aunque el
-// token no venga expandido (ej. sesiones viejas con solo ["Admin"]).
+//   SuperAdmin > Admin > Supervisor > User > Auditor > Consultor
+// Un rol superior habilita todo lo del inferior. El chequeo es por NIVEL (no
+// por includes), así funciona aunque el token no venga expandido (ej. sesiones
+// viejas con solo ["Admin"]).
+//
+// Consultor: solo lectura + descarga (dashboard, planillas, registros, pendientes,
+// certificados, 3D, estadísticas). No puede escribir nada.
+// Auditor: mismo scope que Consultor + Control de cambios (auditoría).
 
-export type AppRole = "User" | "Supervisor" | "Admin" | "SuperAdmin"
+export type AppRole = "Consultor" | "Auditor" | "User" | "Supervisor" | "Admin" | "SuperAdmin"
 
 const ROLE_LEVEL: Record<string, number> = {
-  User: 1,
-  Supervisor: 2,
-  Admin: 3,
-  SuperAdmin: 4,
+  Consultor: 1,
+  Auditor: 2,
+  User: 3,
+  Supervisor: 4,
+  Admin: 5,
+  SuperAdmin: 6,
 }
 
 /** Nivel efectivo del usuario = el más alto de sus roles. 0 si no tiene ninguno. */
@@ -21,4 +28,18 @@ export function roleLevel(roles: string[] | undefined | null): number {
 /** True si el usuario alcanza (o supera) el rol mínimo requerido. */
 export function meetsRole(roles: string[] | undefined | null, min: AppRole): boolean {
   return roleLevel(roles) >= ROLE_LEVEL[min]
+}
+
+/**
+ * True si el usuario tiene rol de escritura (User o superior). Consultor y
+ * Auditor son solo lectura — usar este helper para condicionar botones de
+ * acción, forms y mutaciones en la UI.
+ */
+export function canWrite(roles: string[] | undefined | null): boolean {
+  return meetsRole(roles, "User")
+}
+
+/** Inverso semántico de canWrite — más legible en algunos casos. */
+export function isReadOnly(roles: string[] | undefined | null): boolean {
+  return !canWrite(roles)
 }

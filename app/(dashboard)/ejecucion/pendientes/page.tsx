@@ -15,6 +15,7 @@ import {
   ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD, PRIORIDAD_COLOR,
 } from "@/features/pendientes/types"
 import { useNewPendiente } from "@/features/pendientes/hooks/use-new-pendiente"
+import { useCanWrite } from "@/lib/use-roles"
 import { useOpenPendiente } from "@/features/pendientes/hooks/use-open-pendiente"
 import { NewPendienteSheet } from "@/features/pendientes/components/new-pendiente-sheet"
 import { PendienteDetalleSheet } from "@/features/pendientes/components/pendiente-detalle-sheet"
@@ -48,6 +49,7 @@ export default function PendientesPage() {
   const pageSize = 20
 
   const { open: openNew } = useNewPendiente()
+  const canWrite = useCanWrite()
   const { open: openDetalle } = useOpenPendiente()
 
   const { data: perfil } = useGetPerfil()
@@ -162,11 +164,13 @@ export default function PendientesPage() {
               onOpenChange={setFiltersOpen}
               activeCount={activeFilters.length}
             />
-            <Button onClick={() => openNew()} className="gap-2">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Nuevo pendiente</span>
-              <span className="sm:hidden">Nuevo</span>
-            </Button>
+            {canWrite && (
+              <Button onClick={() => openNew()} className="gap-2">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Nuevo pendiente</span>
+                <span className="sm:hidden">Nuevo</span>
+              </Button>
+            )}
           </div>
         </div>
 

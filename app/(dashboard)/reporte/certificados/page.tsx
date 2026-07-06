@@ -11,6 +11,7 @@ import {
   TIPO_CERTIFICADO, TIPO_CERTIFICADO_LABEL,
   type CategoriaEstado, type SubsistemaCertificadoEstado, type TipoCertificado,
 } from "@/features/certificados/types"
+import { useCanWrite } from "@/lib/use-roles"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 
@@ -206,6 +207,8 @@ function Celda({
   const subSistemaId = fila.subSistemaId
   const emitir = useEmitirCertificado()
   const revocar = useRevocarCertificado()
+  // Consultor/Auditor solo lectura: descargan PDF pero no ven Emitir/Revocar.
+  const canWrite = useCanWrite()
 
   // MC no tiene packs — el KPI viene por tareas del Nivel MC. Reusamos los mismos
   // campos numéricos pero con labels y semantics distintas.
@@ -259,24 +262,26 @@ function Celda({
               </a>
             </Button>
           )}
-          <ConfirmActionDialog
-            trigger={<span className="text-xs text-red-700">Revocar</span>}
-            triggerClassName="inline-flex items-center h-7 px-2 rounded-md hover:bg-red-50 transition-colors"
-            title={`¿Revocar el ${TIPO_CERTIFICADO_LABEL[tipo]}?`}
-            description={
-              <>
-                Los paquetes de prueba de esta categoría vuelven a permitir cambios.
-                El PDF emitido queda como historial pero deja de aparecer como activo.
-                Es obligatorio dejar un motivo (por defecto: "Revocado desde grilla").
-              </>
-            }
-            confirmText="Revocar"
-            pendingText="Revocando..."
-            variant="destructive"
-            onConfirm={() =>
-              revocar.mutateAsync({ id: cat.emitido!.id, motivo: "Revocado desde grilla" })
-            }
-          />
+          {canWrite && (
+            <ConfirmActionDialog
+              trigger={<span className="text-xs text-red-700">Revocar</span>}
+              triggerClassName="inline-flex items-center h-7 px-2 rounded-md hover:bg-red-50 transition-colors"
+              title={`¿Revocar el ${TIPO_CERTIFICADO_LABEL[tipo]}?`}
+              description={
+                <>
+                  Los paquetes de prueba de esta categoría vuelven a permitir cambios.
+                  El PDF emitido queda como historial pero deja de aparecer como activo.
+                  Es obligatorio dejar un motivo (por defecto: "Revocado desde grilla").
+                </>
+              }
+              confirmText="Revocar"
+              pendingText="Revocando..."
+              variant="destructive"
+              onConfirm={() =>
+                revocar.mutateAsync({ id: cat.emitido!.id, motivo: "Revocado desde grilla" })
+              }
+            />
+          )}
         </div>
       </div>
     )
@@ -293,33 +298,35 @@ function Celda({
             {listoBadge}
           </span>
         </div>
-        <ConfirmActionDialog
-          trigger={
-            <span className="inline-flex items-center gap-1 text-xs font-medium">
-              <Award className="h-3 w-3" /> Emitir {TIPO_CERTIFICADO_LABEL[tipo]}
-            </span>
-          }
-          triggerClassName="inline-flex items-center h-7 px-2 rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
-          title={`¿Emitir certificado ${TIPO_CERTIFICADO_LABEL[tipo]}?`}
-          description={
-            <>
-              Al emitir, {isMc
-                ? `las ${totalItems} tarea(s) del Nivel MC quedan cerradas a cambios`
-                : `los ${totalItems} paquete(s) incluidos quedan cerrados a cambios`}.
-              Para modificarlos hay que revocar el certificado primero.
-              Se genera un PDF con la firma electrónica del usuario emisor.
-            </>
-          }
-          confirmText="Emitir"
-          pendingText="Emitiendo..."
-          onConfirm={() =>
-            emitir.mutateAsync({
-              subSistemaId,
-              tipo,
-              comentarios: undefined,
-            })
-          }
-        />
+        {canWrite && (
+          <ConfirmActionDialog
+            trigger={
+              <span className="inline-flex items-center gap-1 text-xs font-medium">
+                <Award className="h-3 w-3" /> Emitir {TIPO_CERTIFICADO_LABEL[tipo]}
+              </span>
+            }
+            triggerClassName="inline-flex items-center h-7 px-2 rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
+            title={`¿Emitir certificado ${TIPO_CERTIFICADO_LABEL[tipo]}?`}
+            description={
+              <>
+                Al emitir, {isMc
+                  ? `las ${totalItems} tarea(s) del Nivel MC quedan cerradas a cambios`
+                  : `los ${totalItems} paquete(s) incluidos quedan cerrados a cambios`}.
+                Para modificarlos hay que revocar el certificado primero.
+                Se genera un PDF con la firma electrónica del usuario emisor.
+              </>
+            }
+            confirmText="Emitir"
+            pendingText="Emitiendo..."
+            onConfirm={() =>
+              emitir.mutateAsync({
+                subSistemaId,
+                tipo,
+                comentarios: undefined,
+              })
+            }
+          />
+        )}
       </div>
     )
   }

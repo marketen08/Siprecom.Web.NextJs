@@ -26,12 +26,14 @@ export type MenuItem = {
 export const menu: MenuItem[] = [
   {
     label: "Gestión de proyecto",
+    minRole: "Consultor",
     children: [
       { label: "Dashboard", href: "/dashboard" },
     ],
   },
   {
     label: "Ejecución",
+    minRole: "Consultor",
     children: [
       { label: "Avance por sistemas",     href: "/ejecucion/sistemas" },
       { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
@@ -42,11 +44,13 @@ export const menu: MenuItem[] = [
       { label: "Paquetes de prueba",       href: "/ejecucion/test-groups" },
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
-      { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true },
+      // Mis firmas es solo para roles que firman: Consultor/Auditor no firman.
+      { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true, minRole: "User" },
     ],
   },
   {
     label: "Análisis",
+    minRole: "Consultor",
     children: [
       {
         label: "Reporte",
@@ -128,11 +132,13 @@ export const menu: MenuItem[] = [
   },
   {
     // Gestión de usuarios — separada de la config de catálogos.
+    // Control de cambios lo baja a Auditor: es el rol de solo lectura + acceso
+    // al log de auditoría. Admin/Supervisor/SuperAdmin ya lo heredan por jerarquía.
     label: "Administración del sistema",
-    minRole: "Admin",
+    minRole: "Auditor",
     children: [
-      { label: "Usuarios",          href: "/configuracion/usuarios" },
-      { label: "Control de cambios", href: "/administracion/auditoria" },
+      { label: "Usuarios",          href: "/configuracion/usuarios", minRole: "Admin" },
+      { label: "Control de cambios", href: "/administracion/auditoria", minRole: "Auditor" },
       // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
     ],
   },

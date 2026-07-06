@@ -10,6 +10,7 @@ import { useOpenPendiente } from "../hooks/use-open-pendiente"
 import { useGetPendiente } from "../api/use-get-pendiente"
 import { useAgregarComentario } from "../api/use-agregar-comentario"
 import { useSubirAdjunto, useEliminarAdjunto } from "../api/use-adjuntos"
+import { useCanWrite } from "@/lib/use-roles"
 import { usePendienteTransicion } from "../api/use-pendiente-workflow"
 import { useUpdatePendiente } from "../api/use-update-pendiente"
 import { PendienteForm } from "./pendiente-form"
@@ -35,13 +36,15 @@ export function PendienteDetalleSheet() {
   const { data, isLoading } = useGetPendiente(id)
   const p = data?.data
   const [isEditing, setIsEditing] = useState(false)
+  // Consultor/Auditor: solo lectura del pendiente (ni editar ni workflow ni comentarios).
+  const canWrite = useCanWrite()
 
   // Al cambiar de pendiente o cerrar el sheet, salimos del modo edición.
   useEffect(() => {
     if (!isOpen) setIsEditing(false)
   }, [isOpen, id])
 
-  const puedeEditar = p?.estadoId === PENDIENTE_ESTADO_IDS.ABIERTO
+  const puedeEditar = canWrite && p?.estadoId === PENDIENTE_ESTADO_IDS.ABIERTO
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
@@ -114,20 +117,25 @@ export function PendienteDetalleSheet() {
               )}
             </section>
 
-            <Separator />
-
-            {/* Acciones de workflow */}
-            <Workflow pendienteId={p.id} estadoId={p.estadoId} />
+            {/* Workflow + acciones solo para roles de escritura. Consultor y Auditor
+                ven el detalle en modo lectura: comentarios/adjuntos listables, pero
+                sin poder agregar ni transicionar. */}
+            {canWrite && (
+              <>
+                <Separator />
+                <Workflow pendienteId={p.id} estadoId={p.estadoId} />
+              </>
+            )}
 
             <Separator />
 
             {/* Comentarios */}
-            <Comentarios pendienteId={p.id} comentarios={p.comentarios} />
+            <Comentarios pendienteId={p.id} comentarios={p.comentarios} canWrite={canWrite} />
 
             <Separator />
 
             {/* Adjuntos */}
-            <Adjuntos pendienteId={p.id} adjuntos={p.adjuntos} />
+            <Adjuntos pendienteId={p.id} adjuntos={p.adjuntos} canWrite={canWrite} />
 
             <Separator />
 
@@ -242,9 +250,11 @@ function Workflow({ pendienteId, estadoId }: { pendienteId: string; estadoId: st
 function Comentarios({
   pendienteId,
   comentarios,
+  canWrite,
 }: {
   pendienteId: string
   comentarios: { id: string; comentario: string; autorNombre: string | null; createdAt: string }[]
+  canWrite: boolean
 }) {
   const [texto, setTexto] = useState("")
   const agregar = useAgregarComentario()
@@ -278,18 +288,20 @@ function Comentarios({
         )}
       </div>
 
-      <div className="flex gap-2 items-end">
-        <Textarea
-          placeholder="Agregar comentario..."
-          rows={2}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          disabled={agregar.isPending}
-        />
-        <Button size="sm" disabled={!texto.trim() || agregar.isPending} onClick={enviar}>
-          {agregar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
-        </Button>
-      </div>
+      {canWrite && (
+        <div className="flex gap-2 items-end">
+          <Textarea
+            placeholder="Agregar comentario..."
+            rows={2}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            disabled={agregar.isPending}
+          />
+          <Button size="sm" disabled={!texto.trim() || agregar.isPending} onClick={enviar}>
+            {agregar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
+          </Button>
+        </div>
+      )}
     </section>
   )
 }
@@ -299,9 +311,11 @@ function Comentarios({
 function Adjuntos({
   pendienteId,
   adjuntos,
+  canWrite,
 }: {
   pendienteId: string
   adjuntos: { id: string; fileName: string; url: string; createdAt: string; createdByNombre: string | null }[]
+  canWrite: boolean
 }) {
   const subir = useSubirAdjunto()
   const eliminar = useEliminarAdjunto(pendienteId)
@@ -332,28 +346,32 @@ function Adjuntos({
               <span className="text-xs text-muted-foreground mx-3 truncate">
                 {a.createdByNombre} · {formatFecha(a.createdAt)}
               </span>
-              <Button
-                size="icon" variant="ghost"
-                className="h-7 w-7 text-red-600"
-                disabled={eliminar.isPending}
-                onClick={() => eliminar.mutate(a.id)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              {canWrite && (
+                <Button
+                  size="icon" variant="ghost"
+                  className="h-7 w-7 text-red-600"
+                  disabled={eliminar.isPending}
+                  onClick={() => eliminar.mutate(a.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           ))
         )}
       </div>
 
-      <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-blue-700 hover:underline">
-        {subir.isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Upload className="h-4 w-4" />
-        )}
-        Subir archivo
-        <input type="file" className="hidden" onChange={onPick} disabled={subir.isPending} />
-      </label>
+      {canWrite && (
+        <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-blue-700 hover:underline">
+          {subir.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+          Subir archivo
+          <input type="file" className="hidden" onChange={onPick} disabled={subir.isPending} />
+        </label>
+      )}
     </section>
   )
 }
