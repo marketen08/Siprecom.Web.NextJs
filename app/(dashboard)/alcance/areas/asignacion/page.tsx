@@ -169,16 +169,18 @@ export default function AsignacionAreasPage() {
   const [selectedDisp, setSelectedDisp] = useState<Set<string>>(new Set())
   const [selectedAsig, setSelectedAsig] = useState<Set<string>>(new Set())
 
-  // Paginación de la lista Disponibles. Los seleccionados sobreviven al cambio de página
-  // porque `selectedDisp` es un Set fuera del render de la lista — podés marcar en pág 1,
+  // Paginación por lista (independiente). Los seleccionados sobreviven al cambio de
+  // página porque los Sets viven fuera del render de la lista — podés marcar en pág 1,
   // saltar a pág 3, marcar más, volver a pág 1 y todo sigue seleccionado.
-  const [page, setPage] = useState(1)
+  const [pageDisp, setPageDisp] = useState(1)
+  const [pageAsig, setPageAsig] = useState(1)
   const pageSize = 50
 
   // Reset de página al cambiar de área o cualquier filtro — sino podés quedar en pág 5
   // con 2 páginas totales viendo lista vacía sin entender por qué.
   useEffect(() => {
-    setPage(1)
+    setPageDisp(1)
+    setPageAsig(1)
   }, [areaId, subFilter, espFilter, tipoElemFilter, search])
 
   const { data: areasData } = useGetAreas()
@@ -197,21 +199,32 @@ export default function AsignacionAreasPage() {
       .filter((t) => t.especialidadId === espFilter)
   }, [tiposElem, espFilter])
 
-  const { data: asignadosData, isLoading: loadingAsignados } = useGetElementosAsignadosArea(areaId)
-  const { data: dispData, isLoading: loadingDisp } = useGetElementosDisponiblesArea({
-    areaId,
+  // Ambos hooks reciben los MISMOS filtros — así ver la asignación es simétrico:
+  // el filtro "Subsistema X" acota disponibles y asignados al mismo alcance.
+  const filtrosComunes = {
     subSistemaId: subFilter === SUB_ALL ? undefined : subFilter,
     elementoTipoId: tipoElemFilter === TIPO_ELEM_ALL ? undefined : tipoElemFilter,
     especialidadId: espFilter === ESP_ALL ? undefined : espFilter,
     search: search || undefined,
-    page,
+  }
+
+  const { data: asignadosData, isLoading: loadingAsignados } = useGetElementosAsignadosArea({
+    areaId,
+    ...filtrosComunes,
+    page: pageAsig,
+    pageSize,
+  })
+  const { data: dispData, isLoading: loadingDisp } = useGetElementosDisponiblesArea({
+    areaId,
+    ...filtrosComunes,
+    page: pageDisp,
     pageSize,
   })
 
-  const asignados = asignadosData?.data ?? []
+  const asignados = asignadosData?.data?.data ?? []
+  const asignadosTotal = asignadosData?.data?.total ?? 0
   const disponibles = dispData?.data?.data ?? []
   const disponiblesTotal = dispData?.data?.total ?? 0
-  const disponiblesTotalPages = Math.max(1, Math.ceil(disponiblesTotal / pageSize))
 
   const asignarMutation = useAsignarElementosArea()
   const desasignarMutation = useDesasignarElementoArea()
@@ -392,10 +405,10 @@ export default function AsignacionAreasPage() {
               onToggle={toggleDisp}
               onReplace={setSelectedDisp}
               isLoading={loadingDisp}
-              page={page}
+              page={pageDisp}
               pageSize={pageSize}
               total={disponiblesTotal}
-              onPageChange={setPage}
+              onPageChange={setPageDisp}
             />
 
             <div className="flex md:flex-col items-center justify-center gap-3">
@@ -428,6 +441,10 @@ export default function AsignacionAreasPage() {
               onToggle={toggleAsig}
               onReplace={setSelectedAsig}
               isLoading={loadingAsignados}
+              page={pageAsig}
+              pageSize={pageSize}
+              total={asignadosTotal}
+              onPageChange={setPageAsig}
             />
           </div>
         </>

@@ -211,9 +211,11 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 // ─── TAB: Elementos ───────────────────────────────────────────────────────
 
 function TabElementos({ testGroupId, bloqueado }: { testGroupId: string; bloqueado: boolean }) {
-  const { data, isLoading } = useGetElementosAsignados(testGroupId)
+  // Detalle del pack: mostramos todos los asignados de una — pageSize=500 es el tope
+  // duro del backend. Si algún pack supera eso, hay que paginar acá también.
+  const { data, isLoading } = useGetElementosAsignados({ testGroupId, pageSize: 500 })
   const desasignar = useDesasignarElemento()
-  const elementos = data?.data ?? []
+  const elementos = data?.data?.data ?? []
 
   return (
     <Card className="p-0 overflow-hidden">
