@@ -4,7 +4,8 @@ import { useState } from "react"
 import {
   useReactTable, getCoreRowModel, flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import { ArrowRightLeft, Plus, Search } from "lucide-react"
+import Link from "next/link"
 
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
 import { useNewTestGroup } from "@/features/testgroups/hooks/use-new-testgroup"
@@ -87,6 +88,12 @@ export default function TestGroupsPage() {
           </Select>
 
           <div className="ml-auto flex gap-2">
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/alcance/test-groups/asignacion">
+                <ArrowRightLeft className="h-4 w-4" />
+                Asignar elementos
+              </Link>
+            </Button>
             <Button variant="outline" onClick={() => open(TIPO_TEST_GROUP.BASIC_FUNCTION)} className="gap-2">
               <Plus className="h-4 w-4" />
               Basic Function

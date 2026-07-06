@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, Search } from "lucide-react"
 
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
@@ -46,9 +46,17 @@ interface ListaProps {
   onReplace: (ids: Set<string>) => void
   isLoading: boolean
   right?: React.ReactNode
+  /** Paginación opcional. Cuando total > pageSize, se muestran controles al pie. */
+  page?: number
+  pageSize?: number
+  total?: number
+  onPageChange?: (p: number) => void
 }
 
-function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, isLoading, right }: ListaProps) {
+function ListaElementos({
+  titulo, vacio, items, selected, onToggle, onReplace, isLoading, right,
+  page, pageSize, total, onPageChange,
+}: ListaProps) {
   // Contamos cuántos de los ítems visibles están seleccionados. En el modelo,
   // `selected` puede tener ids de una carga previa (ej. antes de aplicar un filtro)
   // por eso comparamos contra `items` (los visibles ahora).
@@ -56,6 +64,12 @@ function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, i
   const hayItems = items.length > 0
   const todosSeleccionados = hayItems && seleccionadosVisibles === items.length
   const algunosSeleccionados = seleccionadosVisibles > 0 && !todosSeleccionados
+
+  // Total efectivo: si hay paginación, `total` viene del backend; sino usamos `items.length`.
+  const totalDisplay = total ?? items.length
+  const totalPages = total && pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1
+  const hayPaginacion = totalPages > 1 && page && onPageChange
+  const seleccionadosTotales = selected.size
 
   function toggleAll() {
     if (todosSeleccionados) {
@@ -73,7 +87,7 @@ function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, i
   }
 
   return (
-    <div className="flex flex-col rounded-lg border bg-card min-h-[500px]">
+    <div className="flex flex-col rounded-lg border bg-card min-h-125">
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
         <label className={`flex items-center gap-2 ${hayItems ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
           <input
@@ -89,12 +103,16 @@ function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, i
         </label>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {seleccionadosVisibles > 0 ? `${seleccionadosVisibles}/${items.length}` : items.length}
+            {hayPaginacion
+              ? (seleccionadosTotales > 0
+                  ? `${seleccionadosTotales} sel · ${totalDisplay}`
+                  : `${items.length} de ${totalDisplay}`)
+              : (seleccionadosVisibles > 0 ? `${seleccionadosVisibles}/${totalDisplay}` : totalDisplay)}
           </span>
           {right}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1 max-h-[500px]">
+      <div className={`flex-1 overflow-y-auto p-2 flex flex-col gap-1 ${hayPaginacion ? "max-h-115" : "max-h-125"}`}>
         {isLoading ? (
           <p className="text-sm text-muted-foreground p-3">Cargando...</p>
         ) : items.length === 0 ? (
@@ -129,6 +147,31 @@ function ListaElementos({ titulo, vacio, items, selected, onToggle, onReplace, i
           ))
         )}
       </div>
+      {hayPaginacion && (
+        <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
+          <span>Página {page} de {totalPages}</span>
+          <div className="flex gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onPageChange!(Math.max(1, page! - 1))}
+              disabled={page === 1}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onPageChange!(page! + 1)}
+              disabled={page! >= totalPages}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -143,6 +186,16 @@ export default function AsignacionPage() {
 
   const [selectedDisp, setSelectedDisp] = useState<Set<string>>(new Set())
   const [selectedAsig, setSelectedAsig] = useState<Set<string>>(new Set())
+
+  // Paginación de la lista Disponibles. Los seleccionados sobreviven al cambio de página
+  // porque `selectedDisp` es un Set fuera del render de la lista.
+  const [page, setPage] = useState(1)
+  const pageSize = 50
+
+  // Reset al cambiar de pack o cualquier filtro — sino quedás en pág 5 sin resultados.
+  useEffect(() => {
+    setPage(1)
+  }, [testGroupId, subFilter, especialidadFilter, tipoElemFilter, search])
 
   const tipoParam: TipoTestGroup | undefined =
     tipoFilter === TIPO_ALL ? undefined : (parseInt(tipoFilter, 10) as TipoTestGroup)
@@ -174,10 +227,13 @@ export default function AsignacionPage() {
     elementoTipoId: tipoElemFilter === TIPO_ELEM_ALL ? undefined : tipoElemFilter,
     especialidadId: especialidadFilter === ESP_ALL ? undefined : especialidadFilter,
     search: search || undefined,
+    page,
+    pageSize,
   })
 
   const asignados = asignadosData?.data ?? []
-  const disponibles = dispData?.data ?? []
+  const disponibles = dispData?.data?.data ?? []
+  const disponiblesTotal = dispData?.data?.total ?? 0
 
   const asignarMutation = useAsignarElementos()
   const desasignarMutation = useDesasignarElemento()
@@ -364,6 +420,10 @@ export default function AsignacionPage() {
               onToggle={toggleDisp}
               onReplace={setSelectedDisp}
               isLoading={loadingDisp}
+              page={page}
+              pageSize={pageSize}
+              total={disponiblesTotal}
+              onPageChange={setPage}
             />
 
             <div className="flex md:flex-col items-center justify-center gap-3">

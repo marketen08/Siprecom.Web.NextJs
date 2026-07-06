@@ -6,7 +6,8 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import { ArrowRightLeft, Plus, Search } from "lucide-react"
+import Link from "next/link"
 
 import { useGetAreas } from "@/features/areas/api/use-get-areas"
 import { useNewArea } from "@/features/areas/hooks/use-new-area"
@@ -65,10 +66,18 @@ export default function AreasPage() {
               className="pl-9"
             />
           </div>
-          <Button onClick={open} className="gap-2 ml-auto">
-            <Plus className="h-4 w-4" />
-            Nueva área
-          </Button>
+          <div className="ml-auto flex gap-2">
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/alcance/areas/asignacion">
+                <ArrowRightLeft className="h-4 w-4" />
+                Asignar elementos
+              </Link>
+            </Button>
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nueva área
+            </Button>
+          </div>
         </div>
 
         <DataTableWrapper isFetching={isFetching && !isLoading}>
