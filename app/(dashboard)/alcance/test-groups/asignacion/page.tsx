@@ -9,7 +9,7 @@ import { useGetElementosDisponibles } from "@/features/testgroups/api/use-get-el
 import { fetchElementosDisponiblesIds } from "@/features/testgroups/api/use-get-elementos-disponibles-ids"
 import { fetchElementosAsignadosIds } from "@/features/testgroups/api/use-get-elementos-asignados-ids"
 import { useAsignarElementos } from "@/features/testgroups/api/use-asignar-elementos"
-import { useDesasignarElemento } from "@/features/testgroups/api/use-desasignar-elemento"
+import { useDesasignarElementos } from "@/features/testgroups/api/use-desasignar-elementos"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
@@ -300,7 +300,7 @@ export default function AsignacionPage() {
   const disponiblesTotal = dispData?.data?.total ?? 0
 
   const asignarMutation = useAsignarElementos()
-  const desasignarMutation = useDesasignarElemento()
+  const desasignarMutation = useDesasignarElementos()
 
   const tgActual = useMemo(() => testGroups.find((t) => t.id === testGroupId), [testGroups, testGroupId])
 
@@ -330,9 +330,11 @@ export default function AsignacionPage() {
 
   const handleDesasignar = async () => {
     if (!testGroupId || selectedAsig.size === 0) return
-    for (const elementoId of Array.from(selectedAsig)) {
-      await desasignarMutation.mutateAsync({ testGroupId, elementoId })
-    }
+    // Bulk en 1 llamada — antes iterábamos con N HTTP round-trips (10k tomaba minutos).
+    await desasignarMutation.mutateAsync({
+      testGroupId,
+      elementoIds: Array.from(selectedAsig),
+    })
     setSelectedAsig(new Set())
   }
 

@@ -9,7 +9,7 @@ import { useGetElementosDisponiblesArea } from "@/features/areas/api/use-get-ele
 import { fetchElementosDisponiblesIdsArea } from "@/features/areas/api/use-get-elementos-disponibles-ids-area"
 import { fetchElementosAsignadosIdsArea } from "@/features/areas/api/use-get-elementos-asignados-ids-area"
 import { useAsignarElementosArea } from "@/features/areas/api/use-asignar-elementos-area"
-import { useDesasignarElementoArea } from "@/features/areas/api/use-desasignar-elemento-area"
+import { useDesasignarElementosArea } from "@/features/areas/api/use-desasignar-elementos-area"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
@@ -279,7 +279,7 @@ export default function AsignacionAreasPage() {
   const disponiblesTotal = dispData?.data?.total ?? 0
 
   const asignarMutation = useAsignarElementosArea()
-  const desasignarMutation = useDesasignarElementoArea()
+  const desasignarMutation = useDesasignarElementosArea()
 
   const areaActual = useMemo(() => areas.find((a) => a.id === areaId), [areas, areaId])
 
@@ -309,9 +309,11 @@ export default function AsignacionAreasPage() {
 
   const handleDesasignar = async () => {
     if (!areaId || selectedAsig.size === 0) return
-    for (const elementoId of Array.from(selectedAsig)) {
-      await desasignarMutation.mutateAsync({ areaId, elementoId })
-    }
+    // Bulk en 1 llamada — antes iterábamos con N HTTP round-trips (10k tomaba minutos).
+    await desasignarMutation.mutateAsync({
+      areaId,
+      elementoIds: Array.from(selectedAsig),
+    })
     setSelectedAsig(new Set())
   }
 
