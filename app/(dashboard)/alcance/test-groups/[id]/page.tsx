@@ -576,12 +576,12 @@ function TabProgreso({ testGroupId }: { testGroupId: string }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card className="p-6 flex flex-col items-center gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Progreso atómico</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Progreso</p>
         <div className="text-5xl font-bold tabular-nums text-blue-700">
           {isLoading ? "…" : `${porcentaje}%`}
         </div>
         <p className="text-xs text-muted-foreground">
-          {terminales} / {total} tareas terminales
+          {terminales} / {total} tareas completadas
         </p>
         <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
           <div className="h-full bg-blue-600 transition-all" style={{ width: `${porcentaje}%` }} />
