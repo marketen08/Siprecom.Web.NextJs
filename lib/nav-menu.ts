@@ -95,11 +95,21 @@ export const menu: MenuItem[] = [
       { label: "Subsistemas",  href: "/alcance/subsistemas" },
       { label: "Elementos",    href: "/alcance/elementos" },
       { label: "Tareas",       href: "/alcance/tareas" },
-      { label: "Áreas",        href: "/alcance/areas" },
-      { label: "Asignar a áreas", href: "/alcance/areas/asignacion" },
+      {
+        label: "Áreas",
+        children: [
+          { label: "Crear",   href: "/alcance/areas" },
+          { label: "Asignar", href: "/alcance/areas/asignacion" },
+        ],
+      },
       { label: "Módulos",      href: "/alcance/modulos" },
-      { label: "Paquetes de prueba", href: "/alcance/test-groups" },
-      { label: "Asignar a paquetes",  href: "/alcance/test-groups/asignacion" },
+      {
+        label: "Paquetes de prueba",
+        children: [
+          { label: "Crear",   href: "/alcance/test-groups" },
+          { label: "Asignar", href: "/alcance/test-groups/asignacion" },
+        ],
+      },
       {
         label: "Importar",
         children: [
