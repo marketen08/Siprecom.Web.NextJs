@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowRight, MapPin, Search } from "lucide-react"
 
 import { useGetAreas } from "@/features/areas/api/use-get-areas"
@@ -212,7 +213,22 @@ function ListaElementos({
 }
 
 export default function AsignacionAreasPage() {
-  const [areaId, setAreaId] = useState<string | null>(null)
+  // useSearchParams necesita Suspense para no romper el static rendering.
+  return (
+    <Suspense>
+      <AsignacionAreasPageContent />
+    </Suspense>
+  )
+}
+
+function AsignacionAreasPageContent() {
+  // Pre-selección desde la URL — se dispara desde el dropdown de acciones en
+  // /alcance/areas. Solo aplica en el mount inicial; después el user puede
+  // cambiarlo normalmente desde el Select.
+  const searchParams = useSearchParams()
+  const areaIdFromUrl = searchParams.get("areaId")
+
+  const [areaId, setAreaId] = useState<string | null>(areaIdFromUrl)
   const [subFilter, setSubFilter] = useState<string>(SUB_ALL)
   const [espFilter, setEspFilter] = useState<string>(ESP_ALL)
   const [tipoElemFilter, setTipoElemFilter] = useState<string>(TIPO_ELEM_ALL)
@@ -234,6 +250,17 @@ export default function AsignacionAreasPage() {
     setPageDisp(1)
     setPageAsig(1)
   }, [areaId, subFilter, espFilter, tipoElemFilter, search])
+
+  // Si el usuario navega de vuelta a esta página con otro areaId en la URL (ej.
+  // abrió el dropdown de acciones de otra área), sincronizamos el state.
+  useEffect(() => {
+    if (areaIdFromUrl && areaIdFromUrl !== areaId) {
+      setAreaId(areaIdFromUrl)
+      setSelectedDisp(new Set())
+      setSelectedAsig(new Set())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaIdFromUrl])
 
   const { data: areasData } = useGetAreas()
   const areas = areasData?.data ?? []
