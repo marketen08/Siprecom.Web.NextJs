@@ -11,6 +11,7 @@ import { fetchElementosAsignadosIds } from "@/features/testgroups/api/use-get-el
 import { useAsignarElementos } from "@/features/testgroups/api/use-asignar-elementos"
 import { useDesasignarElementos } from "@/features/testgroups/api/use-desasignar-elementos"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, type EstadoTestGroup, type TipoTestGroup } from "@/features/testgroups/types"
@@ -257,6 +258,13 @@ export default function AsignacionPage() {
 
   const { data: subsData } = useGetSubSistemasSelect()
   const subs = subsData?.data ?? []
+
+  // Flag efectivo del proyecto: si TestGroups multi-subsistema está apagado (OPERCOM),
+  // ocultamos el select de subsistema del filtro. El backend igual restringe a los
+  // elementos del subsistema del pack — el filtro sería puramente confuso.
+  const { data: proyectos } = useGetMisProyectos()
+  const proyectoActivo = proyectos?.find((p) => p.esActivo)
+  const permiteMultiSubsistema = proyectoActivo?.testGroupsMultiSubsistema ?? false
   // Usamos las variantes "usadas/usados" — solo especialidades y tipos con al
   // menos un Elemento en el proyecto activo. Evita ofrecer opciones que darían
   // lista vacía al filtrar.
@@ -389,6 +397,13 @@ export default function AsignacionPage() {
             </Badge>
           )}
         </div>
+        {tgActual && !permiteMultiSubsistema && (
+          <p className="text-xs text-muted-foreground">
+            Este proyecto restringe los paquetes a un único subsistema (OPERCOM).
+            Solo se muestran los elementos del subsistema <strong>{tgActual.subSistemaCodigo ?? "—"}</strong>.
+            Habilitá "TestGroups multi-subsistema" en las funcionalidades del proyecto para permitir cross-subsistema.
+          </p>
+        )}
       </div>
 
       {!testGroupId ? (
@@ -408,23 +423,25 @@ export default function AsignacionPage() {
                 className="pl-9"
               />
             </div>
-            <Select value={subFilter} onValueChange={(v) => setSubFilter(v ?? SUB_ALL)}>
-              <SelectTrigger className="w-72">
-                <SelectValue placeholder="Todos los subsistemas">
-                  {(() => {
-                    if (subFilter === SUB_ALL) return "Todos los subsistemas"
-                    const s = subs.find((x) => x.id === subFilter)
-                    return s ? `${s.codigo} — ${s.nombre}` : "Todos los subsistemas"
-                  })()}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={SUB_ALL}>Todos los subsistemas</SelectItem>
-                {subs.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {permiteMultiSubsistema && (
+              <Select value={subFilter} onValueChange={(v) => setSubFilter(v ?? SUB_ALL)}>
+                <SelectTrigger className="w-72">
+                  <SelectValue placeholder="Todos los subsistemas">
+                    {(() => {
+                      if (subFilter === SUB_ALL) return "Todos los subsistemas"
+                      const s = subs.find((x) => x.id === subFilter)
+                      return s ? `${s.codigo} — ${s.nombre}` : "Todos los subsistemas"
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SUB_ALL}>Todos los subsistemas</SelectItem>
+                  {subs.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Select
               value={especialidadFilter}

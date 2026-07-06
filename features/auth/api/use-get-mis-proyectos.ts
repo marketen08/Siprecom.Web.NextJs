@@ -11,6 +11,11 @@ export interface ProyectoOpcion {
   registrosFisicosPreFirmados: boolean
   /** Maqueta 3D efectiva (global AND proyecto) para este proyecto. */
   maqueta3d: boolean
+  /**
+   * TestGroups multi-subsistema efectivo. Cuando es false (default), los TestGroups
+   * quedan restringidos a un único subsistema — el del pack — según OPERCOM.
+   */
+  testGroupsMultiSubsistema: boolean
 }
 
 export function useGetMisProyectos() {
