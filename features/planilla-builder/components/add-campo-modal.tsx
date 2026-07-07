@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -24,7 +24,8 @@ import {
   type CampoListaRenderMode,
   type PlanillaSeccion,
 } from "@/features/planillas/types"
-import { ArrowDown, ArrowUp, ImageIcon, Trash2, Plus, Star } from "lucide-react"
+import { ArrowDown, ArrowUp, ClipboardPaste, ImageIcon, Trash2, Plus, Star } from "lucide-react"
+import { BulkPasteOpcionesDialog } from "@/features/campos/components/bulk-paste-opciones-dialog"
 
 import {
   Sheet,
@@ -63,7 +64,15 @@ interface AddCampoModalProps {
   nextOrden: number
 }
 
-type Tab = "existing" | "new"
+type Tab = "existing" | "new" | "bulk"
+type BulkTipo = 1 | 11 // Texto | Checklist
+
+/** Opciones precargadas para el bloque compartido de Checklist en el tab "bulk". */
+const BULK_CHECKLIST_DEFAULT_OPCIONES: Array<{ valor: string; etiqueta: string }> = [
+  { valor: "SI", etiqueta: "Sí" },
+  { valor: "NO", etiqueta: "No" },
+  { valor: "NA", etiqueta: "No Aplica" },
+]
 
 export function AddCampoModal({
   open,
@@ -92,6 +101,22 @@ export function AddCampoModal({
   // PlanillaCampo.ValorDefault al agregar el campo. null = sin default.
   const [opcionDefaultValor, setOpcionDefaultValor] = useState<string | null>(null)
   const [opcionInput, setOpcionInput] = useState({ valor: "", etiqueta: "" })
+  const [bulkPasteOpen, setBulkPasteOpen] = useState(false)
+
+  // ── Tab "En lote" ─────────────────────────────────────────────────────────
+  // Crea N campos de golpe (Checklist o Texto) desde una lista de etiquetas.
+  // Todos comparten sección, obligatoriedad y — para Checklist — el mismo set
+  // de opciones (default Sí/No/NA, editable).
+  const [bulkTipo, setBulkTipo] = useState<BulkTipo>(11)
+  const [bulkEtiquetas, setBulkEtiquetas] = useState("")
+  const [bulkReusar, setBulkReusar] = useState(true)
+  const [bulkChecklistOpciones, setBulkChecklistOpciones] = useState<
+    Array<{ valor: string; etiqueta: string }>
+  >(BULK_CHECKLIST_DEFAULT_OPCIONES)
+  const [bulkOpcionInput, setBulkOpcionInput] = useState({ valor: "", etiqueta: "" })
+  const [bulkPending, setBulkPending] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+  const [bulkResumen, setBulkResumen] = useState<string | null>(null)
   // Mientras esté en false, cada opción nueva se inserta alfabéticamente por etiqueta.
   // En cuanto el usuario use las flechas, pasa a true y se respeta su orden manual.
   const [opcionesManualOrder, setOpcionesManualOrder] = useState(false)
@@ -164,6 +189,13 @@ export function AddCampoModal({
     setLabelStyle({ negrita: false, conBorde: false, fondoGris: false, alineacion: 0, sinPadding: false, sinMargen: false })
     setEsObligatorio(false)
     setCodigoSucio(false)
+    setBulkTipo(11)
+    setBulkEtiquetas("")
+    setBulkReusar(true)
+    setBulkChecklistOpciones(BULK_CHECKLIST_DEFAULT_OPCIONES)
+    setBulkOpcionInput({ valor: "", etiqueta: "" })
+    setBulkError(null)
+    setBulkResumen(null)
     form.reset()
     onClose()
   }
@@ -298,6 +330,190 @@ export function AddCampoModal({
     setOpcionesManualOrder(true)
   }
 
+  // ── Parse + estado por línea del tab "En lote" ────────────────────────────
+  // Cada línea puede terminar en uno de 4 estados:
+  //   - "reusa"       — reuso activo + matcheo por etiqueta case-insensitive
+  //   - "nuevo"       — se crea un Campo nuevo (con opciones si es Checklist)
+  //   - "en_planilla" — reuso encontró el campo, pero ya está en esta planilla
+  //   - "dup"         — la etiqueta ya apareció más arriba en el mismo pegado
+  const bulkParsed = useMemo(() => {
+    const lineas = bulkEtiquetas
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+
+    // Catálogo filtrado por tipo, indexado por etiqueta lowercase. Sólo con
+    // reuso activo — sino, forzamos crear cada campo aunque exista.
+    const catalogo = new Map<string, (typeof campos)[number]>()
+    if (bulkReusar) {
+      for (const c of campos) {
+        if (c.tipoDato === bulkTipo) {
+          catalogo.set(String(c.etiqueta ?? "").trim().toLowerCase(), c)
+        }
+      }
+    }
+
+    // Códigos ya tomados: los del catálogo entero + los que vayamos generando
+    // en esta corrida. Comparamos uppercase.
+    const codigosDB = new Set(
+      campos.map((c) => String(c.codigo ?? "").toUpperCase()),
+    )
+    const codigosGenerados = new Set<string>()
+    const generarCodigo = (etiqueta: string): string => {
+      const base =
+        slugifyCodigoCampo(etiqueta, 30) || etiqueta.toUpperCase().slice(0, 30) || "CAMPO"
+      let candidato = base
+      let n = 2
+      while (
+        codigosDB.has(candidato.toUpperCase()) ||
+        codigosGenerados.has(candidato.toUpperCase())
+      ) {
+        // Recortamos el base para dejar lugar al sufijo y no pasar 30 chars.
+        const sufijo = `_${n}`
+        candidato = base.slice(0, Math.max(1, 30 - sufijo.length)) + sufijo
+        n += 1
+      }
+      codigosGenerados.add(candidato.toUpperCase())
+      return candidato
+    }
+
+    const vistos = new Set<string>()
+    return lineas.map((etiqueta) => {
+      const key = etiqueta.toLowerCase()
+      if (vistos.has(key)) {
+        return { etiqueta, estado: "dup" as const }
+      }
+      vistos.add(key)
+
+      const existente = catalogo.get(key)
+      if (existente) {
+        if (existingCampoIds.includes(existente.id)) {
+          return {
+            etiqueta,
+            estado: "en_planilla" as const,
+            campoIdExistente: existente.id,
+          }
+        }
+        return {
+          etiqueta,
+          estado: "reusa" as const,
+          campoIdExistente: existente.id,
+          codigoExistente: existente.codigo,
+        }
+      }
+
+      return {
+        etiqueta,
+        estado: "nuevo" as const,
+        codigoNuevo: generarCodigo(etiqueta),
+      }
+    })
+  }, [bulkEtiquetas, bulkTipo, bulkReusar, campos, existingCampoIds])
+
+  const bulkAInsertar = bulkParsed.filter(
+    (p) => p.estado === "reusa" || p.estado === "nuevo",
+  )
+
+  const handleBulkCreateAndAdd = async () => {
+    if (bulkAInsertar.length === 0) return
+    setBulkPending(true)
+    setBulkError(null)
+    setBulkResumen(null)
+    try {
+      let creados = 0
+      let reusados = 0
+      let orden = nextOrden
+      for (const item of bulkAInsertar) {
+        let campoId: string
+        if (item.estado === "reusa") {
+          campoId = item.campoIdExistente
+          reusados += 1
+        } else {
+          // Crear Campo. Para Checklist, además creamos las opciones compartidas.
+          const res: any = await createCampoMutation.mutateAsync({
+            codigo: item.codigoNuevo,
+            etiqueta: item.etiqueta,
+            tipoDato: bulkTipo as CampoTipoDato,
+            unidad: "",
+            descripcion: "",
+            esObligatorioDefault: esObligatorio,
+          } as any)
+          const newId = res?.data?.id ?? res?.id
+          if (!newId) throw new Error(`No se pudo crear el campo "${item.etiqueta}"`)
+          if (bulkTipo === 11 && bulkChecklistOpciones.length > 0) {
+            for (let i = 0; i < bulkChecklistOpciones.length; i++) {
+              const op = bulkChecklistOpciones[i]
+              await createOpcionMutation.mutateAsync({
+                campoId: newId,
+                valor: op.valor.trim(),
+                etiqueta: op.etiqueta.trim(),
+                orden: i + 1,
+              })
+            }
+          }
+          campoId = newId
+          creados += 1
+        }
+
+        await addCampoMutation.mutateAsync({
+          planillaId,
+          campoId,
+          planillaSeccionId: seccionId === "__none__" ? undefined : seccionId,
+          orden,
+          esObligatorio,
+          visible: true,
+          soloLectura: false,
+          // Checklist siempre 12; Texto respeta 12 también (default de este flujo).
+          tamano: 12,
+        })
+        orden += 1
+      }
+      setBulkResumen(
+        `Se agregaron ${creados + reusados} campo${creados + reusados !== 1 ? "s" : ""}` +
+          (reusados > 0 ? ` (${creados} nuevo${creados !== 1 ? "s" : ""}, ${reusados} reusado${reusados !== 1 ? "s" : ""})` : ""),
+      )
+      // Cerramos al terminar; el resumen se pierde con el reset. Es intencional:
+      // el user verá los campos aparecer en la planilla al volver al builder.
+      handleClose()
+    } catch (err) {
+      setBulkError((err as Error)?.message ?? "No se pudieron crear los campos.")
+    } finally {
+      setBulkPending(false)
+    }
+  }
+
+  const handleAddBulkOpcion = () => {
+    if (!bulkOpcionInput.valor.trim() || !bulkOpcionInput.etiqueta.trim()) return
+    setBulkChecklistOpciones((prev) => [
+      ...prev,
+      { valor: bulkOpcionInput.valor.trim(), etiqueta: bulkOpcionInput.etiqueta.trim() },
+    ])
+    setBulkOpcionInput({ valor: "", etiqueta: "" })
+  }
+
+  const handleBulkPasteConfirm = (
+    nuevas: Array<{ valor: string; etiqueta: string }>,
+    modo: "append" | "replace",
+  ) => {
+    // Bulk paste respeta el orden pegado — pasa a modo manual para que futuras
+    // altas se agreguen al final en lugar de reordenarse alfabéticamente.
+    setOpcionesManualOrder(true)
+    setTempOpciones((prev) => {
+      if (modo === "replace") {
+        // Limpiar el default si el valor previo ya no está en la nueva lista.
+        if (
+          opcionDefaultValor &&
+          !nuevas.some((n) => n.valor === opcionDefaultValor)
+        ) {
+          setOpcionDefaultValor(null)
+        }
+        return nuevas
+      }
+      return [...prev, ...nuevas]
+    })
+    setBulkPasteOpen(false)
+  }
+
   const isPending = createCampoMutation.isPending || createOpcionMutation.isPending || addCampoMutation.isPending
 
   return (
@@ -306,7 +522,8 @@ export function AddCampoModal({
         <SheetHeader>
           <SheetTitle>Agregar campo</SheetTitle>
           <SheetDescription>
-            Seleccioná un campo existente o creá uno nuevo.
+            Seleccioná un campo existente, creá uno nuevo, o cargá varios de una
+            vez pegando una lista.
           </SheetDescription>
         </SheetHeader>
 
@@ -335,6 +552,17 @@ export function AddCampoModal({
             >
               Crear nuevo campo
             </button>
+            <button
+              className={cn(
+                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                tab === "bulk"
+                  ? "border-blue-900 text-blue-900"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setTab("bulk")}
+            >
+              En lote
+            </button>
           </div>
 
           {/* Sección destino (shared) */}
@@ -358,7 +586,9 @@ export function AddCampoModal({
           </div>
 
           {/* Ancho del campo (shared) — deshabilitado cuando el campo es Checklist,
-              porque en tabla siempre ocupa la fila completa. */}
+              porque en tabla siempre ocupa la fila completa. El tab "En lote"
+              usa ancho 12 fijo, así que ocultamos el selector ahí. */}
+          {tab !== "bulk" && (
           <div className="space-y-1.5">
             <Label>Ancho del campo</Label>
             <div className="flex items-center gap-2">
@@ -414,9 +644,11 @@ export function AddCampoModal({
                 : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
+          )}
 
-          {/* Obligatorio (compartido entre ambas tabs). En "Nuevo" se guarda además
-              como default del campo; en "Existente" se precarga de ese default. */}
+          {/* Obligatorio (compartido entre las tres tabs). En "Nuevo"/"Bulk" se
+              guarda además como default del campo; en "Existente" se precarga
+              de ese default. */}
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"
@@ -493,7 +725,7 @@ export function AddCampoModal({
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : tab === "new" ? (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleCreateAndAdd)} className="space-y-3">
                 {/* Orden: tipo → etiqueta → código (autoderivado) → unidad. */}
@@ -755,12 +987,26 @@ export function AddCampoModal({
                       </div>
                     )}
 
-                    <p className="text-xs font-semibold text-blue-900">
-                      Opciones {isChecklistNuevo ? "del checklist" : "de la lista"}
-                    </p>
-                    <p className="text-[10px] text-blue-700/70 -mt-1">
-                      Tocá la ★ para marcar el valor por defecto.
-                    </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold text-blue-900">
+                          Opciones {isChecklistNuevo ? "del checklist" : "de la lista"}
+                        </p>
+                        <p className="text-[10px] text-blue-700/70">
+                          Tocá la ★ para marcar el valor por defecto.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 shrink-0"
+                        onClick={() => setBulkPasteOpen(true)}
+                        disabled={isPending}
+                      >
+                        <ClipboardPaste className="h-3.5 w-3.5" /> Pegar en lote
+                      </Button>
+                    </div>
 
                     {tempOpciones.length > 0 && (
                       <div className="space-y-1">
@@ -862,9 +1108,259 @@ export function AddCampoModal({
                 </div>
               </form>
             </Form>
+          ) : (
+            // ─── Tab "En lote" ──────────────────────────────────────────────
+            <div className="space-y-3">
+              <div className="rounded-md border border-blue-100 bg-blue-50/40 p-3 space-y-3">
+                <p className="text-xs text-blue-900">
+                  Pegá una lista de etiquetas — cada línea se convierte en un campo
+                  independiente en esta planilla.
+                </p>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tipo de campo</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulk-tipo"
+                        checked={bulkTipo === 11}
+                        onChange={() => setBulkTipo(11)}
+                        disabled={bulkPending}
+                        className="h-3.5 w-3.5"
+                      />
+                      Checklist
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulk-tipo"
+                        checked={bulkTipo === 1}
+                        onChange={() => setBulkTipo(1)}
+                        disabled={bulkPending}
+                        className="h-3.5 w-3.5"
+                      />
+                      Texto
+                    </label>
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={bulkReusar}
+                    onChange={(e) => setBulkReusar(e.target.checked)}
+                    disabled={bulkPending}
+                    className="h-3.5 w-3.5 mt-0.5"
+                  />
+                  <span>
+                    Reusar campos existentes del catálogo cuando la etiqueta coincida
+                    (case-insensitive).
+                  </span>
+                </label>
+              </div>
+
+              {/* Opciones compartidas — sólo Checklist. Precarga Sí/No/N/A. */}
+              {bulkTipo === 11 && (
+                <div className="rounded-md border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-blue-900">
+                    Opciones compartidas del checklist
+                  </p>
+                  <p className="text-[10px] text-blue-700/70 -mt-1">
+                    Se aplican a todos los campos que se creen. Los reusados
+                    conservan sus opciones actuales.
+                  </p>
+                  {bulkChecklistOpciones.length > 0 && (
+                    <div className="space-y-1">
+                      {bulkChecklistOpciones.map((op, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1"
+                        >
+                          <span className="font-mono text-gray-500 shrink-0 w-16 truncate">
+                            {op.valor}
+                          </span>
+                          <span className="flex-1 truncate">{op.etiqueta}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setBulkChecklistOpciones((prev) => prev.filter((_, j) => j !== i))
+                            }
+                            className="text-gray-400 hover:text-red-500 shrink-0"
+                            aria-label="Quitar"
+                            disabled={bulkPending}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-end gap-1.5">
+                    <div className="space-y-1 w-24 shrink-0">
+                      <Label className="text-xs">Valor</Label>
+                      <Input
+                        value={bulkOpcionInput.valor}
+                        onChange={(e) =>
+                          setBulkOpcionInput((p) => ({ ...p, valor: e.target.value }))
+                        }
+                        placeholder="SI"
+                        className="h-7 text-xs font-mono"
+                        disabled={bulkPending}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); handleAddBulkOpcion() }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <Label className="text-xs">Etiqueta</Label>
+                      <Input
+                        value={bulkOpcionInput.etiqueta}
+                        onChange={(e) =>
+                          setBulkOpcionInput((p) => ({ ...p, etiqueta: e.target.value }))
+                        }
+                        placeholder="Sí"
+                        className="h-7 text-xs"
+                        disabled={bulkPending}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); handleAddBulkOpcion() }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 shrink-0"
+                      onClick={handleAddBulkOpcion}
+                      disabled={
+                        bulkPending ||
+                        !bulkOpcionInput.valor.trim() ||
+                        !bulkOpcionInput.etiqueta.trim()
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Etiquetas — una por línea</Label>
+                <textarea
+                  value={bulkEtiquetas}
+                  onChange={(e) => setBulkEtiquetas(e.target.value)}
+                  rows={8}
+                  placeholder={"Verificar torque de bulones\nInspeccionar sello mecánico\nMedir alineación acople"}
+                  disabled={bulkPending}
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 font-sans"
+                />
+              </div>
+
+              {bulkParsed.length > 0 && (
+                <div className="rounded-md border max-h-64 overflow-y-auto bg-white">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr className="border-b">
+                        <th className="text-left px-2 py-1.5 font-medium text-gray-600">
+                          Etiqueta
+                        </th>
+                        <th className="text-left px-2 py-1.5 font-medium text-gray-600 w-40">
+                          Código
+                        </th>
+                        <th className="text-right px-2 py-1.5 font-medium text-gray-600 w-28">
+                          Acción
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkParsed.map((it, i) => (
+                        <tr
+                          key={i}
+                          className={cn(
+                            "border-t",
+                            (it.estado === "dup" || it.estado === "en_planilla") &&
+                              "bg-amber-50/50",
+                          )}
+                        >
+                          <td className="px-2 py-1">{it.etiqueta}</td>
+                          <td className="px-2 py-1 font-mono text-gray-700">
+                            {it.estado === "nuevo"
+                              ? it.codigoNuevo
+                              : it.estado === "reusa"
+                                ? it.codigoExistente
+                                : "—"}
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            {it.estado === "nuevo" ? (
+                              <span className="text-emerald-700 text-[10px] uppercase font-semibold">
+                                crear
+                              </span>
+                            ) : it.estado === "reusa" ? (
+                              <span className="text-blue-700 text-[10px] uppercase font-semibold">
+                                reusar
+                              </span>
+                            ) : it.estado === "en_planilla" ? (
+                              <span className="text-amber-700 text-[10px] uppercase font-semibold">
+                                ya en planilla
+                              </span>
+                            ) : (
+                              <span className="text-amber-700 text-[10px] uppercase font-semibold">
+                                duplicado
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bulkError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 whitespace-pre-line">
+                  {bulkError}
+                </div>
+              )}
+
+              {bulkResumen && !bulkError && (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                  {bulkResumen}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  className="flex-1 bg-blue-900 hover:bg-blue-800"
+                  onClick={handleBulkCreateAndAdd}
+                  disabled={bulkPending || bulkAInsertar.length === 0}
+                >
+                  {bulkPending
+                    ? "Creando..."
+                    : `Crear y agregar ${bulkAInsertar.length} campo${bulkAInsertar.length !== 1 ? "s" : ""}`}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={bulkPending}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </SheetContent>
+
+      <BulkPasteOpcionesDialog
+        open={bulkPasteOpen}
+        onOpenChange={setBulkPasteOpen}
+        existingValores={tempOpciones.map((o) => o.valor)}
+        allowReplace
+        onConfirm={handleBulkPasteConfirm}
+      />
     </Sheet>
   )
 }

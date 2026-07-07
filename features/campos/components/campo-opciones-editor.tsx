@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowDown, ArrowUp, Star, Trash2, Plus, Loader2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ClipboardPaste, Star, Trash2, Plus, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ import { useCreateOpcion } from "../api/use-create-opcion"
 import { useDeleteOpcion } from "../api/use-delete-opcion"
 import { useReorderOpciones } from "../api/use-reorder-opciones"
 import { useToggleOpcionDefault } from "../api/use-toggle-opcion-default"
+import { BulkPasteOpcionesDialog } from "./bulk-paste-opciones-dialog"
 import type { CampoOpcion } from "@/features/planillas/types"
 
 /** Editor de opciones de un campo Lista (global): agregar/quitar/reordenar + marcar default. */
@@ -29,6 +30,8 @@ export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
 
   const [valor, setValor] = useState("")
   const [etiqueta, setEtiqueta] = useState("")
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkPending, setBulkPending] = useState(false)
 
   const busy =
     createOpcion.isPending || deleteOpcion.isPending || reorderOpciones.isPending || toggleDefault.isPending
@@ -42,6 +45,28 @@ export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
     )
   }
 
+  const handleBulkConfirm = async (
+    nuevas: Array<{ valor: string; etiqueta: string }>,
+  ) => {
+    // Sin endpoint bulk: serializamos para respetar orden y no saturar la API.
+    setBulkPending(true)
+    try {
+      let ordenBase = opciones.reduce((m, o) => Math.max(m, o.orden), 0)
+      for (const op of nuevas) {
+        ordenBase += 1
+        await createOpcion.mutateAsync({
+          campoId,
+          valor: op.valor,
+          etiqueta: op.etiqueta,
+          orden: ordenBase,
+        })
+      }
+      setBulkOpen(false)
+    } finally {
+      setBulkPending(false)
+    }
+  }
+
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir
     if (j < 0 || j >= opciones.length) return
@@ -52,10 +77,24 @@ export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
 
   return (
     <div className="mt-6 rounded-md border bg-blue-50/40 p-3 space-y-2">
-      <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
-      <p className="text-[10px] text-blue-700/70 -mt-1">
-        Tocá la ★ para marcar el valor por defecto (precarga al agregar el campo a una planilla).
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
+          <p className="text-[10px] text-blue-700/70">
+            Tocá la ★ para marcar el valor por defecto (precarga al agregar el campo a una planilla).
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1.5 shrink-0"
+          onClick={() => setBulkOpen(true)}
+          disabled={busy || bulkPending}
+        >
+          <ClipboardPaste className="h-3.5 w-3.5" /> Pegar en lote
+        </Button>
+      </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
@@ -145,6 +184,14 @@ export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
           <Plus className="h-3.5 w-3.5" /> Agregar
         </Button>
       </div>
+
+      <BulkPasteOpcionesDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        existingValores={opciones.map((o) => o.valor)}
+        onConfirm={handleBulkConfirm}
+        isPending={bulkPending}
+      />
     </div>
   )
 }
