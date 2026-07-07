@@ -1,12 +1,13 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ImageIcon } from "lucide-react"
 
 import { campoSchema, type CampoFormValues } from "../schema"
 import type { Campo } from "../types"
+import { slugifyCodigoCampo } from "../lib/slugify-codigo"
 import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 
@@ -71,6 +72,13 @@ export function CampoForm({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadMutation = useUploadImagenCampo()
 
+  // Autogenerar `codigo` mientras el user tipea `etiqueta`, hasta que toque
+  // el input del código manualmente. En modo edición (defaultValues.codigo
+  // presente) arrancamos en modo "sucio" para nunca pisar códigos existentes.
+  const [codigoSucio, setCodigoSucio] = useState<boolean>(
+    Boolean(defaultValues?.codigo?.trim()),
+  )
+
   const handleUploadImagen = async (file: File) => {
     const url = await uploadMutation.mutateAsync(file)
     form.setValue("imagenUrl", url, { shouldDirty: true })
@@ -86,57 +94,37 @@ export function CampoForm({
           </div>
         )}
 
-        <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
-          <FormField
-            control={form.control}
-            name="codigo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código *</FormLabel>
+        {/* Orden del form: tipo → etiqueta → código (autogenerado desde etiqueta) → unidad.
+            Elegir el tipo primero acota lo que el user espera en los siguientes campos
+            (ej. tipo Imagen deshabilita etiqueta como texto útil, etc.). */}
+        <FormField
+          control={form.control}
+          name="tipoDato"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de dato *</FormLabel>
+              <Select
+                value={String(field.value)}
+                onValueChange={(v) => field.onChange(Number(v) as CampoTipoDato)}
+                disabled={isPending || enUso}
+              >
                 <FormControl>
-                  <Input
-                    placeholder="TEMP_ACEITE"
-                    disabled={isPending || enUso}
-                    className="font-mono"
-                    {...field}
-                  />
+                  <SelectTrigger>
+                    <SelectValue>
+                      {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
+                    </SelectValue>
+                  </SelectTrigger>
                 </FormControl>
-                <FormDescription className="text-xs">
-                  Identificador técnico único. Usado en integraciones.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="tipoDato"
-            render={({ field }) => (
-              <FormItem className="min-w-[180px]">
-                <FormLabel>Tipo de dato *</FormLabel>
-                <Select
-                  value={String(field.value)}
-                  onValueChange={(v) => field.onChange(Number(v) as CampoTipoDato)}
-                  disabled={isPending || enUso}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue>
-                        {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+                <SelectContent>
+                  {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -145,10 +133,56 @@ export function CampoForm({
             <FormItem>
               <FormLabel>Etiqueta *</FormLabel>
               <FormControl>
-                <Input placeholder="Temperatura del aceite" disabled={isPending} {...field} />
+                <Input
+                  placeholder="Temperatura del aceite"
+                  disabled={isPending}
+                  {...field}
+                  onChange={(e) => {
+                    field.onChange(e)
+                    // Si el user no tocó el código manualmente, lo re-derivamos
+                    // desde la etiqueta en tiempo real.
+                    if (!codigoSucio) {
+                      form.setValue("codigo", slugifyCodigoCampo(e.target.value), {
+                        shouldValidate: false,
+                      })
+                    }
+                  }}
+                />
               </FormControl>
               <FormDescription className="text-xs">
                 Texto que ve el usuario en formularios y PDF.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="codigo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Código *</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="TEMP_ACEITE"
+                  disabled={isPending || enUso}
+                  className="font-mono"
+                  {...field}
+                  onChange={(e) => {
+                    // Cualquier edición manual del código lo marca como
+                    // "sucio" y detiene el auto-derivado desde la etiqueta.
+                    // Vaciarlo restaura el auto-derivado (útil para volver a
+                    // sincronizar si cambiaste la etiqueta después).
+                    setCodigoSucio(e.target.value.trim().length > 0)
+                    field.onChange(e)
+                  }}
+                />
+              </FormControl>
+              <FormDescription className="text-xs">
+                {codigoSucio || enUso
+                  ? "Identificador técnico único. Usado en integraciones."
+                  : "Se genera automáticamente desde la etiqueta. Editalo si querés otro código."}
               </FormDescription>
               <FormMessage />
             </FormItem>

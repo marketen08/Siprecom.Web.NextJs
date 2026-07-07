@@ -11,6 +11,7 @@ import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useAddCampo } from "@/features/planillas/api/use-add-campo"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 import { campoSchema, type CampoFormValues } from "@/features/campos/schema"
+import { slugifyCodigoCampo } from "@/features/campos/lib/slugify-codigo"
 import {
   CAMPO_TIPO_DATO,
   CAMPO_LISTA_RENDER_MODE_LABEL,
@@ -103,6 +104,9 @@ export function AddCampoModal({
   // Obligatoriedad del campo en ESTA planilla. En "Existente" se precarga del
   // EsObligatorioDefault del campo; en "Nuevo" además se guarda como default del campo.
   const [esObligatorio, setEsObligatorio] = useState(false)
+  // Auto-derivar `codigo` desde `etiqueta` mientras el user no toque el input
+  // del código. En el tab "Nuevo" arrancamos siempre limpio (no hay defaultValues).
+  const [codigoSucio, setCodigoSucio] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // El initializer de useState sólo corre en el primer montaje (cuando aún no hay
@@ -159,6 +163,7 @@ export function AddCampoModal({
     setImagenUrl(undefined)
     setLabelStyle({ negrita: false, conBorde: false, fondoGris: false, alineacion: 0, sinPadding: false, sinMargen: false })
     setEsObligatorio(false)
+    setCodigoSucio(false)
     form.reset()
     onClose()
   }
@@ -499,7 +504,18 @@ export function AddCampoModal({
                       <FormItem>
                         <FormLabel>Código</FormLabel>
                         <FormControl>
-                          <Input placeholder="TEMP-001" disabled={isPending} {...field} />
+                          <Input
+                            placeholder="Auto — o escribí uno"
+                            disabled={isPending}
+                            className="font-mono"
+                            {...field}
+                            onChange={(e) => {
+                              // Cualquier edición manual detiene el auto-derivado.
+                              // Vaciarlo lo reactiva.
+                              setCodigoSucio(e.target.value.trim().length > 0)
+                              field.onChange(e)
+                            }}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -562,7 +578,21 @@ export function AddCampoModal({
                       <FormItem>
                         <FormLabel>Etiqueta</FormLabel>
                         <FormControl>
-                          <Input placeholder="Temperatura de aceite" disabled={isPending} {...field} />
+                          <Input
+                            placeholder="Temperatura de aceite"
+                            disabled={isPending}
+                            {...field}
+                            onChange={(e) => {
+                              field.onChange(e)
+                              // Auto-derivar `codigo` mientras el user no lo haya
+                              // tocado manualmente.
+                              if (!codigoSucio) {
+                                form.setValue("codigo", slugifyCodigoCampo(e.target.value), {
+                                  shouldValidate: false,
+                                })
+                              }
+                            }}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
