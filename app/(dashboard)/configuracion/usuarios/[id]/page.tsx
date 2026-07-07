@@ -1,18 +1,18 @@
 "use client"
 
-import { use, useState, Suspense } from "react"
+import { use, useState, useMemo, Suspense } from "react"
 import {
   Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
-  UserX, UserCheck, AlertTriangle, Mail,
+  UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight,
 } from "lucide-react"
-import { useRef, useEffect } from "react"
+import { useEffect } from "react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetUsuario } from "@/features/usuarios/api/use-get-usuario"
 import { useGetUsuarioProyectos } from "@/features/usuarios/api/use-get-usuario-proyectos"
-import { useAddProyectoUsuario } from "@/features/usuarios/api/use-add-proyecto-usuario"
 import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-proyecto-usuario"
+import { useBulkAssignProyectosUsuario, useBulkUnassignProyectosUsuario } from "@/features/usuarios/api/use-bulk-proyectos-usuario"
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
@@ -24,12 +24,19 @@ import { useDeactivateUsuario } from "@/features/usuarios/api/use-deactivate-usu
 import { useDeactivateUsuarioPermanent } from "@/features/usuarios/api/use-deactivate-usuario-permanent"
 import { useReactivateUsuario } from "@/features/usuarios/api/use-reactivate-usuario"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
+import type { Proyecto } from "@/features/proyectos/types"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Combobox } from "@/components/ui/combobox"
+import {
+  FiltersTrigger, FiltersChips, FiltersSheet, FilterField, type FilterChip,
+} from "@/components/ui/filters-bar"
+import {
+  Select as UiSelect, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -78,7 +85,9 @@ function UsuarioDetailContent({ id }: { id: string }) {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    // Sin max-w global: TabDatos/TabRol se auto-limitan con max-w local; TabProyectos
+    // (split view con filtros) aprovecha todo el ancho disponible.
+    <div className="space-y-6">
 
       {/* Email — siempre visible (no editable), independiente de la tab activa. */}
       <div className="flex items-center gap-3 rounded-lg border bg-white px-4 py-3 shadow-sm">
@@ -580,172 +589,487 @@ function EstadoUsuarioSection({ usuario }: { usuario: any }) {
 }
 
 // ─── Tab Proyectos ────────────────────────────────────────────────────────────
+//
+// Layout tipo "elementos a área" en versión compacta: dos columnas (Disponibles /
+// Asignados) con filtro por cliente + búsqueda por nombre. Multi-check + bulk
+// asignar/quitar. Se mantienen los shortcuts individuales (★ activo, X quitar).
+// No paginamos: cargamos hasta 500 proyectos accesibles por request; para un
+// tenant con más volumen habría que sumar paginación server-side.
+
+const CLIENTE_ALL = "__all__"
+const CONTRATISTA_ALL = "__all__"
+const ESTADO_ABIERTOS = "__abiertos__"
+const ESTADO_ALL = "__all__"
+
+// "Abiertos" = todos los estados que NO son terminales (Cancelado 5, Cerrado 7).
+// Incluye Pausado por default — si un cliente quiere excluirlo, puede usar el
+// select individual del estado. Ver EstadoProyecto.cs para los IDs.
+const ESTADOS_ABIERTOS: number[] = [1, 2, 3, 4, 6]
+
+// Opciones individuales del select: {value, label}. Para "abiertos" y "todos"
+// usamos strings sentinel para distinguirlos de los IDs numéricos del enum.
+const ESTADO_OPCIONES: { value: string; label: string }[] = [
+  { value: ESTADO_ABIERTOS, label: "Todos los abiertos" },
+  { value: ESTADO_ALL,      label: "Todos" },
+  { value: "1", label: "Preparación" },
+  { value: "2", label: "En curso" },
+  { value: "3", label: "Pausado" },
+  { value: "4", label: "Completado" },
+  { value: "5", label: "Cancelado" },
+  { value: "6", label: "En cierre" },
+  { value: "7", label: "Cerrado" },
+]
 
 function TabProyectos({ usuarioId }: { usuarioId: string }) {
-  const { data: asignadosData, isLoading } = useGetUsuarioProyectos(usuarioId)
-  const addMutation    = useAddProyectoUsuario(usuarioId)
-  const removeMutation = useRemoveProyectoUsuario(usuarioId)
+  const { data: asignadosData, isLoading: loadingAsignados } = useGetUsuarioProyectos(usuarioId)
+  const { data: proyectosData, isLoading: loadingProyectos } = useGetProyectos({ pageSize: 500 })
+  const removeMutation   = useRemoveProyectoUsuario(usuarioId)
   const setActivoMutation = useSetProyectoActivoAdmin(usuarioId)
+  const bulkAdd    = useBulkAssignProyectosUsuario(usuarioId)
+  const bulkRemove = useBulkUnassignProyectosUsuario(usuarioId)
 
   const asignados = Array.isArray(asignadosData) ? asignadosData : []
   const asignadosIds = new Set(asignados.map((p) => p.proyectoId))
+  const proyectosAccesibles: Proyecto[] = (proyectosData as any)?.data ?? []
+
+  // Filtros de la columna izquierda (Disponibles) y derecha (Asignados) son
+  // simétricos: comparten todos los filtros para ver el mismo scope en ambos.
+  const [clienteFilter, setClienteFilter] = useState<string>(CLIENTE_ALL)
+  const [contratistaFilter, setContratistaFilter] = useState<string>(CONTRATISTA_ALL)
+  const [estadoFilter, setEstadoFilter] = useState<string>(ESTADO_ABIERTOS)
+  const [search, setSearch] = useState("")
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Selecciones bulk (Sets separados por columna).
+  const [selectedDisp, setSelectedDisp] = useState<Set<string>>(new Set())
+  const [selectedAsig, setSelectedAsig] = useState<Set<string>>(new Set())
+
+  // Reset de selecciones al cambiar filtros — evita "asignar" ítems que ya no
+  // están visibles bajo los filtros nuevos.
+  useEffect(() => {
+    setSelectedDisp(new Set())
+    setSelectedAsig(new Set())
+  }, [clienteFilter, contratistaFilter, estadoFilter, search])
+
+  // Sets de clientes/contratistas que aparecen en proyectos accesibles — así los
+  // dropdowns solo ofrecen empresas con al menos un proyecto visible.
+  const clientesOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const p of proyectosAccesibles) {
+      if (p.clienteId && p.clienteNombre) map.set(p.clienteId, p.clienteNombre)
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }))
+  }, [proyectosAccesibles])
+
+  const contratistasOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const p of proyectosAccesibles) {
+      if (p.contratistaId && p.contratistaNombre) map.set(p.contratistaId, p.contratistaNombre)
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }))
+  }, [proyectosAccesibles])
+
+  // Índice por ID para enriquecer los asignados (que solo traen proyectoId+nombre)
+  // con el clienteNombre — lo necesitamos para el filtro por cliente en Asignados.
+  const proyectoIndex = useMemo(() => {
+    const m = new Map<string, Proyecto>()
+    for (const p of proyectosAccesibles) m.set(p.id, p)
+    return m
+  }, [proyectosAccesibles])
+
+  const matchFilters = (proyectoId: string, nombre: string): boolean => {
+    if (search && !nombre.toLowerCase().includes(search.toLowerCase())) return false
+    const p = proyectoIndex.get(proyectoId)
+    if (clienteFilter !== CLIENTE_ALL && p?.clienteId !== clienteFilter) return false
+    if (contratistaFilter !== CONTRATISTA_ALL && p?.contratistaId !== contratistaFilter) return false
+    if (estadoFilter !== ESTADO_ALL) {
+      // "Abiertos" es un conjunto; los estados individuales vienen como string
+      // numérico del enum EstadoProyecto.
+      if (estadoFilter === ESTADO_ABIERTOS) {
+        if (p == null || !ESTADOS_ABIERTOS.includes(p.estado as number)) return false
+      } else {
+        if (p == null || String(p.estado) !== estadoFilter) return false
+      }
+    }
+    return true
+  }
+
+  const disponibles = useMemo(() => {
+    return proyectosAccesibles
+      .filter((p) => !asignadosIds.has(p.id))
+      .filter((p) => matchFilters(p.id, p.nombre))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyectosAccesibles, asignadosData, clienteFilter, contratistaFilter, estadoFilter, search])
+
+  const asignadosFiltrados = useMemo(() => {
+    return asignados
+      .filter((p) => matchFilters(p.proyectoId, p.proyectoNombre))
+      .sort((a, b) => a.proyectoNombre.localeCompare(b.proyectoNombre))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asignados, clienteFilter, contratistaFilter, estadoFilter, search])
+
+  const toggleDisp = (id: string) => {
+    setSelectedDisp((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const toggleAsig = (id: string) => {
+    setSelectedAsig((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const handleAsignarBulk = async () => {
+    if (selectedDisp.size === 0) return
+    await bulkAdd.mutateAsync(Array.from(selectedDisp))
+    setSelectedDisp(new Set())
+  }
+  const handleQuitarBulk = async () => {
+    if (selectedAsig.size === 0) return
+    await bulkRemove.mutateAsync(Array.from(selectedAsig))
+    setSelectedAsig(new Set())
+  }
+
+  const isLoading = loadingAsignados || loadingProyectos
+  const busy = bulkAdd.isPending || bulkRemove.isPending || removeMutation.isPending
+
+  // Chips de filtros activos. La búsqueda es independiente (input siempre visible),
+  // así que NO genera chip — se limpia desde su propio input.
+  const activeFilters: FilterChip[] = []
+  if (clienteFilter !== CLIENTE_ALL) {
+    activeFilters.push({
+      id: "cliente",
+      label: `Cliente: ${clientesOptions.find((c) => c.id === clienteFilter)?.nombre ?? "—"}`,
+      onRemove: () => setClienteFilter(CLIENTE_ALL),
+    })
+  }
+  if (contratistaFilter !== CONTRATISTA_ALL) {
+    activeFilters.push({
+      id: "contratista",
+      label: `Contratista: ${contratistasOptions.find((c) => c.id === contratistaFilter)?.nombre ?? "—"}`,
+      onRemove: () => setContratistaFilter(CONTRATISTA_ALL),
+    })
+  }
+  if (estadoFilter !== ESTADO_ABIERTOS) {
+    activeFilters.push({
+      id: "estado",
+      label: `Estado: ${ESTADO_OPCIONES.find((o) => o.value === estadoFilter)?.label ?? "—"}`,
+      onRemove: () => setEstadoFilter(ESTADO_ABIERTOS),
+    })
+  }
+
+  function handleClearFiltros() {
+    setClienteFilter(CLIENTE_ALL)
+    setContratistaFilter(CONTRATISTA_ALL)
+    setEstadoFilter(ESTADO_ABIERTOS)
+  }
 
   return (
-    <div className="space-y-4 max-w-lg">
-      <p className="text-sm text-muted-foreground">
-        Proyectos a los que tiene acceso este usuario. El proyecto activo determina qué datos ve al iniciar sesión.
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground max-w-3xl">
+        Proyectos a los que tiene acceso este usuario. El proyecto activo determina
+        qué datos ve al iniciar sesión — usá la <Star className="h-3 w-3 inline mb-0.5" /> para
+        cambiarlo. Filtrá por cliente para acotar y usá los checkboxes para asignar
+        o quitar varios de una.
       </p>
 
-      {/* Buscador para agregar */}
-      <ProyectoCombobox
-        asignadosIds={asignadosIds}
-        onAdd={(proyectoId) => addMutation.mutate(proyectoId)}
-        isPending={addMutation.isPending}
-      />
+      {/* Barra compacta: buscador a la izquierda + botón filtros a la derecha */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-56 max-w-md">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="pl-9"
+          />
+        </div>
+        <FiltersTrigger
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          activeCount={activeFilters.length}
+        />
+      </div>
 
-      {/* Lista */}
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+      {/* Chips de filtros activos (línea propia, solo si hay alguno) */}
+      <FiltersChips activeFilters={activeFilters} onClearAll={handleClearFiltros} />
+
+      {/* Sheet lateral con los controles */}
+      <FiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        onClearAll={handleClearFiltros}
+        hasActiveFilters={activeFilters.length > 0}
+      >
+        <FilterField label="Cliente">
+          <UiSelect value={clienteFilter} onValueChange={(v) => setClienteFilter(v ?? CLIENTE_ALL)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {clienteFilter === CLIENTE_ALL
+                  ? "Todos los clientes"
+                  : clientesOptions.find((c) => c.id === clienteFilter)?.nombre ?? "—"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CLIENTE_ALL}>Todos los clientes</SelectItem>
+              {clientesOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </UiSelect>
+        </FilterField>
+
+        <FilterField label="Contratista">
+          <UiSelect value={contratistaFilter} onValueChange={(v) => setContratistaFilter(v ?? CONTRATISTA_ALL)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {contratistaFilter === CONTRATISTA_ALL
+                  ? "Todos los contratistas"
+                  : contratistasOptions.find((c) => c.id === contratistaFilter)?.nombre ?? "—"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CONTRATISTA_ALL}>Todos los contratistas</SelectItem>
+              {contratistasOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </UiSelect>
+        </FilterField>
+
+        <FilterField label="Estado del proyecto">
+          <UiSelect value={estadoFilter} onValueChange={(v) => setEstadoFilter(v ?? ESTADO_ABIERTOS)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {ESTADO_OPCIONES.find((o) => o.value === estadoFilter)?.label ?? "—"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ESTADO_OPCIONES.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </UiSelect>
+        </FilterField>
+      </FiltersSheet>
+
+      {/* Split view */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-3 items-stretch">
+        {/* Disponibles */}
+        <ListaBulk
+          titulo="Disponibles"
+          vacio={isLoading ? "Cargando..." : "Sin proyectos disponibles que coincidan con los filtros."}
+          items={disponibles.map((p) => ({
+            id: p.id,
+            nombre: p.nombre,
+            clienteNombre: p.clienteNombre ?? null,
+          }))}
+          selected={selectedDisp}
+          onToggle={toggleDisp}
+          onReplace={setSelectedDisp}
+          isLoading={isLoading}
+        />
+
+        {/* Botones bulk (aparecen verticales en desktop, entre las columnas) */}
+        <div className="hidden lg:flex flex-col justify-center items-center gap-2 self-center px-1">
+          <Button
+            size="sm"
+            className="w-9 h-9 p-0"
+            onClick={handleAsignarBulk}
+            disabled={selectedDisp.size === 0 || busy}
+            title={selectedDisp.size > 0 ? `Asignar ${selectedDisp.size}` : "Elegí items de la izquierda"}
+          >
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-9 h-9 p-0"
+            onClick={handleQuitarBulk}
+            disabled={selectedAsig.size === 0 || busy}
+            title={selectedAsig.size > 0 ? `Quitar ${selectedAsig.size}` : "Elegí items de la derecha"}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
         </div>
-      ) : asignados.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-gray-50 p-6 text-center text-sm text-muted-foreground">
-          Sin proyectos asignados. Usá el buscador para agregar.
+
+        {/* Asignados */}
+        <ListaBulk
+          titulo="Asignados"
+          vacio={isLoading ? "Cargando..." : "Sin proyectos asignados. Marcá items de Disponibles y usá →."}
+          items={asignadosFiltrados.map((p) => ({
+            id: p.proyectoId,
+            nombre: p.proyectoNombre,
+            clienteNombre: proyectoIndex.get(p.proyectoId)?.clienteNombre ?? null,
+            esActivo: p.esActivo,
+            onSetActivo: p.esActivo ? undefined : () => setActivoMutation.mutate(p.proyectoId),
+            onRemoveIndividual: () => removeMutation.mutate(p.proyectoId),
+          }))}
+          selected={selectedAsig}
+          onToggle={toggleAsig}
+          onReplace={setSelectedAsig}
+          isLoading={isLoading}
+        />
+
+        {/* Botones bulk en mobile — abajo de todo, horizontales */}
+        <div className="lg:hidden col-span-full flex justify-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleAsignarBulk}
+            disabled={selectedDisp.size === 0 || busy}
+            className="gap-1"
+          >
+            <ArrowRight className="h-4 w-4" /> Asignar ({selectedDisp.size})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleQuitarBulk}
+            disabled={selectedAsig.size === 0 || busy}
+            className="gap-1"
+          >
+            <ArrowLeft className="h-4 w-4" /> Quitar ({selectedAsig.size})
+          </Button>
         </div>
-      ) : (
-        <div className="space-y-1.5">
-          {asignados.map((p) => (
-            <div
-              key={p.proyectoId}
-              className="flex items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2.5"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <FolderOpen className="h-4 w-4 text-blue-600 shrink-0" />
-                <span className="text-sm font-medium truncate">{p.proyectoNombre}</span>
-                {p.esActivo && (
-                  <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
-                    <Check className="h-3 w-3" /> Activo
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {!p.esActivo && (
-                  <button
-                    type="button"
-                    onClick={() => setActivoMutation.mutate(p.proyectoId)}
-                    disabled={setActivoMutation.isPending}
-                    className="text-gray-400 hover:text-blue-500 transition-colors"
-                    title="Establecer como proyecto activo"
-                  >
-                    <Star className="h-4 w-4" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeMutation.mutate(p.proyectoId)}
-                  disabled={removeMutation.isPending}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
-                  aria-label="Quitar"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
 
-// ─── Combobox de proyectos ────────────────────────────────────────────────────
+interface ItemBulk {
+  id: string
+  nombre: string
+  clienteNombre: string | null
+  esActivo?: boolean
+  onSetActivo?: () => void
+  onRemoveIndividual?: () => void
+}
 
-function ProyectoCombobox({
-  asignadosIds, onAdd, isPending,
+function ListaBulk({
+  titulo, vacio, items, selected, onToggle, onReplace, isLoading,
 }: {
-  asignadosIds: Set<string>
-  onAdd: (id: string) => void
-  isPending: boolean
+  titulo: string
+  vacio: string
+  items: ItemBulk[]
+  selected: Set<string>
+  onToggle: (id: string) => void
+  onReplace: (ids: Set<string>) => void
+  isLoading: boolean
 }) {
-  const [search, setSearch] = useState("")
-  const [open, setOpen]     = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  // Los proyectos activos quedan protegidos: no se pueden marcar en el checkbox
+  // ni quitar con el ✕ individual. El backend replica el guard (fail-closed).
+  const itemsSeleccionables = items.filter((x) => !x.esActivo)
+  const seleccionadosVisibles = itemsSeleccionables.reduce(
+    (acc, x) => acc + (selected.has(x.id) ? 1 : 0), 0,
+  )
+  const hayItems = items.length > 0
+  const haySeleccionables = itemsSeleccionables.length > 0
+  const todosSeleccionados = haySeleccionables && seleccionadosVisibles === itemsSeleccionables.length
 
-  const { data, isFetching } = useGetProyectos({ nombre: search || undefined, pageSize: 10, page: 1 })
-  const resultados = (data as any)?.data ?? []
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node))
-        setOpen(false)
+  function toggleAll() {
+    if (todosSeleccionados) {
+      onReplace(new Set())
+    } else {
+      // Nunca marcamos el proyecto activo — queda excluido del bulk remove.
+      onReplace(new Set(itemsSeleccionables.map((x) => x.id)))
     }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
+  }
 
   return (
-    <div ref={containerRef} className="relative">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar proyecto para agregar..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          className="pl-9"
-          autoComplete="off"
-        />
-        {search && (
-          <button
-            type="button"
-            onClick={() => { setSearch(""); setOpen(false) }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+    <div className="rounded-lg border bg-white overflow-hidden flex flex-col min-h-64">
+      {/* Header con contador y "seleccionar todos" */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-gray-50">
+        <div className="flex items-center gap-2 min-w-0">
+          <input
+            type="checkbox"
+            checked={todosSeleccionados}
+            onChange={toggleAll}
+            disabled={!haySeleccionables}
+            className="h-3.5 w-3.5 shrink-0"
+            aria-label={`Seleccionar todos los ${titulo.toLowerCase()}`}
+            title={!haySeleccionables && hayItems ? "El proyecto activo no se puede quitar; cambiá el activo (★) primero." : undefined}
+          />
+          <span className="text-sm font-semibold text-gray-800 truncate">{titulo}</span>
+        </div>
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+          {seleccionadosVisibles > 0
+            ? `${seleccionadosVisibles} / ${items.length}`
+            : items.length}
+        </span>
       </div>
 
-      {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
-          {isFetching && resultados.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Buscando...</p>
-          ) : resultados.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              {search ? "Sin resultados." : "Escribí para buscar proyectos."}
-            </p>
-          ) : (
-            <ul className="divide-y max-h-56 overflow-y-auto">
-              {resultados.map((p: any) => {
-                const yaAsignado = asignadosIds.has(p.id)
-                return (
-                  <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-50">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm font-medium truncate">{p.nombre}</span>
-                    </div>
-                    {yaAsignado ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded shrink-0">
-                        <Check className="h-3 w-3" /> Asignado
+      {/* Lista scrolleable */}
+      <div className="flex-1 max-h-96 overflow-y-auto">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+            <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+          </div>
+        ) : !hayItems ? (
+          <p className="text-xs text-muted-foreground italic p-4 text-center">{vacio}</p>
+        ) : (
+          <ul className="divide-y">
+            {items.map((it) => (
+              <li key={it.id} className="flex items-center gap-2 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={!it.esActivo && selected.has(it.id)}
+                  onChange={() => onToggle(it.id)}
+                  disabled={it.esActivo}
+                  className="h-3.5 w-3.5 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label={`Seleccionar ${it.nombre}`}
+                  title={it.esActivo ? "El proyecto activo no se puede quitar; cambiá el activo (★) primero." : undefined}
+                />
+                <FolderOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium truncate">{it.nombre}</span>
+                    {it.esActivo && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-700 bg-blue-50 px-1 py-0 rounded shrink-0">
+                        <Check className="h-2.5 w-2.5" /> Activo
                       </span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs shrink-0"
-                        disabled={isPending}
-                        onClick={() => { onAdd(p.id); setOpen(false); setSearch("") }}
-                      >
-                        Agregar
-                      </Button>
                     )}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-      )}
+                  </div>
+                  {it.clienteNombre && (
+                    <p className="text-[11px] text-muted-foreground truncate">{it.clienteNombre}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {it.onSetActivo && (
+                    <button
+                      type="button"
+                      onClick={it.onSetActivo}
+                      className="text-gray-300 hover:text-blue-500 transition-colors p-0.5"
+                      title="Establecer como proyecto activo"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {it.onRemoveIndividual && !it.esActivo && (
+                    <button
+                      type="button"
+                      onClick={it.onRemoveIndividual}
+                      className="text-gray-300 hover:text-red-500 transition-colors p-0.5"
+                      title="Quitar solo este"
+                      aria-label="Quitar"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
