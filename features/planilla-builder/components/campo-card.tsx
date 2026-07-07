@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { ArrowDown, ArrowUp, Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 
 import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode, PlanillaSeccion, AlineacionTexto } from "@/features/planillas/types"
-import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_TAMANO_OPCIONES, ALINEACION_TEXTO_LABEL } from "@/features/planillas/types"
+import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_LISTA_RENDER_MODE_OPCIONES, CAMPO_TAMANO_OPCIONES, ALINEACION_TEXTO_LABEL } from "@/features/planillas/types"
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
 import { useUpdateCampoGlobal } from "@/features/campos/api/use-update-campo"
@@ -475,8 +475,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  {CAMPO_LISTA_RENDER_MODE_OPCIONES.map((o) => (
+                    <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

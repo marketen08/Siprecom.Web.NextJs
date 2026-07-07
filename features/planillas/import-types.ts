@@ -51,6 +51,13 @@ export interface PlanillaImportada {
 export interface ExcelParsePayload {
   nombreArchivo: string
   filas: string[][] // matriz de celdas como strings
+  /**
+   * Resumen del catálogo global de campos para que la IA reutilice campos
+   * existentes en vez de crear duplicados — mismo mecanismo que el flujo
+   * desde-descripcion. Opcional para retro-compatibilidad; sin catálogo la
+   * IA crea todos los campos como nuevos.
+   */
+  catalogo?: CatalogoCampoResumen[]
 }
 
 /**

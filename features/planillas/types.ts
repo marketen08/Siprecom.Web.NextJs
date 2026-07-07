@@ -53,6 +53,52 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   10: "Label",
 }
 
+// ─── Tipos "visuales" en el picker ──────────────────────────────────────────
+//
+// Bajo el capó una lista tipo checklist es `tipoDato=5 + renderMode=3`. Pero
+// desde el punto de vista del usuario elegir "Lista y después Checklist" es un
+// paso de más — y las planillas industriales están *llenas* de checklists.
+// Por eso presentamos Checklist como un tipo aparte al costado de Lista.
+// El sentinel 501 es puramente de UI; NUNCA se envía al backend.
+
+/** Sentinel de UI para Checklist. No es un valor de `CampoTipoDato` real. */
+export const TIPO_UI_CHECKLIST = 501
+
+export type TipoUiValor = CampoTipoDato | typeof TIPO_UI_CHECKLIST
+
+export const CAMPO_TIPO_UI: Record<TipoUiValor, string> = {
+  1: "Texto",
+  2: "Número",
+  3: "Fecha",
+  4: "Boolean",
+  5: "Lista",
+  [TIPO_UI_CHECKLIST]: "Checklist",
+  8: "Imagen",
+  9: "Tabla",
+  10: "Label",
+}
+
+/**
+ * Deriva el "tipo visual" a mostrar en el picker a partir del par real
+ * (tipoDato, renderMode). Un campo Lista con render Checklist se ve como
+ * "Checklist" en la UI; el resto se ve como su tipoDato.
+ */
+export function toTipoUi(tipoDato: CampoTipoDato, renderMode?: number | null): TipoUiValor {
+  if (tipoDato === 5 && renderMode === 3) return TIPO_UI_CHECKLIST
+  return tipoDato
+}
+
+/**
+ * Traduce una elección del picker visual al par real (tipoDato, renderMode
+ * sugerido). `renderMode` sólo es orientativo — el llamador decide si lo
+ * aplica (útil cuando el usuario cambia entre Lista/Checklist y hay que
+ * ajustar renderMode automáticamente).
+ */
+export function fromTipoUi(tipoUi: TipoUiValor): { tipoDato: CampoTipoDato; renderMode?: CampoListaRenderMode } {
+  if (tipoUi === TIPO_UI_CHECKLIST) return { tipoDato: 5, renderMode: 3 }
+  return { tipoDato: tipoUi as CampoTipoDato }
+}
+
 /** Alineación horizontal del texto de un campo Label. 0=Izquierda, 1=Centro, 2=Derecha. */
 export type AlineacionTexto = 0 | 1 | 2
 
@@ -105,12 +151,29 @@ export const CAMPO_LISTA_RENDER_MODE = {
   Checklist: 3,
 } as const
 
+/**
+ * Labels de los render modes. Nota: `Auto` (0) queda deprecado — no se ofrece
+ * más en el picker (`CAMPO_LISTA_RENDER_MODE_OPCIONES`), pero se conserva acá
+ * porque campos viejos guardados con 0 siguen mostrando algo razonable en
+ * detalles. El backend normaliza 0 → 1 al guardar (ver PlanillaService).
+ */
 export const CAMPO_LISTA_RENDER_MODE_LABEL: Record<CampoListaRenderMode, string> = {
-  0: "Automático (según cantidad de opciones)",
+  0: "Automático (legacy)",
   1: "Inline (opciones visibles separadas)",
   2: "Desplegable (select)",
   3: "Checklist (tabla agrupada con columnas)",
 }
+
+/**
+ * Opciones a ofrecer en los selects de render mode. Sin `Auto` (0): la elección
+ * automática nunca resolvía Checklist y confundía más de lo que ayudaba.
+ * Además el picker visual dual (Lista vs Checklist) ya cubre el caso común.
+ */
+export const CAMPO_LISTA_RENDER_MODE_OPCIONES: Array<{ value: CampoListaRenderMode; label: string }> = [
+  { value: 1, label: "Inline (opciones visibles separadas)" },
+  { value: 2, label: "Desplegable (select)" },
+  { value: 3, label: "Checklist (tabla agrupada con columnas)" },
+]
 
 export interface PlanillaCampoDetalle {
   id: string

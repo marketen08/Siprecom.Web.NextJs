@@ -27,9 +27,10 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 
 import { apiClient } from "@/lib/api-client"
-import type { ExcelParsePayload, PlanillaImportada, SeccionImportada, CampoImportado } from "../import-types"
+import type { ExcelParsePayload, PlanillaImportada, SeccionImportada, CampoImportado, CatalogoCampoResumen } from "../import-types"
 import type { Planilla, PlanillaSeccion, CampoTipoDato } from "../types"
 import { CAMPO_TIPO_DATO } from "../types"
+import { useGetCamposSelect } from "@/features/campos/api/use-get-campos-select"
 
 const TIPOS = Object.entries(CAMPO_TIPO_DATO)
   .filter(([k]) => k !== "6") // excluir Firma
@@ -79,6 +80,11 @@ interface Props {
 export function ImportExcelSheet({ open, onClose }: Props) {
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
+  // Catálogo global — se envía a la IA para que reutilice campos existentes
+  // en vez de crear duplicados (mismo mecanismo que "Generar con IA").
+  const camposQuery = useGetCamposSelect() as {
+    data?: { data?: Array<{ id: string; codigo: string; etiqueta: string; tipoDato: CampoTipoDato }> }
+  }
 
   const [step, setStep] = useState<Step>("upload")
   const [errorMsg, setErrorMsg] = useState("")
@@ -122,9 +128,20 @@ export function ImportExcelSheet({ open, onClose }: Props) {
         raw: false,
       }) as string[][]
 
+      // Armar el catálogo compacto para minimizar tokens (mismo formato que
+      // el flujo "Generar con IA desde descripción").
+      const camposData = camposQuery.data?.data ?? []
+      const catalogo: CatalogoCampoResumen[] = camposData.map((c) => ({
+        id: c.id,
+        codigo: c.codigo,
+        etiqueta: c.etiqueta,
+        tipoDato: c.tipoDato,
+      }))
+
       const payload: ExcelParsePayload = {
         nombreArchivo: file.name,
         filas,
+        catalogo,
       }
 
       const resultado = await fetch("/api/ai/planilla-desde-excel", {

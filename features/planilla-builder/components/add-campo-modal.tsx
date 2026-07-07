@@ -13,14 +13,20 @@ import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen
 import { campoSchema, type CampoFormValues } from "@/features/campos/schema"
 import {
   CAMPO_TIPO_DATO,
+  CAMPO_TIPO_UI,
   CAMPO_LISTA_RENDER_MODE_LABEL,
+  CAMPO_LISTA_RENDER_MODE_OPCIONES,
   CAMPO_TAMANO_OPCIONES,
   CAMPO_TAMANO_DEFAULT,
   ALINEACION_TEXTO_LABEL,
+  TIPO_UI_CHECKLIST,
+  fromTipoUi,
+  toTipoUi,
   type AlineacionTexto,
   type CampoTipoDato,
   type CampoListaRenderMode,
   type PlanillaSeccion,
+  type TipoUiValor,
 } from "@/features/planillas/types"
 import { ArrowDown, ArrowUp, ImageIcon, Trash2, Plus, Star } from "lucide-react"
 
@@ -76,7 +82,9 @@ export function AddCampoModal({
   const [selectedCampoId, setSelectedCampoId] = useState<string>("")
   const [seccionId, setSeccionId] = useState<string>(selectedSeccionId ?? "__none__")
   const [campoSearch, setCampoSearch] = useState("")
-  const [renderMode, setRenderMode] = useState<CampoListaRenderMode>(0)
+  // Default: Inline (1). `Auto` (0) fue deprecado — para "checklist" el usuario
+  // ahora elige Checklist como tipo dedicado en el picker visual.
+  const [renderMode, setRenderMode] = useState<CampoListaRenderMode>(1)
   const [tamano, setTamano] = useState<number>(CAMPO_TAMANO_DEFAULT)
   // Flag para forzar modo Personalizado aunque el valor coincida con una opción
   // predefinida — necesario para que el input numérico aparezca al elegir
@@ -146,7 +154,7 @@ export function AddCampoModal({
   const handleClose = () => {
     setSelectedCampoId("")
     setCampoSearch("")
-    setRenderMode(0)
+    setRenderMode(1)
     setTamano(CAMPO_TAMANO_DEFAULT)
     setModoPersonalizado(false)
     setTempOpciones([])
@@ -469,8 +477,8 @@ export function AddCampoModal({
                       <SelectValue>{CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      {CAMPO_LISTA_RENDER_MODE_OPCIONES.map((o) => (
+                        <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -510,30 +518,50 @@ export function AddCampoModal({
                   <FormField
                     control={form.control}
                     name="tipoDato"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de dato</FormLabel>
-                        <Select
-                          value={String(field.value)}
-                          onValueChange={(v) => field.onChange(Number(v))}
-                          disabled={isPending}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue>
-                                {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
-                              </SelectValue>
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
-                              <SelectItem key={k} value={k}>{v}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      // Traducimos el par (tipoDato, renderMode) a la opción visual
+                      // que aparece en el select. Checklist es solo una vista de
+                      // (Lista + renderMode=Checklist); todo lo demás mapea 1:1.
+                      const tipoUiActual = toTipoUi(field.value as CampoTipoDato, renderMode)
+                      return (
+                        <FormItem>
+                          <FormLabel>Tipo de dato</FormLabel>
+                          <Select
+                            value={String(tipoUiActual)}
+                            onValueChange={(v) => {
+                              const tipoUi = Number(v) as TipoUiValor
+                              const mapped = fromTipoUi(tipoUi)
+                              field.onChange(mapped.tipoDato)
+                              // Aplicar preset de renderMode si corresponde:
+                              //  - Checklist → renderMode=3 + ancho completo (misma
+                              //    lógica que handleRenderModeChange).
+                              //  - Lista "normal" viniendo de Checklist → resetear
+                              //    a Inline si estaba en Checklist.
+                              if (tipoUi === TIPO_UI_CHECKLIST) {
+                                handleRenderModeChange(3)
+                              } else if (mapped.tipoDato === 5 && renderMode === 3) {
+                                setRenderMode(1)
+                              }
+                            }}
+                            disabled={isPending}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue>
+                                  {CAMPO_TIPO_UI[tipoUiActual] ?? ""}
+                                </SelectValue>
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.entries(CAMPO_TIPO_UI).map(([k, v]) => (
+                                <SelectItem key={k} value={k}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
                   />
                 </div>
 
@@ -682,28 +710,34 @@ export function AddCampoModal({
                   </div>
                 )}
 
-                {/* Sub-sección Lista: opciones + render mode */}
+                {/* Sub-sección Lista: opciones + render mode.
+                    Si el usuario ya eligió "Checklist" en el picker de tipo,
+                    ocultamos este sub-selector — el modo ya está decidido. */}
                 {isListaNuevo && (
                   <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Cómo se muestra</Label>
-                      <Select
-                        value={String(renderMode)}
-                        onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
-                        disabled={isPending}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue>
-                            {CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {renderMode !== 3 && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Cómo se muestra</Label>
+                        <Select
+                          value={String(renderMode)}
+                          onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
+                          disabled={isPending}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue>
+                              {CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CAMPO_LISTA_RENDER_MODE_OPCIONES
+                              .filter((o) => o.value !== 3)
+                              .map((o) => (
+                                <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
                     <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
                     <p className="text-[10px] text-blue-700/70 -mt-1">
