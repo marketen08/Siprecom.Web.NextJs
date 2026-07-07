@@ -67,12 +67,32 @@ interface AddCampoModalProps {
 type Tab = "existing" | "new" | "bulk"
 type BulkTipo = 1 | 11 // Texto | Checklist
 
-/** Opciones precargadas para el bloque compartido de Checklist en el tab "bulk". */
-const BULK_CHECKLIST_DEFAULT_OPCIONES: Array<{ valor: string; etiqueta: string }> = [
-  { valor: "SI", etiqueta: "Sí" },
-  { valor: "NO", etiqueta: "No" },
-  { valor: "NA", etiqueta: "No Aplica" },
+/** Presets rápidos para las opciones de un campo Checklist. Se ofrecen como
+    botones "reemplazar por..." en las UI de creación (tab Nuevo y tab En lote). */
+type PresetOpcion = { valor: string; etiqueta: string }
+const CHECKLIST_PRESETS: Array<{ id: string; label: string; opciones: PresetOpcion[] }> = [
+  {
+    id: "si-no-na",
+    label: "Sí / No / N/A",
+    opciones: [
+      { valor: "SI", etiqueta: "Sí" },
+      { valor: "NO", etiqueta: "No" },
+      { valor: "NA", etiqueta: "No Aplica" },
+    ],
+  },
+  {
+    id: "ok-nc-na",
+    label: "OK / NC / NA",
+    opciones: [
+      { valor: "NA", etiqueta: "No Aplica" },
+      { valor: "OK", etiqueta: "Chequeado & aceptado" },
+      { valor: "NC", etiqueta: "Chequeado & no conforme" },
+    ],
+  },
 ]
+
+/** Opciones precargadas para el bloque compartido de Checklist en el tab "bulk". */
+const BULK_CHECKLIST_DEFAULT_OPCIONES: PresetOpcion[] = CHECKLIST_PRESETS[0].opciones
 
 export function AddCampoModal({
   open,
@@ -1008,6 +1028,36 @@ export function AddCampoModal({
                       </Button>
                     </div>
 
+                    {/* Presets rápidos — sólo para Checklist. Reemplazan la lista
+                        actual y limpian el default si el valor previo ya no está. */}
+                    {isChecklistNuevo && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-blue-700/70">Preset:</span>
+                        {CHECKLIST_PRESETS.map((p) => (
+                          <Button
+                            key={p.id}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => {
+                              setTempOpciones(p.opciones)
+                              setOpcionesManualOrder(true)
+                              if (
+                                opcionDefaultValor &&
+                                !p.opciones.some((o) => o.valor === opcionDefaultValor)
+                              ) {
+                                setOpcionDefaultValor(null)
+                              }
+                            }}
+                            disabled={isPending}
+                          >
+                            {p.label}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+
                     {tempOpciones.length > 0 && (
                       <div className="space-y-1">
                         {tempOpciones.map((op, i) => (
@@ -1170,6 +1220,22 @@ export function AddCampoModal({
                     Se aplican a todos los campos que se creen. Los reusados
                     conservan sus opciones actuales.
                   </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-blue-700/70">Preset:</span>
+                    {CHECKLIST_PRESETS.map((p) => (
+                      <Button
+                        key={p.id}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => setBulkChecklistOpciones(p.opciones)}
+                        disabled={bulkPending}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
                   {bulkChecklistOpciones.length > 0 && (
                     <div className="space-y-1">
                       {bulkChecklistOpciones.map((op, i) => (
