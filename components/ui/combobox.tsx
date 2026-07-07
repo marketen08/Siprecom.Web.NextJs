@@ -40,6 +40,9 @@ export function Combobox({
   const [highlighted, setHighlighted] = React.useState(0)
   const wrapperRef = React.useRef<HTMLDivElement>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
+  // ID estable por instancia para el atributo `name` del input de búsqueda —
+  // evita que el navegador matchee por nombre y aplique autofill (email/name).
+  const searchName = React.useId()
 
   // Click-outside para cerrar
   React.useEffect(() => {
@@ -136,6 +139,18 @@ export function Combobox({
                 placeholder={searchPlaceholder}
                 className="w-full rounded-sm border border-input pl-7 pr-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                 onKeyDown={handleKeyDown}
+                // Bloquear el autofill del navegador: "off" a secas Chrome/Firefox lo
+                // ignoran; con name aleatorio + "new-password" + role=combobox el heurístico
+                // de autofill deja de matchear. Sin esto, el input de búsqueda pisca con
+                // valores del perfil del usuario (nombre, email) — molesto en el combobox
+                // de Empresa del detalle de usuario.
+                name={`combobox-search-${searchName}`}
+                autoComplete="new-password"
+                role="combobox"
+                aria-autocomplete="list"
+                data-form-type="other"
+                data-lpignore="true"
+                data-1p-ignore="true"
               />
             </div>
           </div>

@@ -246,6 +246,33 @@ function TabDatos({ usuario }: { usuario: any }) {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
+          {/* Honeypot: Chrome/Firefox hacen un "reverse scan" desde cada <input
+              type="password"> para adivinar el campo de usuario y autofillearlo.
+              Al no encontrar un input marcado como username, elegían el Combobox
+              de Empresa (que tiene un input de texto interno). Estos dos inputs
+              ocultos son el señuelo: los toman como par username/password del
+              autofill y dejan tranquilos a los reales. `tabIndex={-1}` +
+              `aria-hidden` los sacan del foco y de screen readers. */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value=""
+            readOnly
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
+          />
+          <input
+            type="password"
+            name="password"
+            autoComplete="new-password"
+            value=""
+            readOnly
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
+          />
           <div className="relative">
             <Input
               type={showPassword ? "text" : "password"}
@@ -254,6 +281,8 @@ function TabDatos({ usuario }: { usuario: any }) {
               placeholder="Mínimo 6 caracteres"
               className="pr-10"
               disabled={resetPassword.isPending}
+              autoComplete="new-password"
+              name={`nueva-password-${usuario.id}`}
             />
             <button
               type="button"
@@ -724,7 +753,7 @@ function ProyectoCombobox({
 // ─── Tab Rol ──────────────────────────────────────────────────────────────────
 
 const ROLES = [
-  { value: "AdminGlobal", label: "Administrador global", descripcion: "Como Administrador pero con acceso a TODOS los proyectos (no solo los asignados). Ideal para el administrador corporativo. No abre el panel del proveedor." },
+  { value: "AdminGlobal", label: "Administrador global", descripcion: "Como Administrador pero con acceso a TODOS los proyectos (no solo los asignados). Administrador corporativo." },
   { value: "Admin",      label: "Administrador", descripcion: "Acceso completo a los proyectos donde está asignado: gestiona usuarios, configuración, alcance y todos los datos de esos proyectos." },
   { value: "Supervisor", label: "Supervisor",    descripcion: "Acceso intermedio: gestiona usuarios y proyectos a los que tiene acceso, pero no la configuración global del sistema." },
   { value: "User",       label: "Usuario",       descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
