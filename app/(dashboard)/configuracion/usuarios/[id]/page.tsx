@@ -724,9 +724,12 @@ function ProyectoCombobox({
 // ─── Tab Rol ──────────────────────────────────────────────────────────────────
 
 const ROLES = [
-  { value: "Admin",      label: "Administrador", descripcion: "Acceso completo: puede gestionar usuarios, configuración, proyectos y todos los datos." },
+  { value: "AdminGlobal", label: "Administrador global", descripcion: "Como Administrador pero con acceso a TODOS los proyectos (no solo los asignados). Ideal para el administrador corporativo. No abre el panel del proveedor." },
+  { value: "Admin",      label: "Administrador", descripcion: "Acceso completo a los proyectos donde está asignado: gestiona usuarios, configuración, alcance y todos los datos de esos proyectos." },
   { value: "Supervisor", label: "Supervisor",    descripcion: "Acceso intermedio: gestiona usuarios y proyectos a los que tiene acceso, pero no la configuración global del sistema." },
   { value: "User",       label: "Usuario",       descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
+  { value: "Auditor",    label: "Auditor",       descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D) más el Control de cambios. No puede modificar nada." },
+  { value: "Consultor",  label: "Consultor",     descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D). No puede modificar nada ni acceder al Control de cambios." },
 ]
 
 // SuperAdmin es un rol del proveedor: no se ofrece como asignación normal, pero

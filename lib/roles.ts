@@ -1,5 +1,5 @@
 // Jerarquía de roles globales, alineada con el backend (JwtHandler.ExpandRoles):
-//   SuperAdmin > Admin > Supervisor > User > Auditor > Consultor
+//   SuperAdmin > AdminGlobal > Admin > Supervisor > User > Auditor > Consultor
 // Un rol superior habilita todo lo del inferior. El chequeo es por NIVEL (no
 // por includes), así funciona aunque el token no venga expandido (ej. sesiones
 // viejas con solo ["Admin"]).
@@ -7,8 +7,19 @@
 // Consultor: solo lectura + descarga (dashboard, planillas, registros, pendientes,
 // certificados, 3D, estadísticas). No puede escribir nada.
 // Auditor: mismo scope que Consultor + Control de cambios (auditoría).
+// Admin: gestiona proyectos donde tiene RecursoProyecto asignado.
+// AdminGlobal: Admin con bypass del scope de proyectos — ve TODOS los proyectos y
+//   puede gestionar usuarios de cualquier proyecto. NO abre el panel del proveedor.
+// SuperAdmin: cuenta del proveedor — bypass + acceso al panel Super Admin.
 
-export type AppRole = "Consultor" | "Auditor" | "User" | "Supervisor" | "Admin" | "SuperAdmin"
+export type AppRole =
+  | "Consultor"
+  | "Auditor"
+  | "User"
+  | "Supervisor"
+  | "Admin"
+  | "AdminGlobal"
+  | "SuperAdmin"
 
 const ROLE_LEVEL: Record<string, number> = {
   Consultor: 1,
@@ -16,7 +27,8 @@ const ROLE_LEVEL: Record<string, number> = {
   User: 3,
   Supervisor: 4,
   Admin: 5,
-  SuperAdmin: 6,
+  AdminGlobal: 6,
+  SuperAdmin: 7,
 }
 
 /** Nivel efectivo del usuario = el más alto de sus roles. 0 si no tiene ninguno. */
