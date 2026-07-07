@@ -13,20 +13,15 @@ import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen
 import { campoSchema, type CampoFormValues } from "@/features/campos/schema"
 import {
   CAMPO_TIPO_DATO,
-  CAMPO_TIPO_UI,
   CAMPO_LISTA_RENDER_MODE_LABEL,
   CAMPO_LISTA_RENDER_MODE_OPCIONES,
   CAMPO_TAMANO_OPCIONES,
   CAMPO_TAMANO_DEFAULT,
   ALINEACION_TEXTO_LABEL,
-  TIPO_UI_CHECKLIST,
-  fromTipoUi,
-  toTipoUi,
   type AlineacionTexto,
   type CampoTipoDato,
   type CampoListaRenderMode,
   type PlanillaSeccion,
-  type TipoUiValor,
 } from "@/features/planillas/types"
 import { ArrowDown, ArrowUp, ImageIcon, Trash2, Plus, Star } from "lucide-react"
 
@@ -170,8 +165,13 @@ export function AddCampoModal({
 
   const selectedCampoExistente = campos.find((c: any) => c.id === selectedCampoId)
   const tipoDatoFormulario = form.watch("tipoDato") as CampoTipoDato
-  const isListaExistente = selectedCampoExistente?.tipoDato === 5
+  // Tanto Lista (5) como Checklist (11) tienen opciones. Los usamos como "familia"
+  // para decidir cuándo mostrar el editor de opciones y el sub-selector de render.
+  const isListaExistente = selectedCampoExistente?.tipoDato === 5 || selectedCampoExistente?.tipoDato === 11
+  const isChecklistExistente = selectedCampoExistente?.tipoDato === 11
   const isListaNuevo = tipoDatoFormulario === 5
+  const isChecklistNuevo = tipoDatoFormulario === 11
+  const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
 
@@ -182,6 +182,9 @@ export function AddCampoModal({
 
   const handleAddExisting = () => {
     if (!selectedCampoId) return
+    // Para Lista tradicional, el usuario elige el renderMode. Para Checklist el
+    // modo es fijo (el backend lo ignora) y el ancho es 12.
+    const esListaReal = selectedCampoExistente?.tipoDato === 5
     addCampoMutation.mutate(
       {
         planillaId,
@@ -191,9 +194,8 @@ export function AddCampoModal({
         esObligatorio,
         visible: true,
         soloLectura: false,
-        renderMode: isListaExistente ? renderMode : undefined,
-        // Checklist siempre ocupa ancho completo (12), independiente del control.
-        tamano: isListaExistente && renderMode === 3 ? 12 : tamano,
+        renderMode: esListaReal ? renderMode : undefined,
+        tamano: isChecklistExistente ? 12 : tamano,
       },
       { onSuccess: handleClose }
     )
@@ -216,8 +218,10 @@ export function AddCampoModal({
       const newCampoId = res?.data?.id ?? res?.id
       if (!newCampoId) return
 
-      // Si es Lista y hay opciones cargadas, crearlas en serie antes de agregar a la planilla.
-      if (values.tipoDato === 5 && tempOpciones.length > 0) {
+      // Si es Lista o Checklist, y hay opciones cargadas, crearlas en serie antes
+      // de agregar a la planilla.
+      const esConOpciones = values.tipoDato === 5 || values.tipoDato === 11
+      if (esConOpciones && tempOpciones.length > 0) {
         for (let i = 0; i < tempOpciones.length; i++) {
           const op = tempOpciones[i]
           await createOpcionMutation.mutateAsync({
@@ -237,11 +241,12 @@ export function AddCampoModal({
         esObligatorio,
         visible: true,
         soloLectura: false,
-        // Para Lista, la opción marcada con la estrella es el valor por defecto.
-        valorDefault: values.tipoDato === 5 ? (opcionDefaultValor ?? undefined) : undefined,
+        // Para Lista/Checklist, la opción marcada con la estrella es el valor por defecto.
+        valorDefault: esConOpciones ? (opcionDefaultValor ?? undefined) : undefined,
+        // Solo Lista (5) usa renderMode; Checklist (11) lo ignora en runtime.
         renderMode: values.tipoDato === 5 ? renderMode : undefined,
-        // Checklist siempre ocupa ancho completo (12), independiente del control.
-        tamano: values.tipoDato === 5 && renderMode === 3 ? 12 : tamano,
+        // Checklist siempre ancho completo.
+        tamano: values.tipoDato === 11 ? 12 : tamano,
       })
       handleClose()
     } catch {
@@ -262,26 +267,10 @@ export function AddCampoModal({
     setOpcionInput({ valor: "", etiqueta: "" })
   }
 
-  // Si elige Checklist y aún no cargó opciones, sugerir SI/NO/NA por defecto
-  // (solo aplica al tab "Nuevo"; en "Existente" las opciones ya están definidas en el Campo).
+  // Solo aplica a Lista real (5). Para Checklist (11) el modo es fijo y este
+  // handler no se dispara — el picker de tipo ya oculta el sub-selector.
   const handleRenderModeChange = (next: CampoListaRenderMode) => {
     setRenderMode(next)
-    // Checklist (3) se renderiza siempre como tabla a ancho completo (ignora el
-    // Tamano en el PDF/web). Forzamos el ancho a 12 para que la config refleje la
-    // realidad y no quede, p.ej., en un tercio.
-    if (next === 3) {
-      setTamano(12)
-      setModoPersonalizado(false)
-    }
-    if (tab === "new" && next === 3 && tempOpciones.length === 0) {
-      // Sí/No/NA es un orden semántico explícito, no alfabético: activamos manual.
-      setTempOpciones([
-        { valor: "SI", etiqueta: "Sí" },
-        { valor: "NO", etiqueta: "No" },
-        { valor: "NA", etiqueta: "No Aplica" },
-      ])
-      setOpcionesManualOrder(true)
-    }
   }
 
   const handleRemoveOpcion = (index: number) => {
@@ -363,12 +352,13 @@ export function AddCampoModal({
             </Select>
           </div>
 
-          {/* Ancho del campo (shared) */}
+          {/* Ancho del campo (shared) — deshabilitado cuando el campo es Checklist,
+              porque en tabla siempre ocupa la fila completa. */}
           <div className="space-y-1.5">
             <Label>Ancho del campo</Label>
             <div className="flex items-center gap-2">
               <Select
-                disabled={renderMode === 3}
+                disabled={isChecklistExistente || isChecklistNuevo}
                 value={(() => {
                   if (modoPersonalizado) return "-1"
                   const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
@@ -414,8 +404,8 @@ export function AddCampoModal({
               )}
             </div>
             <p className="text-[10px] text-muted-foreground">
-              {renderMode === 3
-                ? "El modo Checklist (tabla) siempre ocupa el ancho completo (12)."
+              {(isChecklistExistente || isChecklistNuevo)
+                ? "Los campos Checklist siempre ocupan el ancho completo (12) para renderizarse como tabla."
                 : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
@@ -518,50 +508,49 @@ export function AddCampoModal({
                   <FormField
                     control={form.control}
                     name="tipoDato"
-                    render={({ field }) => {
-                      // Traducimos el par (tipoDato, renderMode) a la opción visual
-                      // que aparece en el select. Checklist es solo una vista de
-                      // (Lista + renderMode=Checklist); todo lo demás mapea 1:1.
-                      const tipoUiActual = toTipoUi(field.value as CampoTipoDato, renderMode)
-                      return (
-                        <FormItem>
-                          <FormLabel>Tipo de dato</FormLabel>
-                          <Select
-                            value={String(tipoUiActual)}
-                            onValueChange={(v) => {
-                              const tipoUi = Number(v) as TipoUiValor
-                              const mapped = fromTipoUi(tipoUi)
-                              field.onChange(mapped.tipoDato)
-                              // Aplicar preset de renderMode si corresponde:
-                              //  - Checklist → renderMode=3 + ancho completo (misma
-                              //    lógica que handleRenderModeChange).
-                              //  - Lista "normal" viniendo de Checklist → resetear
-                              //    a Inline si estaba en Checklist.
-                              if (tipoUi === TIPO_UI_CHECKLIST) {
-                                handleRenderModeChange(3)
-                              } else if (mapped.tipoDato === 5 && renderMode === 3) {
-                                setRenderMode(1)
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de dato</FormLabel>
+                        <Select
+                          value={String(field.value)}
+                          onValueChange={(v) => {
+                            const nuevoTipo = Number(v) as CampoTipoDato
+                            field.onChange(nuevoTipo)
+                            // Checklist forza ancho completo; el renderMode se ignora
+                            // en runtime pero mantenemos el state consistente (Inline).
+                            if (nuevoTipo === 11) {
+                              setTamano(12)
+                              setRenderMode(1)
+                              setModoPersonalizado(false)
+                              // Precargar Sí/No/N/A si el usuario aún no cargó opciones.
+                              if (tempOpciones.length === 0) {
+                                setTempOpciones([
+                                  { valor: "SI", etiqueta: "Sí" },
+                                  { valor: "NO", etiqueta: "No" },
+                                  { valor: "NA", etiqueta: "No Aplica" },
+                                ])
+                                setOpcionesManualOrder(true)
                               }
-                            }}
-                            disabled={isPending}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue>
-                                  {CAMPO_TIPO_UI[tipoUiActual] ?? ""}
-                                </SelectValue>
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {Object.entries(CAMPO_TIPO_UI).map(([k, v]) => (
-                                <SelectItem key={k} value={k}>{v}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )
-                    }}
+                            }
+                          }}
+                          disabled={isPending}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue>
+                                {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
+                              </SelectValue>
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
+                              <SelectItem key={k} value={k}>{v}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
 
@@ -710,12 +699,11 @@ export function AddCampoModal({
                   </div>
                 )}
 
-                {/* Sub-sección Lista: opciones + render mode.
-                    Si el usuario ya eligió "Checklist" en el picker de tipo,
-                    ocultamos este sub-selector — el modo ya está decidido. */}
-                {isListaNuevo && (
+                {/* Sub-sección Lista/Checklist: opciones + (solo Lista) render mode.
+                    Checklist se renderiza siempre como tabla — no muestra el sub-selector. */}
+                {tieneOpcionesNuevo && (
                   <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 space-y-3">
-                    {renderMode !== 3 && (
+                    {isListaNuevo && (
                       <div className="space-y-1">
                         <Label className="text-xs">Cómo se muestra</Label>
                         <Select
@@ -729,17 +717,17 @@ export function AddCampoModal({
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            {CAMPO_LISTA_RENDER_MODE_OPCIONES
-                              .filter((o) => o.value !== 3)
-                              .map((o) => (
-                                <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
-                              ))}
+                            {CAMPO_LISTA_RENDER_MODE_OPCIONES.map((o) => (
+                              <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
                     )}
 
-                    <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
+                    <p className="text-xs font-semibold text-blue-900">
+                      Opciones {isChecklistNuevo ? "del checklist" : "de la lista"}
+                    </p>
                     <p className="text-[10px] text-blue-700/70 -mt-1">
                       Tocá la ★ para marcar el valor por defecto.
                     </p>

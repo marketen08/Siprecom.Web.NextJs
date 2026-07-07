@@ -7,6 +7,7 @@ import type { PlanillaCampoDetalle } from "@/features/planillas/types"
 import { useCreateTablaColumna } from "@/features/campos/api/use-create-tabla-columna"
 import { useDeleteTablaColumna } from "@/features/campos/api/use-delete-tabla-columna"
 import { useReorderTablaColumnas } from "@/features/campos/api/use-reorder-tabla-columnas"
+import { useUpdateTablaColumna } from "@/features/campos/api/use-update-tabla-columna"
 import { useCreateTablaFila } from "@/features/campos/api/use-create-tabla-fila"
 import { useDeleteTablaFila } from "@/features/campos/api/use-delete-tabla-fila"
 import { useReorderTablaFilas } from "@/features/campos/api/use-reorder-tabla-filas"
@@ -33,9 +34,14 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
 
   const [newColumna, setNewColumna] = useState("")
   const [newColumnaEsEtiqueta, setNewColumnaEsEtiqueta] = useState(false)
+  const [newColumnaGrupo, setNewColumnaGrupo] = useState("")
   const [newFila, setNewFila] = useState("")
+  // Estado local para edición inline del Grupo por columna: mantenemos un
+  // draft para no dispararle un PUT por cada tecla. Committéa al blur.
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
 
   const createColumna = useCreateTablaColumna()
+  const updateColumna = useUpdateTablaColumna()
   const deleteColumna = useDeleteTablaColumna()
   const reorderColumnas = useReorderTablaColumnas()
   const createFila = useCreateTablaFila()
@@ -50,14 +56,38 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
         encabezado: newColumna.trim(),
         esColumnaEtiqueta: newColumnaEsEtiqueta,
         orden: columnas.reduce((m, c) => Math.max(m, c.orden), 0) + 1,
+        grupo: newColumnaGrupo.trim() || null,
       },
       {
         onSuccess: () => {
           setNewColumna("")
           setNewColumnaEsEtiqueta(false)
+          setNewColumnaGrupo("")
         },
       }
     )
+  }
+
+  // Persiste el Grupo de una columna cuando cambia (blur del input).
+  const commitGrupo = (col: { id: string; campoId: string; encabezado: string; orden: number; esColumnaEtiqueta: boolean; grupo?: string | null }) => {
+    const draft = drafts[col.id]
+    if (draft === undefined) return
+    const nuevoGrupo = draft.trim() || null
+    // Sin cambios efectivos: limpiamos el draft sin pegarle al backend.
+    if ((col.grupo ?? null) === nuevoGrupo) {
+      setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c })
+      return
+    }
+    updateColumna.mutate({
+      id: col.id,
+      campoId: col.campoId,
+      encabezado: col.encabezado,
+      orden: col.orden,
+      esColumnaEtiqueta: col.esColumnaEtiqueta,
+      grupo: nuevoGrupo,
+    }, {
+      onSuccess: () => setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c }),
+    })
   }
 
   const handleAddFila = () => {
@@ -100,12 +130,25 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
         <div className="mt-1 space-y-1">
           {columnas.map((c, i, arr) => (
             <div key={c.id} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
-              <span className="flex-1">{c.encabezado}</span>
+              <span className="flex-1 truncate">{c.encabezado}</span>
               {c.esColumnaEtiqueta && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">
                   etiquetas
                 </span>
               )}
+              <Input
+                value={drafts[c.id] ?? c.grupo ?? ""}
+                onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
+                onBlur={() => commitGrupo(c)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+                  if (e.key === "Escape") setDrafts((d) => { const cp = { ...d }; delete cp[c.id]; return cp })
+                }}
+                placeholder="grupo (opcional)"
+                className="h-6 text-[11px] w-28 shrink-0"
+                disabled={updateColumna.isPending}
+                title="Header agrupador. Columnas consecutivas con el mismo grupo se dibujan bajo un encabezado extra."
+              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -146,8 +189,16 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
               className="h-7 text-xs flex-1"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAddColumna()
-                if (e.key === "Escape") setNewColumna("")
+                if (e.key === "Escape") { setNewColumna(""); setNewColumnaGrupo("") }
               }}
+            />
+            <Input
+              value={newColumnaGrupo}
+              onChange={(e) => setNewColumnaGrupo(e.target.value)}
+              placeholder="grupo"
+              className="h-7 text-[11px] w-24 shrink-0"
+              title="Header agrupador (opcional). Columnas consecutivas con el mismo grupo se agrupan."
+              onKeyDown={(e) => { if (e.key === "Enter") handleAddColumna() }}
             />
             <label className="flex items-center gap-1 text-[10px] shrink-0 cursor-pointer" title="Primera columna read-only con etiquetas por fila (tabla matriz)">
               <input

@@ -99,11 +99,45 @@ export function CampoTablaInput({
     return <p className="text-xs text-muted-foreground italic">Tabla sin columnas definidas.</p>
   }
 
+  // Segmenta las columnas en tramos contiguos con el mismo `grupo` para el
+  // header agrupador. Columnas sin grupo (o vacío) salen como celdas vacías
+  // individuales para mantener alineada la grilla. La col extra "eliminar"
+  // (solo tablas dinámicas) también aparece como una celda vacía sin agrupar.
+  const grupoTramos = useMemo(() => {
+    const tramos: Array<{ grupo: string | null; span: number }> = []
+    for (const c of columnas) {
+      const g = (c.grupo ?? "").trim() || null
+      const last = tramos[tramos.length - 1]
+      if (last && last.grupo === g && g !== null) {
+        last.span += 1
+      } else {
+        tramos.push({ grupo: g, span: 1 })
+      }
+    }
+    return tramos
+  }, [columnas])
+
+  const hayGrupos = grupoTramos.some((t) => t.grupo !== null)
+
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto border rounded-md">
         <table className="w-full text-sm border-collapse">
           <thead>
+            {hayGrupos && (
+              <tr className="bg-gray-100">
+                {grupoTramos.map((t, i) => (
+                  <th
+                    key={i}
+                    colSpan={t.span}
+                    className="border-b border-r last:border-r-0 px-2 py-1 text-center font-semibold text-gray-700"
+                  >
+                    {t.grupo ?? ""}
+                  </th>
+                ))}
+                {!esMatriz && !readOnly && <th className="border-b w-8" />}
+              </tr>
+            )}
             <tr className="bg-gray-50">
               {columnas.map((c) => (
                 <th

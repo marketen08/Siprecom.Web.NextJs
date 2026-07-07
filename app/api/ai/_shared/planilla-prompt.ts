@@ -17,12 +17,13 @@ export const PLANILLA_SYSTEM_PROMPT_BASE = `
 - 1 = Texto (texto libre corto)
 - 2 = Número (valores numéricos, presiones, temperaturas, medidas)
 - 3 = Fecha
-- 4 = Boolean (SI/NO, checkbox, cumple/no cumple)
-- 5 = Lista (opciones predefinidas — se usa junto con "opciones" y "renderMode")
+- 4 = Boolean (SI/NO, checkbox, cumple/no cumple) — usar SOLO para un SÍ/NO aislado.
+- 5 = Lista (opciones predefinidas, un valor seleccionado — se usa junto con "opciones" y "renderMode")
 - 7 = Adjunto (plano, P&ID, fotografía, PDF)
 - 8 = Imagen (imagen embebida en la planilla como referencia visual — NO para adjuntos del usuario)
 - 9 = Tabla (grilla de celdas — ver "Cuándo usar tipo Tabla" más abajo)
 - 10 = Label (texto fijo, encabezados/aclaraciones — no captura dato)
+- 11 = **Checklist** (lista de verificación con render siempre en formato tabla — ver "Cuándo usar Checklist")
 
 ## Cuándo usar tipo Tabla (9)
 
@@ -41,34 +42,70 @@ Dos variantes:
   - "filas": array con la etiqueta de cada fila predefinida. Ejemplo: [{"etiquetaFila": "TC-01"}, {"etiquetaFila": "TC-02"}, ...].
   - NO uses "numeroFilas" en matriz — se ignora.
 
+### Header agrupador (opcional, "grupo" en cada columna)
+
+Si el Excel tiene un ENCABEZADO SUPERIOR que abarca varias columnas (celda combinada / merged cell arriba de dos o más columnas), representalo con la propiedad "grupo" en cada columna hija. Todas las columnas consecutivas con el mismo valor de "grupo" se van a dibujar bajo ese header extra al imprimir.
+
+Ejemplo — el Excel muestra:
+
+\`\`\`
+|         |     Presión     |    Temperatura   |
+|  Punto  |  Inicial | Final |  Inicial | Final |
+| TC-01   |          |       |          |       |
+\`\`\`
+
+Debe salir como:
+
+\`\`\`json
+{
+  "columnas": [
+    { "encabezado": "Punto",   "esColumnaEtiqueta": true },
+    { "encabezado": "Inicial", "grupo": "Presión" },
+    { "encabezado": "Final",   "grupo": "Presión" },
+    { "encabezado": "Inicial", "grupo": "Temperatura" },
+    { "encabezado": "Final",   "grupo": "Temperatura" }
+  ]
+}
+\`\`\`
+
+Reglas del grupo:
+- OMITIR "grupo" (o null) en columnas que NO están bajo un header agrupador — la primera columna de etiqueta suele no tener grupo.
+- Columnas consecutivas con el mismo texto de grupo se colapsan en una celda de header. Bloques no contiguos con el mismo texto se dibujan como grupos separados; usá texto distinto si son grupos conceptuales distintos.
+- Si el Excel NO tiene celdas combinadas arriba, NO inventes grupos — dejá "grupo" fuera del JSON.
+
 - **Dinámica (filas variables)**: usá esto cuando el operador va agregando filas al cargar. Devolvé:
   - "columnas": encabezados de columnas, **ninguna** con "esColumnaEtiqueta".
   - "numeroFilas": cantidad razonable de filas vacías al abrir (rango 2-10, típicamente 3-5).
   - NO devuelvas "filas" — es dinámica.
 
-NO uses Tabla para pedir un simple "Sí/No" repetido: para eso usá tipo 5 (Lista) con "renderMode: 3" (Checklist) por cada verificación.
+NO uses Tabla para pedir un simple "Sí/No" repetido: para eso usá tipo 11 (Checklist).
 NO uses Tabla para 1 fila con varios campos: para eso usá varios campos comunes con "tamano" chico.
 
-## Render modes para tipo Lista (5)
+## Cuándo usar Checklist (tipoDato = 11)
 
-Nota: el modo "automático" (0) fue deprecado. NUNCA devuelvas renderMode 0.
+Checklist es su PROPIO tipo de dato (distinto de Lista=5). Se renderiza SIEMPRE como tabla vertical con una columna por opción y una fila por campo. Los campos Checklist que compartan las mismas opciones se agrupan automáticamente en una sola tabla al imprimir el PDF.
 
-- 1 = Inline (opciones separadas visibles al lado del label, tipo pill-buttons)
-- 2 = Dropdown (desplegable — usar solo cuando hay muchas opciones y la lista no es una verificación repetitiva)
-- 3 = **Checklist** (tabla vertical de verificación — obliga ancho completo)
-
-### Preferí Checklist (renderMode 3) cuando
-
-Las planillas industriales de precomisionamiento están LLENAS de listas de verificación tipo Sí/No/N/A. En cualquiera de estos casos, **prefiere \`renderMode: 3\` (Checklist)**:
+Las planillas industriales de precomisionamiento están LLENAS de listas de verificación tipo Sí/No/N/A. En cualquiera de estos casos, usá **tipoDato: 11 (Checklist)**:
 
 - La fuente muestra columnas con encabezados SI/NO, SI/NO/NA, CUMPLE/NO CUMPLE, ACEPTADO/RECHAZADO, C/NC/NA.
 - Hay N filas con "puntos a verificar" cada una con checkbox en una o varias columnas iguales.
 - El campo pide una verificación (ej. "¿Se realizó la limpieza?" "¿Se verificó la calibración?") con opciones cortas repetidas.
 - Aparecen rectángulos vacíos ☐ o "check/cross" ✓/✗ como columnas de una tabla de checkpoints.
 
-Cuando dudes entre Boolean (4) y Lista+Checklist (5+3):
-- Un único SI/NO aislado → Boolean.
-- Una LISTA de verificaciones con columnas SI/NO comunes → Lista con opciones ["Sí", "No"] o ["Sí", "No", "N/A"] y renderMode: 3 (Checklist). Todos los campos que compartan las MISMAS opciones se van a agrupar automáticamente en una tabla al imprimir el PDF, así que reusá exactamente las mismas etiquetas de opciones para que el sistema los agrupe.
+Cuando dudes entre los tipos de "sí/no":
+- Un único SI/NO aislado (una sola pregunta) → tipoDato: 4 (Boolean).
+- Una LISTA de verificaciones con columnas SI/NO comunes → tipoDato: 11 (Checklist) con opciones ["Sí", "No"] o ["Sí", "No", "N/A"]. Reusá EXACTAMENTE las mismas etiquetas de opciones en todos los campos de la misma sección para que el sistema los agrupe en la misma tabla.
+- Un campo con opciones únicas pero pocas (A/B/C, Bueno/Regular/Malo) sin repetición en otras filas → tipoDato: 5 (Lista) con renderMode: 1 (Inline).
+
+Para Checklist NO devuelvas "renderMode" — es fijo. Devolvé "tipoDato: 11" y "opciones".
+
+## Render modes para tipo Lista (5)
+
+Nota: el modo "automático" (0) fue deprecado. NUNCA devuelvas renderMode 0.
+Nota 2: el modo "checklist" (3) fue promovido a un TIPO propio (tipoDato = 11). NUNCA devuelvas renderMode 3 en un campo tipo Lista — usá tipoDato 11 en su lugar.
+
+- 1 = Inline (opciones separadas visibles al lado del label, tipo pill-buttons)
+- 2 = Dropdown (desplegable — usar solo cuando hay muchas opciones y la lista no es una verificación repetitiva)
 
 ## Grilla de ancho (campo "tamano")
 
@@ -81,7 +118,7 @@ Los campos se colocan en una grilla de 12 columnas. Elegí valores estándar:
 
 Regla: campos afines (ej. presión inicial + presión final) usalos en el mismo tamaño para que se alineen.
 Los campos de texto largo (observaciones, notas) → 12. Fechas → 4 o 6. Booleans → 3 o 4.
-Los campos con renderMode: 3 (Checklist) SIEMPRE llevan tamano: 12.
+Los campos tipoDato: 11 (Checklist) SIEMPRE llevan tamano: 12.
 Si dudás, poné 6.
 
 ## Regla CRÍTICA — reuso de campos del catálogo
@@ -150,7 +187,7 @@ Devolvé ÚNICAMENTE un JSON válido con esta estructura exacta:
           "renderMode": number,
           "opciones": ["string"],
           "campoIdExistente": "string o null",
-          "columnas": [ { "encabezado": "string", "esColumnaEtiqueta": boolean } ],
+          "columnas": [ { "encabezado": "string", "esColumnaEtiqueta": boolean, "grupo": "string o null" } ],
           "filas": [ { "etiquetaFila": "string" } ],
           "numeroFilas": number
         }
@@ -160,8 +197,8 @@ Devolvé ÚNICAMENTE un JSON válido con esta estructura exacta:
 }
 
 Campos NO aplicables (renderMode para no-Lista, columnas/filas/numeroFilas para no-Tabla) omitilos u pon null.
-Tabla siempre debería tener \`tamano: 12\` (ocupa la grilla completa).
-Lista con renderMode: 3 (Checklist) también SIEMPRE \`tamano: 12\`.
+Tabla (tipoDato: 9) siempre debería tener \`tamano: 12\` (ocupa la grilla completa).
+Checklist (tipoDato: 11) también SIEMPRE \`tamano: 12\` y OMITE renderMode.
 `
 
 /**

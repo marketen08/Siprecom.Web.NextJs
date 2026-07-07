@@ -57,6 +57,9 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
 
   const tipoDatoLabel = CAMPO_TIPO_DATO[campo.campoTipoDato as CampoTipoDato] ?? "—"
   const isLista = campo.campoTipoDato === 5
+  const isChecklist = campo.campoTipoDato === 11
+  // "Con opciones" agrupa Lista y Checklist para el editor de opciones.
+  const tieneOpciones = isLista || isChecklist
   const isImagen = campo.campoTipoDato === 8
   const isTabla = campo.campoTipoDato === 9
   const isLabel = campo.campoTipoDato === 10
@@ -114,11 +117,10 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   }
 
   const handleRenderModeChange = (value: CampoListaRenderMode) => {
-    // Checklist (3) se renderiza siempre como tabla a ancho completo: forzamos
-    // tamano=12 en el mismo update para que la config no quede inconsistente.
-    updateMutation.mutate(
-      buildUpdatePayload(value === 3 ? { renderMode: value, tamano: 12 } : { renderMode: value }),
-    )
+    // Solo aplica a Lista real (5). Checklist (11) ignora el renderMode: su
+    // render es siempre tabla. El select del renderMode ya no se muestra para
+    // Checklist en la UI de abajo.
+    updateMutation.mutate(buildUpdatePayload({ renderMode: value }))
   }
 
   const handleTamanoChange = (n: number) => {
@@ -337,8 +339,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
           {!isImagen && !isTabla && !isLabel && (
             <div>
               <Label className="text-xs">Valor por defecto</Label>
-              {isLista ? (
-                // Para Lista el default es UNA de las opciones, no texto libre.
+              {tieneOpciones ? (
+                // Para Lista/Checklist el default es UNA de las opciones, no texto libre.
                 <Select
                   value={campo.valorDefault ?? "__none__"}
                   onValueChange={(v) =>
@@ -399,7 +401,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                     handleTamanoChange(num)
                   }
                 }}
-                disabled={updateMutation.isPending || campo.renderMode === 3}
+                disabled={updateMutation.isPending || isChecklist}
               >
                 <SelectTrigger className="h-8 text-sm flex-1">
                   <SelectValue>
@@ -432,7 +434,9 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               )}
             </div>
             <p className="text-[10px] text-muted-foreground">
-              En grilla de 12. Los campos consecutivos se agrupan automáticamente.
+              {isChecklist
+                ? "Los campos Checklist siempre ocupan el ancho completo (12) para renderizarse como tabla."
+                : "En grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
 
@@ -483,11 +487,11 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             </div>
           )}
 
-          {/* Opciones (only for Lista) */}
-          {isLista && (
+          {/* Opciones (Lista y Checklist) */}
+          {tieneOpciones && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Label className="text-xs">Opciones de lista</Label>
+                <Label className="text-xs">{isChecklist ? "Opciones del checklist" : "Opciones de lista"}</Label>
                 <Button
                   variant="ghost"
                   size="icon"

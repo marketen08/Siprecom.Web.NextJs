@@ -27,7 +27,16 @@ export interface CampoImportado {
    *    puede marcarse `esColumnaEtiqueta: true` para ser la 1ª columna read-only con
    *    las etiquetas de fila precargadas.
    */
-  columnas?: Array<{ encabezado: string; esColumnaEtiqueta?: boolean }>
+  columnas?: Array<{
+    encabezado: string
+    esColumnaEtiqueta?: boolean
+    /**
+     * Header agrupador opcional. Columnas consecutivas con el mismo `grupo`
+     * se dibujan bajo una fila extra de encabezado en el PDF/web. La IA lo
+     * propone cuando el Excel tiene celdas combinadas arriba de varias columnas.
+     */
+    grupo?: string
+  }>
   /** Sólo para tipo Tabla (9) matriz. Filas predefinidas con su etiqueta. */
   filas?: Array<{ etiquetaFila: string }>
   /**

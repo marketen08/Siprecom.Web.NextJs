@@ -40,7 +40,8 @@ export interface CampoOpcion {
 // 6 = Firma y 7 = Adjunto fueron eliminados como tipos de campo. Se gestionan a nivel registro:
 //   - Firmas: ProyectosFirmasConfig + RegistroFirma.
 //   - Adjuntos: flags Proyecto.PermiteAdjuntos / Planilla.PermiteAdjuntos + RegistroArchivo.
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10
+// 11 = Checklist se agregó como tipo propio (antes era Lista + renderMode=Checklist).
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -51,53 +52,15 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   8: "Imagen",
   9: "Tabla",
   10: "Label",
+  11: "Checklist",
 }
 
-// ─── Tipos "visuales" en el picker ──────────────────────────────────────────
-//
-// Bajo el capó una lista tipo checklist es `tipoDato=5 + renderMode=3`. Pero
-// desde el punto de vista del usuario elegir "Lista y después Checklist" es un
-// paso de más — y las planillas industriales están *llenas* de checklists.
-// Por eso presentamos Checklist como un tipo aparte al costado de Lista.
-// El sentinel 501 es puramente de UI; NUNCA se envía al backend.
-
-/** Sentinel de UI para Checklist. No es un valor de `CampoTipoDato` real. */
-export const TIPO_UI_CHECKLIST = 501
-
-export type TipoUiValor = CampoTipoDato | typeof TIPO_UI_CHECKLIST
-
-export const CAMPO_TIPO_UI: Record<TipoUiValor, string> = {
-  1: "Texto",
-  2: "Número",
-  3: "Fecha",
-  4: "Boolean",
-  5: "Lista",
-  [TIPO_UI_CHECKLIST]: "Checklist",
-  8: "Imagen",
-  9: "Tabla",
-  10: "Label",
-}
-
-/**
- * Deriva el "tipo visual" a mostrar en el picker a partir del par real
- * (tipoDato, renderMode). Un campo Lista con render Checklist se ve como
- * "Checklist" en la UI; el resto se ve como su tipoDato.
- */
-export function toTipoUi(tipoDato: CampoTipoDato, renderMode?: number | null): TipoUiValor {
-  if (tipoDato === 5 && renderMode === 3) return TIPO_UI_CHECKLIST
-  return tipoDato
-}
-
-/**
- * Traduce una elección del picker visual al par real (tipoDato, renderMode
- * sugerido). `renderMode` sólo es orientativo — el llamador decide si lo
- * aplica (útil cuando el usuario cambia entre Lista/Checklist y hay que
- * ajustar renderMode automáticamente).
- */
-export function fromTipoUi(tipoUi: TipoUiValor): { tipoDato: CampoTipoDato; renderMode?: CampoListaRenderMode } {
-  if (tipoUi === TIPO_UI_CHECKLIST) return { tipoDato: 5, renderMode: 3 }
-  return { tipoDato: tipoUi as CampoTipoDato }
-}
+// Nota histórica: existió un sentinel `TIPO_UI_CHECKLIST=501` con helpers
+// `toTipoUi/fromTipoUi` para presentar Checklist como opción visual del picker
+// mientras el modelo era Lista+renderMode. Ese shim se removió cuando
+// Checklist pasó a ser un tipo propio (CampoTipoDato=11) — la migración
+// EF `AddCampoChecklistTipo` promovió el modelo, y la UI ahora usa el enum
+// directo sin abstracción intermedia.
 
 /** Alineación horizontal del texto de un campo Label. 0=Izquierda, 1=Centro, 2=Derecha. */
 export type AlineacionTexto = 0 | 1 | 2
@@ -116,6 +79,12 @@ export interface CampoTablaColumna {
   orden: number
   /** True si es la columna de etiquetas (primera columna read-only de una tabla matriz). */
   esColumnaEtiqueta: boolean
+  /**
+   * Header agrupador opcional. Columnas consecutivas con el mismo `grupo` se
+   * dibujan bajo una fila extra de encabezado en PDF y en el input web
+   * (colspan). Null / vacío = columna sin agrupar. Ver docstring de la entity.
+   */
+  grupo?: string | null
 }
 
 /** Fila predefinida de un campo Tabla matriz. Su presencia convierte la tabla en "matriz" (filas fijas). */
@@ -165,14 +134,13 @@ export const CAMPO_LISTA_RENDER_MODE_LABEL: Record<CampoListaRenderMode, string>
 }
 
 /**
- * Opciones a ofrecer en los selects de render mode. Sin `Auto` (0): la elección
- * automática nunca resolvía Checklist y confundía más de lo que ayudaba.
- * Además el picker visual dual (Lista vs Checklist) ya cubre el caso común.
+ * Opciones a ofrecer en los selects de render mode para campos tipo Lista (5).
+ * Sin `Auto` (0): la elección automática nunca resolvía Checklist y confundía.
+ * Sin `Checklist` (3): fue promovido a su propio tipo `CampoTipoDato.Checklist=11`.
  */
 export const CAMPO_LISTA_RENDER_MODE_OPCIONES: Array<{ value: CampoListaRenderMode; label: string }> = [
   { value: 1, label: "Inline (opciones visibles separadas)" },
   { value: 2, label: "Desplegable (select)" },
-  { value: 3, label: "Checklist (tabla agrupada con columnas)" },
 ]
 
 export interface PlanillaCampoDetalle {

@@ -377,6 +377,7 @@ export function GenerarConIASheet({ open, onClose }: Props) {
                   encabezado: col.encabezado,
                   orden: ci + 1,
                   esColumnaEtiqueta: !!col.esColumnaEtiqueta,
+                  grupo: col.grupo?.trim() || null,
                 })
               }
               const filas = campo.filas ?? []

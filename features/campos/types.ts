@@ -88,6 +88,8 @@ export interface CampoTablaColumnaCreateInput {
   encabezado: string
   orden: number
   esColumnaEtiqueta: boolean
+  /** Header agrupador opcional. Ver docstring en `types` (planillas). */
+  grupo?: string | null
 }
 
 export interface CampoTablaColumnaUpdateInput {
@@ -96,6 +98,8 @@ export interface CampoTablaColumnaUpdateInput {
   encabezado: string
   orden: number
   esColumnaEtiqueta: boolean
+  /** Header agrupador opcional. Ver docstring en `types` (planillas). */
+  grupo?: string | null
 }
 
 export interface CampoTablaFilaCreateInput {

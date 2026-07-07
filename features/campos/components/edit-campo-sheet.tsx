@@ -67,8 +67,10 @@ export function EditCampoSheet() {
                 </div>
               )}
 
-              {/* Editor de opciones — sólo para campos Lista (tipoDato === 5). */}
-              {campo.tipoDato === 5 && id && <CampoOpcionesEditor campoId={id} />}
+              {/* Editor de opciones — para campos Lista (5) y Checklist (11). */}
+              {(campo.tipoDato === 5 || campo.tipoDato === 11) && id && (
+                <CampoOpcionesEditor campoId={id} />
+              )}
 
               {planillasUso.length > 0 && (
                 <div className="mt-6 rounded-md border bg-gray-50 p-3">

@@ -40,8 +40,8 @@ Recibirás el contenido de un archivo Excel como MATRIZ de filas × columnas y d
 
 Traducí las convenciones típicas del Excel a los tipos de dato:
 
-- **Columnas con encabezados "SI" y "NO" (o "SI"/"NO"/"NA", "CUMPLE"/"NO CUMPLE") sobre una lista de puntos a verificar** → Lista con \`renderMode: 3\` (Checklist) y opciones ["Sí", "No"] o ["Sí", "No", "N/A"]. NO uses Boolean para esto — los Boolean sueltos NO se agrupan en una tabla en el PDF y quedan uno por línea. Los Checklists SÍ se agrupan cuando comparten las mismas opciones.
-- **Rectángulos vacíos ☐, ✓/✗, check/checkbox** en columnas repetidas → mismo criterio que arriba: Lista + Checklist.
+- **Columnas con encabezados "SI" y "NO" (o "SI"/"NO"/"NA", "CUMPLE"/"NO CUMPLE") sobre una lista de puntos a verificar** → \`tipoDato: 11\` (Checklist) con opciones ["Sí", "No"] o ["Sí", "No", "N/A"]. NO uses Boolean para esto — los Boolean sueltos NO se agrupan en una tabla en el PDF y quedan uno por línea. Los Checklists SÍ se agrupan cuando comparten las mismas opciones.
+- **Rectángulos vacíos ☐, ✓/✗, check/checkbox** en columnas repetidas → mismo criterio que arriba: Checklist.
 - **Un SÍ/NO aislado** (una sola pregunta en una fila) → tipoDato: 4 (Boolean).
 - **Texto libre corto** (descripciones, notas, nombres) → tipoDato: 1.
 - **Numéricos** (presión, temperatura, caudal, viscosidad, dimensiones, etc.) → tipoDato: 2.
@@ -88,7 +88,7 @@ ${catalogoTxt || "(catálogo vacío — creá todos los campos como nuevos)"}
 
 ${tablaTexto}
 
-Convertí el Excel en la estructura JSON de la planilla siguiendo las reglas del sistema. Reusá del catálogo cuando corresponda; preferí Checklist (renderMode 3) para verificaciones tipo SI/NO repetidas.`
+Convertí el Excel en la estructura JSON de la planilla siguiendo las reglas del sistema. Reusá del catálogo cuando corresponda; preferí Checklist (tipoDato 11) para verificaciones tipo SI/NO repetidas.`
 
     const client = getAnthropic()
     const message = await client.messages.create({
