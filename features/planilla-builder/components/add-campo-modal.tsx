@@ -496,7 +496,84 @@ export function AddCampoModal({
           ) : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleCreateAndAdd)} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                {/* Orden: tipo → etiqueta → código (autoderivado) → unidad. */}
+                <FormField
+                  control={form.control}
+                  name="tipoDato"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de dato</FormLabel>
+                      <Select
+                        value={String(field.value)}
+                        onValueChange={(v) => {
+                          const nuevoTipo = Number(v) as CampoTipoDato
+                          field.onChange(nuevoTipo)
+                          // Checklist forza ancho completo; el renderMode se ignora
+                          // en runtime pero mantenemos el state consistente (Inline).
+                          if (nuevoTipo === 11) {
+                            setTamano(12)
+                            setRenderMode(1)
+                            setModoPersonalizado(false)
+                            // Precargar Sí/No/N/A si el usuario aún no cargó opciones.
+                            if (tempOpciones.length === 0) {
+                              setTempOpciones([
+                                { valor: "SI", etiqueta: "Sí" },
+                                { valor: "NO", etiqueta: "No" },
+                                { valor: "NA", etiqueta: "No Aplica" },
+                              ])
+                              setOpcionesManualOrder(true)
+                            }
+                          }
+                        }}
+                        disabled={isPending}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue>
+                              {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
+                            </SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
+                            <SelectItem key={k} value={k}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="etiqueta"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Etiqueta</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Temperatura de aceite"
+                          disabled={isPending}
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e)
+                            // Auto-derivar `codigo` mientras el user no lo haya
+                            // tocado manualmente.
+                            if (!codigoSucio) {
+                              form.setValue("codigo", slugifyCodigoCampo(e.target.value), {
+                                shouldValidate: false,
+                              })
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-[2fr_1fr] gap-3">
                   <FormField
                     control={form.control}
                     name="codigo"
@@ -514,83 +591,6 @@ export function AddCampoModal({
                               // Vaciarlo lo reactiva.
                               setCodigoSucio(e.target.value.trim().length > 0)
                               field.onChange(e)
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tipoDato"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de dato</FormLabel>
-                        <Select
-                          value={String(field.value)}
-                          onValueChange={(v) => {
-                            const nuevoTipo = Number(v) as CampoTipoDato
-                            field.onChange(nuevoTipo)
-                            // Checklist forza ancho completo; el renderMode se ignora
-                            // en runtime pero mantenemos el state consistente (Inline).
-                            if (nuevoTipo === 11) {
-                              setTamano(12)
-                              setRenderMode(1)
-                              setModoPersonalizado(false)
-                              // Precargar Sí/No/N/A si el usuario aún no cargó opciones.
-                              if (tempOpciones.length === 0) {
-                                setTempOpciones([
-                                  { valor: "SI", etiqueta: "Sí" },
-                                  { valor: "NO", etiqueta: "No" },
-                                  { valor: "NA", etiqueta: "No Aplica" },
-                                ])
-                                setOpcionesManualOrder(true)
-                              }
-                            }
-                          }}
-                          disabled={isPending}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue>
-                                {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
-                              </SelectValue>
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
-                              <SelectItem key={k} value={k}>{v}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-[2fr_1fr] gap-3">
-                  <FormField
-                    control={form.control}
-                    name="etiqueta"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Etiqueta</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Temperatura de aceite"
-                            disabled={isPending}
-                            {...field}
-                            onChange={(e) => {
-                              field.onChange(e)
-                              // Auto-derivar `codigo` mientras el user no lo haya
-                              // tocado manualmente.
-                              if (!codigoSucio) {
-                                form.setValue("codigo", slugifyCodigoCampo(e.target.value), {
-                                  shouldValidate: false,
-                                })
-                              }
                             }}
                           />
                         </FormControl>
