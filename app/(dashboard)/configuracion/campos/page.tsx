@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -12,11 +12,13 @@ import { useGetCampos } from "@/features/campos/api/use-get-campos"
 import { useNewCampo } from "@/features/campos/hooks/use-new-campo"
 import { NewCampoSheet } from "@/features/campos/components/new-campo-sheet"
 import { EditCampoSheet } from "@/features/campos/components/edit-campo-sheet"
+import { useGetPlanillas } from "@/features/planillas/api/use-get-planillas"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
   Select,
   SelectContent,
@@ -25,6 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
+
+/** Value sentinela para el Combobox — Base UI Select no acepta "" como value. */
+const PLANILLA_TODAS = "__all__"
 import {
   Table,
   TableBody,
@@ -37,6 +42,7 @@ import {
 export default function CamposPage() {
   const [search, setSearch] = useState("")
   const [tipoFiltro, setTipoFiltro] = useState<string>("__all__")
+  const [planillaFiltro, setPlanillaFiltro] = useState<string>(PLANILLA_TODAS)
   const [page, setPage] = useState(1)
   const pageSize = 10
 
@@ -45,8 +51,25 @@ export default function CamposPage() {
     pageSize,
     nombre: search || undefined,
     tipoDato: tipoFiltro === "__all__" ? undefined : Number(tipoFiltro),
+    planillaId: planillaFiltro === PLANILLA_TODAS ? undefined : planillaFiltro,
   })
   const { open } = useNewCampo()
+
+  // Cargamos todas las planillas para el Combobox (búsqueda client-side por
+  // código o nombre). pageSize alto: en la práctica <500 por tenant/proyecto.
+  // Si se supera, migrar a Combobox server-side con debounce.
+  const { data: planillasData } = useGetPlanillas({ page: 1, pageSize: 500 })
+  const planillaOptions: ComboboxOption[] = useMemo(() => {
+    const all: ComboboxOption[] = [{ value: PLANILLA_TODAS, label: "Todas las planillas" }]
+    for (const p of planillasData?.data ?? []) {
+      all.push({
+        value: p.id,
+        // Formato "CODIGO - Nombre" para poder buscar por cualquiera de los dos.
+        label: p.codigo ? `${p.codigo} - ${p.nombre}` : p.nombre,
+      })
+    }
+    return all
+  }, [planillasData])
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -94,6 +117,16 @@ export default function CamposPage() {
               ))}
             </SelectContent>
           </Select>
+          <div className="w-72">
+            <Combobox
+              options={planillaOptions}
+              value={planillaFiltro}
+              onChange={(v) => { setPlanillaFiltro(v); setPage(1) }}
+              placeholder="Todas las planillas"
+              searchPlaceholder="Buscar por código o nombre..."
+              emptyMessage="Sin planillas"
+            />
+          </div>
           <Button onClick={open} className="gap-2 ml-auto">
             <Plus className="h-4 w-4" />
             Nuevo campo
