@@ -4,6 +4,7 @@ import { useOpenTarea } from "../hooks/use-open-tarea"
 import { useGetTarea } from "../api/use-get-tarea"
 import { useUpdateTarea } from "../api/use-update-tarea"
 import { TareaForm } from "./tarea-form"
+import { TareaFirmasConfigEditor } from "./tarea-firmas-config-editor"
 import type { TareaFormValues } from "../schema"
 
 import {
@@ -53,6 +54,17 @@ export function EditTareaSheet() {
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">
                   {(mutation.error as Error)?.message ?? "Error al actualizar la tarea."}
                 </div>
+              )}
+
+              {/* Editor de override de firmas por tarea. Aparece sólo si el registro
+                  de esta tarea requiere firma (es decir, si el proyecto tiene
+                  proyectoId — siempre en este flujo). */}
+              {tarea?.proyectoId && (
+                <TareaFirmasConfigEditor
+                  key={`firmas-${tarea.id}`}
+                  tareaId={tarea.id}
+                  proyectoId={tarea.proyectoId}
+                />
               )}
             </>
           ) : null}
