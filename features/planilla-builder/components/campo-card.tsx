@@ -96,6 +96,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     tamano: number
     planillaSeccionId?: string
     numeroFilas?: number | null
+    etiquetaArriba?: boolean
+    alineacionEtiqueta?: AlineacionTexto
   }> = {}) => ({
     id: campo.id,
     planillaId,
@@ -109,6 +111,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     renderMode: campo.renderMode,
     tamano: campo.tamano,
     numeroFilas: campo.numeroFilas ?? null,
+    etiquetaArriba: campo.etiquetaArriba ?? false,
+    alineacionEtiqueta: campo.alineacionEtiqueta ?? 0,
     ...overrides,
   })
 
@@ -147,6 +151,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       renderMode: otro.renderMode,
       tamano: otro.tamano,
       numeroFilas: otro.numeroFilas ?? null,
+      etiquetaArriba: otro.etiquetaArriba ?? false,
+      alineacionEtiqueta: otro.alineacionEtiqueta ?? 0,
     })
   }
 
@@ -334,6 +340,104 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               <span className="text-xs">Solo lectura</span>
             </label>
           </div>
+
+          {/* Layout en el PDF: etiqueta arriba. Solo campos lineales (no Imagen/
+              Tabla/Label/Checklist — esos tienen su propio layout). El botón
+              "Aplicar a todos de esta sección" replica el valor actual del flag
+              a los demás campos aptos de la misma sección. */}
+          {!isImagen && !isTabla && !isLabel && !isChecklist && (
+            <div className="border rounded-md bg-blue-50/40 px-3 py-2 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 shrink-0"
+                  checked={campo.etiquetaArriba ?? false}
+                  onChange={(e) =>
+                    updateMutation.mutate(buildUpdatePayload({ etiquetaArriba: e.target.checked }))
+                  }
+                  disabled={updateMutation.isPending}
+                />
+                <span className="text-xs">
+                  <strong>Etiqueta arriba</strong> en el PDF
+                  <span className="block text-[10px] text-muted-foreground">
+                    Etiqueta arriba, valor/línea abajo (layout tipo Excel).
+                  </span>
+                </span>
+              </label>
+
+              <div className="flex items-center gap-2">
+                <Label className="text-xs shrink-0">Alineación etiqueta</Label>
+                <Select
+                  value={String(campo.alineacionEtiqueta ?? 0)}
+                  onValueChange={(v) =>
+                    updateMutation.mutate(buildUpdatePayload({
+                      alineacionEtiqueta: Number(v) as AlineacionTexto,
+                    }))
+                  }
+                  disabled={updateMutation.isPending}
+                >
+                  <SelectTrigger className="h-7 text-xs w-32">
+                    <SelectValue>
+                      {ALINEACION_TEXTO_LABEL[(campo.alineacionEtiqueta ?? 0) as AlineacionTexto]}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(ALINEACION_TEXTO_LABEL) as Array<[string, string]>).map(([v, label]) => (
+                      <SelectItem key={v} value={v}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[10px] ml-auto shrink-0"
+                  onClick={async () => {
+                    // Replica AMBOS flags de este campo a los demás campos aptos de
+                    // la misma sección (mismo planillaSeccionId, incluye null="Sin
+                    // sección"). Aptos = no Imagen/Tabla/Label/Checklist.
+                    const objEtiqueta = campo.etiquetaArriba ?? false
+                    const objAlineacion = campo.alineacionEtiqueta ?? 0
+                    const restantes = allCampos.filter((c) =>
+                      c.id !== campo.id
+                      && (c.planillaSeccionId ?? null) === (campo.planillaSeccionId ?? null)
+                      && c.campoTipoDato !== 8
+                      && c.campoTipoDato !== 9
+                      && c.campoTipoDato !== 10
+                      && c.campoTipoDato !== 11
+                      && (
+                        (c.etiquetaArriba ?? false) !== objEtiqueta
+                        || (c.alineacionEtiqueta ?? 0) !== objAlineacion
+                      ),
+                    )
+                    for (const c of restantes) {
+                      await updateMutation.mutateAsync({
+                        id: c.id,
+                        planillaId,
+                        campoId: c.campoId,
+                        planillaSeccionId: c.planillaSeccionId,
+                        orden: c.orden,
+                        esObligatorio: c.esObligatorio,
+                        visible: c.visible,
+                        soloLectura: c.soloLectura,
+                        valorDefault: c.valorDefault,
+                        renderMode: c.renderMode,
+                        tamano: c.tamano,
+                        numeroFilas: c.numeroFilas ?? null,
+                        etiquetaArriba: objEtiqueta,
+                        alineacionEtiqueta: objAlineacion,
+                      })
+                    }
+                  }}
+                  disabled={updateMutation.isPending}
+                  title="Copia el layout y la alineación de la etiqueta a los demás campos aptos de esta sección"
+                >
+                  Aplicar a esta sección
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Valor por defecto — no aplica a tipo Imagen, Tabla ni Label */}
           {!isImagen && !isTabla && !isLabel && (

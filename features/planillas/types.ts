@@ -172,6 +172,10 @@ export interface PlanillaCampoDetalle {
   renderMode: CampoListaRenderMode
   /** Ancho en grilla 12 (1-12). Default 4. */
   tamano: number
+  /** Layout vertical: etiqueta centrada arriba, valor/línea abajo. Default false (layout horizontal 4:6). */
+  etiquetaArriba?: boolean
+  /** Alineación de la etiqueta (0=Izq, 1=Centro, 2=Der). Default 0. */
+  alineacionEtiqueta?: AlineacionTexto
   opciones: CampoOpcion[]
   /** Solo aplica cuando campoTipoDato === 9 (Tabla). Filas efectivas para tabla dinámica. */
   numeroFilas?: number
@@ -251,6 +255,10 @@ export interface PlanillaCampoCreateInput {
   tamano?: number
   /** Override de filas para Tabla dinámica (null = usa Campo.numeroFilas). */
   numeroFilas?: number | null
+  /** Layout vertical (etiqueta arriba). Default false. */
+  etiquetaArriba?: boolean
+  /** Alineación de la etiqueta (0=Izq, 1=Centro, 2=Der). Default 0. */
+  alineacionEtiqueta?: AlineacionTexto
 }
 
 export interface PlanillaCampoUpdateInput {
@@ -267,4 +275,8 @@ export interface PlanillaCampoUpdateInput {
   tamano?: number
   /** Override de filas para Tabla dinámica (null = usa Campo.numeroFilas). */
   numeroFilas?: number | null
+  /** Layout vertical (etiqueta arriba). Default false. */
+  etiquetaArriba?: boolean
+  /** Alineación de la etiqueta (0=Izq, 1=Centro, 2=Der). Default 0. */
+  alineacionEtiqueta?: AlineacionTexto
 }
