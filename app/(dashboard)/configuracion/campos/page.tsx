@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
+import { CAMPO_TIPO_DATO, CAMPO_TIPO_DATO_ENTRIES_SORTED, type CampoTipoDato } from "@/features/planillas/types"
 
 /** Value sentinela para el Combobox — Base UI Select no acepta "" como value. */
 const PLANILLA_TODAS = "__all__"
@@ -112,7 +112,7 @@ export default function CamposPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Todos los tipos</SelectItem>
-              {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
+              {CAMPO_TIPO_DATO_ENTRIES_SORTED.map(([k, v]) => (
                 <SelectItem key={k} value={k}>{v}</SelectItem>
               ))}
             </SelectContent>

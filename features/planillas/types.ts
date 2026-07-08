@@ -63,6 +63,17 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   12: "Texto multilínea",
 }
 
+/**
+ * Entradas de `CAMPO_TIPO_DATO` ordenadas alfabéticamente por label (locale es).
+ * Usar en los select/filter del UI para que el listado sea navegable sin memorizar
+ * el orden histórico del enum. Case-insensitive por `sensitivity: "base"`.
+ */
+export const CAMPO_TIPO_DATO_ENTRIES_SORTED: Array<[string, string]> =
+  (Object.entries(CAMPO_TIPO_DATO) as Array<[string, string]>).sort(
+    ([, labelA], [, labelB]) =>
+      labelA.localeCompare(labelB, "es", { sensitivity: "base" }),
+  )
+
 // Nota histórica: existió un sentinel `TIPO_UI_CHECKLIST=501` con helpers
 // `toTipoUi/fromTipoUi` para presentar Checklist como opción visual del picker
 // mientras el modelo era Lista+renderMode. Ese shim se removió cuando

@@ -45,6 +45,10 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const [newOpcionValor, setNewOpcionValor] = useState("")
   const [newOpcionEtiqueta, setNewOpcionEtiqueta] = useState("")
   const [addingOpcion, setAddingOpcion] = useState(false)
+  // Local state para el input de "Etiqueta alternativa" — guardamos en blur/Enter
+  // para no disparar un mutation por cada tecla. Se hidrata desde el campo global
+  // via useEffect cuando cambia el valor del server.
+  const [etiquetaAltInput, setEtiquetaAltInput] = useState(campo.campoEtiquetaAlt ?? "")
   // Flag para forzar modo Personalizado en el selector de ancho aunque el valor
   // coincida con una opción predefinida.
   const [modoPersonalizado, setModoPersonalizado] = useState(false)
@@ -66,6 +70,32 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
 
   const updateCampoGlobal = useUpdateCampoGlobal()
+
+  // Sincroniza el input local cuando el valor del campo global cambia (ej. tras
+  // guardar o cuando otra planilla abrió/cambió el campo).
+  useEffect(() => {
+    setEtiquetaAltInput(campo.campoEtiquetaAlt ?? "")
+  }, [campo.campoEtiquetaAlt])
+
+  const saveEtiquetaAlt = (nuevo: string) => {
+    const valor = nuevo.trim()
+    if (valor === (campo.campoEtiquetaAlt ?? "")) return
+    updateCampoGlobal.mutate({
+      id: campo.campoId,
+      codigo: campo.campoCodigo ?? "",
+      etiqueta: campo.campoEtiqueta ?? "",
+      etiquetaAlt: valor || undefined,
+      tipoDato: campo.campoTipoDato,
+      unidad: campo.campoUnidad,
+      // Preserva el estilo de Label global si es Label; para otros tipos son ignorados.
+      negrita: campo.campoNegrita ?? false,
+      conBorde: campo.campoConBorde ?? false,
+      fondoGris: campo.campoFondoGris ?? false,
+      alineacion: campo.campoAlineacion ?? 0,
+      sinPadding: campo.campoSinPadding ?? false,
+      sinMargen: campo.campoSinMargen ?? false,
+    })
+  }
   // El estilo del Label vive en el Campo global → update global (afecta todas las
   // planillas que usen este campo). Otros campos del Campo no aplican a un Label.
   const updateLabelStyle = (overrides: Partial<{ negrita: boolean; conBorde: boolean; fondoGris: boolean; alineacion: AlineacionTexto; sinPadding: boolean; sinMargen: boolean }>) => {
@@ -73,6 +103,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       id: campo.campoId,
       codigo: campo.campoCodigo ?? "",
       etiqueta: campo.campoEtiqueta ?? "",
+      etiquetaAlt: campo.campoEtiquetaAlt || undefined,
       tipoDato: campo.campoTipoDato,
       unidad: campo.campoUnidad,
       negrita: campo.campoNegrita ?? false,
@@ -436,6 +467,38 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   Aplicar a esta sección
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* Etiqueta alternativa — traducción/comentario del Campo GLOBAL.
+              Se guarda en blur o Enter. Modifica el catálogo, por eso el hint
+              lo aclara al user. No aplica a Tabla (usa columnas propias). */}
+          {!isTabla && (
+            <div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">Etiqueta alternativa</Label>
+                <span className="text-[10px] text-muted-foreground italic">
+                  afecta al campo global
+                </span>
+              </div>
+              <Input
+                value={etiquetaAltInput}
+                onChange={(e) => setEtiquetaAltInput(e.target.value)}
+                onBlur={() => saveEtiquetaAlt(etiquetaAltInput)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    ;(e.target as HTMLInputElement).blur()
+                  }
+                }}
+                placeholder="Oil temperature"
+                className="mt-1 h-7 text-sm"
+                maxLength={200}
+                disabled={updateCampoGlobal.isPending}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Opcional. Se muestra debajo del label en itálica en el PDF.
+              </p>
             </div>
           )}
 

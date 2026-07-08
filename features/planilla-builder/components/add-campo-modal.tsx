@@ -20,6 +20,7 @@ import { slugifyCodigoCampo } from "@/features/campos/lib/slugify-codigo"
 import { CHECKLIST_PRESETS } from "@/features/campos/lib/checklist-presets"
 import {
   CAMPO_TIPO_DATO,
+  CAMPO_TIPO_DATO_ENTRIES_SORTED,
   CAMPO_LISTA_RENDER_MODE_LABEL,
   CAMPO_LISTA_RENDER_MODE_OPCIONES,
   CAMPO_TAMANO_OPCIONES,
@@ -53,6 +54,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -164,9 +166,11 @@ export function AddCampoModal({
     defaultValues: {
       codigo: "",
       etiqueta: "",
+      etiquetaAlt: "",
       tipoDato: 1,
       unidad: "",
       descripcion: "",
+      numeroLineas: 3,
     },
   })
 
@@ -792,7 +796,7 @@ export function AddCampoModal({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
+                          {CAMPO_TIPO_DATO_ENTRIES_SORTED.map(([k, v]) => (
                             <SelectItem key={k} value={k}>{v}</SelectItem>
                           ))}
                         </SelectContent>
@@ -825,6 +829,28 @@ export function AddCampoModal({
                           }}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="etiquetaAlt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Etiqueta alternativa</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Oil temperature"
+                          disabled={isPending}
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormDescription className="text-[10px]">
+                        Opcional. Traducción o comentario que aparece debajo del label en el PDF, en itálica.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -869,6 +895,37 @@ export function AddCampoModal({
                     )}
                   />
                 </div>
+
+                {/* Solo TextoArea: cantidad de líneas de escritura. */}
+                {isTextoAreaNuevo && (
+                  <FormField
+                    control={form.control}
+                    name="numeroLineas"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Número de líneas</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={20}
+                            placeholder="3"
+                            disabled={isPending}
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const n = Number(e.target.value)
+                              field.onChange(Number.isFinite(n) ? n : undefined)
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-[10px]">
+                          Cantidad de renglones en la planilla en blanco (rango 1-20, default 3).
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {/* Sub-sección Imagen: subir archivo + preview */}
                 {isImagenNuevo && (

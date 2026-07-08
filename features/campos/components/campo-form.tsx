@@ -13,7 +13,7 @@ import {
   CAMPO_FIELD_MAP,
   type ServerValidationError,
 } from "../lib/apply-server-errors"
-import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
+import { CAMPO_TIPO_DATO, CAMPO_TIPO_DATO_ENTRIES_SORTED, type CampoTipoDato } from "@/features/planillas/types"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 
 import { Button } from "@/components/ui/button"
@@ -136,7 +136,7 @@ export function CampoForm({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
+                  {CAMPO_TIPO_DATO_ENTRIES_SORTED.map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
                   ))}
                 </SelectContent>
