@@ -5,6 +5,9 @@ import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proye
 import { useGetAvanceHitosYFases } from "@/features/avance/api/use-get-avance-hitos-fases"
 import { useGetHitosTareas } from "@/features/avance/api/use-get-hitos-tareas"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
+import { useRouter } from "next/navigation"
+import { BarChart3 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { BarraAvance } from "@/components/barra-avance"
 import type {
   AvanceSistemaDTO, AvanceDTO, AvanceHitosFasesDTO, HitoCategoriaDTO, AvanceFaseDTO,
@@ -378,6 +381,7 @@ function HitosTareasPanel({ niveles, isLoading }: { niveles: HitosPorNivelDTO[];
 // ─── page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const router = useRouter()
   const { data: perfil } = useGetPerfil()
   const { data: proyectosData } = useGetMisProyectos()
   const { data, isLoading } = useGetAvanceProyecto(perfil?.proyectoId)
@@ -418,6 +422,16 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 shrink-0"
+          onClick={() => router.push("/ejecucion/sistemas")}
+        >
+          <BarChart3 className="h-4 w-4" />
+          Avance por sistemas
+        </Button>
       </div>
 
       {/* KPI cards */}
