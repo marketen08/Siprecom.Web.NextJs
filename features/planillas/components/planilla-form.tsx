@@ -3,9 +3,17 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
+import { Info } from "lucide-react"
+
 import { planillaSchema, type PlanillaFormValues } from "../schema"
 import type { Planilla } from "../types"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +60,10 @@ export function PlanillaForm({
       version: defaultValues?.version ?? "1.0",
       requiereFirma: defaultValues?.requiereFirma ?? true,
       permiteAdjuntos: defaultValues?.permiteAdjuntos ?? true,
+      // El checkbox se quitó del UI porque el flag no tiene efecto (dead code),
+      // pero mantenemos el valor en el form para NO pisar el persistido a false
+      // durante un update — el bool no nullable del DTO destino mapea el default
+      // de C# (false) si no lo mandamos. Ver plan de cleanup futuro para eliminarlo.
       generaPdfFinal: defaultValues?.generaPdfFinal ?? true,
       orientacionPdf: defaultValues?.orientacionPdf ?? 0,
       especialidadId: defaultValues?.especialidadId ?? null,
@@ -204,48 +216,67 @@ export function PlanillaForm({
             }}
           />
 
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-1">
-              Opciones
-            </p>
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300"
-                {...form.register("requiereFirma")}
-                disabled={isPending}
-              />
-              Requiere firma
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300"
-                {...form.register("permiteAdjuntos")}
-                disabled={isPending}
-              />
-              Permite adjuntos
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300"
-                {...form.register("generaPdfFinal")}
-                disabled={isPending}
-              />
-              Genera PDF final
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300"
-                checked={form.watch("orientacionPdf") === 1}
-                onChange={(e) => form.setValue("orientacionPdf", e.target.checked ? 1 : 0)}
-                disabled={isPending}
-              />
-              PDF horizontal (apaisado)
-            </label>
-          </div>
+          <TooltipProvider delay={200}>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-1">
+                Opciones
+              </p>
+              <div className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    {...form.register("requiereFirma")}
+                    disabled={isPending}
+                  />
+                  Requiere firma
+                </label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    Cuando está activo, los registros completados con esta planilla generan
+                    slots de firma según la configuración del proyecto (o de la tarea, si
+                    tiene override). Desactivalo para planillas que no requieran firma
+                    incluso si el proyecto la exige — ej. checklists informales o de
+                    seguimiento interno.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    {...form.register("permiteAdjuntos")}
+                    disabled={isPending}
+                  />
+                  Permite adjuntos
+                </label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    Permite subir archivos (fotos, PDFs) desde los registros de esta
+                    planilla. El proyecto también tiene su propio flag: si cualquiera
+                    de los dos está desactivado, no se aceptan adjuntos.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={form.watch("orientacionPdf") === 1}
+                  onChange={(e) => form.setValue("orientacionPdf", e.target.checked ? 1 : 0)}
+                  disabled={isPending}
+                />
+                PDF horizontal (apaisado)
+              </label>
+            </div>
+          </TooltipProvider>
         </div>
 
         <div className="flex gap-3 pt-2">
