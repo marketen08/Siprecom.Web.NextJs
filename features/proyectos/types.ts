@@ -67,6 +67,7 @@ export interface ProyectoClonOptions {
   firmas: boolean
   acceso: boolean
   estructura: boolean
+  funcionalidades: boolean
 }
 
 export interface ProyectoCreateInput {

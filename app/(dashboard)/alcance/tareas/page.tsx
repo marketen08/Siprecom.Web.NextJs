@@ -6,7 +6,8 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import Link from "next/link"
+import { ListChecks, Plus, Search } from "lucide-react"
 
 import { useGetTareas } from "@/features/tareas/api/use-get-tareas"
 import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
@@ -189,6 +190,15 @@ export default function TareasPage() {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {/* Pantalla de reconciliación: preview + selección + apply. Ahí también
+                está el shortcut "Generar todas" para el caso masivo. */}
+            <Link
+              href="/alcance/tareas/generacion"
+              className="inline-flex items-center gap-2 h-9 rounded-md border border-input bg-white px-3 text-sm font-medium hover:bg-gray-50"
+            >
+              <ListChecks className="h-4 w-4" />
+              Generación de tareas
+            </Link>
             <Button onClick={open} className="gap-2">
               <Plus className="h-4 w-4" />
               Nueva tarea

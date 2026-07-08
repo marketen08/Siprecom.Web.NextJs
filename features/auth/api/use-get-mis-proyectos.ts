@@ -16,6 +16,12 @@ export interface ProyectoOpcion {
    * quedan restringidos a un único subsistema — el del pack — según OPERCOM.
    */
   testGroupsMultiSubsistema: boolean
+  /**
+   * Generación manual de tareas efectiva. Cuando es true, los sync automáticos
+   * (crear elemento, importar tareas, etc.) NO propagan ET — el user tiene que
+   * materializarlas desde /alcance/tareas/generacion.
+   */
+  generacionTareasManual: boolean
 }
 
 export function useGetMisProyectos() {

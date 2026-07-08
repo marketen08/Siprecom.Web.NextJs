@@ -63,6 +63,7 @@ export function ProyectoForm({
         firmas: true,
         acceso: true,
         estructura: false,
+        funcionalidades: true,
       },
     },
   })
@@ -307,6 +308,7 @@ export function ProyectoForm({
                   <ClonarCheckbox name="flags" label="Configuración general (permisos, niveles secuenciales)" form={form} disabled={isPending} />
                   <ClonarCheckbox name="firmas" label="Configuración de firmas" form={form} disabled={isPending} />
                   <ClonarCheckbox name="acceso" label="Acceso de usuarios" form={form} disabled={isPending} />
+                  <ClonarCheckbox name="funcionalidades" label="Funcionalidades (feature flags por proyecto)" form={form} disabled={isPending} />
                   <ClonarCheckbox name="estructura" label="Estructura (sistemas, subsistemas, elementos)" form={form} disabled={isPending} />
                 </div>
               )}
@@ -336,7 +338,7 @@ export function ProyectoForm({
 }
 
 interface ClonarCheckboxProps {
-  name: "tareas" | "flags" | "firmas" | "acceso" | "estructura"
+  name: "tareas" | "flags" | "firmas" | "acceso" | "estructura" | "funcionalidades"
   label: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any
