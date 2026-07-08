@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, ClipboardPaste, Star, Trash2, Plus, Loader2 } from 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { cn } from "@/lib/utils"
 
 import { useGetOpciones } from "../api/use-get-opciones"
@@ -13,11 +14,23 @@ import { useCreateOpcion } from "../api/use-create-opcion"
 import { useDeleteOpcion } from "../api/use-delete-opcion"
 import { useReorderOpciones } from "../api/use-reorder-opciones"
 import { useToggleOpcionDefault } from "../api/use-toggle-opcion-default"
+import { CHECKLIST_PRESETS } from "../lib/checklist-presets"
 import { BulkPasteOpcionesDialog } from "./bulk-paste-opciones-dialog"
 import type { CampoOpcion } from "@/features/planillas/types"
 
-/** Editor de opciones de un campo Lista (global): agregar/quitar/reordenar + marcar default. */
-export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
+interface CampoOpcionesEditorProps {
+  campoId: string
+  /**
+   * Si true, muestra la fila de botones "preset" arriba del editor. Aplicable
+   * solo a campos Checklist — para Lista los presets no aplican semánticamente.
+   * Aplicar un preset REEMPLAZA las opciones actuales (borra + crea) y afecta
+   * a todas las planillas que usan el campo, por eso pedimos confirmación.
+   */
+  esChecklist?: boolean
+}
+
+/** Editor de opciones de un campo Lista o Checklist (catálogo global). */
+export function CampoOpcionesEditor({ campoId, esChecklist = false }: CampoOpcionesEditorProps) {
   const { data, isLoading } = useGetOpciones(campoId)
   const opciones: CampoOpcion[] = (((data as any)?.data ?? []) as CampoOpcion[])
     .slice()
@@ -32,6 +45,7 @@ export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
   const [etiqueta, setEtiqueta] = useState("")
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkPending, setBulkPending] = useState(false)
+  const [presetPending, setPresetPending] = useState(false)
 
   const busy =
     createOpcion.isPending || deleteOpcion.isPending || reorderOpciones.isPending || toggleDefault.isPending
@@ -67,6 +81,28 @@ export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
     }
   }
 
+  const handleApplyPreset = async (preset: (typeof CHECKLIST_PRESETS)[number]) => {
+    // Reemplazo total: borra todas las opciones actuales del catálogo y
+    // recrea las del preset. Serializado para respetar orden.
+    setPresetPending(true)
+    try {
+      for (const op of opciones) {
+        await deleteOpcion.mutateAsync({ campoId, opcionId: op.id })
+      }
+      for (let i = 0; i < preset.opciones.length; i++) {
+        const op = preset.opciones[i]
+        await createOpcion.mutateAsync({
+          campoId,
+          valor: op.valor,
+          etiqueta: op.etiqueta,
+          orden: i + 1,
+        })
+      }
+    } finally {
+      setPresetPending(false)
+    }
+  }
+
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir
     if (j < 0 || j >= opciones.length) return
@@ -90,11 +126,40 @@ export function CampoOpcionesEditor({ campoId }: { campoId: string }) {
           variant="outline"
           className="h-7 gap-1.5 shrink-0"
           onClick={() => setBulkOpen(true)}
-          disabled={busy || bulkPending}
+          disabled={busy || bulkPending || presetPending}
         >
           <ClipboardPaste className="h-3.5 w-3.5" /> Pegar en lote
         </Button>
       </div>
+
+      {/* Presets — sólo para Checklist. Reemplazan las opciones actuales del
+          catálogo global; por eso pedimos confirmación (afecta a todas las
+          planillas que usen este campo). */}
+      {esChecklist && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] text-blue-700/70">Preset:</span>
+          {CHECKLIST_PRESETS.map((p) => (
+            <ConfirmActionDialog
+              key={p.id}
+              trigger={<span>{p.label}</span>}
+              triggerClassName="inline-flex items-center h-6 px-2 rounded border bg-white text-[10px] font-medium hover:bg-gray-50 disabled:opacity-50"
+              title={`¿Reemplazar opciones por "${p.label}"?`}
+              description={
+                <>
+                  Esta acción <strong>borra las opciones actuales</strong> del
+                  campo y las reemplaza por las del preset. Se aplica al
+                  catálogo global — <strong>afecta a todas las planillas</strong>{" "}
+                  que usan este campo.
+                </>
+              }
+              confirmText="Reemplazar"
+              pendingText="Aplicando..."
+              variant="destructive"
+              onConfirm={() => handleApplyPreset(p)}
+            />
+          ))}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">

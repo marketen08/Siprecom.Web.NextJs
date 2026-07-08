@@ -32,14 +32,22 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
   // Backend returns ServiceResult<PlanillaEstructuraDTO> — extract the data property
   const estructura = (estructuraResult as any)?.data ?? estructuraResult
   const planillaNombre = (estructura as any)?.planilla?.nombre ?? null
+  const planillaCodigo = (estructura as any)?.planilla?.codigo ?? null
 
-  // Breadcrumb dinámico: Configuración → Planillas (link) → {nombre planilla}
+  // Breadcrumb dinámico: Configuración → Planillas (link) → {codigo - nombre}.
+  // Si la planilla no tiene código cargado, mostramos solo el nombre.
+  const breadcrumbLabel = planillaNombre
+    ? planillaCodigo
+      ? `${planillaCodigo} - ${planillaNombre}`
+      : planillaNombre
+    : null
+
   useBreadcrumb(
-    planillaNombre
+    breadcrumbLabel
       ? [
           { label: "Configuración" },
           { label: "Planillas", href: "/configuracion/planillas" },
-          { label: planillaNombre },
+          { label: breadcrumbLabel },
         ]
       : null
   )

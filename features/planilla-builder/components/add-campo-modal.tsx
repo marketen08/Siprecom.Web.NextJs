@@ -12,6 +12,7 @@ import { useAddCampo } from "@/features/planillas/api/use-add-campo"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 import { campoSchema, type CampoFormValues } from "@/features/campos/schema"
 import { slugifyCodigoCampo } from "@/features/campos/lib/slugify-codigo"
+import { CHECKLIST_PRESETS } from "@/features/campos/lib/checklist-presets"
 import {
   CAMPO_TIPO_DATO,
   CAMPO_LISTA_RENDER_MODE_LABEL,
@@ -67,32 +68,8 @@ interface AddCampoModalProps {
 type Tab = "existing" | "new" | "bulk"
 type BulkTipo = 1 | 11 // Texto | Checklist
 
-/** Presets rápidos para las opciones de un campo Checklist. Se ofrecen como
-    botones "reemplazar por..." en las UI de creación (tab Nuevo y tab En lote). */
-type PresetOpcion = { valor: string; etiqueta: string }
-const CHECKLIST_PRESETS: Array<{ id: string; label: string; opciones: PresetOpcion[] }> = [
-  {
-    id: "si-no-na",
-    label: "Sí / No / N/A",
-    opciones: [
-      { valor: "SI", etiqueta: "Sí" },
-      { valor: "NO", etiqueta: "No" },
-      { valor: "NA", etiqueta: "No Aplica" },
-    ],
-  },
-  {
-    id: "ok-nc-na",
-    label: "OK / NC / NA",
-    opciones: [
-      { valor: "NA", etiqueta: "No Aplica" },
-      { valor: "OK", etiqueta: "Chequeado & aceptado" },
-      { valor: "NC", etiqueta: "Chequeado & no conforme" },
-    ],
-  },
-]
-
 /** Opciones precargadas para el bloque compartido de Checklist en el tab "bulk". */
-const BULK_CHECKLIST_DEFAULT_OPCIONES: PresetOpcion[] = CHECKLIST_PRESETS[0].opciones
+const BULK_CHECKLIST_DEFAULT_OPCIONES = CHECKLIST_PRESETS[0].opciones
 
 export function AddCampoModal({
   open,

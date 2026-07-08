@@ -67,9 +67,10 @@ export function EditCampoSheet() {
                 </div>
               )}
 
-              {/* Editor de opciones — para campos Lista (5) y Checklist (11). */}
+              {/* Editor de opciones — para campos Lista (5) y Checklist (11).
+                  Los presets solo se muestran para Checklist. */}
               {(campo.tipoDato === 5 || campo.tipoDato === 11) && id && (
-                <CampoOpcionesEditor campoId={id} />
+                <CampoOpcionesEditor campoId={id} esChecklist={campo.tipoDato === 11} />
               )}
 
               {planillasUso.length > 0 && (
