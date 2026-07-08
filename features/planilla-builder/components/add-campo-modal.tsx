@@ -11,6 +11,11 @@ import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useAddCampo } from "@/features/planillas/api/use-add-campo"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 import { campoSchema, type CampoFormValues } from "@/features/campos/schema"
+import {
+  applyServerErrorsToForm,
+  CAMPO_FIELD_MAP,
+} from "@/features/campos/lib/apply-server-errors"
+import type { ApiError } from "@/lib/api-client"
 import { slugifyCodigoCampo } from "@/features/campos/lib/slugify-codigo"
 import { CHECKLIST_PRESETS } from "@/features/campos/lib/checklist-presets"
 import {
@@ -164,6 +169,15 @@ export function AddCampoModal({
       descripcion: "",
     },
   })
+
+  // Aplica los errores de validación del backend a los fields del form. Al
+  // fallar `createCampoMutation` con status 400, el user ve el mensaje inline
+  // en el input correspondiente (ej. "El código ya existe." bajo Código).
+  useEffect(() => {
+    const serverErrors = (createCampoMutation.error as ApiError | null)?.body?.errors
+    applyServerErrorsToForm(form, serverErrors, CAMPO_FIELD_MAP)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createCampoMutation.error])
 
   const availableCampos = campos.filter(
     (c) => !existingCampoIds.includes(c.id) &&
@@ -1133,6 +1147,23 @@ export function AddCampoModal({
                       </Button>
                     </div>
                   </div>
+                )}
+
+                {/* Error root del backend (no atribuible a un field) + fallback
+                    para errores de otros mutations que corren en el mismo submit
+                    (createOpcion, addCampo). Los errores por field ya se muestran
+                    inline via applyServerErrorsToForm. */}
+                {form.formState.errors.root?.message && (
+                  <p className="text-sm text-red-600 whitespace-pre-line">
+                    {form.formState.errors.root.message}
+                  </p>
+                )}
+                {(createOpcionMutation.isError || addCampoMutation.isError) && (
+                  <p className="text-sm text-red-600 whitespace-pre-line">
+                    {(createOpcionMutation.error as Error)?.message
+                      ?? (addCampoMutation.error as Error)?.message
+                      ?? "Error al crear el campo."}
+                  </p>
                 )}
 
                 <div className="flex gap-2 pt-1">

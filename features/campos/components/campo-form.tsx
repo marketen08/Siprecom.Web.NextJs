@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ImageIcon } from "lucide-react"
@@ -8,6 +8,11 @@ import { ImageIcon } from "lucide-react"
 import { campoSchema, type CampoFormValues } from "../schema"
 import type { Campo } from "../types"
 import { slugifyCodigoCampo } from "../lib/slugify-codigo"
+import {
+  applyServerErrorsToForm,
+  CAMPO_FIELD_MAP,
+  type ServerValidationError,
+} from "../lib/apply-server-errors"
 import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 
@@ -42,6 +47,12 @@ interface CampoFormProps {
   onSubmit: (values: CampoFormValues) => void
   onCancel: () => void
   isPending: boolean
+  /**
+   * Errores de validación del backend. El shape espera `field` (nombre server, ej. "Codigo")
+   * y una lista de mensajes. El form los mapea al field del form (lowerCamel) y los setea
+   * con `form.setError` para mostrarlos inline. Ver `applyServerErrorsToForm`.
+   */
+  serverErrors?: ServerValidationError[]
 }
 
 export function CampoForm({
@@ -50,6 +61,7 @@ export function CampoForm({
   onSubmit,
   onCancel,
   isPending,
+  serverErrors,
 }: CampoFormProps) {
   const enUso = usoCount > 0
 
@@ -73,6 +85,12 @@ export function CampoForm({
   const isImagen = tipoDato === 8
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadMutation = useUploadImagenCampo()
+
+  // Aplica los errores de validación del backend a los fields del form.
+  useEffect(() => {
+    applyServerErrorsToForm(form, serverErrors, CAMPO_FIELD_MAP)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverErrors])
 
   // Autogenerar `codigo` mientras el user tipea `etiqueta`, hasta que toque
   // el input del código manualmente. En modo edición (defaultValues.codigo
@@ -350,6 +368,13 @@ export function CampoForm({
               Formatos: JPG, PNG, WEBP, SVG, GIF. Máximo 5 MB.
             </p>
           </div>
+        )}
+
+        {/* Error "root" del backend (no atribuible a un field específico). */}
+        {form.formState.errors.root?.message && (
+          <p className="text-sm text-red-600 whitespace-pre-line">
+            {form.formState.errors.root.message}
+          </p>
         )}
 
         <div className="flex gap-2 pt-2">

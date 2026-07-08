@@ -10,6 +10,7 @@ import { CampoForm } from "./campo-form"
 import { CampoOpcionesEditor } from "./campo-opciones-editor"
 import type { CampoFormValues } from "../schema"
 import type { CampoTipoDato } from "@/features/planillas/types"
+import type { ApiError } from "@/lib/api-client"
 
 import {
   Sheet,
@@ -60,6 +61,7 @@ export function EditCampoSheet() {
                 onSubmit={handleSubmit}
                 onCancel={close}
                 isPending={mutation.isPending}
+                serverErrors={(mutation.error as ApiError | null)?.body?.errors}
               />
               {mutation.isError && (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">
