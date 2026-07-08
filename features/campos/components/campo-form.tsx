@@ -58,6 +58,7 @@ export function CampoForm({
     defaultValues: {
       codigo: defaultValues?.codigo ?? "",
       etiqueta: defaultValues?.etiqueta ?? "",
+      etiquetaAlt: defaultValues?.etiquetaAlt ?? "",
       tipoDato: (defaultValues?.tipoDato ?? 1) as CampoTipoDato,
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
@@ -151,6 +152,28 @@ export function CampoForm({
               </FormControl>
               <FormDescription className="text-xs">
                 Texto que ve el usuario en formularios y PDF.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="etiquetaAlt"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Etiqueta alternativa</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Oil temperature"
+                  disabled={isPending}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription className="text-xs">
+                Opcional. Traducción o comentario que aparece debajo del label en el PDF,
+                en itálica y más chico.
               </FormDescription>
               <FormMessage />
             </FormItem>

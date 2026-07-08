@@ -158,6 +158,8 @@ export interface PlanillaCampoDetalle {
   campoId: string
   campoCodigo?: string
   campoEtiqueta?: string
+  /** Etiqueta alternativa opcional (traducción/comentario) heredada del Campo global. */
+  campoEtiquetaAlt?: string
   campoTipoDato: CampoTipoDato
   campoTipoDatoNombre?: string
   campoUnidad?: string

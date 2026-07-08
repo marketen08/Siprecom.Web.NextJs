@@ -3,6 +3,8 @@ import { z } from "zod"
 export const campoSchema = z.object({
   codigo: z.string().min(1, "El código es requerido"),
   etiqueta: z.string().min(1, "La etiqueta es requerida"),
+  /** Etiqueta alternativa opcional (traducción/comentario). Se muestra debajo del label en el PDF. */
+  etiquetaAlt: z.string().max(200, "Máximo 200 caracteres").optional(),
   // 6 (Firma) y 7 (Adjunto) excluidos: ya no son tipos de campo. Resto: 1..5, 8, 9 (Tabla),
   // 10 (Label), 11 (Checklist — antes Lista + renderMode=Checklist, ahora tipo propio).
   tipoDato: z.number().int().min(1).max(11).refine((v) => v !== 6 && v !== 7, { message: "Tipo no válido" }),

@@ -4,6 +4,8 @@ export interface Campo {
   id: string
   codigo: string
   etiqueta: string
+  /** Etiqueta alternativa opcional (traducción/comentario). Se dibuja debajo del label en itálica. */
+  etiquetaAlt?: string
   tipoDato: CampoTipoDato
   tipoDatoNombre?: string
   unidad?: string
@@ -36,6 +38,8 @@ export interface CampoUsoPlanilla {
 export interface CampoCreateInput {
   codigo: string
   etiqueta: string
+  /** Etiqueta alternativa opcional (traducción/comentario). Se dibuja debajo del label en itálica. */
+  etiquetaAlt?: string
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string
@@ -54,6 +58,8 @@ export interface CampoUpdateInput {
   id: string
   codigo: string
   etiqueta: string
+  /** Etiqueta alternativa opcional (traducción/comentario). Se dibuja debajo del label en itálica. */
+  etiquetaAlt?: string
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string
