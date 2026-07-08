@@ -60,6 +60,7 @@ export function CampoForm({
       etiqueta: defaultValues?.etiqueta ?? "",
       etiquetaAlt: defaultValues?.etiquetaAlt ?? "",
       tipoDato: (defaultValues?.tipoDato ?? 1) as CampoTipoDato,
+      numeroLineas: defaultValues?.numeroLineas ?? 3,
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
       imagenUrl: defaultValues?.imagenUrl ?? "",
@@ -225,6 +226,38 @@ export function CampoForm({
             </FormItem>
           )}
         />
+
+        {/* Solo TextoArea (tipoDato === 12): número de líneas de escritura. */}
+        {tipoDato === 12 && (
+          <FormField
+            control={form.control}
+            name="numeroLineas"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Número de líneas</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    placeholder="3"
+                    disabled={isPending}
+                    value={field.value ?? ""}
+                    onChange={(e) => {
+                      const n = Number(e.target.value)
+                      field.onChange(Number.isFinite(n) ? n : undefined)
+                    }}
+                  />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Cantidad de renglones (líneas de puntos) que se dibujan en la planilla en blanco.
+                  Rango 1-20, default 3.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={form.control}

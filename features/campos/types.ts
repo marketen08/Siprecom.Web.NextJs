@@ -16,6 +16,8 @@ export interface Campo {
   imagenUrl?: string
   /** Filas por defecto para Tabla dinámica (sólo cuando tipoDato === 9). */
   numeroFilas?: number
+  /** Líneas para TextoArea (sólo cuando tipoDato === 12). Default 3, rango 1-20. */
+  numeroLineas?: number
   /** Estilo de Label (sólo cuando tipoDato === 10). */
   negrita?: boolean
   conBorde?: boolean

@@ -203,11 +203,17 @@ export function AddCampoModal({
   // para decidir cuándo mostrar el editor de opciones y el sub-selector de render.
   const isListaExistente = selectedCampoExistente?.tipoDato === 5 || selectedCampoExistente?.tipoDato === 11
   const isChecklistExistente = selectedCampoExistente?.tipoDato === 11
+  const isTextoAreaExistente = selectedCampoExistente?.tipoDato === 12
   const isListaNuevo = tipoDatoFormulario === 5
   const isChecklistNuevo = tipoDatoFormulario === 11
+  const isTextoAreaNuevo = tipoDatoFormulario === 12
   const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
+  // Ancho fijo 12 (full-width) forzado: Checklist y TextoArea deben tomar toda
+  // la fila. Se refleja en el disabled del selector de ancho y en el payload.
+  const anchoForzadoCompleto =
+    isChecklistExistente || isChecklistNuevo || isTextoAreaExistente || isTextoAreaNuevo
 
   const handleUploadImagen = async (file: File) => {
     const url = await uploadMutation.mutateAsync(file)
@@ -229,7 +235,8 @@ export function AddCampoModal({
         visible: true,
         soloLectura: false,
         renderMode: esListaReal ? renderMode : undefined,
-        tamano: isChecklistExistente ? 12 : tamano,
+        // Checklist y TextoArea siempre ancho completo (12).
+        tamano: (isChecklistExistente || isTextoAreaExistente) ? 12 : tamano,
       },
       { onSuccess: handleClose }
     )
@@ -279,8 +286,8 @@ export function AddCampoModal({
         valorDefault: esConOpciones ? (opcionDefaultValor ?? undefined) : undefined,
         // Solo Lista (5) usa renderMode; Checklist (11) lo ignora en runtime.
         renderMode: values.tipoDato === 5 ? renderMode : undefined,
-        // Checklist siempre ancho completo.
-        tamano: values.tipoDato === 11 ? 12 : tamano,
+        // Checklist y TextoArea siempre ancho completo (12).
+        tamano: (values.tipoDato === 11 || values.tipoDato === 12) ? 12 : tamano,
       })
       handleClose()
     } catch {
@@ -582,15 +589,15 @@ export function AddCampoModal({
             </Select>
           </div>
 
-          {/* Ancho del campo (shared) — deshabilitado cuando el campo es Checklist,
-              porque en tabla siempre ocupa la fila completa. El tab "En lote"
-              usa ancho 12 fijo, así que ocultamos el selector ahí. */}
+          {/* Ancho del campo (shared) — deshabilitado cuando el campo es Checklist
+              o TextoArea (ambos siempre ancho completo). El tab "En lote" usa
+              ancho 12 fijo, así que ocultamos el selector ahí. */}
           {tab !== "bulk" && (
           <div className="space-y-1.5">
             <Label>Ancho del campo</Label>
             <div className="flex items-center gap-2">
               <Select
-                disabled={isChecklistExistente || isChecklistNuevo}
+                disabled={anchoForzadoCompleto}
                 value={(() => {
                   if (modoPersonalizado) return "-1"
                   const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
@@ -638,7 +645,9 @@ export function AddCampoModal({
             <p className="text-[10px] text-muted-foreground">
               {(isChecklistExistente || isChecklistNuevo)
                 ? "Los campos Checklist siempre ocupan el ancho completo (12) para renderizarse como tabla."
-                : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
+                : (isTextoAreaExistente || isTextoAreaNuevo)
+                  ? "Los campos Texto multilínea siempre ocupan el ancho completo (12)."
+                  : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
           )}
@@ -752,6 +761,11 @@ export function AddCampoModal({
                               ])
                               setOpcionesManualOrder(true)
                             }
+                          }
+                          // TextoArea también forza ancho completo (mismo criterio que Checklist).
+                          if (nuevoTipo === 12) {
+                            setTamano(12)
+                            setModoPersonalizado(false)
                           }
                         }}
                         disabled={isPending}

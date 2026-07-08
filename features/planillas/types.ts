@@ -48,7 +48,7 @@ export interface CampoOpcion {
 //   - Firmas: ProyectosFirmasConfig + RegistroFirma.
 //   - Adjuntos: flags Proyecto.PermiteAdjuntos / Planilla.PermiteAdjuntos + RegistroArchivo.
 // 11 = Checklist se agregó como tipo propio (antes era Lista + renderMode=Checklist).
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11 | 12
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -60,6 +60,7 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   9: "Tabla",
   10: "Label",
   11: "Checklist",
+  12: "Texto multilínea",
 }
 
 // Nota histórica: existió un sentinel `TIPO_UI_CHECKLIST=501` con helpers
