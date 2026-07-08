@@ -8,9 +8,13 @@ import { Input } from "@/components/ui/input"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 import { useGetFirmasConfig } from "@/features/proyectos/api/use-get-firmas-config"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useGetTareaFirmasConfig } from "../api/use-get-tarea-firmas-config"
 import { useSaveTareaFirmasConfig } from "../api/use-save-tarea-firmas-config"
 import type { FirmaConfigItem } from "@/features/proyectos/types"
+
+/** Clave del feature flag. Debe matchear con FuncionalidadCatalogo del backend. */
+const FLAG_OVERRIDE_TAREA = "FIRMAS_OVERRIDE_POR_TAREA"
 
 interface Props {
   tareaId: string
@@ -25,8 +29,19 @@ interface Props {
  *    vacía, el server borra el override y la tarea vuelve a heredar.
  */
 export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
-  const { data: tareaRaw, isLoading: loadingTarea } = useGetTareaFirmasConfig(tareaId)
-  const { data: proyectoRaw, isLoading: loadingProyecto } = useGetFirmasConfig(proyectoId)
+  // Feature flag: si "Override de firmas por Tarea" no está efectivo para este
+  // proyecto, el editor no aparece. El backend también rechaza el POST en ese
+  // caso, así que el gate es solo cosmético (limpia el sheet).
+  const { data: proyectoDetalle, isLoading: loadingProyectoDetalle } = useGetProyecto(proyectoId)
+  const flagActivo =
+    proyectoDetalle?.data?.funcionalidadesEfectivas?.[FLAG_OVERRIDE_TAREA] === true
+
+  const { data: tareaRaw, isLoading: loadingTarea } = useGetTareaFirmasConfig(
+    flagActivo ? tareaId : undefined,
+  )
+  const { data: proyectoRaw, isLoading: loadingProyecto } = useGetFirmasConfig(
+    flagActivo ? proyectoId : undefined,
+  )
   const save = useSaveTareaFirmasConfig(tareaId)
 
   const slotsProyecto: FirmaConfigItem[] = proyectoRaw?.data ?? []
@@ -41,7 +56,7 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
 
   // Inicializar desde el server la primera vez que la respuesta llega.
   useEffect(() => {
-    if (modo !== null || loadingTarea) return
+    if (!flagActivo || modo !== null || loadingTarea) return
     if (slotsServidor.length > 0) {
       setSlots(slotsServidor.map((s, i) => ({ ...s, orden: i + 1 })))
       setModo("propias")
@@ -49,7 +64,7 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
       setSlots([])
       setModo("hereda")
     }
-  }, [loadingTarea, slotsServidor, modo])
+  }, [flagActivo, loadingTarea, slotsServidor, modo])
 
   function addSlot() {
     setSlots((prev) => [
@@ -122,6 +137,11 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
     )
     setModo("propias")
   }
+
+  // Feature flag no está efectivo → el bloque completo no se muestra. Si aún
+  // estamos cargando el detalle del proyecto, esperamos para evitar un flicker.
+  if (loadingProyectoDetalle) return null
+  if (!flagActivo) return null
 
   if (loadingTarea || loadingProyecto || modo === null) {
     return (
