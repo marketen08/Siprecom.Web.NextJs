@@ -177,6 +177,37 @@ export const columns: ColumnDef<Planilla>[] = [
     ),
   },
   {
+    accessorKey: "especialidad",
+    header: "Especialidad",
+    cell: ({ row }) => {
+      const p = row.original
+      if (!p.especialidadId) {
+        return (
+          <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500 italic">
+            Genérica
+          </span>
+        )
+      }
+      // Chip con el color de la especialidad (background con opacidad, texto sólido).
+      // Si no hay color, cae a gris.
+      const color = p.especialidadColor ?? "#6b7280"
+      return (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
+          style={{ backgroundColor: `${color}22`, color }}
+          title={p.especialidadNombre ?? undefined}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: color }}
+            aria-hidden
+          />
+          {p.especialidadCodigo || p.especialidadNombre || "—"}
+        </span>
+      )
+    },
+  },
+  {
     accessorKey: "orientacionPdf",
     header: "PDF",
     cell: ({ row }) =>

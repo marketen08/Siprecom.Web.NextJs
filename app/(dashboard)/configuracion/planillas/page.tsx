@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   useReactTable,
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search, FileSpreadsheet, FileJson, Sparkles } from "lucide-react"
+import { Plus, Search, FileSpreadsheet, FileJson, Sparkles, X } from "lucide-react"
 
 import { useGetPlanillas } from "@/features/planillas/api/use-get-planillas"
 import { useNewPlanilla } from "@/features/planillas/hooks/use-new-planilla"
@@ -15,8 +15,13 @@ import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla
 import { ImportExcelSheet } from "@/features/planillas/components/import-excel-sheet"
 import { ImportJsonSheet } from "@/features/planillas/components/import-json-sheet"
 import { GenerarConIASheet } from "@/features/planillas/components/generar-con-ia-sheet"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
+
+/** Token sentinela en el CSV de EspecialidadIds para pedir planillas sin especialidad
+    (genéricas). Debe matchear el string usado en `PlanillaService` del backend. */
+const TOKEN_GENERICAS = "__none__"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,9 +38,32 @@ export default function PlanillasPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const pageSize = 10
+  const [especialidadesSel, setEspecialidadesSel] = useState<Set<string>>(new Set())
 
-  const { data, isLoading, isFetching } = useGetPlanillas({ page, pageSize, nombre: search || undefined })
+  const especialidadIdsArr = useMemo(() => Array.from(especialidadesSel), [especialidadesSel])
+  const { data, isLoading, isFetching } = useGetPlanillas({
+    page,
+    pageSize,
+    nombre: search || undefined,
+    especialidadIds: especialidadIdsArr.length > 0 ? especialidadIdsArr : undefined,
+  })
+  const { data: especialidadesRaw } = useGetEspecialidades()
+  const especialidades = especialidadesRaw?.data ?? []
   const { open } = useNewPlanilla()
+
+  const toggleEspecialidad = (id: string) => {
+    setEspecialidadesSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    setPage(1)
+  }
+  const limpiarEspecialidades = () => {
+    setEspecialidadesSel(new Set())
+    setPage(1)
+  }
   const [importOpen, setImportOpen] = useState(false)
   const [importJsonOpen, setImportJsonOpen] = useState(false)
   const [generarIAOpen, setGenerarIAOpen] = useState(false)
@@ -90,6 +118,70 @@ export default function PlanillasPage() {
             </Button>
           </div>
         </div>
+
+        {/* Filtro chips por especialidad. Multi-select ESTRICTO: cada chip agrega
+            su ID al filtro y sólo matchean planillas con esa especialidad. El chip
+            "Genéricas" (token "__none__") pide explícitamente las planillas sin
+            especialidad. Sin nada seleccionado = sin filtro (muestra todas). */}
+        {especialidades.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap text-xs">
+            <span className="text-muted-foreground mr-1">Especialidad:</span>
+            {especialidades.map((e) => {
+              const activo = especialidadesSel.has(e.id)
+              const color = e.color ?? "#6b7280"
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => toggleEspecialidad(e.id)}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer"
+                  style={
+                    activo
+                      ? { backgroundColor: `${color}22`, color, borderColor: color }
+                      : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
+                  }
+                  title={e.nombre}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: color }}
+                    aria-hidden
+                  />
+                  {e.codigo || e.nombre}
+                </button>
+              )
+            })}
+            {/* Chip especial "Genéricas" — matchea planillas sin EspecialidadId.
+                Se envía como token "__none__" en la CSV que consume el backend. */}
+            {(() => {
+              const activo = especialidadesSel.has(TOKEN_GENERICAS)
+              return (
+                <button
+                  type="button"
+                  onClick={() => toggleEspecialidad(TOKEN_GENERICAS)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-2 py-0.5 font-medium italic transition-colors cursor-pointer"
+                  style={
+                    activo
+                      ? { backgroundColor: "#f3f4f6", color: "#111827", borderColor: "#9ca3af" }
+                      : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
+                  }
+                  title="Planillas sin especialidad asignada"
+                >
+                  Genéricas
+                </button>
+              )
+            })()}
+            {especialidadesSel.size > 0 && (
+              <button
+                type="button"
+                onClick={limpiarEspecialidades}
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="h-3 w-3" /> Limpiar
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>

@@ -13,6 +13,11 @@ export interface Planilla {
   permiteAdjuntos: boolean
   generaPdfFinal: boolean
   orientacionPdf: OrientacionPdf
+  /** Especialidad opcional. Null = genérica (aparece al filtrar por cualquier especialidad). */
+  especialidadId?: string | null
+  especialidadNombre?: string | null
+  especialidadCodigo?: string | null
+  especialidadColor?: string | null
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string
@@ -197,6 +202,7 @@ export interface PlanillaCreateInput {
   permiteAdjuntos?: boolean
   generaPdfFinal?: boolean
   orientacionPdf?: OrientacionPdf
+  especialidadId?: string | null
 }
 
 export interface PlanillaUpdateInput {
@@ -210,6 +216,7 @@ export interface PlanillaUpdateInput {
   permiteAdjuntos?: boolean
   generaPdfFinal?: boolean
   orientacionPdf?: OrientacionPdf
+  especialidadId?: string | null
 }
 
 export interface PlanillaSeccionCreateInput {

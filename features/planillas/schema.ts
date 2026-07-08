@@ -11,6 +11,8 @@ export const planillaSchema = z.object({
   generaPdfFinal: z.boolean().optional(),
   // 0 = Vertical, 1 = Horizontal (apaisado)
   orientacionPdf: z.union([z.literal(0), z.literal(1)]).optional(),
+  // Especialidad opcional: string ID o null = "Sin especialidad (genérica)".
+  especialidadId: z.string().nullable().optional(),
 })
 
 export type PlanillaFormValues = z.infer<typeof planillaSchema>

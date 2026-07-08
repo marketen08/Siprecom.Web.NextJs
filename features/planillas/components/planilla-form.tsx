@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 
 import { planillaSchema, type PlanillaFormValues } from "../schema"
 import type { Planilla } from "../types"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +18,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+/** Valor sentinela para "Sin especialidad" en el Select — no se puede usar "" con shadcn/Base UI Select. */
+const SIN_ESPECIALIDAD = "__none__"
 
 interface PlanillaFormProps {
   defaultValues?: Partial<Planilla>
@@ -43,8 +54,12 @@ export function PlanillaForm({
       permiteAdjuntos: defaultValues?.permiteAdjuntos ?? true,
       generaPdfFinal: defaultValues?.generaPdfFinal ?? true,
       orientacionPdf: defaultValues?.orientacionPdf ?? 0,
+      especialidadId: defaultValues?.especialidadId ?? null,
     },
   })
+
+  const { data: especialidadesRaw } = useGetEspecialidades()
+  const especialidades = especialidadesRaw?.data ?? []
 
   return (
     <Form {...form}>
@@ -147,6 +162,46 @@ export function PlanillaForm({
                 <FormMessage />
               </FormItem>
             )}
+          />
+
+          <FormField
+            control={form.control}
+            name="especialidadId"
+            render={({ field }) => {
+              const currentValue = field.value ?? SIN_ESPECIALIDAD
+              const especialidadSel = especialidades.find((e) => e.id === field.value)
+              return (
+                <FormItem>
+                  <FormLabel>Especialidad</FormLabel>
+                  <Select
+                    value={currentValue}
+                    onValueChange={(v) => field.onChange(v === SIN_ESPECIALIDAD ? null : v)}
+                    disabled={isPending}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue>
+                          {field.value
+                            ? (especialidadSel?.nombre ?? "—")
+                            : "Sin especialidad (aplica a todas)"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={SIN_ESPECIALIDAD}>
+                        Sin especialidad (aplica a todas)
+                      </SelectItem>
+                      {especialidades.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
           />
 
           <div className="flex flex-col gap-2">
