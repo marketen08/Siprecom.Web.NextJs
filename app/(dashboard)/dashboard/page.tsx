@@ -3,10 +3,12 @@
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
 import { useGetAvanceHitosYFases } from "@/features/avance/api/use-get-avance-hitos-fases"
+import { useGetHitosTareas } from "@/features/avance/api/use-get-hitos-tareas"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { BarraAvance } from "@/components/barra-avance"
 import type {
   AvanceSistemaDTO, AvanceDTO, AvanceHitosFasesDTO, HitoCategoriaDTO, AvanceFaseDTO,
+  HitosPorNivelDTO, TareaHitoDTO,
 } from "@/features/avance/types"
 import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 
@@ -285,6 +287,94 @@ function FaseRow({ fase }: { fase: AvanceFaseDTO }) {
   )
 }
 
+// ─── Hitos por tarea (agrupado por nivel) ────────────────────────────────────
+
+function fmtFecha(s: string | null): string {
+  if (!s) return "—"
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
+
+const ESTADO_HITO: Record<TareaHitoDTO["estadoResumen"], { label: string; className: string }> = {
+  NoIniciado: { label: "No iniciado", className: "bg-gray-100 text-gray-600" },
+  EnCurso:    { label: "En curso",    className: "bg-blue-100 text-blue-700" },
+  Completado: { label: "Completado",  className: "bg-green-100 text-green-700" },
+}
+
+function TareaHitoRow({ tarea }: { tarea: TareaHitoDTO }) {
+  const estado = ESTADO_HITO[tarea.estadoResumen] ?? ESTADO_HITO.NoIniciado
+  return (
+    <tr className="border-t border-gray-100 hover:bg-gray-50">
+      <td className="py-2 pr-3">
+        <span className="text-sm text-gray-800">{tarea.nombre}</span>
+      </td>
+      <td className="py-2 px-3 text-sm tabular-nums text-gray-600 whitespace-nowrap">{fmtFecha(tarea.proximaMeta)}</td>
+      <td className="py-2 px-3 text-sm tabular-nums text-gray-600 whitespace-nowrap">{fmtFecha(tarea.ultimoAvance)}</td>
+      <td className="py-2 px-3">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${estado.className}`}>{estado.label}</span>
+      </td>
+      <td className="py-2 pl-3 w-48">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0"><BarraAvance porcentaje={Number(tarea.porcentaje)} /></div>
+          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+            {fmt(tarea.completadas)}/{fmt(tarea.total)}
+          </span>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function HitosTareasPanel({ niveles, isLoading }: { niveles: HitosPorNivelDTO[]; isLoading: boolean }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-gray-800">Hitos por tarea</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Tareas agrupadas por nivel — próxima meta, último avance, estado y completadas sobre el total
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+        </div>
+      ) : niveles.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-muted-foreground">
+          No hay tareas con avance para el proyecto activo.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {niveles.map((nivel) => (
+            <details key={nivel.nivelId ?? "sin-nivel"} open className="rounded-lg border border-gray-200 bg-white">
+              <summary className="cursor-pointer select-none px-4 py-2.5 flex items-center justify-between">
+                <span className="text-sm font-semibold text-blue-900">{nivel.nivelNombre}</span>
+                <span className="text-xs text-muted-foreground">{nivel.tareas.length} tarea{nivel.tareas.length === 1 ? "" : "s"}</span>
+              </summary>
+              <div className="px-4 pb-3 overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                      <th className="font-medium py-1 pr-3">Tarea</th>
+                      <th className="font-medium py-1 px-3">Próxima meta</th>
+                      <th className="font-medium py-1 px-3">Último avance</th>
+                      <th className="font-medium py-1 px-3">Estado</th>
+                      <th className="font-medium py-1 pl-3">Avance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nivel.tareas.map((t) => <TareaHitoRow key={t.nombre} tarea={t} />)}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -292,10 +382,12 @@ export default function DashboardPage() {
   const { data: proyectosData } = useGetMisProyectos()
   const { data, isLoading } = useGetAvanceProyecto(perfil?.proyectoId)
   const { data: hitosFasesData, isLoading: isLoadingHitos } = useGetAvanceHitosYFases()
+  const { data: hitosTareasData, isLoading: isLoadingHitosTareas } = useGetHitosTareas()
 
   const avance = data?.data
   const sistemas: AvanceSistemaDTO[] = avance?.sistemas ?? []
   const hitosFases = hitosFasesData?.data
+  const hitosTareas: HitosPorNivelDTO[] = hitosTareasData?.data ?? []
 
   const proyectoActivo = proyectosData?.find((p) => p.esActivo)
   const estadoTexto = proyectoActivo
@@ -374,61 +466,8 @@ export default function DashboardPage() {
       {/* separador */}
       <div className="border-t border-dashed border-gray-200" />
 
-      {/* breakdown por sistema */}
-      <div className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold text-gray-800">Avance por sistema</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Expandí cada sistema para ver el detalle por subsistema
-          </p>
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-14" />
-            ))}
-          </div>
-        ) : sistemas.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-muted-foreground">
-            No hay datos de avance para el proyecto activo.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {sistemas.map((s) => (
-              <SistemaRow key={s.id} sistema={s} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* resumen de estados */}
-      {avance && !isLoading && (
-        <>
-          <div className="border-t border-dashed border-gray-200" />
-          <div className="space-y-3">
-            <h2 className="text-base font-semibold text-gray-800">Resumen de estados</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[
-                { label: "Pendiente",      value: avance.pendiente,  className: "bg-white text-gray-700 border-gray-200" },
-                { label: "En proceso",     value: avance.enProceso,  className: "bg-blue-50 text-blue-700 border-blue-100" },
-                { label: "Completado",     value: avance.completado, className: "bg-yellow-50 text-yellow-700 border-yellow-100" },
-                { label: "Firmado",        value: avance.firmado,    className: "bg-emerald-50 text-emerald-700 border-emerald-100" },
-                { label: "Firmado físico", value: avance.aprobado,   className: "bg-teal-50 text-teal-700 border-teal-100" },
-                { label: "Rechazado",      value: avance.rechazado,  className: "bg-red-50 text-red-700 border-red-100" },
-              ].map(({ label, value, className }) => (
-                <div
-                  key={label}
-                  className={`rounded-lg border p-3 flex flex-col gap-0.5 ${className}`}
-                >
-                  <span className="text-xs font-medium uppercase tracking-wide opacity-70">{label}</span>
-                  <span className="text-2xl font-bold tabular-nums">{fmt(value)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+      {/* Hitos por tarea (agrupado por nivel) */}
+      <HitosTareasPanel niveles={hitosTareas} isLoading={isLoadingHitosTareas} />
     </div>
   )
 }

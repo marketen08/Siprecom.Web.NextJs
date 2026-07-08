@@ -87,3 +87,24 @@ export interface AvanceFaseDTO {
   completadas: number
   porcentaje: number
 }
+
+/** Hitos del proyecto: agrupados por Nivel → Tarea, con avance y fechas por tarea. */
+export interface HitosPorNivelDTO {
+  nivelId: string | null
+  nivelNombre: string
+  posicion: number
+  tareas: TareaHitoDTO[]
+}
+
+export interface TareaHitoDTO {
+  /** Nombre de la tarea; clave de agrupación (consolida tareas homónimas del catálogo). */
+  nombre: string
+  completadas: number
+  total: number
+  porcentaje: number
+  /** MIN(FechaPlanificada) entre las ElementoTareas no terminadas. */
+  proximaMeta: string | null
+  /** MAX(UpdatedAt) de las ElementoTareas de la tarea. */
+  ultimoAvance: string | null
+  estadoResumen: "NoIniciado" | "EnCurso" | "Completado"
+}
