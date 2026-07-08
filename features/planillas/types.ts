@@ -30,6 +30,8 @@ export interface PlanillaSeccion {
   nombre: string
   descripcion?: string
   orden: number
+  /** Si es false, el header de la sección no se dibuja en el PDF. Default true. */
+  mostrarTitulo?: boolean
 }
 
 export interface CampoOpcion {
@@ -224,6 +226,7 @@ export interface PlanillaSeccionCreateInput {
   nombre: string
   descripcion?: string
   orden: number
+  mostrarTitulo?: boolean
 }
 
 export interface PlanillaSeccionUpdateInput {
@@ -232,6 +235,7 @@ export interface PlanillaSeccionUpdateInput {
   nombre: string
   descripcion?: string
   orden: number
+  mostrarTitulo?: boolean
 }
 
 export interface PlanillaCampoCreateInput {

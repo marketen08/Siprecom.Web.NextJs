@@ -30,6 +30,7 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
 
   const [nombre, setNombre] = useState("")
   const [descripcion, setDescripcion] = useState("")
+  const [mostrarTitulo, setMostrarTitulo] = useState(true)
 
   const mutation = useUpdateSeccion()
 
@@ -38,8 +39,10 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
     if (seccion) {
       setNombre(seccion.nombre)
       setDescripcion(seccion.descripcion ?? "")
+      // Default true por compat con secciones viejas (backend hace lo mismo).
+      setMostrarTitulo(seccion.mostrarTitulo ?? true)
     }
-  }, [seccion?.id, seccion?.nombre, seccion?.descripcion])
+  }, [seccion?.id, seccion?.nombre, seccion?.descripcion, seccion?.mostrarTitulo])
 
   const handleSave = () => {
     if (!seccion || !nombre.trim()) return
@@ -50,6 +53,7 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || undefined,
         orden: seccion.orden,
+        mostrarTitulo,
       },
       { onSuccess: close }
     )
@@ -92,6 +96,23 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
                   disabled={mutation.isPending}
                 />
               </div>
+
+              <label className="flex items-start gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 mt-0.5"
+                  checked={mostrarTitulo}
+                  onChange={(e) => setMostrarTitulo(e.target.checked)}
+                  disabled={mutation.isPending}
+                />
+                <span>
+                  Mostrar título en el PDF
+                  <span className="block text-xs text-muted-foreground">
+                    Si lo desactivás, la sección funciona sólo como agrupador en el
+                    editor — los campos se emiten al PDF sin el bloque de título.
+                  </span>
+                </span>
+              </label>
 
               {mutation.isError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">
