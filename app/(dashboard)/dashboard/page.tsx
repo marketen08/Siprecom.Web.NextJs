@@ -403,6 +403,10 @@ export default function DashboardPage() {
   const completadas = avance
     ? avance.completado + avance.firmado + avance.aprobado
     : 0
+  // Firmadas = firma electrónica (FIRMADO) + firmado físico en papel (APROBADO).
+  const firmadas = avance ? avance.firmado + avance.aprobado : 0
+  // Pendientes de firma = trabajo terminado pero sin firmar (estado COMPLETADO).
+  const pendientesFirma = avance?.completado ?? 0
   const riesgo = avance ? nivelRiesgo(avance.porcentajeAvance) : null
 
   return (
@@ -436,17 +440,17 @@ export default function DashboardPage() {
 
       {/* KPI cards */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-24" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard
             label="Avance general"
             value={pct}
-            sub={`${fmt(completadas)} de ${fmt(avance?.totalTareas ?? 0)} tareas completadas`}
+            sub={`${fmt(completadas)} de ${fmt(avance?.totalTareas ?? 0)} tareas completadas o firmadas`}
             badge={
               riesgo
                 ? { text: riesgo.label, className: riesgo.className }
@@ -454,9 +458,14 @@ export default function DashboardPage() {
             }
           />
           <KpiCard
-            label="Tareas completadas"
-            value={fmt(completadas)}
-            sub={`Completado · Firmado · Aprobado`}
+            label="Firmadas"
+            value={fmt(firmadas)}
+            sub="Firma electrónica · físico"
+          />
+          <KpiCard
+            label="Completadas"
+            value={fmt(pendientesFirma)}
+            sub="Pendientes de firma"
           />
           <KpiCard
             label="En proceso"
