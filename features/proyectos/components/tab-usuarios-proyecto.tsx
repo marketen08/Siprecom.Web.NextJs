@@ -157,7 +157,7 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[11px] text-muted-foreground">Empresa</label>
-                <Select value={empresaId} onValueChange={setEmpresaId}>
+                <Select value={empresaId} onValueChange={(v) => setEmpresaId(v ?? TODOS)}>
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue>{empresaId === TODOS ? "Todas" : (empresas.find((e) => e.id === empresaId)?.nombre ?? "—")}</SelectValue>
                   </SelectTrigger>
@@ -174,7 +174,7 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Grupo</label>
-                <Select value={grupoId} onValueChange={setGrupoId}>
+                <Select value={grupoId} onValueChange={(v) => setGrupoId(v ?? TODOS)}>
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue>{grupoId === TODOS ? "Todos" : (grupos.find((g) => g.id === grupoId)?.nombre ?? "—")}</SelectValue>
                   </SelectTrigger>

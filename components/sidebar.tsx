@@ -58,15 +58,17 @@ function SidebarItem({
   // Funcionalidad (feature flag) requerida y no habilitada en el proyecto activo.
   if (item.requiereFuncionalidad && funcionalidades[item.requiereFuncionalidad] === false) return null
 
+  // Rol mínimo efectivo: el propio o el heredado del ancestro. Lo calculamos
+  // siempre porque además de gatear el render, se pasa a los hijos como
+  // `inheritedMin` para que la jerarquía siga bajando.
+  const effectiveMin = item.minRole ?? inheritedMin
+
   // Lista blanca EXCLUSIVA (allowedRoles) tiene precedencia sobre la jerarquía
   // lineal (minRole). Se usa cuando roles del mismo nivel no son intercambiables
   // (ej. Auditor vs User — ambos pueden ver mucho, pero solo Auditor tiene el log).
   if (item.allowedRoles && item.allowedRoles.length > 0) {
     if (!roles?.some((r) => item.allowedRoles!.includes(r as AppRole))) return null
   } else {
-    // Rol mínimo efectivo: el propio o el heredado del ancestro. Si el usuario no
-    // lo alcanza, el item (y su subárbol) no se renderiza.
-    const effectiveMin = item.minRole ?? inheritedMin
     if (effectiveMin && !meetsRole(roles, effectiveMin)) return null
   }
 
