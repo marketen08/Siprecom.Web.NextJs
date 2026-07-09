@@ -866,6 +866,13 @@ function agruparPorNivel(tareas: ElementoTarea[]): GrupoNivel[] {
     }
     grupo.tareas.push(t)
   }
+  // Dentro de cada nivel, orden alfabético por nombre de tarea (locale-aware,
+  // case-insensitive). Los grupos siguen ordenados por posición del nivel.
+  for (const grupo of map.values()) {
+    grupo.tareas.sort((a, b) =>
+      (a.tareaNombre ?? "").localeCompare(b.tareaNombre ?? "", undefined, { sensitivity: "base" }),
+    )
+  }
   return Array.from(map.values()).sort((a, b) => a.posicion - b.posicion)
 }
 
