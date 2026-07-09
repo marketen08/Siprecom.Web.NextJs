@@ -70,6 +70,13 @@ export function ProyectoForm({
 
   const plantillaId = form.watch("proyectoPlantillaId")
   const hayPlantilla = !!plantillaId && plantillaId.length > 0
+  const clonarFirmas = form.watch("clonar.firmas")
+  const clonarAcceso = form.watch("clonar.acceso")
+  const clonarTareas = form.watch("clonar.tareas")
+  // Warning cuando se copian firmas (o overrides por tarea) sin acceso: los slots
+  // van a pedir roles ("Supervisor", "Contratista") pero no habrá usuarios asignados
+  // a esos roles → nadie podrá firmar hasta que un admin los asigne.
+  const firmasSinAcceso = hayPlantilla && clonarFirmas && !clonarAcceso
   const proyectosLista = proyectosData?.data ?? []
 
   return (
@@ -307,7 +314,23 @@ export function ProyectoForm({
                   <ClonarCheckbox name="tareas" label="Tareas" form={form} disabled={isPending} />
                   <ClonarCheckbox name="flags" label="Configuración general (permisos, niveles secuenciales)" form={form} disabled={isPending} />
                   <ClonarCheckbox name="firmas" label="Configuración de firmas" form={form} disabled={isPending} />
+                  {/* Firmas es "todo lo de firmas": slots del proyecto + overrides
+                      por tarea. Los overrides solo se copian si Tareas también está on. */}
+                  {clonarFirmas && (
+                    <p className="ml-6 text-[10px] text-muted-foreground italic">
+                      Incluye los <em>overrides de firmas por tarea</em>
+                      {clonarTareas ? "." : " (requiere también Tareas para que se copien)."}
+                    </p>
+                  )}
                   <ClonarCheckbox name="acceso" label="Acceso de usuarios" form={form} disabled={isPending} />
+                  {firmasSinAcceso && (
+                    <div className="ml-6 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+                      Vas a copiar la config de firmas pero <strong>no</strong> el acceso
+                      de usuarios. Los slots piden roles (ej. "Supervisor"), y sin
+                      usuarios asignados a esos roles <strong>nadie podrá firmar</strong>{" "}
+                      hasta que un admin los asigne desde el proyecto nuevo.
+                    </div>
+                  )}
                   <ClonarCheckbox name="funcionalidades" label="Funcionalidades (feature flags por proyecto)" form={form} disabled={isPending} />
                   <ClonarCheckbox name="estructura" label="Estructura (sistemas, subsistemas, elementos)" form={form} disabled={isPending} />
                 </div>
