@@ -47,6 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { DependenciasSheet } from "@/features/elementos-tareas/components/dependencias-sheet"
+import { PreservacionTimeline } from "@/features/preservacion/components/preservacion-timeline"
 
 interface Props {
   elementoId: string | null
@@ -258,6 +259,11 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
               </div>
             )}
           </section>
+
+          {/* Timeline de preservación — silencioso si el elemento no tiene tareas
+              con EsPreservacion=true. Se renderiza al fondo para no competir con
+              la lista principal de tareas. */}
+          <PreservacionTimeline elementoId={elementoId} />
         </div>
       </SheetContent>
 
