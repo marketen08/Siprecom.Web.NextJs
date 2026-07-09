@@ -4,7 +4,7 @@ import { backendFetch } from "@/lib/server/backend-fetch"
 // POST /api/elementostareas/generar → materializa la selección enviada.
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const res = await backendFetch(request, "/elementostareas/generar", {
+  const res = await backendFetch(request, "/elementos-tareas/generar", {
     method: "POST",
     body: JSON.stringify(body),
   })

@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const query = searchParams.toString()
   const res = await backendFetch(
     request,
-    `/elementostareas/faltantes${query ? `?${query}` : ""}`,
+    `/elementos-tareas/faltantes${query ? `?${query}` : ""}`,
   )
   const data = await res.json().catch(() => ({ message: res.statusText }))
   return Response.json(data, { status: res.status })

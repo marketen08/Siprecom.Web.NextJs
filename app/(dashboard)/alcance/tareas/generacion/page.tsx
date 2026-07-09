@@ -13,6 +13,7 @@ import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-s
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetTareasSelect } from "@/features/tareas/api/use-get-tareas-select"
+import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,7 @@ export default function GeneracionTareasPage() {
   const [subSistemaId, setSubSistemaId] = useState<string>(ALL)
   const [elementoTipoId, setElementoTipoId] = useState<string>(ALL)
   const [tareaId, setTareaId] = useState<string>(ALL)
+  const [nivelId, setNivelId] = useState<string>(ALL)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [lastResult, setLastResult] = useState<{
     creadas: number
@@ -56,7 +58,13 @@ export default function GeneracionTareasPage() {
     elementoTipoId: elementoTipoId === ALL ? undefined : elementoTipoId,
     tareaId: tareaId === ALL ? undefined : tareaId,
   })
-  const rows: ElementoTareaFaltante[] = data?.data ?? []
+  // Filas devueltas por el backend (con filtros server-side de sistema/subsistema/tipo/tarea).
+  const rowsBackend: ElementoTareaFaltante[] = data?.data ?? []
+  // Filtro por nivel se aplica en cliente — el listado ya viene acotado por el resto de filtros.
+  const rows = useMemo<ElementoTareaFaltante[]>(
+    () => (nivelId === ALL ? rowsBackend : rowsBackend.filter((r) => r.tareaNivelId === nivelId)),
+    [rowsBackend, nivelId],
+  )
 
   const generar = useGenerarSeleccionadas()
 
@@ -65,6 +73,7 @@ export default function GeneracionTareasPage() {
   const { data: subsistemasRaw } = useGetSubSistemasSelect()
   const { data: tiposRaw } = useGetElementosTiposSelect()
   const { data: tareasRaw } = useGetTareasSelect()
+  const { data: nivelesRaw } = useGetNivelesSelect()
 
   const sistemaOptions = useMemo<ComboboxOption[]>(() => {
     const all: ComboboxOption[] = [{ value: ALL, label: "Todos los sistemas" }]
@@ -99,6 +108,14 @@ export default function GeneracionTareasPage() {
     }
     return all
   }, [tareasRaw])
+
+  const nivelOptions = useMemo<ComboboxOption[]>(() => {
+    const all: ComboboxOption[] = [{ value: ALL, label: "Todos los niveles" }]
+    for (const n of nivelesRaw?.data ?? []) {
+      all.push({ value: n.id, label: n.nombre })
+    }
+    return all
+  }, [nivelesRaw])
 
   // Toggle de selección.
   const toggleRow = (key: string) => {
@@ -187,7 +204,7 @@ export default function GeneracionTareasPage() {
           <div>
             <strong>Generación automática activa.</strong> Las ET nuevas se crean
             solas al importar/crear datos. Esta pantalla sirve para{" "}
-            <strong>reconciliar faltantes</strong> (bugs, imports viejos, cambios de
+            <strong>reconciliar faltantes</strong> (imports viejos, cambios de
             tipo). El flag <em>GENERACION_TAREAS_MANUAL</em> se controla en
             Configuración → Funcionalidades del proyecto.
           </div>
@@ -195,7 +212,7 @@ export default function GeneracionTareasPage() {
       )}
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
         <div>
           <label className="text-xs text-muted-foreground">Sistema</label>
           <Combobox
@@ -247,6 +264,19 @@ export default function GeneracionTareasPage() {
             }}
             placeholder="Todas"
             searchPlaceholder="Buscar tarea..."
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Nivel</label>
+          <Combobox
+            options={nivelOptions}
+            value={nivelId}
+            onChange={(v) => {
+              setNivelId(v)
+              setSelected(new Set())
+            }}
+            placeholder="Todos"
+            searchPlaceholder="Buscar nivel..."
           />
         </div>
       </div>

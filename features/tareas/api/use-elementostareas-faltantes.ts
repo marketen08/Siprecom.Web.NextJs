@@ -18,6 +18,7 @@ export interface ElementoTareaFaltante {
   tareaId: string
   tareaCodigo: number
   tareaNombre: string
+  tareaNivelId: string | null
   tareaNivelNombre: string | null
 }
 
