@@ -9,16 +9,32 @@ export enum AccionPendiente {
   Iniciar = 2,
   EnviarAprobacion = 3,
   Aprobar = 4,
+  Rechazar = 5,
+  Cancelar = 6,
 }
 
 export const ACCIONES_LIST: { value: AccionPendiente; label: string; descripcion: string }[] = [
   { value: AccionPendiente.Crear, label: "Crear", descripcion: "Reportar un pendiente nuevo." },
   { value: AccionPendiente.Iniciar, label: "Iniciar", descripcion: "Tomar el pendiente y ponerlo en proceso." },
-  { value: AccionPendiente.EnviarAprobacion, label: "Enviar a aprobación", descripcion: "Solicitar aprobación del cierre." },
+  {
+    value: AccionPendiente.EnviarAprobacion,
+    label: "Enviar a aprobación",
+    descripcion: "Solicitar la aprobación del cierre del pendiente.",
+  },
   {
     value: AccionPendiente.Aprobar,
-    label: "Aprobar / Rechazar / Cancelar / Asignar",
-    descripcion: "Aprobar el cierre, rechazarlo con motivo, cancelar el pendiente, reasignar responsable.",
+    label: "Aprobar",
+    descripcion: "Aprobar el cierre del pendiente (queda CERRADO). Incluye reasignar responsable.",
+  },
+  {
+    value: AccionPendiente.Rechazar,
+    label: "Rechazar",
+    descripcion: "Rechazar el cierre con motivo: vuelve a EN_PROCESO para que el responsable continúe.",
+  },
+  {
+    value: AccionPendiente.Cancelar,
+    label: "Cancelar",
+    descripcion: "Descartar el pendiente (queda CANCELADO). Requiere motivo.",
   },
 ]
 
