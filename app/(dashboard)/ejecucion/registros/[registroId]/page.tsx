@@ -974,6 +974,39 @@ function CampoInput({
       }
       break
     }
+    case 11: { // Checklist — opciones como checkboxes seleccionables (una única
+      //         respuesta a la vez). El valor persistido es el `valor` de la opción
+      //         tildada, o cadena vacía si ninguna. Click sobre la ya tildada la
+      //         limpia — así el user puede corregirse sin necesitar un botón extra.
+      const opcionesOrdenadas = [...campo.opciones].sort((a, b) => a.orden - b.orden)
+      input = (
+        <div className="flex flex-col gap-1.5">
+          {opcionesOrdenadas.map((op) => {
+            const checked = value === op.valor
+            return (
+              <label
+                key={op.id}
+                className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                  readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-gray-50"
+                } ${checked ? "border-blue-600 bg-blue-50" : "border-gray-200 bg-white"}`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 rounded border-gray-300 accent-blue-600"
+                  checked={checked}
+                  disabled={readOnly}
+                  onChange={() => !readOnly && onChange(checked ? "" : op.valor)}
+                />
+                <span className={checked ? "font-medium text-blue-900" : "text-gray-700"}>
+                  {op.etiqueta}
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      )
+      break
+    }
     case 9: // Tabla — celdas de texto (matriz fija o dinámica)
       input = (
         <CampoTablaInput
