@@ -138,6 +138,7 @@ export const menu: MenuItem[] = [
     minRole: "Auditor",
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios", minRole: "Admin" },
+      { label: "Grupos de usuarios", href: "/configuracion/grupos-usuarios", minRole: "Admin" },
       { label: "Control de cambios", href: "/administracion/auditoria", minRole: "Auditor" },
       // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
     ],
