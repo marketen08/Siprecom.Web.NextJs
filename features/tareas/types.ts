@@ -27,6 +27,19 @@ export const TIPO_ASIGNACION_LABEL: Record<number, string> = {
   3: "Por Basic Function",
 }
 
+// Espejo del enum CalculoProximaFecha del backend (preservación).
+export const CALCULO_PROXIMA_FECHA = {
+  DesdeCompletado: 1,
+  DesdePlanificada: 2,
+} as const
+
+export type CalculoProximaFecha = (typeof CALCULO_PROXIMA_FECHA)[keyof typeof CALCULO_PROXIMA_FECHA]
+
+export const CALCULO_PROXIMA_FECHA_LABEL: Record<number, string> = {
+  1: "Desde fecha de completado",
+  2: "Desde fecha planificada",
+}
+
 export interface Tarea {
   id: string
   codigo: number
@@ -54,6 +67,9 @@ export interface Tarea {
   tareaPrecedenteId?: string | null
   tareaPrecedenteNombre?: string | null
   lagDias: number
+  esPreservacion: boolean
+  periodoSemanas?: number | null
+  calculoProximaFecha: number
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string
@@ -74,6 +90,9 @@ export interface TareaCreateInput {
   tipoAsignacion: number
   tareaPrecedenteId?: string | null
   lagDias?: number
+  esPreservacion?: boolean
+  periodoSemanas?: number | null
+  calculoProximaFecha?: number
 }
 
 export interface TareaUpdateInput {
@@ -91,4 +110,7 @@ export interface TareaUpdateInput {
   tipoAsignacion: number
   tareaPrecedenteId?: string | null
   lagDias?: number
+  esPreservacion?: boolean
+  periodoSemanas?: number | null
+  calculoProximaFecha?: number
 }

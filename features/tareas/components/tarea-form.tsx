@@ -5,7 +5,13 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { tareaSchema, type TareaFormValues } from "../schema"
-import { PRIORIDAD, TIPO_ASIGNACION_LABEL, TIPO_ASIGNACION_TAREA } from "../types"
+import {
+  CALCULO_PROXIMA_FECHA,
+  CALCULO_PROXIMA_FECHA_LABEL,
+  PRIORIDAD,
+  TIPO_ASIGNACION_LABEL,
+  TIPO_ASIGNACION_TAREA,
+} from "../types"
 import type { Tarea } from "../types"
 
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
@@ -79,6 +85,9 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
       tipoAsignacion: defaultValues?.tipoAsignacion ?? 1,
       tareaPrecedenteId: defaultValues?.tareaPrecedenteId ?? null,
       lagDias: defaultValues?.lagDias ?? 0,
+      esPreservacion: defaultValues?.esPreservacion ?? false,
+      periodoSemanas: defaultValues?.periodoSemanas ?? null,
+      calculoProximaFecha: defaultValues?.calculoProximaFecha ?? CALCULO_PROXIMA_FECHA.DesdeCompletado,
     },
   })
 
@@ -166,11 +175,14 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
     }
     // Si no hay precedente, forzamos lagDias=0 y limpiamos el id.
     const precedenteId = values.tareaPrecedenteId || null
+    // Si no es de preservación, limpiamos periodo (no aplica) pero mantenemos
+    // el calculoProximaFecha default para no marear al backend.
     onSubmit({
       ...values,
       procedimientoId: values.procedimientoId || undefined,
       tareaPrecedenteId: precedenteId,
       lagDias: precedenteId ? values.lagDias : 0,
+      periodoSemanas: values.esPreservacion ? values.periodoSemanas : null,
     })
   }
 
@@ -583,6 +595,109 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                 </FormItem>
               )}
             />
+          ) : null}
+        </div>
+
+        <Separator />
+
+        {/* Preservación (mantenimiento recurrente) */}
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Preservación
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Si esta tarea se repite cada cierto tiempo (mantenimiento preventivo),
+              activá esta opción. Al completar cada ciclo, el sistema genera automáticamente
+              el próximo con la fecha correspondiente.
+            </p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name="esPreservacion"
+            render={({ field }) => (
+              <FormItem>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-900 focus:ring-blue-900"
+                    checked={field.value}
+                    disabled={isPending}
+                    onChange={(e) => field.onChange(e.target.checked)}
+                  />
+                  <span className="text-sm">
+                    Esta tarea es de preservación (se repite en ciclos)
+                  </span>
+                </label>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {form.watch("esPreservacion") ? (
+            <div className="flex flex-col gap-3 pl-6 border-l-2 border-blue-100">
+              <FormField
+                control={form.control}
+                name="periodoSemanas"
+                render={({ field }) => (
+                  <FormItem className="max-w-48">
+                    <FormLabel>Período (semanas)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={520}
+                        step={1}
+                        placeholder="Ej: 12"
+                        disabled={isPending}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          field.onChange(v === "" ? null : parseInt(v, 10) || null)
+                        }}
+                      />
+                    </FormControl>
+                    <p className="text-[11px] text-muted-foreground">
+                      Entre 1 y 520 semanas (10 años). Ejemplos: 4 = mensual, 12 = trimestral, 52 = anual.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="calculoProximaFecha"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cálculo de la próxima fecha</FormLabel>
+                    <Select
+                      disabled={isPending}
+                      value={String(field.value ?? CALCULO_PROXIMA_FECHA.DesdeCompletado)}
+                      onValueChange={(v) => v && field.onChange(parseInt(v, 10))}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {CALCULO_PROXIMA_FECHA_LABEL[Number(field.value)] ?? "Desde fecha de completado"}
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={String(CALCULO_PROXIMA_FECHA.DesdeCompletado)}>
+                          Desde fecha de completado (fecha real de firma + período)
+                        </SelectItem>
+                        <SelectItem value={String(CALCULO_PROXIMA_FECHA.DesdePlanificada)}>
+                          Desde fecha planificada (fecha planificada anterior + período)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           ) : null}
         </div>
 
