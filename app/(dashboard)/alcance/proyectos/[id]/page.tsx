@@ -37,14 +37,14 @@ import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { PendientesAutorizacionSection } from "@/features/pendientes-autorizacion/components/pendientes-autorizacion-section"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useAddUsuariosDesdeGrupo } from "@/features/proyectos/api/use-add-usuarios-desde-grupo"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import {
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -626,24 +626,29 @@ function AgregarDesdeGrupoDialog({ proyectoId }: { proyectoId: string }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setGrupoId(null); setResultado(null) } }}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-          <Users className="h-3.5 w-3.5" />
-          Agregar desde grupo
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Agregar usuarios desde grupo</DialogTitle>
-          <DialogDescription>
-            Se van a asignar al proyecto todos los miembros activos del grupo elegido. Los
-            usuarios ya asignados no se duplican. Cambios posteriores al grupo NO se propagan —
-            cada acceso se puede editar/quitar individualmente después.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5 text-xs"
+        onClick={() => setOpen(true)}
+      >
+        <Users className="h-3.5 w-3.5" />
+        Agregar desde grupo
+      </Button>
 
-        <div className="space-y-3 py-2">
+      <Sheet open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setGrupoId(null); setResultado(null) } }}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Agregar usuarios desde grupo</SheetTitle>
+            <SheetDescription>
+              Se van a asignar al proyecto todos los miembros activos del grupo elegido. Los
+              usuarios ya asignados no se duplican. Cambios posteriores al grupo NO se propagan —
+              cada acceso se puede editar/quitar individualmente después.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-6 px-4 space-y-3 pb-4">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando grupos...</p>
           ) : grupos.length === 0 ? (
@@ -681,24 +686,28 @@ function AgregarDesdeGrupoDialog({ proyectoId }: { proyectoId: string }) {
             </ul>
           )}
 
-          {resultado && (
-            <p className="text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-md px-3 py-2">
-              {resultado}
-            </p>
-          )}
-        </div>
+            {resultado && (
+              <p className="text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-md px-3 py-2">
+                {resultado}
+              </p>
+            )}
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button
-            disabled={!grupoId || addFromGroup.isPending}
-            onClick={confirmar}
-          >
-            {addFromGroup.isPending ? "Agregando..." : "Agregar miembros"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <div className="flex gap-2 pt-3">
+              <Button
+                disabled={!grupoId || addFromGroup.isPending}
+                onClick={confirmar}
+                className="flex-1"
+              >
+                {addFromGroup.isPending ? "Agregando..." : "Agregar miembros"}
+              </Button>
+              <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
 
