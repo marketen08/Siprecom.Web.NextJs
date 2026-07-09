@@ -34,6 +34,7 @@ import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import type { EstadoProyecto, FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
+import { PendientesAutorizacionSection } from "@/features/pendientes-autorizacion/components/pendientes-autorizacion-section"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -45,13 +46,14 @@ import {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "general" | "configuracion" | "usuarios" | "firmas"
+type Tab = "general" | "configuracion" | "usuarios" | "firmas" | "pendientes"
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "general",       label: "Datos generales", icon: <Settings    className="h-4 w-4" /> },
-  { id: "configuracion", label: "Configuración",   icon: <ShieldCheck className="h-4 w-4" /> },
-  { id: "usuarios",      label: "Usuarios",        icon: <Users       className="h-4 w-4" /> },
-  { id: "firmas",        label: "Firmas",          icon: <PenLine     className="h-4 w-4" /> },
+  { id: "general",       label: "Datos generales", icon: <Settings       className="h-4 w-4" /> },
+  { id: "configuracion", label: "Configuración",   icon: <ShieldCheck    className="h-4 w-4" /> },
+  { id: "usuarios",      label: "Usuarios",        icon: <Users          className="h-4 w-4" /> },
+  { id: "firmas",        label: "Firmas",          icon: <PenLine        className="h-4 w-4" /> },
+  { id: "pendientes",    label: "Pendientes",      icon: <AlertTriangle  className="h-4 w-4" /> },
 ]
 
 // ─── Página ───────────────────────────────────────────────────────────────────
@@ -134,6 +136,7 @@ function ProyectoDetailContent() {
         {tab === "configuracion" && <TabConfiguracion proyecto={proyecto} />}
         {tab === "usuarios"      && <TabUsuarios      proyectoId={id} />}
         {tab === "firmas"        && <TabFirmas        proyectoId={id} />}
+        {tab === "pendientes"    && <TabPendientes    proyectoId={id} />}
       </div>
     </div>
   )
@@ -1065,6 +1068,12 @@ function Toggle({
       />
     </button>
   )
+}
+
+// ─── Tab Pendientes: matriz acción × grupos ───────────────────────────────────
+
+function TabPendientes({ proyectoId }: { proyectoId: string }) {
+  return <PendientesAutorizacionSection proyectoId={proyectoId} />
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
