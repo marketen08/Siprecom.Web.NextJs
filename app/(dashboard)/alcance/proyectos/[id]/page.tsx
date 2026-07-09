@@ -6,7 +6,7 @@ import Link from "next/link"
 import {
   Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
-  Users, Search, User as UserIcon, CalendarRange, Box,
+  Users, CalendarRange, Box,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -26,32 +26,25 @@ import { useSincronizarFirmasProyecto } from "@/features/proyectos/api/use-sincr
 import { useGetUsuariosRoles } from "@/features/proyectos/api/use-get-usuarios-roles"
 import { useAsignarUsuarioRol } from "@/features/proyectos/api/use-asignar-usuario-rol"
 import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario-rol"
-import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
-import { useAddUsuarioProyecto } from "@/features/proyectos/api/use-add-usuario-proyecto"
-import { useRemoveUsuarioProyecto } from "@/features/proyectos/api/use-remove-usuario-proyecto"
 import { useGetFechaEstimadaFin } from "@/features/proyectos/api/use-fecha-estimada-fin"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
+import { TabUsuariosProyecto } from "@/features/proyectos/components/tab-usuarios-proyecto"
 import type { EstadoProyecto, FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { PendientesAutorizacionSection } from "@/features/pendientes-autorizacion/components/pendientes-autorizacion-section"
-import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
-import { useAddUsuariosDesdeGrupo } from "@/features/proyectos/api/use-add-usuarios-desde-grupo"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import {
-  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet"
-import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "general" | "configuracion" | "usuarios" | "firmas" | "pendientes"
+type Tab = "general" | "configuracion" | "usuarios" | "firmas" | "pendientes" | "modelo3d"
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "general",       label: "Datos generales", icon: <Settings       className="h-4 w-4" /> },
@@ -59,6 +52,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "usuarios",      label: "Usuarios",        icon: <Users          className="h-4 w-4" /> },
   { id: "firmas",        label: "Firmas",          icon: <PenLine        className="h-4 w-4" /> },
   { id: "pendientes",    label: "Pendientes",      icon: <AlertTriangle  className="h-4 w-4" /> },
+  { id: "modelo3d",      label: "Modelo 3D",       icon: <Box            className="h-4 w-4" /> },
 ]
 
 // ─── Página ───────────────────────────────────────────────────────────────────
@@ -100,19 +94,6 @@ function ProyectoDetailContent() {
   return (
     <div className="space-y-6 max-w-3xl">
 
-      {/* Acciones */}
-      {proyecto.funcionalidadesEfectivas?.MAQUETA_3D !== false && (
-        <div className="flex items-center justify-end">
-          <Link
-            href={`/alcance/proyectos/${id}/modelo-3d`}
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
-          >
-            <Box className="h-4 w-4" />
-            Modelo 3D
-          </Link>
-        </div>
-      )}
-
       {/* Tabs — scrollables en horizontal cuando no entran (mobile). overflow-y-hidden
           evita el scroll vertical fantasma: poner overflow-x:auto fuerza overflow-y a
           'auto', y el -mb-px de los botones alcanza para disparar 1px de scroll. */}
@@ -142,6 +123,7 @@ function ProyectoDetailContent() {
         {tab === "usuarios"      && <TabUsuarios      proyectoId={id} />}
         {tab === "firmas"        && <TabFirmas        proyectoId={id} />}
         {tab === "pendientes"    && <TabPendientes    proyectoId={id} />}
+        {tab === "modelo3d"      && <TabModelo3D      proyecto={proyecto} />}
       </div>
     </div>
   )
@@ -490,324 +472,14 @@ function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
   )
 }
 
-// ─── Tab Usuarios ─────────────────────────────────────────────────────────────
+// ─── Tab Usuarios ──────────────────────────────────────────────────────────────
+// Split-panel con asignados + disponibles filtrables por empresa y grupo.
+// Lógica en features/proyectos/components/tab-usuarios-proyecto.
 
 function TabUsuarios({ proyectoId }: { proyectoId: string }) {
-  const { data: asignadosData, isLoading } = useGetProyectoUsuarios(proyectoId)
-  const addMutation = useAddUsuarioProyecto(proyectoId)
-  const removeMutation = useRemoveUsuarioProyecto(proyectoId)
-
-  const asignados = Array.isArray(asignadosData) ? asignadosData : []
-  const asignadosIds = new Set(asignados.map((u) => u.usuarioId))
-
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground max-w-2xl">
-        Usuarios con acceso a este proyecto. El indicador <span className="font-medium">"Activo"</span> significa
-        que es el proyecto actualmente seleccionado por el usuario al iniciar sesión.
-      </p>
-
-      {/* Layout dos paneles — mismo patrón que /configuracion/usuarios/[id]/proyectos */}
-      <div className="flex gap-4 h-[calc(100vh-260px)]">
-
-        {/* Izquierda: usuarios asignados */}
-        <div className="w-80 shrink-0 border rounded-lg bg-white overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b">
-            <h3 className="text-sm font-semibold text-gray-700">Usuarios asignados</h3>
-            <p className="text-xs text-muted-foreground">
-              {asignados.length} usuario{asignados.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
-            ) : asignados.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-8">
-                <UserIcon className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-sm">Sin usuarios asignados.</p>
-                <p className="text-xs mt-1 max-w-45">
-                  Usá el buscador de la derecha para agregar usuarios individuales o desde un grupo.
-                </p>
-              </div>
-            ) : (
-              asignados.map((u) => {
-                const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ")
-                return (
-                  <div
-                    key={u.usuarioId}
-                    className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <UserIcon className="h-4 w-4 text-blue-900 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{fullName || u.userName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {u.esActivo && (
-                        <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Activo
-                        </span>
-                      )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        disabled={removeMutation.isPending}
-                        onClick={() => removeMutation.mutate(u.usuarioId)}
-                        aria-label="Quitar del proyecto"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Derecha: buscador + botón agregar desde grupo */}
-        <div className="flex-1 border rounded-lg bg-white overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-gray-700">Agregar usuario</h3>
-              <AgregarDesdeGrupoDialog proyectoId={proyectoId} />
-            </div>
-            <UsuarioCombobox
-              asignadosIds={asignadosIds}
-              onAdd={(usuarioId) => addMutation.mutate(usuarioId)}
-              isPending={addMutation.isPending}
-            />
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground p-8">
-            <Search className="h-10 w-10 mb-3 opacity-20" />
-            <p className="text-sm font-medium">Buscá y agregá usuarios</p>
-            <p className="text-xs mt-1 max-w-xs">
-              Escribí el nombre o email en el buscador para agregar de a uno, o usá <span className="font-medium">"Agregar desde grupo"</span> para asignar
-              todos los miembros de un grupo de una vez.
-            </p>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  )
+  return <TabUsuariosProyecto proyectoId={proyectoId} />
 }
 
-// ─── Dialog: Agregar todos los miembros de un grupo ───────────────────────────
-
-function AgregarDesdeGrupoDialog({ proyectoId }: { proyectoId: string }) {
-  const [open, setOpen] = useState(false)
-  const [grupoId, setGrupoId] = useState<string | null>(null)
-  const [resultado, setResultado] = useState<string | null>(null)
-  // Solo grupos declarados para acceso a proyecto.
-  const { data: gruposResp, isLoading } = useGetUsuariosGrupos("acceso-proyecto")
-  const addFromGroup = useAddUsuariosDesdeGrupo(proyectoId)
-
-  const grupos = gruposResp?.data ?? []
-
-  async function confirmar() {
-    if (!grupoId) return
-    setResultado(null)
-    try {
-      const res = await addFromGroup.mutateAsync(grupoId)
-      setResultado(res.message ?? "Asignación completada.")
-      // Cierro después de un flash breve para que el user vea el resumen
-      setTimeout(() => { setOpen(false); setResultado(null); setGrupoId(null) }, 1600)
-    } catch (e) {
-      setResultado((e as Error).message)
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5 text-xs"
-        onClick={() => setOpen(true)}
-      >
-        <Users className="h-3.5 w-3.5" />
-        Agregar desde grupo
-      </Button>
-
-      <Sheet open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setGrupoId(null); setResultado(null) } }}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Agregar usuarios desde grupo</SheetTitle>
-            <SheetDescription>
-              Se van a asignar al proyecto todos los miembros activos del grupo elegido. Los
-              usuarios ya asignados no se duplican. Cambios posteriores al grupo NO se propagan —
-              cada acceso se puede editar/quitar individualmente después.
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="mt-6 px-4 space-y-3 pb-4">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando grupos...</p>
-          ) : grupos.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">
-              No hay grupos cargados. Creá grupos en <span className="font-medium">Configuración → Grupos de usuarios</span>.
-            </p>
-          ) : (
-            <ul className="space-y-1 max-h-72 overflow-y-auto">
-              {grupos.map((g) => {
-                const selected = grupoId === g.id
-                return (
-                  <li key={g.id}>
-                    <button
-                      type="button"
-                      onClick={() => setGrupoId(g.id)}
-                      className={`w-full flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                        selected
-                          ? "border-blue-600 bg-blue-50"
-                          : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{g.nombre}</p>
-                        {g.descripcion && (
-                          <p className="text-xs text-muted-foreground truncate">{g.descripcion}</p>
-                        )}
-                      </div>
-                      <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                        {g.cantidadMiembros} miembro{g.cantidadMiembros !== 1 ? "s" : ""}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
-            {resultado && (
-              <p className="text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-md px-3 py-2">
-                {resultado}
-              </p>
-            )}
-
-            <div className="flex gap-2 pt-3">
-              <Button
-                disabled={!grupoId || addFromGroup.isPending}
-                onClick={confirmar}
-                className="flex-1"
-              >
-                {addFromGroup.isPending ? "Agregando..." : "Agregar miembros"}
-              </Button>
-              <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-    </>
-  )
-}
-
-// ─── Combobox de usuarios ─────────────────────────────────────────────────────
-
-function UsuarioCombobox({
-  asignadosIds, onAdd, isPending,
-}: {
-  asignadosIds: Set<string>
-  onAdd: (id: string) => void
-  isPending: boolean
-}) {
-  const [search, setSearch] = useState("")
-  const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  // isLocked: false → excluye usuarios dados de baja (bloqueados): no deben poder
-  // agregarse a un proyecto.
-  const { data, isFetching } = useGetUsuarios({ nombre: search || undefined, pageSize: 10, page: 1, isLocked: false })
-  const resultados = (data as any)?.data ?? []
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node))
-        setOpen(false)
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
-
-  return (
-    <div ref={containerRef} className="relative">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar usuario para agregar..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          className="pl-9"
-          autoComplete="off"
-        />
-        {search && (
-          <button
-            type="button"
-            onClick={() => { setSearch(""); setOpen(false) }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
-          {isFetching && resultados.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Buscando...</p>
-          ) : resultados.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              {search ? "Sin resultados." : "Escribí para buscar usuarios."}
-            </p>
-          ) : (
-            <ul className="divide-y max-h-56 overflow-y-auto">
-              {resultados.map((u: any) => {
-                const yaAsignado = asignadosIds.has(u.id)
-                const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ")
-                return (
-                  <li key={u.id} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-50">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <UserIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{fullName || u.userName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      </div>
-                    </div>
-                    {yaAsignado ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded shrink-0">
-                        Asignado
-                      </span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs shrink-0"
-                        disabled={isPending}
-                        onClick={() => { onAdd(u.id); setOpen(false); setSearch("") }}
-                      >
-                        Agregar
-                      </Button>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Tab Firmas ───────────────────────────────────────────────────────────────
 
@@ -1220,6 +892,74 @@ function Toggle({
         }`}
       />
     </button>
+  )
+}
+
+// ─── Tab Modelo 3D: descripción + link al visor ───────────────────────────────
+
+function TabModelo3D({ proyecto }: { proyecto: Proyecto }) {
+  const habilitado = proyecto.funcionalidadesEfectivas?.MAQUETA_3D !== false
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <div className="rounded-lg border bg-white p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="rounded-md bg-blue-50 border border-blue-100 p-2 shrink-0">
+            <Box className="h-6 w-6 text-blue-700" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-gray-900">Maqueta 3D del proyecto</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Visualizador interactivo de los modelos 3D del proyecto (IFC / NWD). Permite
+              recorrer la instalación, filtrar entidades por sistema, subsistema o
+              especialidad, y ver el estado de avance de cada elemento pintado sobre el modelo.
+            </p>
+          </div>
+        </div>
+
+        <ul className="text-sm text-muted-foreground space-y-1.5 pl-2">
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+            <span>Cargar archivos 3D (IFC, NWD) desde la sección de gestión de modelos.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+            <span>Vincular entidades del modelo con elementos del alcance por TAG.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+            <span>Pintar el modelo por estado de la tarea, especialidad o avance físico.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+            <span>Aislar / filtrar sub-conjuntos del modelo por sistema o subsistema.</span>
+          </li>
+        </ul>
+
+        {habilitado ? (
+          <div className="flex items-center justify-end pt-2">
+            <Link
+              href={`/alcance/proyectos/${proyecto.id}/modelo-3d`}
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              <Box className="h-4 w-4" />
+              Abrir Modelo 3D
+            </Link>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">Modelo 3D deshabilitado para este proyecto.</p>
+              <p className="text-xs mt-0.5">
+                Activá la funcionalidad <span className="font-medium">MAQUETA_3D</span> en la pestaña
+                Configuración para poder usar el visor.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -12,13 +12,15 @@ interface Params {
   clienteId?: string
   /** Filtra por rol asignado (ej "Admin"). */
   rol?: string
+  /** Filtra por grupo de usuarios: sólo miembros activos del grupo. */
+  grupoId?: string
 }
 
 export function useGetUsuarios(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, isLocked, clienteId, rol } = params
+  const { page = 1, pageSize = 10, nombre, isLocked, clienteId, rol, grupoId } = params
 
   return useQuery({
-    queryKey: ["usuarios", { page, pageSize, nombre, isLocked, clienteId, rol }],
+    queryKey: ["usuarios", { page, pageSize, nombre, isLocked, clienteId, rol, grupoId }],
     queryFn: () =>
       apiClient.get<PagedResponse<Usuario>>("/api/usuarios", {
         page,
@@ -27,6 +29,7 @@ export function useGetUsuarios(params: Params = {}) {
         ...(isLocked !== undefined ? { isLocked: String(isLocked) } : {}),
         ...(clienteId ? { clienteId } : {}),
         ...(rol ? { rol } : {}),
+        ...(grupoId ? { grupoId } : {}),
       }),
   })
 }

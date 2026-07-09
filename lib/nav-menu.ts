@@ -7,8 +7,16 @@ export type MenuItem = {
   /**
    * Rol mínimo para ver/entrar a este item (y sus hijos, salvo que el hijo
    * defina uno propio). Si se omite, hereda del ancestro; default "User".
+   * Usa la escala lineal del `meetsRole`.
    */
   minRole?: AppRole
+  /**
+   * Lista blanca EXCLUSIVA de roles permitidos. Si está presente, sobreescribe
+   * el `minRole` — el user pasa solo si tiene AL MENOS UNO de estos roles.
+   * Usado para casos donde la jerarquía lineal no encaja (ej. Control de cambios:
+   * Auditor sí, User NO — ambos tienen que estar tratados como paralelos).
+   */
+  allowedRoles?: AppRole[]
   /**
    * Si es true, el item se oculta cuando el proyecto activo es solo de
    * pre-firmados físicos (sin registro/firma digital) → no hay firmas
@@ -132,14 +140,20 @@ export const menu: MenuItem[] = [
   },
   {
     // Gestión de usuarios — separada de la config de catálogos.
-    // Control de cambios lo baja a Auditor: es el rol de solo lectura + acceso
-    // al log de auditoría. Admin/Supervisor/SuperAdmin ya lo heredan por jerarquía.
+    // El grupo se abre para Auditor+ o Admin+ dependiendo del sub-item.
+    // Ver comentarios en cada hijo.
     label: "Administración del sistema",
     minRole: "Auditor",
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios", minRole: "Admin" },
       { label: "Grupos de usuarios", href: "/configuracion/grupos-usuarios", minRole: "Admin" },
-      { label: "Control de cambios", href: "/administracion/auditoria", minRole: "Auditor" },
+      // Control de cambios: Auditor y Supervisor+ (User NO — es rol de escritura
+      // operativa, no de auditoría). Ambos son roles con capacidades distintas.
+      {
+        label: "Control de cambios",
+        href: "/administracion/auditoria",
+        allowedRoles: ["Auditor", "Supervisor", "Admin", "AdminGlobal", "SuperAdmin"],
+      },
       // { label: "Acceso a proyectos", href: "/configuracion/acceso-proyectos" },
     ],
   },
@@ -191,19 +205,35 @@ function flatten(items: MenuItem[], trail: BreadcrumbItem[]): Map<string, Breadc
 
 export const navBreadcrumbMap = flatten(menu, [])
 
-// ─── Mapa ruta → rol mínimo ───────────────────────────────────────────────────
-// Cada href queda con el rol mínimo efectivo (el propio o el heredado del
-// ancestro). Solo se incluyen rutas restringidas (Supervisor/Admin); las que
-// quedan en "User" (default) no entran al mapa. Lo consume el RouteGuard.
+// ─── Mapa ruta → restricción ─────────────────────────────────────────────────
+// Cada href queda con su regla efectiva. Dos formatos:
+//   { kind: "min", role }     — usar meetsRole (jerarquía lineal)
+//   { kind: "allowed", roles } — lista blanca EXCLUSIVA (allowedRoles)
+// Solo se incluyen rutas restringidas; las que quedan en "User" (default) no entran.
+// Lo consume el RouteGuard.
+type RouteRule =
+  | { kind: "min"; role: AppRole }
+  | { kind: "allowed"; roles: AppRole[] }
+
 function buildRouteRoleMap(
   items: MenuItem[],
   inherited: AppRole | undefined,
-  acc: Map<string, AppRole>,
-): Map<string, AppRole> {
+  acc: Map<string, RouteRule>,
+): Map<string, RouteRule> {
   for (const item of items) {
-    const effective = item.minRole ?? inherited
-    if (item.href && effective) acc.set(item.href, effective)
-    if (item.children) buildRouteRoleMap(item.children, effective, acc)
+    // allowedRoles tiene precedencia sobre minRole (mismo criterio que Sidebar).
+    if (item.href) {
+      if (item.allowedRoles && item.allowedRoles.length > 0) {
+        acc.set(item.href, { kind: "allowed", roles: item.allowedRoles })
+      } else {
+        const effective = item.minRole ?? inherited
+        if (effective) acc.set(item.href, { kind: "min", role: effective })
+      }
+    }
+    if (item.children) {
+      const nextInherited = item.minRole ?? inherited
+      buildRouteRoleMap(item.children, nextInherited, acc)
+    }
   }
   return acc
 }
@@ -211,18 +241,18 @@ function buildRouteRoleMap(
 export const routeRoleMap = buildRouteRoleMap(menu, undefined, new Map())
 
 /**
- * Rol mínimo requerido para una ruta. Hace match por prefijo más específico
- * (para cubrir subrutas dinámicas, ej. /alcance/proyectos/{id} hereda de
- * /alcance/proyectos). Devuelve null si la ruta no está restringida.
+ * Regla de autorización para una ruta (por prefijo más específico). Devuelve
+ * null si la ruta no está restringida. Consumido por el RouteGuard, que evalúa
+ * `kind` para decidir cómo chequear los roles del user.
  */
-export function requiredRoleForPath(pathname: string): AppRole | null {
-  let best: { href: string; role: AppRole } | null = null
-  for (const [href, role] of routeRoleMap) {
+export function ruleForPath(pathname: string): RouteRule | null {
+  let best: { href: string; rule: RouteRule } | null = null
+  for (const [href, rule] of routeRoleMap) {
     if (pathname === href || pathname.startsWith(href + "/")) {
-      if (!best || href.length > best.href.length) best = { href, role }
+      if (!best || href.length > best.href.length) best = { href, rule }
     }
   }
-  return best?.role ?? null
+  return best?.rule ?? null
 }
 
 // Etiquetas para segmentos dinámicos o rutas sin entrada en el menú
