@@ -606,7 +606,8 @@ function AgregarDesdeGrupoDialog({ proyectoId }: { proyectoId: string }) {
   const [open, setOpen] = useState(false)
   const [grupoId, setGrupoId] = useState<string | null>(null)
   const [resultado, setResultado] = useState<string | null>(null)
-  const { data: gruposResp, isLoading } = useGetUsuariosGrupos()
+  // Solo grupos declarados para acceso a proyecto.
+  const { data: gruposResp, isLoading } = useGetUsuariosGrupos("acceso-proyecto")
   const addFromGroup = useAddUsuariosDesdeGrupo(proyectoId)
 
   const grupos = gruposResp?.data ?? []

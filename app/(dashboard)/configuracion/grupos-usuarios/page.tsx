@@ -32,6 +32,8 @@ interface EditSheetState {
   id?: string
   nombre: string
   descripcion: string
+  usoPendientes: boolean
+  usoAccesoProyecto: boolean
 }
 
 export default function GruposUsuariosPage() {
@@ -53,6 +55,8 @@ export default function GruposUsuariosPage() {
       const payload = {
         nombre: editSheet.nombre.trim(),
         descripcion: editSheet.descripcion.trim() || undefined,
+        usoPendientes: editSheet.usoPendientes,
+        usoAccesoProyecto: editSheet.usoAccesoProyecto,
       }
       if (editSheet.mode === "new") await create.mutateAsync(payload)
       else await update.mutateAsync({ id: editSheet.id!, ...payload })
@@ -84,7 +88,10 @@ export default function GruposUsuariosPage() {
           </p>
         </div>
         <Button
-          onClick={() => { setError(null); setEditSheet({ mode: "new", nombre: "", descripcion: "" }) }}
+          onClick={() => { setError(null); setEditSheet({
+            mode: "new", nombre: "", descripcion: "",
+            usoPendientes: true, usoAccesoProyecto: true,
+          }) }}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -98,18 +105,19 @@ export default function GruposUsuariosPage() {
             <TableRow>
               <TableHead className="font-semibold text-gray-700">Nombre</TableHead>
               <TableHead className="font-semibold text-gray-700">Descripción</TableHead>
-              <TableHead className="w-32 font-semibold text-gray-700 text-right">Miembros</TableHead>
+              <TableHead className="w-56 font-semibold text-gray-700">Se usa en</TableHead>
+              <TableHead className="w-24 font-semibold text-gray-700 text-right">Miembros</TableHead>
               <TableHead className="w-40 font-semibold text-gray-700 text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">Cargando...</TableCell>
+                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">Cargando...</TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
                   No hay grupos cargados.
                 </TableCell>
               </TableRow>
@@ -118,6 +126,23 @@ export default function GruposUsuariosPage() {
                 <TableRow key={g.id}>
                   <TableCell className="font-medium">{g.nombre}</TableCell>
                   <TableCell className="text-sm text-gray-600">{g.descripcion || "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {g.usoPendientes && (
+                        <span className="inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[11px] font-medium">
+                          Pendientes
+                        </span>
+                      )}
+                      {g.usoAccesoProyecto && (
+                        <span className="inline-flex items-center rounded bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 text-[11px] font-medium">
+                          Acceso a proyecto
+                        </span>
+                      )}
+                      {!g.usoPendientes && !g.usoAccesoProyecto && (
+                        <span className="text-xs text-muted-foreground italic">Sin uso declarado</span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{g.cantidadMiembros}</TableCell>
                   <TableCell className="text-right">
                     <Button
@@ -139,6 +164,8 @@ export default function GruposUsuariosPage() {
                         id: g.id,
                         nombre: g.nombre,
                         descripcion: g.descripcion ?? "",
+                        usoPendientes: g.usoPendientes,
+                        usoAccesoProyecto: g.usoAccesoProyecto,
                       }) }}
                     >
                       <Pencil className="h-4 w-4" />
@@ -192,6 +219,36 @@ export default function GruposUsuariosPage() {
                 maxLength={500}
               />
             </div>
+
+            {/* Uso declarado: filtra dónde aparece el grupo como opción. No es
+                restricción de seguridad — el service igual chequea membresía.  */}
+            <div>
+              <label className="text-sm font-medium">Se usa en</label>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Determina en qué contextos aparece el grupo como opción. Podés cambiarlo cuando quieras.
+              </p>
+              <div className="mt-2 space-y-1.5">
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                    checked={editSheet?.usoPendientes ?? true}
+                    onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoPendientes: e.target.checked } : editSheet)}
+                  />
+                  Pendientes <span className="text-xs text-muted-foreground">(matriz de autorización por proyecto)</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                    checked={editSheet?.usoAccesoProyecto ?? true}
+                    onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoAccesoProyecto: e.target.checked } : editSheet)}
+                  />
+                  Acceso a proyecto <span className="text-xs text-muted-foreground">(bulk-add desde grupo)</span>
+                </label>
+              </div>
+            </div>
+
             {error && <p className="text-xs text-red-600 whitespace-pre-line">{error}</p>}
             <div className="flex gap-2 pt-2">
               <Button

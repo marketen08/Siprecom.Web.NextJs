@@ -1,14 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
-import type { UsuarioGrupo, UsuarioGrupoDetalle, UsuarioGrupoInput } from "../types"
+import type { UsuarioGrupo, UsuarioGrupoDetalle, UsuarioGrupoInput, UsoGrupoFiltro } from "../types"
 
 const QK = ["usuarios-grupos"] as const
 
-export function useGetUsuariosGrupos() {
+/** Trae todos los grupos activos. Con `uso` restringe a los que declaran ese contexto. */
+export function useGetUsuariosGrupos(uso?: UsoGrupoFiltro) {
   return useQuery({
-    queryKey: QK,
-    queryFn: () => apiClient.get<ApiResponse<UsuarioGrupo[]>>("/api/usuarios-grupos"),
+    queryKey: uso ? [...QK, { uso }] : QK,
+    queryFn: () =>
+      apiClient.get<ApiResponse<UsuarioGrupo[]>>(
+        `/api/usuarios-grupos${uso ? `?uso=${uso}` : ""}`,
+      ),
     staleTime: 1000 * 60 * 5,
   })
 }

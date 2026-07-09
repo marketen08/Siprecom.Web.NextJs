@@ -17,7 +17,8 @@ import { ACCIONES_LIST, AccionPendiente } from "../types"
  * acción, opera el rol global (compatible con el estado actual del sistema).
  */
 export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: string }) {
-  const { data: gruposResp, isLoading: cargandoGrupos } = useGetUsuariosGrupos()
+  // Solo grupos declarados para uso en Pendientes — evita ofrecer grupos irrelevantes.
+  const { data: gruposResp, isLoading: cargandoGrupos } = useGetUsuariosGrupos("pendientes")
   const { data: authResp, isLoading: cargandoAuth } = useGetPendientesAutorizacion(proyectoId)
   const save = useSetPendientesAutorizacion(proyectoId)
 
