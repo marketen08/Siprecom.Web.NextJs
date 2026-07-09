@@ -47,6 +47,8 @@ export interface CampoCreateInput {
   descripcion?: string
   imagenUrl?: string
   numeroFilas?: number
+  /** Líneas para TextoArea (sólo tipoDato === 12). Default 3, rango 1-20. */
+  numeroLineas?: number
   esObligatorioDefault?: boolean
   negrita?: boolean
   conBorde?: boolean
@@ -67,6 +69,8 @@ export interface CampoUpdateInput {
   descripcion?: string
   imagenUrl?: string
   numeroFilas?: number
+  /** Líneas para TextoArea (sólo tipoDato === 12). Default 3, rango 1-20. */
+  numeroLineas?: number
   esObligatorioDefault?: boolean
   negrita?: boolean
   conBorde?: boolean

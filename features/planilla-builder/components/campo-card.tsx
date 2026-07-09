@@ -67,6 +67,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const isImagen = campo.campoTipoDato === 8
   const isTabla = campo.campoTipoDato === 9
   const isLabel = campo.campoTipoDato === 10
+  const isTextoArea = campo.campoTipoDato === 12
   const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
 
   const updateCampoGlobal = useUpdateCampoGlobal()
@@ -94,6 +95,28 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       alineacion: campo.campoAlineacion ?? 0,
       sinPadding: campo.campoSinPadding ?? false,
       sinMargen: campo.campoSinMargen ?? false,
+      numeroLineas: campo.campoNumeroLineas ?? 3,
+    })
+  }
+
+  // Update de NumeroLineas (Campo global, solo TextoArea). Rango 1-20, default 3.
+  const saveNumeroLineas = (valor: number) => {
+    const clamped = Math.min(20, Math.max(1, Math.floor(valor)))
+    if (clamped === (campo.campoNumeroLineas ?? 3)) return
+    updateCampoGlobal.mutate({
+      id: campo.campoId,
+      codigo: campo.campoCodigo ?? "",
+      etiqueta: campo.campoEtiqueta ?? "",
+      etiquetaAlt: campo.campoEtiquetaAlt || undefined,
+      tipoDato: campo.campoTipoDato,
+      unidad: campo.campoUnidad,
+      negrita: campo.campoNegrita ?? false,
+      conBorde: campo.campoConBorde ?? false,
+      fondoGris: campo.campoFondoGris ?? false,
+      alineacion: campo.campoAlineacion ?? 0,
+      sinPadding: campo.campoSinPadding ?? false,
+      sinMargen: campo.campoSinMargen ?? false,
+      numeroLineas: clamped,
     })
   }
   // El estilo del Label vive en el Campo global → update global (afecta todas las
@@ -112,6 +135,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       alineacion: campo.campoAlineacion ?? 0,
       sinPadding: campo.campoSinPadding ?? false,
       sinMargen: campo.campoSinMargen ?? false,
+      numeroLineas: campo.campoNumeroLineas ?? 3,
       ...overrides,
     })
   }
@@ -498,6 +522,39 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               />
               <p className="text-[10px] text-muted-foreground mt-1">
                 Opcional. Se muestra debajo del label en itálica en el PDF.
+              </p>
+            </div>
+          )}
+
+          {/* Filas del área de texto — Campo global. Sólo TextoArea. Rango 1-20. */}
+          {isTextoArea && (
+            <div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">Filas visibles</Label>
+                <span className="text-[10px] text-muted-foreground italic">
+                  afecta al campo global
+                </span>
+              </div>
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                defaultValue={campo.campoNumeroLineas ?? 3}
+                onBlur={(e) => {
+                  const num = Number(e.target.value)
+                  if (Number.isFinite(num)) saveNumeroLineas(num)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    ;(e.target as HTMLInputElement).blur()
+                  }
+                }}
+                className="mt-1 h-7 text-sm w-24"
+                disabled={updateCampoGlobal.isPending}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Cantidad de líneas para escritura manual en el PDF (1–20).
               </p>
             </div>
           )}

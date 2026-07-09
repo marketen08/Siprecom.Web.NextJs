@@ -204,6 +204,8 @@ export interface PlanillaCampoDetalle {
   campoAlineacion?: AlineacionTexto
   campoSinPadding?: boolean
   campoSinMargen?: boolean
+  /** Filas del área de texto (vive en el Campo global). Solo si campoTipoDato === 12 (TextoArea). Default 3. */
+  campoNumeroLineas?: number
 }
 
 export interface PlanillaEstructura {

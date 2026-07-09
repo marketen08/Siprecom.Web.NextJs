@@ -872,13 +872,18 @@ function CampoInput({
   hasError?: boolean
 }) {
   const label = (
-    <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-      {campo.campoEtiqueta}
-      {campo.esObligatorio && <span className="text-red-500">*</span>}
-      {campo.campoUnidad && (
-        <span className="text-xs text-muted-foreground font-normal">({campo.campoUnidad})</span>
+    <div className="flex flex-col gap-0.5">
+      <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+        {campo.campoEtiqueta}
+        {campo.esObligatorio && <span className="text-red-500">*</span>}
+        {campo.campoUnidad && (
+          <span className="text-xs text-muted-foreground font-normal">({campo.campoUnidad})</span>
+        )}
+      </label>
+      {campo.campoEtiquetaAlt && (
+        <span className="text-xs italic text-muted-foreground">{campo.campoEtiquetaAlt}</span>
       )}
-    </label>
+    </div>
   )
 
   let input: React.ReactNode
@@ -1043,6 +1048,19 @@ function CampoInput({
           )}
         </div>
       )
+    case 12: { // TextoArea — multilínea, respeta saltos de línea
+      const rows = Math.max(1, Math.min(20, campo.campoNumeroLineas ?? 3))
+      input = (
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={readOnly}
+          placeholder={campo.valorDefault ?? ""}
+          rows={rows}
+        />
+      )
+      break
+    }
     default: // 1 = Texto
       input = (
         <Input
