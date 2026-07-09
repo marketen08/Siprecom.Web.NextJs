@@ -62,6 +62,22 @@ export interface RegistroDetalle {
    * como default editable.
    */
   valoresPrecargados?: RegistroValorPrecargado[]
+  /**
+   * Info del ciclo de preservación generado por la transición APROBADO/FIRMADO que
+   * produjo esta respuesta. Solo viene poblado en el response de completar/firmar
+   * cuando el generador se disparó (independientemente de si generó o no — Motivo
+   * indica el porqué). Null en cualquier otra lectura del detalle.
+   */
+  preservacionCicloGenerado?: PreservacionCicloInfo | null
+}
+
+export interface PreservacionCicloInfo {
+  generado: boolean
+  /** Motivo cuando generado=false (no_es_preservacion, feature_flag_off, elemento_retirado, etc). */
+  motivo?: string | null
+  /** ISO date-time del próximo ciclo generado (solo cuando generado=true). */
+  fechaPlanificadaProximo?: string | null
+  nuevaElementoTareaId?: string | null
 }
 
 export interface RegistroValorPrecargado {

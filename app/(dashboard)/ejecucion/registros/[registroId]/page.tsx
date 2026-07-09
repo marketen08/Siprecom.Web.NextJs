@@ -20,9 +20,10 @@ import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
+import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
 import { useCanWrite } from "@/lib/use-roles"
 
-import type { RegistroValorInput } from "@/features/registros/types"
+import type { RegistroValorInput, RegistroDetalle } from "@/features/registros/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
 
@@ -153,6 +154,11 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
 
+  // Info del próximo ciclo de preservación generado por completar/firmar. Cuando
+  // viene con generado=true mostramos el dialog y postergamos el router.back()
+  // hasta que el usuario lo cierre (así ve la fecha antes de perder la pantalla).
+  const [proximoCicloFecha, setProximoCicloFecha] = useState<string | null>(null)
+
   const isLoading = loadingDetalle || loadingEstructura
   // Consultor/Auditor fuerzan modo readonly aunque el registro esté editable.
   const isReadOnly = !canWrite
@@ -264,13 +270,24 @@ export default function RegistroFormPage({ params }: PageProps) {
     return Object.keys(newErrors).length === 0
   }
 
+  // Extrae la fecha del próximo ciclo del response de completar/firmar, si el
+  // backend disparó el generador de preservación. Retorna null cuando no
+  // corresponde (registro no era de preservación, flag off, elemento retirado).
+  function extraerFechaProximoCiclo(res: unknown): string | null {
+    const data = (res as { data?: RegistroDetalle } | undefined)?.data
+    const info = data?.preservacionCicloGenerado
+    return info?.generado && info.fechaPlanificadaProximo ? info.fechaPlanificadaProximo : null
+  }
+
   async function handleSubmitDigital() {
     if (!validate()) return
-    await completarDigital.mutateAsync({
+    const res = await completarDigital.mutateAsync({
       observaciones: observaciones || null,
       valores: buildValores(),
     })
-    router.back()
+    const fecha = extraerFechaProximoCiclo(res)
+    if (fecha) setProximoCicloFecha(fecha)
+    else router.back()
   }
 
   async function handleSubmitFisico() {
@@ -278,8 +295,10 @@ export default function RegistroFormPage({ params }: PageProps) {
     const fd = new FormData()
     fd.append("Archivo", archivoFisico)
     if (observaciones) fd.append("Observaciones", observaciones)
-    await completarFisico.mutateAsync(fd)
-    router.back()
+    const res = await completarFisico.mutateAsync(fd)
+    const fecha = extraerFechaProximoCiclo(res)
+    if (fecha) setProximoCicloFecha(fecha)
+    else router.back()
   }
 
   const isSaving = completarDigital.isPending || completarFisico.isPending
@@ -529,6 +548,18 @@ export default function RegistroFormPage({ params }: PageProps) {
       {(registro.estado === "COMPLETADO" || registro.estado === "FIRMADO") && (
         <FirmasSection registroId={registroId} canWrite={canWrite} />
       )}
+
+      {/* Dialog de "próximo ciclo de preservación" — se abre cuando el backend
+          confirma que generó el próximo ElementoTarea al completar/firmar. En
+          los flujos de completar hacemos router.back() al cerrarlo. */}
+      <ProximoCicloDialog
+        open={!!proximoCicloFecha}
+        fecha={proximoCicloFecha}
+        onClose={() => {
+          setProximoCicloFecha(null)
+          router.back()
+        }}
+      />
     </div>
   )
 }
@@ -550,6 +581,11 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
   const [padIsEmpty, setPadIsEmpty] = useState(true)
   const padRef = useRef<SignaturePadHandle | null>(null)
 
+  // Preservación: la última firma electrónica puede haber gatillado el próximo
+  // ciclo. Cuando el response lo indica, mostramos el dialog con la fecha; el
+  // usuario ya está en la pantalla del registro y no hace falta navegar.
+  const [proximoCicloFecha, setProximoCicloFecha] = useState<string | null>(null)
+
   const firmaGuardadaUrl = miFirmaQuery.data?.data?.url ?? null
   const modoEfectivo = firmaGuardadaUrl ? modoFirma : "dibujar"
 
@@ -567,7 +603,7 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
       }
     }
 
-    await firmar.mutateAsync({
+    const res = await firmar.mutateAsync({
       rolFirmante: rolNombre,
       observaciones: observacionFirma || null,
       datosFirma,
@@ -577,6 +613,11 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
     setObservacionFirma("")
     setRolLibre("")
     setGuardarPerfil(false)
+
+    const info = (res as { data?: RegistroDetalle } | undefined)?.data?.preservacionCicloGenerado
+    if (info?.generado && info.fechaPlanificadaProximo) {
+      setProximoCicloFecha(info.fechaPlanificadaProximo)
+    }
   }
 
   if (isLoading) return null
@@ -585,9 +626,18 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
   const sinSlots = slots.length === 0
   const yaFirmadoLibre = status?.todasLasFirmasCompletadas && sinSlots
 
+  const proximoCicloDialog = (
+    <ProximoCicloDialog
+      open={!!proximoCicloFecha}
+      fecha={proximoCicloFecha}
+      onClose={() => setProximoCicloFecha(null)}
+    />
+  )
+
   // Sin slots configurados: formulario libre
   if (sinSlots) {
     return (
+      <>
       <div className="rounded-xl border bg-white overflow-hidden">
         <div className="px-5 py-3 bg-gray-50 border-b">
           <h2 className="font-semibold text-gray-800">Firma del registro</h2>
@@ -668,10 +718,13 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
           )}
         </div>
       </div>
+      {proximoCicloDialog}
+      </>
     )
   }
 
   return (
+    <>
     <div className="rounded-xl border bg-white overflow-hidden">
       <div className="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
         <h2 className="font-semibold text-gray-800">Firmas</h2>
@@ -785,6 +838,8 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
         })}
       </div>
     </div>
+    {proximoCicloDialog}
+    </>
   )
 }
 
