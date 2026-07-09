@@ -1,8 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import Link from "next/link"
-import { ArrowLeft, CircleAlert, Loader2, RefreshCw } from "lucide-react"
+import { CircleAlert, Loader2, RefreshCw } from "lucide-react"
 
 import {
   useGenerarSeleccionadas,
@@ -164,23 +163,12 @@ export default function GeneracionTareasPage() {
 
   return (
     <div className="space-y-4">
-      {/* Encabezado + volver */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/alcance/tareas"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver a tareas
-        </Link>
-      </div>
-
       <div>
         <h1 className="text-2xl font-semibold">Generación de tareas</h1>
         <p className="text-sm text-muted-foreground">
           Muestra las combinaciones <em>Elemento × Tarea</em> que deberían tener una
-          fila activa en <code>ElementosTareas</code> pero no la tienen. Filtrá,
-          seleccioná y confirmá para materializarlas. Idempotente — sólo crea, nunca
+          fila activa pero no la tienen. Filtrá,
+          seleccioná y confirmá para materializarlas. Sólo crea, nunca
           modifica ni borra.
         </p>
       </div>
@@ -193,7 +181,7 @@ export default function GeneracionTareasPage() {
           <CircleAlert className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
             <strong>Generación manual activada.</strong> La propagación automática
-            de <em>ElementoTareas</em> está desactivada para este proyecto: al crear
+            de <em>Tareas para los Elementos</em> está desactivada para este proyecto: al crear
             o importar Elementos/Tareas <strong>no</strong> se generan filas
             automáticamente. Materializalas desde acá.
           </div>
@@ -380,7 +368,7 @@ export default function GeneracionTareasPage() {
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                  No hay ElementoTareas faltantes con los filtros actuales.
+                  No hay Tareas pendientes de propagar con los filtros actuales.
                 </TableCell>
               </TableRow>
             ) : (
