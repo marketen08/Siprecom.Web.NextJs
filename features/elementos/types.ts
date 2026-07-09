@@ -33,6 +33,9 @@ export interface Elemento {
   /** Override del flag del tipo. null = usar el heredado. */
   permiteAgruparEnTestPack: boolean | null
   permiteAgruparEnBasicFunction: boolean | null
+  /** Baja operativa (preservación). ISO date "YYYY-MM-DD" o null si está activo. */
+  fechaBajaOperativa: string | null
+  motivoBajaOperativa: string | null
   createdAt: string
   createdByNombre: string
   updatedAt: string
@@ -75,6 +78,8 @@ export interface ElementoUpdateInput {
   areaIds: string[]
   permiteAgruparEnTestPack: boolean | null
   permiteAgruparEnBasicFunction: boolean | null
+  fechaBajaOperativa?: string | null
+  motivoBajaOperativa?: string | null
 }
 
 /** Coincide con el enum CampoTipoDato del backend. */

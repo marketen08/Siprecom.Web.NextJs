@@ -82,6 +82,8 @@ export function ElementoForm({
       areaIds: defaultValues?.areaIds ?? [],
       permiteAgruparEnTestPack: defaultValues?.permiteAgruparEnTestPack ?? null,
       permiteAgruparEnBasicFunction: defaultValues?.permiteAgruparEnBasicFunction ?? null,
+      fechaBajaOperativa: defaultValues?.fechaBajaOperativa ?? null,
+      motivoBajaOperativa: defaultValues?.motivoBajaOperativa ?? null,
     },
   })
 
@@ -572,6 +574,79 @@ export function ElementoForm({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Baja operativa (preservación) */}
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Baja operativa
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Marcá una baja operativa cuando el elemento se retire de servicio. El sistema
+              dejará de generar nuevos ciclos de preservación para él. Para reactivarlo,
+              vaciá la fecha.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
+            <FormField
+              control={form.control}
+              name="fechaBajaOperativa"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha de baja</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      disabled={isPending}
+                      value={field.value ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        field.onChange(v === "" ? null : v)
+                        if (v === "") form.setValue("motivoBajaOperativa", null)
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="motivoBajaOperativa"
+              render={({ field }) => {
+                const disabled = isPending || !form.watch("fechaBajaOperativa")
+                return (
+                  <FormItem>
+                    <FormLabel>
+                      Motivo{" "}
+                      {form.watch("fechaBajaOperativa") ? (
+                        <span className="text-destructive font-normal">*</span>
+                      ) : (
+                        <span className="text-muted-foreground font-normal">(solo con fecha)</span>
+                      )}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ej: Retirado por obsolescencia, ver acta 2026-06-15..."
+                        disabled={disabled}
+                        rows={2}
+                        className="resize-none"
+                        maxLength={500}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
             />
           </div>
         </div>
