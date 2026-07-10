@@ -163,6 +163,17 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elementoTipoIdActual, tipoAsignacionActual])
 
+  // Preservación solo aplica a ELEMENTO_INDIVIDUAL — el backend lo rechaza si no.
+  // Al salir de ese tipo, limpiamos los campos para que no viajen valores fantasma
+  // en el submit y para que el estado del form sea coherente con lo visible.
+  const esElementoIndividual = tipoAsignacionActual === TIPO_ASIGNACION_TAREA.ELEMENTO_INDIVIDUAL
+  useEffect(() => {
+    if (esElementoIndividual) return
+    if (form.getValues("esPreservacion")) form.setValue("esPreservacion", false)
+    if (form.getValues("periodoSemanas") != null) form.setValue("periodoSemanas", null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esElementoIndividual])
+
   // Cuántas tareas del mismo tipo hay (excluyendo la propia). Si son 0, el
   // combobox se muestra deshabilitado con un hint — sino el usuario queda
   // buscando por qué el listado está vacío.
@@ -616,23 +627,34 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
           <FormField
             control={form.control}
             name="esPreservacion"
-            render={({ field }) => (
-              <FormItem>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-900 focus:ring-blue-900"
-                    checked={field.value}
-                    disabled={isPending}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                  />
-                  <span className="text-sm">
-                    Esta tarea es de preservación (se repite en ciclos)
-                  </span>
-                </label>
-                <FormMessage />
-              </FormItem>
-            )}
+            render={({ field }) => {
+              const disabled = isPending || !esElementoIndividual
+              return (
+                <FormItem>
+                  <label
+                    className={`flex items-start gap-2 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-900 focus:ring-blue-900"
+                      checked={field.value}
+                      disabled={disabled}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    />
+                    <span className="text-sm">
+                      Esta tarea es de preservación (se repite en ciclos)
+                    </span>
+                  </label>
+                  {!esElementoIndividual && (
+                    <p className="text-[11px] text-muted-foreground pl-6">
+                      Solo disponible para tareas de tipo <em>Por elemento</em>. Los
+                      paquetes de prueba no soportan ciclos recurrentes.
+                    </p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
           />
 
           {form.watch("esPreservacion") ? (
