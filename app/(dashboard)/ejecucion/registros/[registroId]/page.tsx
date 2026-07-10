@@ -3,7 +3,18 @@
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, Lock } from "lucide-react"
+import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, Lock, AlertTriangle, Info } from "lucide-react"
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 
@@ -21,6 +32,7 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
 import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
+import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
 import { useCanWrite } from "@/lib/use-roles"
 
 import type { RegistroValorInput, RegistroDetalle } from "@/features/registros/types"
@@ -153,6 +165,17 @@ export default function RegistroFormPage({ params }: PageProps) {
   const showToggle = permitirDigital && permitirFisico
 
   const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
+  // Estado de validación del QR del archivo físico. `null` = todavía no se
+  // procesó (el user no eligió archivo). Cualquier otro estado bloquea o afecta
+  // la UI del uploader según se describe abajo.
+  const [qrState, setQrState] = useState<
+    | null
+    | { kind: "reading" }
+    | { kind: "ok"; result: QrLeidoResult }
+    | { kind: "mismatch"; result: QrLeidoResult }
+    | { kind: "missing"; result: QrLeidoResult }
+  >(null)
+  const [confirmarMismatch, setConfirmarMismatch] = useState(false)
 
   // Info del próximo ciclo de preservación generado por completar/firmar. Cuando
   // viene con generado=true mostramos el dialog y postergamos el router.back()
@@ -270,6 +293,32 @@ export default function RegistroFormPage({ params }: PageProps) {
     return Object.keys(newErrors).length === 0
   }
 
+  // Lee el QR del archivo elegido y actualiza el estado del uploader. Cuando
+  // el QR coincide con este registro (esChecklist + ids iguales), el submit
+  // corre sin fricción. Si no coincide, marcamos `mismatch` y el submit exige
+  // confirmación explícita del user antes de subir con override registrado.
+  // Si el QR está ausente / ilegible → `missing`: se avisa pero no se bloquea
+  // (backward-compat con papel viejo y fotos de celular).
+  async function handleSeleccionarFisico(file: File | null) {
+    setArchivoFisico(file)
+    setQrState(file ? { kind: "reading" } : null)
+    if (!file) return
+    const result = await readQrFromFile(file)
+    if (!result.esChecklist) {
+      setQrState({ kind: "missing", result })
+      return
+    }
+    // El registro conoce el `elementoTareaId` y el `planillaId` que le corresponden.
+    // Comparamos case-insensitive porque el QR viene lowercased pero la API tira
+    // guids con casing mixto en algunos endpoints.
+    const esperadoPlanilla = (registro?.planillaId ?? "").toLowerCase()
+    const esperadoElementoTarea = (registro?.elementoTareaId ?? "").toLowerCase()
+    const matchea =
+      result.planillaId === esperadoPlanilla &&
+      result.elementoTareaId === esperadoElementoTarea
+    setQrState({ kind: matchea ? "ok" : "mismatch", result })
+  }
+
   // Extrae la fecha del próximo ciclo del response de completar/firmar, si el
   // backend disparó el generador de preservación. Retorna null cuando no
   // corresponde (registro no era de preservación, flag off, elemento retirado).
@@ -290,11 +339,27 @@ export default function RegistroFormPage({ params }: PageProps) {
     else router.back()
   }
 
-  async function handleSubmitFisico() {
+  // El submit se puede invocar en dos flujos:
+  //   1) Click en "Subir y completar" → sin override; si hay mismatch, abrimos el dialog.
+  //   2) Confirmación desde el dialog → con `forzarOverride=true`, salteamos el gate.
+  async function handleSubmitFisico(forzarOverride: boolean = false) {
     if (!archivoFisico) return
+    if (qrState?.kind === "mismatch" && !forzarOverride) {
+      setConfirmarMismatch(true)
+      return
+    }
     const fd = new FormData()
     fd.append("Archivo", archivoFisico)
     if (observaciones) fd.append("Observaciones", observaciones)
+    // Auditoría: si el user aceptó cargar con QR no coincidente, mandamos el
+    // detalle al backend (esperado vs encontrado) para que quede en Observaciones.
+    if (qrState?.kind === "mismatch" && forzarOverride) {
+      const r = qrState.result
+      const detalle =
+        `esperado planilla=${registro?.planillaId ?? "?"} tarea=${registro?.elementoTareaId ?? "?"} · ` +
+        `encontrado planilla=${r.planillaId ?? "?"} tarea=${r.elementoTareaId ?? "?"}`
+      fd.append("QrOverrideDetalle", detalle.slice(0, 500))
+    }
     const res = await completarFisico.mutateAsync(fd)
     const fecha = extraerFechaProximoCiclo(res)
     if (fecha) setProximoCicloFecha(fecha)
@@ -420,9 +485,46 @@ export default function RegistroFormPage({ params }: PageProps) {
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
               className="sr-only"
-              onChange={(e) => setArchivoFisico(e.target.files?.[0] ?? null)}
+              onChange={(e) => handleSeleccionarFisico(e.target.files?.[0] ?? null)}
             />
           </label>
+
+          {/* Banner del estado del QR — el frontend decodifica el QR de la
+              primera página del PDF (o del bitmap si es imagen) y compara contra
+              el registro. Ver features/registros/lib/read-qr.ts. */}
+          {qrState?.kind === "reading" && (
+            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Verificando QR del archivo...
+            </div>
+          )}
+          {qrState?.kind === "ok" && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              QR verificado — el archivo corresponde a este registro.
+            </div>
+          )}
+          {qrState?.kind === "mismatch" && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium">El QR del archivo NO coincide con este registro.</p>
+                <p className="text-xs mt-1">
+                  El QR apunta a otra planilla o tarea. Si estás seguro, podés cargarlo de
+                  todos modos — quedará registrado en las observaciones.
+                </p>
+              </div>
+            </div>
+          )}
+          {qrState?.kind === "missing" && (
+            <div className="flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              <Info className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                No se detectó QR en el archivo. Verificá que corresponda a este registro
+                antes de cargarlo.
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
@@ -435,8 +537,8 @@ export default function RegistroFormPage({ params }: PageProps) {
           </div>
 
           <Button
-            onClick={handleSubmitFisico}
-            disabled={!archivoFisico || isSaving}
+            onClick={() => handleSubmitFisico()}
+            disabled={!archivoFisico || isSaving || qrState?.kind === "reading"}
             className="gap-2"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -444,6 +546,54 @@ export default function RegistroFormPage({ params }: PageProps) {
           </Button>
         </div>
       )}
+
+      {/* Confirmación cuando el QR del archivo no coincide con este registro.
+          El user puede cargar igual — el detalle queda en Observaciones para auditoría. */}
+      <AlertDialog
+        open={confirmarMismatch}
+        onOpenChange={(o) => !o && setConfirmarMismatch(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              El QR no coincide con este registro
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              El QR del archivo pertenece a otra planilla o tarea. Si continuás, se cargará
+              de todos modos y quedará marcado automáticamente en las observaciones del
+              registro para auditoría.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {qrState?.kind === "mismatch" && (
+            <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1">
+              <p>
+                <span className="text-muted-foreground">Esperado:</span>{" "}
+                <span className="font-mono">planilla {registro.planillaId ?? "—"}</span> /{" "}
+                <span className="font-mono">tarea {registro.elementoTareaId ?? "—"}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Encontrado:</span>{" "}
+                <span className="font-mono">planilla {qrState.result.planillaId ?? "—"}</span> /{" "}
+                <span className="font-mono">tarea {qrState.result.elementoTareaId ?? "—"}</span>
+              </p>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmarMismatch(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmarMismatch(false)
+                void handleSubmitFisico(true)
+              }}
+            >
+              Cargar de todos modos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Observaciones del registro físico (read-only) ──
           El form digital ya muestra observaciones dentro de su card, pero en flujo físico
