@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
+import { rotateFile } from "@/features/registros/lib/rotate-file"
 import {
   useResolverRegistroPorEt,
   type RegistroResolverResult,
@@ -148,8 +149,12 @@ export default function CargaRapidaQrPage() {
       if (!fila.resuelto) continue
       actualizar(fila.id, { estado: "subiendo" })
       try {
+        // Capa 2: si el QR se leyó rotado, corregimos la orientación del
+        // archivo antes de subir así el registro queda derecho en el visor.
+        const rotacion = fila.qr?.rotacionDetectada ?? 0
+        const archivoFinal = await rotateFile(fila.archivo, rotacion)
         const fd = new FormData()
-        fd.append("Archivo", fila.archivo)
+        fd.append("Archivo", archivoFinal)
         await apiClient.post(
           `/api/registros/${fila.resuelto.registroId}/completar/fisico`,
           fd as unknown as BodyInit,

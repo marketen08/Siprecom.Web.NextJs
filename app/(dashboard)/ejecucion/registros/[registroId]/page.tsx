@@ -33,6 +33,7 @@ import { RegistroAdjuntos } from "@/features/registros/components/registro-adjun
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
 import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
+import { rotateFile } from "@/features/registros/lib/rotate-file"
 import { useCanWrite } from "@/lib/use-roles"
 
 import type { RegistroValorInput, RegistroDetalle } from "@/features/registros/types"
@@ -348,8 +349,17 @@ export default function RegistroFormPage({ params }: PageProps) {
       setConfirmarMismatch(true)
       return
     }
+    // Capa 2: si el QR se leyó rotado (imagen o PDF boca abajo/de costado),
+    // rotamos el archivo antes de subirlo. `rotateFile` es no-op cuando el
+    // ángulo es 0 y silencioso ante error → siempre devuelve un File válido.
+    const rotacion =
+      (qrState?.kind === "ok" || qrState?.kind === "mismatch") && qrState.result
+        ? qrState.result.rotacionDetectada
+        : 0
+    const archivoFinal = await rotateFile(archivoFisico, rotacion)
+
     const fd = new FormData()
-    fd.append("Archivo", archivoFisico)
+    fd.append("Archivo", archivoFinal)
     if (observaciones) fd.append("Observaciones", observaciones)
     // Auditoría: si el user aceptó cargar con QR no coincidente, mandamos el
     // detalle al backend (esperado vs encontrado) para que quede en Observaciones.

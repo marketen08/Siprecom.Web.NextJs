@@ -19,6 +19,12 @@ export interface QrLeidoResult {
   contenidoQr: string | null
   /** Descripción del error cuando aplica (formato no soportado, ilegible, etc). */
   error: string | null
+  /**
+   * Ángulo que hubo que aplicar a la imagen original para leer el QR: 0 si el
+   * archivo estaba derecho, 90/180/270 si estaba rotado. La Capa 2 lo usa para
+   * corregir la orientación del archivo antes de subirlo.
+   */
+  rotacionDetectada: 0 | 90 | 180 | 270
 }
 
 const emptyResult = (patch: Partial<QrLeidoResult> = {}): QrLeidoResult => ({
@@ -28,6 +34,7 @@ const emptyResult = (patch: Partial<QrLeidoResult> = {}): QrLeidoResult => ({
   elementoTareaId: null,
   contenidoQr: null,
   error: null,
+  rotacionDetectada: 0,
   ...patch,
 })
 
@@ -122,19 +129,74 @@ async function readQrFromPdf(file: File): Promise<QrLeidoResult> {
 
 // ── Escaneo con jsQR ──────────────────────────────────────────────────────────
 
-function scanImageData(imageData: ImageData): QrLeidoResult {
-  // Intento 1: imagen original.
-  let code = jsQR(imageData.data, imageData.width, imageData.height, {
-    inversionAttempts: "attemptBoth",
-  })
-  if (code?.data) return parseChecklistUrl(code.data)
+type Angulo = 0 | 90 | 180 | 270
 
-  // Intento 2: escala de grises con contraste — mejora scans grises.
+/**
+ * Escanea la imagen probando 0°, 90°, 180° y 270°. jsQR maneja rotaciones
+ * pequeñas nativamente por los finder patterns del QR, pero cuando el papel
+ * está boca abajo o el QR es chico dentro de un escaneo grande a veces falla
+ * y hay que ayudarlo. Retorna el ángulo con el que se leyó el QR, que la
+ * Capa 2 usa para corregir la orientación del archivo final.
+ */
+function scanImageData(imageData: ImageData): QrLeidoResult {
+  // Preparamos la escala de grises una sola vez y la rotamos con la imagen —
+  // así evitamos re-generarla en cada intento.
   const gris = toGrayscale(imageData)
-  code = jsQR(gris.data, gris.width, gris.height, { inversionAttempts: "attemptBoth" })
-  if (code?.data) return parseChecklistUrl(code.data)
+  const angulos: Angulo[] = [0, 90, 180, 270]
+
+  for (const angulo of angulos) {
+    const original = angulo === 0 ? imageData : rotateImageData(imageData, angulo)
+    let code = jsQR(original.data, original.width, original.height, {
+      inversionAttempts: "attemptBoth",
+    })
+    if (code?.data) return parseChecklistUrl(code.data, angulo)
+
+    const grisRotado = angulo === 0 ? gris : rotateImageData(gris, angulo)
+    code = jsQR(grisRotado.data, grisRotado.width, grisRotado.height, {
+      inversionAttempts: "attemptBoth",
+    })
+    if (code?.data) return parseChecklistUrl(code.data, angulo)
+  }
 
   return emptyResult()
+}
+
+/**
+ * Rotación exacta de un ImageData a 90/180/270 grados. Sin librerías: copia
+ * pixel a pixel al nuevo buffer con el mapeo correspondiente. O(w*h) — para
+ * las imágenes que manejamos (renderizadas a 2x → ~2M píxeles) toma pocos ms.
+ */
+function rotateImageData(src: ImageData, angulo: 90 | 180 | 270): ImageData {
+  const { data, width: sw, height: sh } = src
+  const dw = angulo === 180 ? sw : sh
+  const dh = angulo === 180 ? sh : sw
+  const out = new ImageData(dw, dh)
+  const dst = out.data
+
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw; x++) {
+      const si = (y * sw + x) * 4
+      let dx: number, dy: number
+      if (angulo === 90) {
+        // (x,y) → (sh-1-y, x)
+        dx = sh - 1 - y
+        dy = x
+      } else if (angulo === 180) {
+        dx = sw - 1 - x
+        dy = sh - 1 - y
+      } else {
+        // 270: (x,y) → (y, sw-1-x)
+        dx = y
+        dy = sw - 1 - x
+      }
+      const di = (dy * dw + dx) * 4
+      dst[di] = data[si]
+      dst[di + 1] = data[si + 1]
+      dst[di + 2] = data[si + 2]
+      dst[di + 3] = data[si + 3]
+    }
+  }
+  return out
 }
 
 function toGrayscale(src: ImageData): ImageData {
@@ -151,7 +213,7 @@ function toGrayscale(src: ImageData): ImageData {
   return out
 }
 
-function parseChecklistUrl(contenido: string): QrLeidoResult {
+function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeidoResult {
   const partes = contenido.split(/[\\/?#\s]+/).filter(Boolean)
   // Buscar segmento "checklist" (case-insensitive) + 2 GUIDs contiguos.
   const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -165,6 +227,7 @@ function parseChecklistUrl(contenido: string): QrLeidoResult {
         elementoTareaId: partes[i + 2].toLowerCase(),
         contenidoQr: contenido,
         error: null,
+        rotacionDetectada,
       }
     }
   }
@@ -175,5 +238,6 @@ function parseChecklistUrl(contenido: string): QrLeidoResult {
     elementoTareaId: null,
     contenidoQr: contenido,
     error: "El QR no es de carga (se esperaba /checklist/{planillaId}/{elementoTareaId}).",
+    rotacionDetectada,
   }
 }
