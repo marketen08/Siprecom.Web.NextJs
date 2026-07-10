@@ -29,7 +29,7 @@ import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario
 import { useGetFechaEstimadaFin } from "@/features/proyectos/api/use-fecha-estimada-fin"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import { TabUsuariosProyecto } from "@/features/proyectos/components/tab-usuarios-proyecto"
-import type { EstadoProyecto, FirmaConfigItem, Proyecto } from "@/features/proyectos/types"
+import { TIPO_FIRMA_CONFIG, TIPO_FIRMA_CONFIG_LABEL, type EstadoProyecto, type FirmaConfigItem, type Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { PendientesAutorizacionSection } from "@/features/pendientes-autorizacion/components/pendientes-autorizacion-section"
@@ -259,6 +259,12 @@ const FLAGS: {
     dependeDe: "PermitirRegistroFisico",
   },
   {
+    campo: "RenderizarFirmasDigitalesEnRecuadro",
+    label: "Firma digital en el recuadro del PDF físico",
+    descripcion: "Si está activo, las firmas electrónicas de registros físicos se pintan superpuestas en el recuadro de firmas del escaneo (última página), además de aparecer en la página de certificado al final. Requiere 'Registro físico'.",
+    dependeDe: "PermitirRegistroFisico",
+  },
+  {
     campo: "PermiteAdjuntos",
     label: "Adjuntar archivos",
     descripcion: "Permite a los usuarios adjuntar archivos (fotos, PDFs, etc.) a los registros del proyecto. Cada planilla puede vetar individualmente.",
@@ -287,6 +293,7 @@ const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermitirRegistroFisico:          "permitirRegistroFisico",
   PermitirRegistroDigital:         "permitirRegistroDigital",
   RegistrosFisicosPreFirmados:     "registrosFisicosPreFirmados",
+  RenderizarFirmasDigitalesEnRecuadro: "renderizarFirmasDigitalesEnRecuadro",
   PermiteAdjuntos:                 "permiteAdjuntos",
   NivelesSecuenciales:             "nivelesSecuenciales",
   PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
@@ -513,7 +520,7 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
   function addSlot() {
     setSlots(prev => [
       ...prev,
-      { orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true },
+      { orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true, tipoFirma: TIPO_FIRMA_CONFIG.DIGITAL },
     ])
   }
 
@@ -673,8 +680,26 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
                 />
               </div>
 
+              {/* Modo de firma */}
+              <div className="sm:col-span-1">
+                <label className="text-[11px] text-gray-500 block mb-1">Modo de firma</label>
+                <select
+                  value={slot.tipoFirma}
+                  onChange={(e) => updateSlot(i, "tipoFirma", Number(e.target.value))}
+                  className="h-8 w-full text-sm border border-input bg-white rounded-md px-2"
+                >
+                  <option value={TIPO_FIRMA_CONFIG.DIGITAL}>{TIPO_FIRMA_CONFIG_LABEL[TIPO_FIRMA_CONFIG.DIGITAL]}</option>
+                  <option value={TIPO_FIRMA_CONFIG.FISICA}>{TIPO_FIRMA_CONFIG_LABEL[TIPO_FIRMA_CONFIG.FISICA]}</option>
+                </select>
+                {slot.tipoFirma === TIPO_FIRMA_CONFIG.FISICA && (
+                  <p className="text-[10px] text-amber-700 mt-0.5">
+                    Se marca al cargar el PDF físico.
+                  </p>
+                )}
+              </div>
+
               {/* Obligatorio */}
-              <div className="sm:col-span-2 flex items-center justify-between pt-1">
+              <div className="sm:col-span-1 flex items-center justify-between pt-1">
                 <div className="flex items-center gap-2">
                   <Toggle
                     checked={slot.esObligatorio}
@@ -684,8 +709,8 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
                     {slot.esObligatorio ? "Obligatorio" : "Opcional"}
                     <span className="text-gray-400 ml-1">
                       {slot.esObligatorio
-                        ? "— el registro no puede avanzar sin esta firma"
-                        : "— puede quedar sin firma"}
+                        ? "— no avanza sin firma"
+                        : "— puede quedar vacío"}
                     </span>
                   </span>
                 </div>

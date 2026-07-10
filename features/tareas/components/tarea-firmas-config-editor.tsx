@@ -11,7 +11,7 @@ import { useGetFirmasConfig } from "@/features/proyectos/api/use-get-firmas-conf
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useGetTareaFirmasConfig } from "../api/use-get-tarea-firmas-config"
 import { useSaveTareaFirmasConfig } from "../api/use-save-tarea-firmas-config"
-import type { FirmaConfigItem } from "@/features/proyectos/types"
+import { TIPO_FIRMA_CONFIG, TIPO_FIRMA_CONFIG_LABEL, type FirmaConfigItem } from "@/features/proyectos/types"
 
 /** Clave del feature flag. Debe matchear con FuncionalidadCatalogo del backend. */
 const FLAG_OVERRIDE_TAREA = "FIRMAS_OVERRIDE_POR_TAREA"
@@ -69,7 +69,7 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
   function addSlot() {
     setSlots((prev) => [
       ...prev,
-      { orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true },
+      { orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true, tipoFirma: TIPO_FIRMA_CONFIG.DIGITAL },
     ])
   }
 
@@ -133,6 +133,7 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
         rolNombre: s.rolNombre,
         descripcion: s.descripcion,
         esObligatorio: s.esObligatorio,
+        tipoFirma: s.tipoFirma ?? TIPO_FIRMA_CONFIG.DIGITAL,
       })),
     )
     setModo("propias")
@@ -286,7 +287,18 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
                       className="h-8 text-sm"
                     />
                   </div>
-                  <div className="sm:col-span-2 flex items-center gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-600">Modo de firma</label>
+                    <select
+                      value={slot.tipoFirma}
+                      onChange={(e) => updateSlot(i, "tipoFirma", Number(e.target.value))}
+                      className="h-8 w-full text-sm border border-input bg-white rounded-md px-2"
+                    >
+                      <option value={TIPO_FIRMA_CONFIG.DIGITAL}>{TIPO_FIRMA_CONFIG_LABEL[TIPO_FIRMA_CONFIG.DIGITAL]}</option>
+                      <option value={TIPO_FIRMA_CONFIG.FISICA}>{TIPO_FIRMA_CONFIG_LABEL[TIPO_FIRMA_CONFIG.FISICA]}</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-1 flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={slot.esObligatorio}
@@ -294,9 +306,7 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
                       className="h-3.5 w-3.5"
                     />
                     <span className="text-xs text-gray-600">
-                      {slot.esObligatorio
-                        ? "Obligatoria"
-                        : "Opcional (puede quedar sin firma)"}
+                      {slot.esObligatorio ? "Obligatoria" : "Opcional"}
                     </span>
                   </div>
                 </div>

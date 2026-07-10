@@ -112,6 +112,8 @@ export interface RegistroFirmaSlot {
   rolNombre: string
   descripcion: string | null
   esObligatorio: boolean
+  /** Digital (1) = firma electrónica. Fisica (2) = firma manuscrita (auto-marcada al cargar el PDF). */
+  tipoFirma: number
   puedeFirearUsuarioActual: boolean
   firmaId: string | null
   firmadoPor: string | null

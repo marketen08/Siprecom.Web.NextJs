@@ -34,6 +34,8 @@ import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/component
 import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
 import { rotateFile } from "@/features/registros/lib/rotate-file"
+import { detectSignatureInFooter } from "@/features/registros/lib/detect-signature"
+import { useGetFirmasConfigEfectiva } from "@/features/registros/api/use-get-firmas-config-efectiva"
 import { useCanWrite } from "@/lib/use-roles"
 
 import type { RegistroValorInput, RegistroDetalle } from "@/features/registros/types"
@@ -178,6 +180,21 @@ export default function RegistroFormPage({ params }: PageProps) {
   >(null)
   const [confirmarMismatch, setConfirmarMismatch] = useState(false)
 
+  // Detección visual de firma manuscrita. Se ejecuta solo si el registro tiene
+  // slots Fisica configurados. Si no se detecta firma, warning permisivo:
+  // el user puede cargar de todos modos y queda auditado en Observaciones.
+  const [firmaState, setFirmaState] = useState<
+    | null
+    | { kind: "detectando" }
+    | { kind: "detectada"; densidadPct: number }
+    | { kind: "no-detectada"; densidadPct: number }
+    | { kind: "no-aplica" }
+  >(null)
+  const [confirmarFirmaNoDetectada, setConfirmarFirmaNoDetectada] = useState(false)
+
+  const { data: firmasConfigRaw } = useGetFirmasConfigEfectiva(registroId)
+  const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
+
   // Info del próximo ciclo de preservación generado por completar/firmar. Cuando
   // viene con generado=true mostramos el dialog y postergamos el router.back()
   // hasta que el usuario lo cierre (así ve la fecha antes de perder la pantalla).
@@ -303,21 +320,36 @@ export default function RegistroFormPage({ params }: PageProps) {
   async function handleSeleccionarFisico(file: File | null) {
     setArchivoFisico(file)
     setQrState(file ? { kind: "reading" } : null)
+    setFirmaState(null)
     if (!file) return
     const result = await readQrFromFile(file)
     if (!result.esChecklist) {
       setQrState({ kind: "missing", result })
+    } else {
+      // El registro conoce el `elementoTareaId` y el `planillaId` que le corresponden.
+      // Comparamos case-insensitive porque el QR viene lowercased pero la API tira
+      // guids con casing mixto en algunos endpoints.
+      const esperadoPlanilla = (registro?.planillaId ?? "").toLowerCase()
+      const esperadoElementoTarea = (registro?.elementoTareaId ?? "").toLowerCase()
+      const matchea =
+        result.planillaId === esperadoPlanilla &&
+        result.elementoTareaId === esperadoElementoTarea
+      setQrState({ kind: matchea ? "ok" : "mismatch", result })
+    }
+
+    // Detección de firma: solo si el registro tiene slots Fisica configurados.
+    // Corre en paralelo — no bloqueamos el flujo si tarda.
+    if (!hayFirmasFisicas) {
+      setFirmaState({ kind: "no-aplica" })
       return
     }
-    // El registro conoce el `elementoTareaId` y el `planillaId` que le corresponden.
-    // Comparamos case-insensitive porque el QR viene lowercased pero la API tira
-    // guids con casing mixto en algunos endpoints.
-    const esperadoPlanilla = (registro?.planillaId ?? "").toLowerCase()
-    const esperadoElementoTarea = (registro?.elementoTareaId ?? "").toLowerCase()
-    const matchea =
-      result.planillaId === esperadoPlanilla &&
-      result.elementoTareaId === esperadoElementoTarea
-    setQrState({ kind: matchea ? "ok" : "mismatch", result })
+    setFirmaState({ kind: "detectando" })
+    const rotacion = result.esChecklist ? result.rotacionDetectada : 0
+    const deteccion = await detectSignatureInFooter(file, { rotacion })
+    setFirmaState({
+      kind: deteccion.detected ? "detectada" : "no-detectada",
+      densidadPct: deteccion.densidadPct,
+    })
   }
 
   // Extrae la fecha del próximo ciclo del response de completar/firmar, si el
@@ -341,12 +373,17 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   // El submit se puede invocar en dos flujos:
-  //   1) Click en "Subir y completar" → sin override; si hay mismatch, abrimos el dialog.
+  //   1) Click en "Subir y completar" → sin override; si hay mismatch/firma no
+  //      detectada, abrimos el dialog correspondiente.
   //   2) Confirmación desde el dialog → con `forzarOverride=true`, salteamos el gate.
   async function handleSubmitFisico(forzarOverride: boolean = false) {
     if (!archivoFisico) return
     if (qrState?.kind === "mismatch" && !forzarOverride) {
       setConfirmarMismatch(true)
+      return
+    }
+    if (firmaState?.kind === "no-detectada" && !forzarOverride) {
+      setConfirmarFirmaNoDetectada(true)
       return
     }
     // Capa 2: si el QR se leyó rotado (imagen o PDF boca abajo/de costado),
@@ -369,6 +406,12 @@ export default function RegistroFormPage({ params }: PageProps) {
         `esperado planilla=${registro?.planillaId ?? "?"} tarea=${registro?.elementoTareaId ?? "?"} · ` +
         `encontrado planilla=${r.planillaId ?? "?"} tarea=${r.elementoTareaId ?? "?"}`
       fd.append("QrOverrideDetalle", detalle.slice(0, 500))
+    }
+    // Auditoría: si el user forzó carga sin firma detectada, mandamos la densidad
+    // observada para dejar constancia de cuán baja fue.
+    if (firmaState?.kind === "no-detectada" && forzarOverride) {
+      const detalle = `densidad tinta ${firmaState.densidadPct.toFixed(2)}% en la zona de firmas`
+      fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
     }
     const res = await completarFisico.mutateAsync(fd)
     const fecha = extraerFechaProximoCiclo(res)
@@ -536,6 +579,35 @@ export default function RegistroFormPage({ params }: PageProps) {
             </div>
           )}
 
+          {/* Detección visual de firma manuscrita — sólo cuando el registro
+              tiene slots Fisica configurados. Densidad de tinta en la zona de
+              firmas de la última página vs umbral. */}
+          {firmaState?.kind === "detectando" && (
+            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Verificando firma en el escaneo...
+            </div>
+          )}
+          {firmaState?.kind === "detectada" && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              Firma detectada en el escaneo ({firmaState.densidadPct.toFixed(1)}% de tinta en la zona esperada).
+            </div>
+          )}
+          {firmaState?.kind === "no-detectada" && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium">No se detectó firma manuscrita en el escaneo.</p>
+                <p className="text-xs mt-1">
+                  Densidad de tinta {firmaState.densidadPct.toFixed(1)}% (muy baja) en la zona
+                  esperada. Si estás seguro que la planilla está firmada, podés cargarla de todos
+                  modos — se registra en las observaciones.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
             <Textarea
@@ -548,7 +620,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
           <Button
             onClick={() => handleSubmitFisico()}
-            disabled={!archivoFisico || isSaving || qrState?.kind === "reading"}
+            disabled={!archivoFisico || isSaving || qrState?.kind === "reading" || firmaState?.kind === "detectando"}
             className="gap-2"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -596,6 +668,49 @@ export default function RegistroFormPage({ params }: PageProps) {
             <AlertDialogAction
               onClick={() => {
                 setConfirmarMismatch(false)
+                void handleSubmitFisico(true)
+              }}
+            >
+              Cargar de todos modos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación cuando no se detectó firma manuscrita en el escaneo. */}
+      <AlertDialog
+        open={confirmarFirmaNoDetectada}
+        onOpenChange={(o) => !o && setConfirmarFirmaNoDetectada(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              No se detectó firma en el escaneo
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              El sistema no encontró tinta suficiente en la zona donde debería
+              estar la firma manuscrita. Si estás seguro que la planilla está firmada
+              correctamente, podés cargarla igual — quedará registrado en las
+              observaciones del registro para revisión posterior.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {firmaState?.kind === "no-detectada" && (
+            <div className="rounded-md border bg-muted/40 p-3 text-xs">
+              Densidad de tinta observada:{" "}
+              <span className="font-mono font-medium">
+                {firmaState.densidadPct.toFixed(2)}%
+              </span>
+              <span className="text-muted-foreground"> (mínima esperada 0.8%)</span>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmarFirmaNoDetectada(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmarFirmaNoDetectada(false)
                 void handleSubmitFisico(true)
               }}
             >
@@ -911,7 +1026,14 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
                     </span>
                   )}
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{slot.rolNombre}</p>
+                    <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                      {slot.rolNombre}
+                      {slot.tipoFirma === 2 && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">
+                          En papel
+                        </span>
+                      )}
+                    </p>
                     {slot.descripcion && (
                       <p className="text-xs text-muted-foreground">{slot.descripcion}</p>
                     )}
@@ -923,6 +1045,11 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
                     <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
                     <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
+                ) : slot.tipoFirma === 2 ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-700 shrink-0">
+                    <Clock className="h-3 w-3" />
+                    Se marca al subir el PDF físico
+                  </span>
                 ) : canWrite && slot.puedeFirearUsuarioActual ? (
                   !esActivo && (
                     <Button
