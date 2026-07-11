@@ -9,6 +9,7 @@ import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
+import { invalidarPostCargaRegistro } from "@/features/registros/api/invalidar-post-carga"
 import {
   CargaFisicaUploader,
   type CargaFisicaSubmitParams,
@@ -116,8 +117,10 @@ function CargarPdfContent() {
 
     if (res.ok) {
       setRegistroIdFinal(registroId)
-      queryClient.invalidateQueries({ queryKey: ["avance"] })
-      queryClient.invalidateQueries({ queryKey: ["elementos-tareas"] })
+      // Invalida los queries stale (avance, ET, registros, mis-firmas, estadísticas,
+      // preservación) para que las pantallas de las que viene el user se actualicen
+      // sin refresh al volver.
+      invalidarPostCargaRegistro(queryClient, registroId)
       // SAS URL del archivo recién subido para "Ver archivo".
       try {
         const archRes = await fetch(`/api/registros/${registroId}/archivos`)

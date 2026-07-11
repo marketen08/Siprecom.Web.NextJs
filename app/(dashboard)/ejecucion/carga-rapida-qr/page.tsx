@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   AlertTriangle,
   Check,
@@ -21,6 +22,7 @@ import {
   type RegistroResolverResult,
 } from "@/features/registros/api/use-resolver-registro-por-et"
 import type { FirmasConfigEfectiva } from "@/features/registros/api/use-get-firmas-config-efectiva"
+import { invalidarPostCargaRegistro } from "@/features/registros/api/invalidar-post-carga"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { apiClient, type ApiError } from "@/lib/api-client"
 
@@ -77,6 +79,7 @@ export default function CargaRapidaQrPage() {
   const [filas, setFilas] = useState<Fila[]>([])
   const [dragActive, setDragActive] = useState(false)
   const resolver = useResolverRegistroPorEt()
+  const queryClient = useQueryClient()
 
   // Cache local del batch: `hayFirmasFisicas` es una propiedad del proyecto/tarea,
   // no del archivo, así que la primera fila del proyecto la consulta y las demás
@@ -259,6 +262,11 @@ export default function CargaRapidaQrPage() {
           throw new Error(err.message ?? `Error ${res.status} al subir el archivo`)
         }
         actualizar(fila.id, { estado: "sincronizado", mensaje: null })
+        // Marca queries stale por cada registro subido — así si el user vuelve
+        // al avance / elemento / mis-firmas ya ve el estado nuevo sin refresh.
+        // invalidateQueries es cheap (no re-fetch inmediato, solo marca stale),
+        // así que hacerlo por fila no bloquea el batch.
+        invalidarPostCargaRegistro(queryClient, fila.resuelto.registroId)
       } catch (err) {
         actualizar(fila.id, {
           estado: "error",
