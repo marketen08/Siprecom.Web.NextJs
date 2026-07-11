@@ -34,7 +34,7 @@ import {
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban, BookOpen,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
-  Link2, MoreVertical, Paperclip, PenLine, RotateCcw,
+  Link2, MoreVertical, Paperclip, PenLine, RotateCcw, X,
 } from "lucide-react"
 import {
   AlertDialog,
@@ -90,6 +90,21 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   // etc). Se muestra en un AlertDialog dedicado; el mensaje viene del backend
   // que ya explica qué falta y por qué.
   const [errorIniciar, setErrorIniciar] = useState<string | null>(null)
+
+  // Filtro por nivel — chips multi-select. Sin nada seleccionado = mostrar todos.
+  // Con al menos un chip activo, solo se muestran los grupos cuya `nivelId` está
+  // en el Set. Reset al cambiar de elemento — se maneja con `key` en el sheet
+  // de nivel superior; acá alcanza con setState local.
+  const [nivelesSel, setNivelesSel] = useState<Set<string>>(new Set())
+  const toggleNivel = (key: string) => {
+    setNivelesSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+  const limpiarNiveles = () => setNivelesSel(new Set())
 
   // Consulta el gate sin efectos. Devuelve null si puede arrancar, o el mensaje
   // del bloqueo. Se usa antes de navegar al form de carga (físico/digital) para
@@ -152,7 +167,7 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto" side="right">
+      <SheetContent className="w-full sm:max-w-4xl! overflow-y-auto" side="right">
         <SheetHeader className="pb-2">
           {loadingElemento ? (
             <SheetTitle className="text-gray-400">Cargando...</SheetTitle>
@@ -228,36 +243,91 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
               <p className="text-sm text-muted-foreground py-4">
                 No hay tareas asignadas a este elemento.
               </p>
-            ) : (
-              <div className="space-y-4">
-                {agruparPorNivel(tareas).map((g) => (
-                  <div key={g.key} className="space-y-2">
-                    <h4 className="text-xs font-semibold text-gray-500 px-1">
-                      {g.nombre}
-                      <span className="ml-1.5 text-gray-400 font-normal">({g.tareas.length})</span>
-                    </h4>
-                    {g.tareas.map((t) => (
-                      <TareaCard
-                        key={t.id}
-                        tarea={t}
-                        onIniciar={handleIniciar}
-                        onAbrirFormulario={handleAbrirFormulario}
-                        onCargarPdf={handleCargarPdf}
-                        onReiniciar={handleReiniciar}
-                        isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
-                        isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
-                        permitirFisico={permitirFisico}
-                        permitirDigital={permitirDigital}
-                        fisicoPreFirmado={fisicoPreFirmado}
-                        permiteAdjuntosProyecto={permiteAdjuntosProyecto}
-                        permitirDescargarProcedimientos={permitirDescargarProcedimientos}
-                        canWrite={canWrite}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              // Los grupos por nivel se calculan siempre (para armar los chips y
+              // para saber qué renderizar). Cuando hay filtro activo, mostramos
+              // solo los que están en `nivelesSel`.
+              const gruposTodos = agruparPorNivel(tareas)
+              const gruposVisibles = nivelesSel.size === 0
+                ? gruposTodos
+                : gruposTodos.filter((g) => nivelesSel.has(g.key))
+              const totalVisibles = gruposVisibles.reduce((n, g) => n + g.tareas.length, 0)
+              return (
+                <div className="space-y-3">
+                  {/* Chips por nivel — mismo patrón que /configuracion/planillas. */}
+                  {gruposTodos.length > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                      <span className="text-muted-foreground mr-1">Nivel:</span>
+                      {gruposTodos.map((g) => {
+                        const activo = nivelesSel.has(g.key)
+                        return (
+                          <button
+                            key={g.key}
+                            type="button"
+                            onClick={() => toggleNivel(g.key)}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer ${
+                              activo
+                                ? "bg-blue-50 text-blue-700 border-blue-300"
+                                : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"
+                            }`}
+                            title={g.nombre}
+                          >
+                            {g.nombre}
+                            <span className={activo ? "text-blue-600" : "text-gray-400"}>
+                              ({g.tareas.length})
+                            </span>
+                          </button>
+                        )
+                      })}
+                      {nivelesSel.size > 0 && (
+                        <button
+                          type="button"
+                          onClick={limpiarNiveles}
+                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Limpiar
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {totalVisibles === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">
+                      No hay tareas para los niveles seleccionados.
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {gruposVisibles.map((g) => (
+                        <div key={g.key} className="space-y-2">
+                          <h4 className="text-xs font-semibold text-gray-500 px-1">
+                            {g.nombre}
+                            <span className="ml-1.5 text-gray-400 font-normal">({g.tareas.length})</span>
+                          </h4>
+                          {g.tareas.map((t) => (
+                            <TareaCard
+                              key={t.id}
+                              tarea={t}
+                              onIniciar={handleIniciar}
+                              onAbrirFormulario={handleAbrirFormulario}
+                              onCargarPdf={handleCargarPdf}
+                              onReiniciar={handleReiniciar}
+                              isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
+                              isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
+                              permitirFisico={permitirFisico}
+                              permitirDigital={permitirDigital}
+                              fisicoPreFirmado={fisicoPreFirmado}
+                              permiteAdjuntosProyecto={permiteAdjuntosProyecto}
+                              permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+                              canWrite={canWrite}
+                            />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </section>
 
           {/* Timeline de preservación — silencioso si el elemento no tiene tareas
