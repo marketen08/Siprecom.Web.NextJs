@@ -322,7 +322,27 @@ export default function RegistroFormPage({ params }: PageProps) {
     setQrState(file ? { kind: "reading" } : null)
     setFirmaState(null)
     if (!file) return
-    const result = await readQrFromFile(file)
+
+    // Defensivo: si `readQrFromFile` tira excepción no manejada (worker pdfjs no
+    // carga, PDF cifrado, etc.), no queremos que el estado se quede pegado en
+    // "reading" y el user pierda el feedback. Caemos a `missing` con el error.
+    let result: QrLeidoResult
+    try {
+      result = await readQrFromFile(file)
+    } catch (err) {
+      console.error("[handleSeleccionarFisico] readQrFromFile threw:", err)
+      const errMsg = err instanceof Error ? err.message : "Error al leer el QR."
+      result = {
+        qrEncontrado: false,
+        esChecklist: false,
+        planillaId: null,
+        elementoTareaId: null,
+        contenidoQr: null,
+        error: errMsg,
+        rotacionDetectada: 0,
+      }
+    }
+
     if (!result.esChecklist) {
       setQrState({ kind: "missing", result })
     } else {
@@ -345,11 +365,16 @@ export default function RegistroFormPage({ params }: PageProps) {
     }
     setFirmaState({ kind: "detectando" })
     const rotacion = result.esChecklist ? result.rotacionDetectada : 0
-    const deteccion = await detectSignatureInFooter(file, { rotacion })
-    setFirmaState({
-      kind: deteccion.detected ? "detectada" : "no-detectada",
-      densidadPct: deteccion.densidadPct,
-    })
+    try {
+      const deteccion = await detectSignatureInFooter(file, { rotacion })
+      setFirmaState({
+        kind: deteccion.detected ? "detectada" : "no-detectada",
+        densidadPct: deteccion.densidadPct,
+      })
+    } catch (err) {
+      console.error("[handleSeleccionarFisico] detectSignatureInFooter threw:", err)
+      setFirmaState({ kind: "no-detectada", densidadPct: 0 })
+    }
   }
 
   // Extrae la fecha del próximo ciclo del response de completar/firmar, si el
@@ -573,8 +598,11 @@ export default function RegistroFormPage({ params }: PageProps) {
             <div className="flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
               <Info className="h-4 w-4 shrink-0 mt-0.5" />
               <div className="flex-1">
-                No se detectó QR en el archivo. Verificá que corresponda a este registro
-                antes de cargarlo.
+                No se detectó QR de checklist en el archivo. Verificá que corresponda a este
+                registro antes de cargarlo.
+                {qrState.result.error && (
+                  <p className="text-[11px] mt-1 opacity-80">Detalle: {qrState.result.error}</p>
+                )}
               </div>
             </div>
           )}

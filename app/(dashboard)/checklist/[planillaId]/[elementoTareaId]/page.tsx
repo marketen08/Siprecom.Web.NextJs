@@ -12,7 +12,20 @@ import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import { Button } from "@/components/ui/button"
 import {
   Upload, CheckCircle2, Loader2, ArrowLeft, FileUp, X, FileText,
+  AlertTriangle, Info,
 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
+import { rotateFile } from "@/features/registros/lib/rotate-file"
 
 // ─── Hook: obtener ElementoTarea por ID ───────────────────────────────────────
 
@@ -31,6 +44,8 @@ function CargarPdfContent() {
   const params  = useParams()
   const router  = useRouter()
   const elementoTareaId = params.elementoTareaId as string
+  const planillaIdEsperada = (params.planillaId as string).toLowerCase()
+  const elementoTareaIdEsperada = elementoTareaId.toLowerCase()
 
   const queryClient = useQueryClient()
 
@@ -62,10 +77,26 @@ function CargarPdfContent() {
   const [urlArchivo, setUrlArchivo] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Estado del QR del archivo elegido. `null` = todavía no se procesó; después
+  // toma uno de los 4 estados visibles con banner. Ver features/registros/lib/read-qr.ts.
+  const [qrState, setQrState] = useState<
+    | null
+    | { kind: "reading" }
+    | { kind: "ok"; result: QrLeidoResult }
+    | { kind: "mismatch"; result: QrLeidoResult }
+    | { kind: "missing"; result: QrLeidoResult }
+  >(null)
+  const [confirmarMismatch, setConfirmarMismatch] = useState(false)
+
   // ── Iniciar tarea si está PENDIENTE, luego subir ──────────────────────────
 
-  async function handleSubir() {
+  async function handleSubir(forzarOverride: boolean = false) {
     if (!archivo || !tarea) return
+    // Gate: si el QR no coincide y el user no pidió forzar, abrimos el dialog.
+    if (qrState?.kind === "mismatch" && !forzarOverride) {
+      setConfirmarMismatch(true)
+      return
+    }
     setSubiendo("iniciando")
     setError("")
 
@@ -95,9 +126,26 @@ function CargarPdfContent() {
 
     setSubiendo("subiendo")
 
+    // Rotación: si el QR se leyó rotado, corregimos la orientación del archivo
+    // antes de subirlo así el registro queda derecho en el visor.
+    const rotacion =
+      (qrState?.kind === "ok" || qrState?.kind === "mismatch") && qrState.result
+        ? qrState.result.rotacionDetectada
+        : 0
+    const archivoFinal = await rotateFile(archivo, rotacion)
+
     const form = new FormData()
-    form.append("Archivo", archivo)
+    form.append("Archivo", archivoFinal)
     if (observaciones.trim()) form.append("Observaciones", observaciones.trim())
+    // Auditoría: si aceptó cargar con QR no coincidente, mandamos el detalle
+    // esperado vs encontrado — el backend lo appendéa a Observaciones.
+    if (qrState?.kind === "mismatch" && forzarOverride) {
+      const r = qrState.result
+      const detalle =
+        `esperado planilla=${planillaIdEsperada} tarea=${elementoTareaIdEsperada} · ` +
+        `encontrado planilla=${r.planillaId ?? "?"} tarea=${r.elementoTareaId ?? "?"}`
+      form.append("QrOverrideDetalle", detalle.slice(0, 500))
+    }
 
     const res = await fetch(`/api/registros/${registroId}/completar/fisico`, {
       method: "POST",
@@ -128,7 +176,7 @@ function CargarPdfContent() {
 
   // ── Drop / selección ──────────────────────────────────────────────────────
 
-  function handleFile(f: File | null) {
+  async function handleFile(f: File | null) {
     if (!f) return
     const ext = f.name.split(".").pop()?.toLowerCase()
     if (!["pdf", "jpg", "jpeg", "png"].includes(ext ?? "")) {
@@ -137,6 +185,33 @@ function CargarPdfContent() {
     }
     setError("")
     setArchivo(f)
+    setQrState({ kind: "reading" })
+    // Defensivo: readQrFromFile puede tirar (worker pdfjs, PDF cifrado, etc.) —
+    // caemos a "missing" con el mensaje del error en vez de dejar el estado pegado.
+    let result: QrLeidoResult
+    try {
+      result = await readQrFromFile(f)
+    } catch (err) {
+      console.error("[checklist] readQrFromFile threw:", err)
+      const errMsg = err instanceof Error ? err.message : "Error al leer el QR."
+      result = {
+        qrEncontrado: false,
+        esChecklist: false,
+        planillaId: null,
+        elementoTareaId: null,
+        contenidoQr: null,
+        error: errMsg,
+        rotacionDetectada: 0,
+      }
+    }
+    if (!result.esChecklist) {
+      setQrState({ kind: "missing", result })
+      return
+    }
+    const matchea =
+      result.planillaId === planillaIdEsperada &&
+      result.elementoTareaId === elementoTareaIdEsperada
+    setQrState({ kind: matchea ? "ok" : "mismatch", result })
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -294,7 +369,7 @@ function CargarPdfContent() {
               </div>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setArchivo(null) }}
+                onClick={(e) => { e.stopPropagation(); setArchivo(null); setQrState(null) }}
                 className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -310,6 +385,45 @@ function CargarPdfContent() {
             </>
           )}
         </div>
+
+        {/* Banner del QR: decodifica el QR del archivo y compara contra la
+            planilla/tarea a la que apunta esta pantalla (los ids vienen en la URL). */}
+        {qrState?.kind === "reading" && (
+          <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Verificando QR del archivo...
+          </div>
+        )}
+        {qrState?.kind === "ok" && (
+          <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            QR verificado — el archivo corresponde a esta tarea.
+          </div>
+        )}
+        {qrState?.kind === "mismatch" && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium">El QR del archivo NO coincide con esta tarea.</p>
+              <p className="text-xs mt-1">
+                El QR apunta a otra planilla o elemento. Si estás seguro, podés cargarlo de
+                todos modos — quedará marcado en las observaciones.
+              </p>
+            </div>
+          </div>
+        )}
+        {qrState?.kind === "missing" && (
+          <div className="flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+            <Info className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              No se detectó QR de checklist en el archivo. Verificá que corresponda a esta
+              tarea antes de cargarlo.
+              {qrState.result.error && (
+                <p className="text-[11px] mt-1 opacity-80">Detalle: {qrState.result.error}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Observaciones */}
         <div className="space-y-1.5">
@@ -336,8 +450,8 @@ function CargarPdfContent() {
         <Button
           className="w-full gap-2"
           size="lg"
-          onClick={handleSubir}
-          disabled={!archivo || ocupado}
+          onClick={() => handleSubir()}
+          disabled={!archivo || ocupado || qrState?.kind === "reading"}
         >
           {ocupado ? (
             <>
@@ -352,6 +466,53 @@ function CargarPdfContent() {
           )}
         </Button>
       </div>
+
+      {/* Confirmación cuando el QR del archivo no coincide con esta tarea. */}
+      <AlertDialog
+        open={confirmarMismatch}
+        onOpenChange={(o) => !o && setConfirmarMismatch(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              El QR no coincide con esta tarea
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              El QR del archivo pertenece a otra planilla o elemento. Si continuás, se
+              cargará de todos modos y quedará marcado automáticamente en las
+              observaciones del registro para auditoría.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {qrState?.kind === "mismatch" && (
+            <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1">
+              <p>
+                <span className="text-muted-foreground">Esperado:</span>{" "}
+                <span className="font-mono">planilla {planillaIdEsperada}</span> /{" "}
+                <span className="font-mono">tarea {elementoTareaIdEsperada}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Encontrado:</span>{" "}
+                <span className="font-mono">planilla {qrState.result.planillaId ?? "—"}</span> /{" "}
+                <span className="font-mono">tarea {qrState.result.elementoTareaId ?? "—"}</span>
+              </p>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmarMismatch(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmarMismatch(false)
+                void handleSubir(true)
+              }}
+            >
+              Cargar de todos modos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   )
