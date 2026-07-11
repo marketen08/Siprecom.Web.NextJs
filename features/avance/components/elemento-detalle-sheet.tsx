@@ -589,6 +589,20 @@ function buildTareaMenuItems({
   const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
   const cargarRegistroLabel = fisicoPreFirmado ? "Cargar registro firmado" : "Cargar registro"
 
+  // "Ver registro / adjuntos" — atajo primario para registros físicos. La pantalla
+  // del registro es donde el user gestiona adjuntos, ve el escaneo, sigue firmas.
+  // Al mostrarlo arriba de todo el user llega en un click sin importar el estado
+  // del workflow. Solo aplica cuando ya hay un Registro y es físico (en digital ya
+  // hay "Completar formulario" / "Ver y firmar" / "Ver registro" según estado).
+  if (tarea.registroId && tarea.esFisico) {
+    items.push({
+      kind: "item",
+      label: "Ver registro / adjuntos",
+      icon: FileText,
+      onSelect: () => onAbrirFormulario(tarea),
+    })
+  }
+
   // Acciones primarias por estado
   switch (tarea.estado) {
     case 1: // PENDIENTE
@@ -614,7 +628,7 @@ function buildTareaMenuItems({
     case 2: // EN_PROCESO
       if (tarea.registroId) {
         if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
+          items.push({ kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
         } else if (permitirDigital) {
           items.push({ kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
         }
@@ -627,7 +641,7 @@ function buildTareaMenuItems({
       if (tarea.registroId) {
         items.push(
           tarea.esFisico
-            ? { kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
+            ? { kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
             : { kind: "item", label: "Ver y firmar", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
         )
       }
@@ -637,7 +651,7 @@ function buildTareaMenuItems({
       if (tarea.registroId) {
         items.push(
           tarea.esFisico
-            ? { kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
+            ? { kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
             : { kind: "item", label: "Ver registro", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
         )
       }
@@ -645,7 +659,7 @@ function buildTareaMenuItems({
     case 5: // RECHAZADO
       if (tarea.registroId) {
         if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
+          items.push({ kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
         } else if (permitirDigital) {
           items.push({ kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" })
         }
@@ -654,20 +668,6 @@ function buildTareaMenuItems({
         }
       }
       break
-  }
-
-  // Descargar procedimiento — disponible cuando: el proyecto habilita la descarga de
-  // procedimientos, la tarea tiene un procedimiento asignado y ese procedimiento tiene
-  // archivo cargado. El backend valida que el usuario tenga acceso al proyecto (rol
-  // asignado) antes de devolver el SAS URL.
-  if (permitirDescargarProcedimientos && tarea.procedimientoId && tarea.procedimientoTieneArchivo) {
-    items.push({
-      kind: "item",
-      label: "Descargar procedimiento",
-      icon: BookOpen,
-      onSelect: onDescargarProcedimiento,
-      disabled: descargandoProcedimientoPending,
-    })
   }
 
   // Descargar PDF — para registros DIGITALES con datos cargados (COMPLETADO, RECHAZADO,
@@ -680,7 +680,7 @@ function buildTareaMenuItems({
   if (puedeDescargarPdfDigital) {
     items.push({
       kind: "item",
-      label: "Descargar PDF",
+      label: "Descargar registro PDF",
       icon: FileDown,
       onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`),
     })
@@ -698,28 +698,34 @@ function buildTareaMenuItems({
     })
   }
 
-  // Acceso a la página del registro para físicos. En digital ya hay "Completar formulario" /
-  // "Ver y firmar" / "Ver registro" según estado; para físico solo había "Descargar registro",
-  // sin forma de llegar a la pantalla donde se gestionan adjuntos. Lo agregamos siempre que
-  // haya registro físico.
-  if (tarea.registroId && tarea.esFisico) {
-    items.push({
-      kind: "item",
-      label: "Ver registro / adjuntos",
-      icon: FileText,
-      onSelect: () => onAbrirFormulario(tarea),
-    })
-  }
-
-  // Planilla en blanco — sólo útil cuando el proyecto acepta registros físicos
-  // (la idea es imprimir, completar a mano y subir el escaneo). En proyectos digitales
-  // no aporta valor: el usuario completa el formulario online.
-  if (tarea.planillaId && permitirFisico) {
+  // Descargas (planilla en blanco + procedimiento) — agrupadas bajo un mismo
+  // separator porque son ítems de "material de referencia" y viven juntos
+  // conceptualmente. La planilla en blanco sólo aporta cuando el proyecto
+  // acepta registros físicos (idea: imprimir → completar a mano → subir); el
+  // procedimiento requiere que el proyecto habilite su descarga, que la tarea
+  // lo tenga asignado y que tenga archivo cargado.
+  const puedeDescargarPlanilla = !!tarea.planillaId && permitirFisico
+  const puedeDescargarProcedimiento =
+    permitirDescargarProcedimientos
+    && !!tarea.procedimientoId
+    && tarea.procedimientoTieneArchivo
+  if (puedeDescargarPlanilla || puedeDescargarProcedimiento) {
     if (items.length > 0) items.push({ kind: "separator" })
-    const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}`
-    const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
-    items.push({ kind: "item", label: "Descargar planilla", icon: Download, onSelect: () => triggerDownload(urlDescarga) })
-    items.push({ kind: "item", label: "Vista previa", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
+    if (puedeDescargarPlanilla) {
+      const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}`
+      const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
+      items.push({ kind: "item", label: "Descargar planilla PDF", icon: Download, onSelect: () => triggerDownload(urlDescarga) })
+      items.push({ kind: "item", label: "Ver planilla PDF", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
+    }
+    if (puedeDescargarProcedimiento) {
+      items.push({
+        kind: "item",
+        label: "Ver procedimiento",
+        icon: BookOpen,
+        onSelect: onDescargarProcedimiento,
+        disabled: descargandoProcedimientoPending,
+      })
+    }
   }
 
   // Firmas (digital o físico, mientras haya slots configurados)
