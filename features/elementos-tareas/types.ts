@@ -90,6 +90,12 @@ export interface ElementoTarea {
   prioridadTexto: string
   intentos: number
 
+  // Preservación — heredado de Tarea.EsPreservacion. El sheet principal filtra estas
+  // tareas del listado y las delega al sheet de preservación del elemento.
+  esPreservacion: boolean
+  /** 0 = tarea normal o primer ciclo; N = ciclo N generado por PreservacionService. */
+  cicloNumero: number
+
   isActive: boolean
   createdAt: string
 }

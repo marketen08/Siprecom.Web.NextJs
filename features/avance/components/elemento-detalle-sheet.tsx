@@ -1,20 +1,16 @@
 "use client"
 
-import { useRef, useState, type ComponentType } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetAvanceElemento } from "@/features/avance/api/use-get-avance-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
-import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
-import { useReiniciarTarea } from "@/features/elementos-tareas/api/use-reiniciar-tarea"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
-import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
-import { useDownloadProcedimiento } from "@/features/procedimientos/api/use-download-procedimiento"
-import { FirmaPanel } from "@/features/registros/components/firma-panel"
+import { useTareaHandlers } from "@/features/elementos-tareas/hooks/use-tarea-handlers"
+import { TareaCard } from "@/features/elementos-tareas/components/tarea-card"
 import { useCanWrite } from "@/lib/use-roles"
 import type { AvanceElementoDTO } from "@/features/avance/types"
-import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
+import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { Button } from "@/components/ui/button"
@@ -25,30 +21,17 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  AlertCircle, Clock, CheckCircle2, XCircle, Ban, BookOpen,
-  Loader2, Play, FileText, Upload, Download, Eye, FileDown,
-  Link2, MoreVertical, Paperclip, PenLine, RotateCcw, X,
-} from "lucide-react"
+import { CalendarClock, Loader2, X } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { DependenciasSheet } from "@/features/elementos-tareas/components/dependencias-sheet"
-import { PreservacionTimeline } from "@/features/preservacion/components/preservacion-timeline"
+import { ElementoPreservacionSheet } from "@/features/preservacion/components/elemento-preservacion-sheet"
 
 interface Props {
   elementoId: string | null
@@ -58,7 +41,6 @@ interface Props {
 }
 
 export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onClose }: Props) {
-  const router = useRouter()
   const { data: elementoRaw, isLoading: loadingElemento } = useGetElemento(elementoId)
   const { data: tareasRaw, isLoading: loadingTareas } = useGetElementosTareasPorElemento(elementoId)
   // Cuando el sheet se abre desde la lista, `avanceProp` viene con la fila. Cuando se
@@ -66,13 +48,29 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   // avance individual al backend para que se muestren la barra, los estados y el resto.
   const { data: avanceRaw } = useGetAvanceElemento(!avanceProp && open ? elementoId : null)
   const avance = avanceProp ?? avanceRaw?.data ?? null
-  const iniciarMutation = useIniciarTarea()
-  const reiniciarMutation = useReiniciarTarea()
-  // Consultor/Auditor: solo lectura — ver TareaCard/buildTareaMenuItems.
+  // Handlers de iniciar/abrir/cargar/reiniciar compartidos entre este sheet y el de
+  // preservación. Encapsula gate previo + navegación.
+  const {
+    handleIniciar,
+    handleAbrirFormulario,
+    handleCargarPdf,
+    handleReiniciar,
+    iniciarMutation,
+    reiniciarMutation,
+    errorGate,
+    setErrorGate,
+  } = useTareaHandlers()
   const canWrite = useCanWrite()
 
   const elemento = elementoRaw?.data
-  const tareas = tareasRaw?.data ?? []
+  const tareasRaw2 = tareasRaw?.data ?? []
+  // Separación por flujo: las tareas de preservación (mantenimiento recurrente) van
+  // a un sheet secundario dedicado para no saturar el listado principal cuando el
+  // elemento acumula ciclos. Se accede al secundario desde el banner.
+  const tareas = tareasRaw2.filter((t) => !t.esPreservacion)
+  const tareasPreservacion = tareasRaw2.filter((t) => t.esPreservacion)
+
+  const [preservacionOpen, setPreservacionOpen] = useState(false)
 
   const { data: proyectoRaw } = useGetProyecto(elemento?.proyectoId ?? null)
   const proyecto = proyectoRaw?.data
@@ -86,11 +84,6 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   // Descarga de procedimientos: gateada por la config del proyecto. Default false
   // (conservador) hasta que carga el proyecto, así no ofrecemos algo no permitido.
   const permitirDescargarProcedimientos = proyecto?.permitirDescargarProcedimientos ?? false
-
-  // Error de gates al iniciar (predecesores incompletos, niveles secuenciales,
-  // etc). Se muestra en un AlertDialog dedicado; el mensaje viene del backend
-  // que ya explica qué falta y por qué.
-  const [errorIniciar, setErrorIniciar] = useState<string | null>(null)
 
   // Filtro por nivel — chips multi-select. Sin nada seleccionado = mostrar todos.
   // Con al menos un chip activo, solo se muestran los grupos cuya `nivelId` está
@@ -116,64 +109,6 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   }
   const limpiarNiveles = () => setNivelesSel(new Set())
 
-  // Consulta el gate sin efectos. Devuelve null si puede arrancar, o el mensaje
-  // del bloqueo. Se usa antes de navegar al form de carga (físico/digital) para
-  // evitar que el usuario llegue a la pantalla de subida y recién ahí vea el
-  // error.
-  async function verificarGate(tareaId: string): Promise<string | null> {
-    try {
-      const res = await fetch(`/api/elementos-tareas/${tareaId}/puede-ejecutar`)
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) return json?.message ?? "No se pudo verificar la tarea."
-      const puede = json?.data?.puedeEjecutar
-      if (puede === false) return json?.data?.motivo ?? json?.message ?? "La tarea no está disponible todavía."
-      return null
-    } catch {
-      // Si la verificación misma falla, dejamos pasar — el endpoint de subida
-      // vuelve a validar y es la fuente de verdad.
-      return null
-    }
-  }
-
-  async function handleIniciar(tarea: ElementoTarea) {
-    try {
-      const result = await iniciarMutation.mutateAsync(tarea.id) as any
-      // El backend devuelve la ET actualizada con registroId — navegamos al form.
-      // No llamamos onClose() antes: la navegación desmonta el sheet naturalmente,
-      // y conservamos el ?elementoId en la URL para que el back del browser reabra
-      // el sheet con el contexto intacto.
-      const registroId = result?.data?.registroId ?? result?.registroId
-      if (registroId) {
-        router.push(`/ejecucion/registros/${registroId}`)
-      }
-    } catch (err) {
-      setErrorIniciar((err as Error)?.message ?? "No se pudo iniciar la tarea.")
-    }
-  }
-
-  async function handleReiniciar(tarea: ElementoTarea) {
-    await reiniciarMutation.mutateAsync(tarea.id)
-  }
-
-  async function handleAbrirFormulario(tarea: ElementoTarea) {
-    if (!tarea.registroId) return
-    // Cuando la tarea está EN_PROCESO o RECHAZADO y el usuario va a completar/re-completar,
-    // el completar del backend ya vuelve a validar el gate — pero verificamos acá para no
-    // hacerle entrar al formulario si igual no va a poder guardar.
-    const bloqueo = await verificarGate(tarea.id)
-    if (bloqueo) { setErrorIniciar(bloqueo); return }
-    router.push(`/ejecucion/registros/${tarea.registroId}`)
-  }
-
-  async function handleCargarPdf(tarea: ElementoTarea) {
-    if (!tarea.planillaId) return
-    // La página de carga arranca con "Iniciar" (si está PENDIENTE) y después sube el PDF;
-    // ambos endpoints ya validan el gate. Chequeamos acá para bloquear ANTES de navegar y
-    // que el usuario vea el motivo sin ir/volver.
-    const bloqueo = await verificarGate(tarea.id)
-    if (bloqueo) { setErrorIniciar(bloqueo); return }
-    router.push(`/checklist/${tarea.planillaId}/${tarea.id}`)
-  }
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -357,600 +292,51 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
             })()}
           </section>
 
-          {/* Timeline de preservación — silencioso si el elemento no tiene tareas
-              con EsPreservacion=true. Se renderiza al fondo para no competir con
-              la lista principal de tareas. */}
-          <PreservacionTimeline elementoId={elementoId} />
+          {/* Banner de preservación — el listado principal no muestra las tareas
+              de mantenimiento recurrente; se accede al detalle desde acá. */}
+          {tareasPreservacion.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPreservacionOpen(true)}
+              className="w-full flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-left hover:bg-blue-100 transition-colors cursor-pointer"
+            >
+              <CalendarClock className="h-5 w-5 text-blue-700 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-blue-900">Preservación</p>
+                <p className="text-xs text-blue-700">
+                  {tareasPreservacion.length === 1
+                    ? "1 tarea de mantenimiento recurrente"
+                    : `${tareasPreservacion.length} tareas de mantenimiento recurrente`}
+                </p>
+              </div>
+              <span className="text-xs text-blue-700 font-medium shrink-0">Abrir →</span>
+            </button>
+          )}
         </div>
       </SheetContent>
 
-      <AlertDialog open={errorIniciar !== null} onOpenChange={(v) => !v && setErrorIniciar(null)}>
+      <AlertDialog open={errorGate !== null} onOpenChange={(v) => !v && setErrorGate(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>No se puede iniciar la tarea</AlertDialogTitle>
             <AlertDialogDescription className="whitespace-pre-line">
-              {errorIniciar}
+              {errorGate}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setErrorIniciar(null)}>Entendido</AlertDialogAction>
+            <AlertDialogAction onClick={() => setErrorGate(null)}>Entendido</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ElementoPreservacionSheet
+        elementoId={elementoId}
+        open={preservacionOpen}
+        onClose={() => setPreservacionOpen(false)}
+      />
     </Sheet>
   )
 }
-
-// ─── Card por tarea ─────────────────────────────────────────────────────────
-
-function TareaCard({
-  tarea,
-  onIniciar,
-  onAbrirFormulario,
-  onCargarPdf,
-  onReiniciar,
-  isIniciando,
-  isReiniciando,
-  permitirFisico,
-  permitirDigital,
-  fisicoPreFirmado,
-  permiteAdjuntosProyecto,
-  permitirDescargarProcedimientos,
-  canWrite,
-}: {
-  tarea: ElementoTarea
-  onIniciar: (t: ElementoTarea) => void
-  onAbrirFormulario: (t: ElementoTarea) => void
-  onCargarPdf: (t: ElementoTarea) => void
-  onReiniciar: (t: ElementoTarea) => Promise<void>
-  isIniciando: boolean
-  isReiniciando: boolean
-  permitirFisico: boolean
-  permitirDigital: boolean
-  fisicoPreFirmado: boolean
-  permiteAdjuntosProyecto: boolean
-  permitirDescargarProcedimientos: boolean
-  canWrite: boolean
-}) {
-  const [showFirmas, setShowFirmas] = useState(false)
-  const [reiniciarOpen, setReiniciarOpen] = useState(false)
-  const [dependenciasOpen, setDependenciasOpen] = useState(false)
-  // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
-  // y los registros sin firma requerida tienen firmasTotal === 0, así que quedan excluidos.
-  const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
-  // Adjuntar archivo a la tarea (al registro asociado). El hook necesita un string
-  // no-nullable; usamos "" cuando no hay registro todavía (la opción no se muestra).
-  const adjuntoInputRef = useRef<HTMLInputElement>(null)
-  const uploadAdjunto = useUploadRegistroArchivo(tarea.registroId ?? "")
-  const [adjuntoError, setAdjuntoError] = useState<string | null>(null)
-  const [adjuntoOk, setAdjuntoOk] = useState<string | null>(null)
-
-  // Descargar procedimiento (abre el PDF en pestaña nueva). El hook hace fetch del SAS URL
-  // con la auth del usuario y abre el resultado. Errores van al state inline.
-  const downloadProcedimiento = useDownloadProcedimiento()
-  const [procedimientoError, setProcedimientoError] = useState<string | null>(null)
-  async function handleDescargarProcedimiento() {
-    if (!tarea.procedimientoId) return
-    setProcedimientoError(null)
-    try {
-      await downloadProcedimiento.mutateAsync(tarea.procedimientoId)
-    } catch (err) {
-      setProcedimientoError((err as Error).message ?? "No se pudo descargar el procedimiento.")
-    }
-  }
-
-  async function handleAdjuntoFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ""
-    if (!file || !tarea.registroId) return
-    setAdjuntoError(null)
-    setAdjuntoOk(null)
-    try {
-      await uploadAdjunto.mutateAsync(file)
-      setAdjuntoOk(`"${file.name}" adjuntado.`)
-      setTimeout(() => setAdjuntoOk(null), 3000)
-    } catch (err) {
-      setAdjuntoError((err as Error).message ?? "No se pudo adjuntar.")
-    }
-  }
-
-  const puedeAdjuntar = !!tarea.registroId && permiteAdjuntosProyecto && tarea.estado !== 5
-
-  const items = buildTareaMenuItems({
-    tarea,
-    onIniciar,
-    onAbrirFormulario,
-    onCargarPdf,
-    onAdjuntarArchivo: () => adjuntoInputRef.current?.click(),
-    onDescargarProcedimiento: handleDescargarProcedimiento,
-    onRequestReiniciar: () => setReiniciarOpen(true),
-    onAbrirDependencias: () => setDependenciasOpen(true),
-    isIniciando,
-    isReiniciando,
-    showFirmas,
-    onToggleFirmas: () => setShowFirmas((s) => !s),
-    permitirFisico,
-    permitirDigital,
-    fisicoPreFirmado,
-    puedeAdjuntar,
-    adjuntandoPending: uploadAdjunto.isPending,
-    descargandoProcedimientoPending: downloadProcedimiento.isPending,
-    permitirDescargarProcedimientos,
-    canWrite,
-  })
-
-  const busy = isIniciando || uploadAdjunto.isPending || downloadProcedimiento.isPending
-
-  async function handleConfirmReiniciar() {
-    try {
-      await onReiniciar(tarea)
-      setReiniciarOpen(false)
-    } catch {
-      // Mantener abierto si falla
-    }
-  }
-
-  return (
-    <div className="rounded-lg border bg-white p-3 space-y-2">
-      {/* Encabezado */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-gray-400">{tarea.codigo}</span>
-            {tarea.esCritica && (
-              <span className="inline-flex items-center gap-0.5 text-xs text-red-600 font-medium">
-                <AlertCircle className="h-3 w-3" /> Crítica
-              </span>
-            )}
-          </div>
-          <p className="font-medium text-sm text-gray-900">{tarea.tareaNombre}</p>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <EstadoBadge tarea={tarea} />
-          {items.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-gray-500"
-                    disabled={busy}
-                    aria-label="Acciones"
-                  />
-                }
-              >
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MoreVertical className="h-4 w-4" />
-                )}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-52">
-                {items.map((item, i) =>
-                  item.kind === "separator" ? (
-                    <DropdownMenuSeparator key={`sep-${i}`} />
-                  ) : (
-                    <DropdownMenuItem
-                      key={item.label}
-                      onClick={item.onSelect}
-                      disabled={item.disabled}
-                      variant={item.variant}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                    </DropdownMenuItem>
-                  )
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </div>
-
-      <TareaMeta tarea={tarea} />
-
-      {tarea.motivoRechazo && (
-        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
-          Motivo rechazo: {tarea.motivoRechazo}
-        </p>
-      )}
-
-      {adjuntoError && (
-        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
-          {adjuntoError}
-        </p>
-      )}
-      {procedimientoError && (
-        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
-          {procedimientoError}
-        </p>
-      )}
-      {adjuntoOk && (
-        <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1">
-          {adjuntoOk}
-        </p>
-      )}
-
-      <input
-        ref={adjuntoInputRef}
-        type="file"
-        hidden
-        onChange={handleAdjuntoFileSelected}
-      />
-
-      {tieneFirmas && showFirmas && tarea.registroId && (
-        <div className="pt-1">
-          <FirmaPanel registroId={tarea.registroId} />
-        </div>
-      )}
-
-      <AlertDialog open={reiniciarOpen} onOpenChange={setReiniciarOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Reiniciar tarea?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se descartará el registro actual y todos los valores cargados
-              {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
-              La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isReiniciando}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={handleConfirmReiniciar}
-              disabled={isReiniciando}
-            >
-              {isReiniciando ? "Reiniciando..." : "Reiniciar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <DependenciasSheet
-        open={dependenciasOpen}
-        onClose={() => setDependenciasOpen(false)}
-        elementoTareaId={tarea.id}
-        elementoTag={tarea.elementoTag}
-        tareaNombre={tarea.tareaNombre}
-        elementoId={tarea.elementoId}
-      />
-    </div>
-  )
-}
-
-// ─── Construcción de items del menú según estado ─────────────────────────────
-
-type LucideIcon = ComponentType<{ className?: string }>
-type MenuItem =
-  | { kind: "separator" }
-  | {
-      kind: "item"
-      label: string
-      icon: LucideIcon
-      onSelect: () => void
-      disabled?: boolean
-      variant?: "default" | "destructive"
-    }
-
-function buildTareaMenuItems({
-  tarea,
-  onIniciar,
-  onAbrirFormulario,
-  onCargarPdf,
-  onAdjuntarArchivo,
-  onRequestReiniciar,
-  onAbrirDependencias,
-  isIniciando,
-  isReiniciando,
-  showFirmas,
-  onToggleFirmas,
-  permitirFisico,
-  permitirDigital,
-  fisicoPreFirmado,
-  puedeAdjuntar,
-  adjuntandoPending,
-  onDescargarProcedimiento,
-  descargandoProcedimientoPending,
-  permitirDescargarProcedimientos,
-  canWrite,
-}: {
-  tarea: ElementoTarea
-  onIniciar: (t: ElementoTarea) => void
-  onAbrirFormulario: (t: ElementoTarea) => void
-  onCargarPdf: (t: ElementoTarea) => void
-  onAdjuntarArchivo: () => void
-  onDescargarProcedimiento: () => void
-  onRequestReiniciar: () => void
-  onAbrirDependencias: () => void
-  isIniciando: boolean
-  isReiniciando: boolean
-  showFirmas: boolean
-  onToggleFirmas: () => void
-  permitirFisico: boolean
-  permitirDigital: boolean
-  fisicoPreFirmado: boolean
-  puedeAdjuntar: boolean
-  adjuntandoPending: boolean
-  descargandoProcedimientoPending: boolean
-  permitirDescargarProcedimientos: boolean
-  /** Si es false (Consultor/Auditor), se filtran acciones de escritura y las
-   * que combinan ver+editar se renombran a "Ver...". */
-  canWrite: boolean
-}): MenuItem[] {
-  const items: MenuItem[] = []
-  // Mostramos firmas siempre que haya slots configurados, sea digital o físico. Los pre-firmados
-  // y los registros sin firma requerida tienen firmasTotal === 0, así que quedan excluidos.
-  const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
-  const cargarRegistroLabel = fisicoPreFirmado ? "Cargar registro firmado" : "Cargar registro"
-
-  // "Ver registro / adjuntos" — atajo primario para registros físicos. La pantalla
-  // del registro es donde el user gestiona adjuntos, ve el escaneo, sigue firmas.
-  // Al mostrarlo arriba de todo el user llega en un click sin importar el estado
-  // del workflow. Solo aplica cuando ya hay un Registro y es físico (en digital ya
-  // hay "Completar formulario" / "Ver y firmar" / "Ver registro" según estado).
-  if (tarea.registroId && tarea.esFisico) {
-    items.push({
-      kind: "item",
-      label: "Ver registro / adjuntos",
-      icon: FileText,
-      onSelect: () => onAbrirFormulario(tarea),
-    })
-  }
-
-  // Acciones primarias por estado
-  switch (tarea.estado) {
-    case 1: // PENDIENTE
-      if (permitirDigital) {
-        items.push({
-          kind: "item",
-          label: "Iniciar tarea",
-          icon: Play,
-          onSelect: () => onIniciar(tarea),
-          disabled: isIniciando,
-        })
-      }
-      if (tarea.planillaId && permitirFisico) {
-        items.push({
-          kind: "item",
-          label: cargarRegistroLabel,
-          icon: Upload,
-          onSelect: () => onCargarPdf(tarea),
-          disabled: isIniciando,
-        })
-      }
-      break
-    case 2: // EN_PROCESO
-      if (tarea.registroId) {
-        if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
-        } else if (permitirDigital) {
-          items.push({ kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
-        }
-        if (tarea.planillaId && permitirFisico) {
-          items.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea) })
-        }
-      }
-      break
-    case 3: // COMPLETADO — firmas son independientes, el "Ver y firmar" siempre disponible
-      if (tarea.registroId) {
-        items.push(
-          tarea.esFisico
-            ? { kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
-            : { kind: "item", label: "Ver y firmar", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
-        )
-      }
-      break
-    case 4: // APROBADO
-    case 7: // FIRMADO
-      if (tarea.registroId) {
-        items.push(
-          tarea.esFisico
-            ? { kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
-            : { kind: "item", label: "Ver registro", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
-        )
-      }
-      break
-    case 5: // RECHAZADO
-      if (tarea.registroId) {
-        if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
-        } else if (permitirDigital) {
-          items.push({ kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" })
-        }
-        if (tarea.planillaId && permitirFisico) {
-          items.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea), variant: "destructive" })
-        }
-      }
-      break
-  }
-
-  // Descargar PDF — para registros DIGITALES con datos cargados (COMPLETADO, RECHAZADO,
-  // FIRMADO). El backend arma el PDF con el diseño de la planilla y los valores guardados.
-  // Para físicos la opción equivalente es "Descargar registro" (devuelve el escaneo original).
-  const puedeDescargarPdfDigital =
-    !tarea.esFisico &&
-    !!tarea.registroId &&
-    (tarea.estado === 3 || tarea.estado === 5 || tarea.estado === 7)
-  if (puedeDescargarPdfDigital) {
-    items.push({
-      kind: "item",
-      label: "Descargar registro PDF",
-      icon: FileDown,
-      onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`),
-    })
-  }
-
-  // Adjuntar archivo (atajo directo). Backend valida también que la planilla acepte adjuntos;
-  // si no, devuelve error que se muestra inline en la card.
-  if (puedeAdjuntar) {
-    items.push({
-      kind: "item",
-      label: "Adjuntar archivo",
-      icon: Paperclip,
-      onSelect: onAdjuntarArchivo,
-      disabled: adjuntandoPending,
-    })
-  }
-
-  // Descargas (planilla en blanco + procedimiento) — agrupadas bajo un mismo
-  // separator porque son ítems de "material de referencia" y viven juntos
-  // conceptualmente. La planilla en blanco sólo aporta cuando el proyecto
-  // acepta registros físicos (idea: imprimir → completar a mano → subir); el
-  // procedimiento requiere que el proyecto habilite su descarga, que la tarea
-  // lo tenga asignado y que tenga archivo cargado.
-  const puedeDescargarPlanilla = !!tarea.planillaId && permitirFisico
-  const puedeDescargarProcedimiento =
-    permitirDescargarProcedimientos
-    && !!tarea.procedimientoId
-    && tarea.procedimientoTieneArchivo
-  if (puedeDescargarPlanilla || puedeDescargarProcedimiento) {
-    if (items.length > 0) items.push({ kind: "separator" })
-    if (puedeDescargarPlanilla) {
-      const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}`
-      const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
-      items.push({ kind: "item", label: "Descargar planilla PDF", icon: Download, onSelect: () => triggerDownload(urlDescarga) })
-      items.push({ kind: "item", label: "Ver planilla PDF", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
-    }
-    if (puedeDescargarProcedimiento) {
-      items.push({
-        kind: "item",
-        label: "Ver procedimiento",
-        icon: BookOpen,
-        onSelect: onDescargarProcedimiento,
-        disabled: descargandoProcedimientoPending,
-      })
-    }
-  }
-
-  // Firmas (digital o físico, mientras haya slots configurados)
-  if (tieneFirmas) {
-    if (items.length > 0) items.push({ kind: "separator" })
-    items.push({
-      kind: "item",
-      label: showFirmas ? "Ocultar firmas" : "Ver firmas",
-      icon: PenLine,
-      onSelect: onToggleFirmas,
-    })
-  }
-
-  // Dependencias: precedentes y sucesores dentro del proyecto.
-  if (items.length > 0) items.push({ kind: "separator" })
-  items.push({
-    kind: "item",
-    label: "Dependencias",
-    icon: Link2,
-    onSelect: onAbrirDependencias,
-  })
-
-  // Reiniciar tarea: descarta el registro y vuelve a PENDIENTE.
-  // Disponible cuando hay registro abierto o cerrado-no-final (EN_PROCESO, COMPLETADO, RECHAZADO).
-  const puedeReiniciar = tarea.estado === 2 || tarea.estado === 3 || tarea.estado === 5
-  if (puedeReiniciar) {
-    if (items.length > 0) items.push({ kind: "separator" })
-    items.push({
-      kind: "item",
-      label: "Reiniciar tarea",
-      icon: RotateCcw,
-      onSelect: onRequestReiniciar,
-      disabled: isReiniciando,
-      variant: "destructive",
-    })
-  }
-
-  // Rol solo lectura: filtramos las acciones de escritura y renombramos las
-  // ambiguas (ver + editar) para que quede claro que solo van a poder mirar.
-  // El backend igualmente devuelve 403 si intentan enviar; esto es UX.
-  if (!canWrite) {
-    const escrituraPura = new Set([
-      "Iniciar tarea",
-      "Cargar registro",
-      "Cargar registro firmado",
-      "Adjuntar archivo",
-      "Reiniciar tarea",
-    ])
-    const renombrar: Record<string, string> = {
-      "Completar formulario": "Ver formulario",
-      "Ver y firmar": "Ver registro",
-      "Revisar y re-completar": "Ver registro",
-    }
-    let out = items
-      .filter(item => item.kind === "separator" || !escrituraPura.has(item.label))
-      .map(item => {
-        if (item.kind !== "item") return item
-        const nuevo = renombrar[item.label]
-        return nuevo ? { ...item, label: nuevo, variant: "default" as const } : item
-      })
-    // Colapsar separadores duplicados y quitar los que quedaron al principio o final.
-    const collapsed: MenuItem[] = []
-    for (const it of out) {
-      if (it.kind === "separator") {
-        if (collapsed.length === 0) continue
-        if (collapsed[collapsed.length - 1].kind === "separator") continue
-      }
-      collapsed.push(it)
-    }
-    while (collapsed.length > 0 && collapsed[collapsed.length - 1].kind === "separator") {
-      collapsed.pop()
-    }
-    return collapsed
-  }
-
-  return items
-}
-
-function triggerDownload(url: string) {
-  const a = document.createElement("a")
-  a.href = url
-  a.target = "_blank"
-  a.rel = "noreferrer"
-  a.download = ""
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-}
-
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function TareaMeta({ tarea }: { tarea: ElementoTarea }) {
-  const fecha = fechaRelevante(tarea)
-  // En "Firmado físico" (estado 4) no hay firma digital atribuible al usuario asignado;
-  // el operador puede ser distinto al firmante del papel, así que ocultamos el campo.
-  const mostrarAsignado = tarea.asignadoNombre && tarea.estado !== 4
-  // Solo mostramos el badge de origen cuando la fecha mostrada ES la planificada — para
-  // fechas reales (inicio/fin) no aplica el concepto.
-  const mostrarOrigenBadge = fecha?.label === "Planif." && tarea.fechaPlanificada
-  return (
-    <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-      {mostrarAsignado && (
-        <span>Asignado: <span className="font-medium text-gray-700">{tarea.asignadoNombre}</span></span>
-      )}
-      {fecha && (
-        <span className="inline-flex items-center gap-1.5">
-          {fecha.label}: <span className="font-medium text-gray-700">{formatFecha(fecha.value)}</span>
-          {mostrarOrigenBadge && (
-            tarea.fechaPlanificadaOrigen === 1 ? (
-              <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 rounded font-medium" title="Esta fecha fue asignada por el generador automático. Editarla la convierte en Manual.">
-                Generada
-              </span>
-            ) : (
-              <span className="px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 rounded font-medium" title="Esta fecha la cargó un usuario manualmente. El generador no la modificará mientras esté en el futuro.">
-                Manual
-              </span>
-            )
-          )}
-        </span>
-      )}
-      {tarea.horasEstimadas != null && (
-        <span>Hs. est.: <span className="font-medium text-gray-700">{tarea.horasEstimadas}</span></span>
-      )}
-    </div>
-  )
-}
-
 interface GrupoNivel {
   key: string
   nombre: string
@@ -984,83 +370,6 @@ function agruparPorNivel(tareas: ElementoTarea[]): GrupoNivel[] {
   }
   return Array.from(map.values()).sort((a, b) => a.posicion - b.posicion)
 }
-
-function fechaRelevante(t: ElementoTarea): { label: string; value: string } | null {
-  // 1=PENDIENTE → planif.; 2=EN_PROCESO → inicio; 3,4,5,7=completado/aprobado/rechazado/firmado → fin; 6=CANCELADO → fin
-  if (t.estado === 1 && t.fechaPlanificada) return { label: "Planif.", value: t.fechaPlanificada }
-  if (t.estado === 2 && t.fechaInicio)      return { label: "Inicio",  value: t.fechaInicio }
-  if (t.fechaFinalizacion)                  return { label: "Fin",     value: t.fechaFinalizacion }
-  if (t.fechaInicio)                        return { label: "Inicio",  value: t.fechaInicio }
-  if (t.fechaPlanificada)                   return { label: "Planif.", value: t.fechaPlanificada }
-  return null
-}
-
-const ESTADO_ICONS: Record<number, React.ReactNode> = {
-  1: <Clock className="h-3.5 w-3.5" />,
-  2: <Loader2 className="h-3.5 w-3.5" />,
-  3: <CheckCircle2 className="h-3.5 w-3.5" />,
-  4: <CheckCircle2 className="h-3.5 w-3.5" />,
-  5: <XCircle className="h-3.5 w-3.5" />,
-  6: <Ban className="h-3.5 w-3.5" />,
-  7: <CheckCircle2 className="h-3.5 w-3.5" />,
-}
-
-const ESTADO_STYLES: Record<number, string> = {
-  1: "bg-gray-100 text-gray-700",
-  2: "bg-blue-100 text-blue-700",
-  3: "bg-yellow-100 text-yellow-700",
-  4: "bg-teal-100 text-teal-700",   // "Firmado físico" — PDF en papel
-  5: "bg-red-100 text-red-700",
-  6: "bg-gray-50 text-gray-400",
-  7: "bg-emerald-100 text-emerald-700", // "Firmado" — digitalmente
-}
-
-function EstadoBadge({ tarea }: { tarea: ElementoTarea }) {
-  const { estado } = tarea
-  // El backend manda estadoTexto como el nombre crudo del enum (ej. "APROBADO"). En la UI
-  // usamos la etiqueta local de ESTADO_ELEMENTO_TAREA para tener control del wording.
-  const estadoTexto = ESTADO_ELEMENTO_TAREA[estado as keyof typeof ESTADO_ELEMENTO_TAREA] ?? tarea.estadoTexto
-
-  // Cuando el registro está COMPLETADO (3) y existe configuración de firmas, ajustamos
-  // el texto según el contexto del usuario actual: si te falta firmar, lo pedimos;
-  // si ya firmaste, indicamos que se espera a otros; si no sos firmante, mostramos genérico.
-  if (estado === 3 && tarea.firmasTotal > 0) {
-    if (tarea.usuarioPuedeFirmar) {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap bg-amber-100 text-amber-800">
-          <Clock className="h-3.5 w-3.5" />
-          Esperando tu firma
-        </span>
-      )
-    }
-    if (tarea.usuarioYaFirmo) {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-700">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Esperando otras firmas
-        </span>
-      )
-    }
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap bg-yellow-100 text-yellow-700">
-        <Clock className="h-3.5 w-3.5" />
-        Pendiente de firmas
-      </span>
-    )
-  }
-
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${ESTADO_STYLES[estado] ?? "bg-gray-100 text-gray-700"}`}>
-      {ESTADO_ICONS[estado]}
-      {estadoTexto}
-    </span>
-  )
-}
-
-function formatFecha(iso: string) {
-  return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
-}
-
 function DataItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
