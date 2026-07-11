@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
 import { rotateFile } from "@/features/registros/lib/rotate-file"
+import { detectSignatureInFooter } from "@/features/registros/lib/detect-signature"
+import { useGetFirmasConfigEfectivaPorEt } from "@/features/elementos-tareas/api/use-get-firmas-config-efectiva"
 
 // ─── Hook: obtener ElementoTarea por ID ───────────────────────────────────────
 
@@ -88,13 +90,32 @@ function CargarPdfContent() {
   >(null)
   const [confirmarMismatch, setConfirmarMismatch] = useState(false)
 
+  // Estado de detección visual de firma manuscrita. Solo aplica cuando la config
+  // efectiva del proyecto/tarea tiene al menos un slot Fisica.
+  const [firmaState, setFirmaState] = useState<
+    | null
+    | { kind: "detectando" }
+    | { kind: "detectada"; densidadPct: number }
+    | { kind: "no-detectada"; densidadPct: number }
+    | { kind: "no-aplica" }
+  >(null)
+  const [confirmarFirmaNoDetectada, setConfirmarFirmaNoDetectada] = useState(false)
+
+  const { data: firmasConfigRaw } = useGetFirmasConfigEfectivaPorEt(elementoTareaId)
+  const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
+
   // ── Iniciar tarea si está PENDIENTE, luego subir ──────────────────────────
 
   async function handleSubir(forzarOverride: boolean = false) {
     if (!archivo || !tarea) return
-    // Gate: si el QR no coincide y el user no pidió forzar, abrimos el dialog.
+    // Gates de override: QR primero, después firma. En cada uno abrimos el
+    // dialog respectivo si el user no pidió forzar.
     if (qrState?.kind === "mismatch" && !forzarOverride) {
       setConfirmarMismatch(true)
+      return
+    }
+    if (firmaState?.kind === "no-detectada" && !forzarOverride) {
+      setConfirmarFirmaNoDetectada(true)
       return
     }
     setSubiendo("iniciando")
@@ -145,6 +166,11 @@ function CargarPdfContent() {
         `esperado planilla=${planillaIdEsperada} tarea=${elementoTareaIdEsperada} · ` +
         `encontrado planilla=${r.planillaId ?? "?"} tarea=${r.elementoTareaId ?? "?"}`
       form.append("QrOverrideDetalle", detalle.slice(0, 500))
+    }
+    // Auditoría: si aceptó cargar sin firma detectada, mandamos la densidad.
+    if (firmaState?.kind === "no-detectada" && forzarOverride) {
+      const detalle = `densidad tinta ${firmaState.densidadPct.toFixed(2)}% en la zona de firmas`
+      form.append("FirmaOverrideDetalle", detalle.slice(0, 500))
     }
 
     const res = await fetch(`/api/registros/${registroId}/completar/fisico`, {
@@ -206,12 +232,31 @@ function CargarPdfContent() {
     }
     if (!result.esChecklist) {
       setQrState({ kind: "missing", result })
+    } else {
+      const matchea =
+        result.planillaId === planillaIdEsperada &&
+        result.elementoTareaId === elementoTareaIdEsperada
+      setQrState({ kind: matchea ? "ok" : "mismatch", result })
+    }
+
+    // Detección visual de firma manuscrita. Solo si la config del proyecto/tarea
+    // tiene al menos un slot Fisica; sino no aporta y saltamos.
+    if (!hayFirmasFisicas) {
+      setFirmaState({ kind: "no-aplica" })
       return
     }
-    const matchea =
-      result.planillaId === planillaIdEsperada &&
-      result.elementoTareaId === elementoTareaIdEsperada
-    setQrState({ kind: matchea ? "ok" : "mismatch", result })
+    setFirmaState({ kind: "detectando" })
+    const rotacion = result.esChecklist ? result.rotacionDetectada : 0
+    try {
+      const deteccion = await detectSignatureInFooter(f, { rotacion })
+      setFirmaState({
+        kind: deteccion.detected ? "detectada" : "no-detectada",
+        densidadPct: deteccion.densidadPct,
+      })
+    } catch (err) {
+      console.error("[checklist] detectSignatureInFooter threw:", err)
+      setFirmaState({ kind: "no-detectada", densidadPct: 0 })
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -369,7 +414,7 @@ function CargarPdfContent() {
               </div>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setArchivo(null); setQrState(null) }}
+                onClick={(e) => { e.stopPropagation(); setArchivo(null); setQrState(null); setFirmaState(null) }}
                 className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -425,6 +470,34 @@ function CargarPdfContent() {
           </div>
         )}
 
+        {/* Banner de detección visual de firma manuscrita — se activa cuando la
+            config de la tarea tiene al menos un slot Fisica. */}
+        {firmaState?.kind === "detectando" && (
+          <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Verificando firma en el escaneo...
+          </div>
+        )}
+        {firmaState?.kind === "detectada" && (
+          <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            Firma detectada en el escaneo ({firmaState.densidadPct.toFixed(1)}% de tinta en la zona esperada).
+          </div>
+        )}
+        {firmaState?.kind === "no-detectada" && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium">No se detectó firma manuscrita en el escaneo.</p>
+              <p className="text-xs mt-1">
+                Densidad de tinta {firmaState.densidadPct.toFixed(1)}% (muy baja) en la zona
+                esperada. Si estás seguro que la planilla está firmada, podés cargarla igual —
+                queda registrado en las observaciones.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Observaciones */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-700">
@@ -451,7 +524,7 @@ function CargarPdfContent() {
           className="w-full gap-2"
           size="lg"
           onClick={() => handleSubir()}
-          disabled={!archivo || ocupado || qrState?.kind === "reading"}
+          disabled={!archivo || ocupado || qrState?.kind === "reading" || firmaState?.kind === "detectando"}
         >
           {ocupado ? (
             <>
@@ -505,6 +578,49 @@ function CargarPdfContent() {
             <AlertDialogAction
               onClick={() => {
                 setConfirmarMismatch(false)
+                void handleSubir(true)
+              }}
+            >
+              Cargar de todos modos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación cuando no se detectó firma manuscrita en el escaneo. */}
+      <AlertDialog
+        open={confirmarFirmaNoDetectada}
+        onOpenChange={(o) => !o && setConfirmarFirmaNoDetectada(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              No se detectó firma en el escaneo
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              El sistema no encontró tinta suficiente en la zona donde debería
+              estar la firma manuscrita. Si estás seguro que la planilla está firmada
+              correctamente, podés cargarla igual — quedará registrado en las
+              observaciones del registro para revisión posterior.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {firmaState?.kind === "no-detectada" && (
+            <div className="rounded-md border bg-muted/40 p-3 text-xs">
+              Densidad de tinta observada:{" "}
+              <span className="font-mono font-medium">
+                {firmaState.densidadPct.toFixed(2)}%
+              </span>
+              <span className="text-muted-foreground"> (mínima esperada 0.8%)</span>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmarFirmaNoDetectada(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmarFirmaNoDetectada(false)
                 void handleSubir(true)
               }}
             >
