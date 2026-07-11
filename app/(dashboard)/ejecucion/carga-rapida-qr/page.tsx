@@ -20,6 +20,7 @@ import {
   type RegistroResolverResult,
 } from "@/features/registros/api/use-resolver-registro-por-et"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
+import type { ApiError } from "@/lib/api-client"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -42,6 +43,7 @@ type FilaEstado =
   | "resolviendo"
   | "listo"
   | "ya-cargado"
+  | "estado-incompatible"
   | "subiendo"
   | "sincronizado"
   | "error"
@@ -120,8 +122,13 @@ export default function CargaRapidaQrPage() {
           : null,
       })
     } catch (err) {
+      // 409 = conflicto de estado: la tarea no está en un estado que permita la
+      // carga (COMPLETADO/APROBADO/FIRMADO/etc.). No es un error técnico —
+      // marcamos con un badge menos alarmista que el rojo de "error".
+      const apiErr = err as ApiError | undefined
+      const isConflict = apiErr?.status === 409
       actualizar(id, {
-        estado: "error",
+        estado: isConflict ? "estado-incompatible" : "error",
         mensaje: err instanceof Error ? err.message : "No se pudo resolver el registro.",
       })
     }
@@ -398,6 +405,11 @@ function EstadoBadge({
     "ya-cargado": {
       label: "Sobreescribe borrador",
       cls: "bg-violet-100 text-violet-800",
+      icon: <AlertTriangle className="h-3 w-3" />,
+    },
+    "estado-incompatible": {
+      label: "Ya resuelto",
+      cls: "bg-amber-100 text-amber-800",
       icon: <AlertTriangle className="h-3 w-3" />,
     },
     subiendo: {
