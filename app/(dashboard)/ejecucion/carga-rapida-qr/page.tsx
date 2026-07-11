@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import {
   AlertTriangle,
   Check,
@@ -15,12 +15,14 @@ import {
 
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
 import { rotateFile } from "@/features/registros/lib/rotate-file"
+import { detectSignatureInFooter } from "@/features/registros/lib/detect-signature"
 import {
   useResolverRegistroPorEt,
   type RegistroResolverResult,
 } from "@/features/registros/api/use-resolver-registro-por-et"
+import type { FirmasConfigEfectiva } from "@/features/registros/api/use-get-firmas-config-efectiva"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
-import type { ApiError } from "@/lib/api-client"
+import { apiClient, type ApiError } from "@/lib/api-client"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -48,6 +50,13 @@ type FilaEstado =
   | "sincronizado"
   | "error"
 
+/** Resultado de la detección visual de firma. `null` = no corrió todavía. */
+type FirmaDeteccion =
+  | null
+  | { kind: "no-aplica" }
+  | { kind: "detectada"; densidadPct: number }
+  | { kind: "no-detectada"; densidadPct: number }
+
 interface Fila {
   id: string
   archivo: File
@@ -55,6 +64,8 @@ interface Fila {
   qr: QrLeidoResult | null
   resuelto: RegistroResolverResult | null
   mensaje: string | null
+  /** Resultado de la detección visual de firma (solo si el proyecto tiene slots Fisica). */
+  firmaDeteccion: FirmaDeteccion
 }
 
 const nuevoId = () =>
@@ -67,6 +78,12 @@ export default function CargaRapidaQrPage() {
   const [dragActive, setDragActive] = useState(false)
   const resolver = useResolverRegistroPorEt()
 
+  // Cache local del batch: `hayFirmasFisicas` es una propiedad del proyecto/tarea,
+  // no del archivo, así que la primera fila del proyecto la consulta y las demás
+  // reusan el valor. Si el batch tiene 30 archivos de un solo proyecto, hacemos
+  // 1 llamada en vez de 30. Persiste con useRef entre renders.
+  const cacheFirmasFisicas = useRef<Map<string, boolean>>(new Map())
+
   // Estado agregado para el header.
   const total = filas.length
   const listos = filas.filter((f) => f.estado === "listo" || f.estado === "ya-cargado").length
@@ -74,6 +91,13 @@ export default function CargaRapidaQrPage() {
   const conError = filas.filter(
     (f) =>
       f.estado === "sin-qr" || f.estado === "qr-invalido" || f.estado === "error",
+  ).length
+  // Warning secundario: filas listas pero sin firma detectada. No bloquean —
+  // se suben con FirmaOverrideDetalle y queda auditado en observaciones.
+  const sinFirmaDetectada = filas.filter(
+    (f) =>
+      (f.estado === "listo" || f.estado === "ya-cargado")
+      && f.firmaDeteccion?.kind === "no-detectada",
   ).length
   const puedeSubirTodo =
     listos > 0 && filas.every((f) => f.estado !== "subiendo" && f.estado !== "resolviendo")
@@ -89,6 +113,7 @@ export default function CargaRapidaQrPage() {
       qr: null,
       resuelto: null,
       mensaje: null,
+      firmaDeteccion: null,
     }))
     setFilas((prev) => [...prev, ...nuevas])
     for (const fila of nuevas) {
@@ -114,12 +139,25 @@ export default function CargaRapidaQrPage() {
     actualizar(id, { estado: "resolviendo", qr })
     try {
       const res = await resolver.mutateAsync(qr.elementoTareaId!)
+      const estadoBase: FilaEstado = res.data.registroYaExistia ? "ya-cargado" : "listo"
+      const mensajeBase = res.data.registroYaExistia
+        ? "Ya había un borrador — al subir se sobrescribe."
+        : null
+
+      // Detección visual de firma. Se activa solo si el proyecto/tarea tiene al
+      // menos un slot Fisica configurado. Cacheamos el flag por proyectoId para
+      // no consultar N veces cuando el batch es del mismo proyecto.
+      const firmaDeteccion = await detectarFirmaSiCorresponde(res.data, archivo, qr)
+      const mensajeFirma =
+        firmaDeteccion?.kind === "no-detectada"
+          ? `Firma no detectada (${firmaDeteccion.densidadPct.toFixed(1)}%) — se registra en observaciones.`
+          : null
+
       actualizar(id, {
-        estado: res.data.registroYaExistia ? "ya-cargado" : "listo",
+        estado: estadoBase,
         resuelto: res.data,
-        mensaje: res.data.registroYaExistia
-          ? "Ya había un borrador — al subir se sobrescribe."
-          : null,
+        firmaDeteccion,
+        mensaje: [mensajeBase, mensajeFirma].filter(Boolean).join(" · ") || null,
       })
     } catch (err) {
       // 409 = conflicto de estado: la tarea no está en un estado que permita la
@@ -146,6 +184,46 @@ export default function CargaRapidaQrPage() {
     setFilas((prev) => prev.filter((f) => f.estado !== "sincronizado"))
   }
 
+  /**
+   * Corre la detección visual de firma sobre el archivo si el proyecto/tarea
+   * tiene al menos un slot `Fisica`. El chequeo de `hayFirmasFisicas` se cachea
+   * por proyecto para el batch entero. Silencioso ante error — devuelve `null`.
+   */
+  async function detectarFirmaSiCorresponde(
+    resuelto: RegistroResolverResult,
+    archivo: File,
+    qr: QrLeidoResult,
+  ): Promise<FirmaDeteccion> {
+    const proyectoId = resuelto.proyectoId
+    let hayFirmasFisicas = cacheFirmasFisicas.current.get(proyectoId)
+    if (hayFirmasFisicas === undefined) {
+      try {
+        const res = await apiClient.get<{ data: FirmasConfigEfectiva }>(
+          `/api/elementos-tareas/${resuelto.elementoTareaId}/firmas-config-efectiva`,
+        )
+        hayFirmasFisicas = res.data.hayFirmasFisicas
+        cacheFirmasFisicas.current.set(proyectoId, hayFirmasFisicas)
+      } catch (err) {
+        console.error("[carga-rapida-qr] firmas-config-efectiva threw:", err)
+        // No romper el flujo — asumimos que no aplica y seguimos.
+        cacheFirmasFisicas.current.set(proyectoId, false)
+        return { kind: "no-aplica" }
+      }
+    }
+    if (!hayFirmasFisicas) return { kind: "no-aplica" }
+    try {
+      const deteccion = await detectSignatureInFooter(archivo, {
+        rotacion: qr.rotacionDetectada,
+      })
+      return deteccion.detected
+        ? { kind: "detectada", densidadPct: deteccion.densidadPct }
+        : { kind: "no-detectada", densidadPct: deteccion.densidadPct }
+    } catch (err) {
+      console.error("[carga-rapida-qr] detectSignatureInFooter threw:", err)
+      return { kind: "no-detectada", densidadPct: 0 }
+    }
+  }
+
   async function subirTodas() {
     // Secuencial: mejor UX (feedback claro por fila) y evita saturar el backend
     // en Azure App Service serverless. Con volumen chico no vale la pena
@@ -161,6 +239,13 @@ export default function CargaRapidaQrPage() {
         const archivoFinal = await rotateFile(fila.archivo, rotacion)
         const fd = new FormData()
         fd.append("Archivo", archivoFinal)
+        // Auditoría de firma no detectada: si la fila tiene ese estado, mandamos
+        // el detalle para que el backend lo agregue a Observaciones. Consistente
+        // con las pantallas individuales (/registros/{id} y /checklist/...).
+        if (fila.firmaDeteccion?.kind === "no-detectada") {
+          const detalle = `densidad tinta ${fila.firmaDeteccion.densidadPct.toFixed(2)}% en la zona de firmas`
+          fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
+        }
         // fetch directo con FormData: no usamos apiClient.post porque fuerza
         // Content-Type=application/json y hace JSON.stringify, lo que rompe el
         // multipart. Con `body: FormData` el browser setea el Content-Type con
@@ -199,11 +284,14 @@ export default function CargaRapidaQrPage() {
       </div>
 
       {/* KPIs simples */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className={`grid grid-cols-2 gap-3 ${sinFirmaDetectada > 0 ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
         <Kpi label="En la lista" value={total} />
         <Kpi label="Listos para subir" value={listos} highlight="blue" />
         <Kpi label="Sincronizados" value={sincronizados} highlight="green" />
         <Kpi label="Con problemas" value={conError} highlight="red" />
+        {sinFirmaDetectada > 0 && (
+          <Kpi label="Sin firma detectada" value={sinFirmaDetectada} highlight="amber" />
+        )}
       </div>
 
       {/* Dropzone */}
@@ -351,7 +439,7 @@ function Kpi({
 }: {
   label: string
   value: number
-  highlight?: "blue" | "red" | "green"
+  highlight?: "blue" | "red" | "green" | "amber"
 }) {
   const cls =
     highlight === "red"
@@ -360,7 +448,9 @@ function Kpi({
         ? "text-emerald-700"
         : highlight === "blue"
           ? "text-blue-700"
-          : "text-gray-900"
+          : highlight === "amber"
+            ? "text-amber-700"
+            : "text-gray-900"
   return (
     <div className="rounded-xl border bg-white p-3">
       <p className="text-xs text-muted-foreground">{label}</p>

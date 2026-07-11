@@ -3,18 +3,7 @@
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, Lock, AlertTriangle, Info } from "lucide-react"
-
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { Save, CheckCircle2, Loader2, Download, PenLine, Clock, Check, Lock } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 
@@ -32,9 +21,10 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
 import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
-import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
-import { rotateFile } from "@/features/registros/lib/rotate-file"
-import { detectSignatureInFooter } from "@/features/registros/lib/detect-signature"
+import {
+  CargaFisicaUploader,
+  type CargaFisicaSubmitParams,
+} from "@/features/registros/components/carga-fisica-uploader"
 import { useGetFirmasConfigEfectiva } from "@/features/registros/api/use-get-firmas-config-efectiva"
 import { useCanWrite } from "@/lib/use-roles"
 
@@ -167,31 +157,6 @@ export default function RegistroFormPage({ params }: PageProps) {
   const modo = userModo ?? defaultModo
   const showToggle = permitirDigital && permitirFisico
 
-  const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
-  // Estado de validación del QR del archivo físico. `null` = todavía no se
-  // procesó (el user no eligió archivo). Cualquier otro estado bloquea o afecta
-  // la UI del uploader según se describe abajo.
-  const [qrState, setQrState] = useState<
-    | null
-    | { kind: "reading" }
-    | { kind: "ok"; result: QrLeidoResult }
-    | { kind: "mismatch"; result: QrLeidoResult }
-    | { kind: "missing"; result: QrLeidoResult }
-  >(null)
-  const [confirmarMismatch, setConfirmarMismatch] = useState(false)
-
-  // Detección visual de firma manuscrita. Se ejecuta solo si el registro tiene
-  // slots Fisica configurados. Si no se detecta firma, warning permisivo:
-  // el user puede cargar de todos modos y queda auditado en Observaciones.
-  const [firmaState, setFirmaState] = useState<
-    | null
-    | { kind: "detectando" }
-    | { kind: "detectada"; densidadPct: number }
-    | { kind: "no-detectada"; densidadPct: number }
-    | { kind: "no-aplica" }
-  >(null)
-  const [confirmarFirmaNoDetectada, setConfirmarFirmaNoDetectada] = useState(false)
-
   const { data: firmasConfigRaw } = useGetFirmasConfigEfectiva(registroId)
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
 
@@ -311,72 +276,6 @@ export default function RegistroFormPage({ params }: PageProps) {
     return Object.keys(newErrors).length === 0
   }
 
-  // Lee el QR del archivo elegido y actualiza el estado del uploader. Cuando
-  // el QR coincide con este registro (esChecklist + ids iguales), el submit
-  // corre sin fricción. Si no coincide, marcamos `mismatch` y el submit exige
-  // confirmación explícita del user antes de subir con override registrado.
-  // Si el QR está ausente / ilegible → `missing`: se avisa pero no se bloquea
-  // (backward-compat con papel viejo y fotos de celular).
-  async function handleSeleccionarFisico(file: File | null) {
-    setArchivoFisico(file)
-    setQrState(file ? { kind: "reading" } : null)
-    setFirmaState(null)
-    if (!file) return
-
-    // Defensivo: si `readQrFromFile` tira excepción no manejada (worker pdfjs no
-    // carga, PDF cifrado, etc.), no queremos que el estado se quede pegado en
-    // "reading" y el user pierda el feedback. Caemos a `missing` con el error.
-    let result: QrLeidoResult
-    try {
-      result = await readQrFromFile(file)
-    } catch (err) {
-      console.error("[handleSeleccionarFisico] readQrFromFile threw:", err)
-      const errMsg = err instanceof Error ? err.message : "Error al leer el QR."
-      result = {
-        qrEncontrado: false,
-        esChecklist: false,
-        planillaId: null,
-        elementoTareaId: null,
-        contenidoQr: null,
-        error: errMsg,
-        rotacionDetectada: 0,
-      }
-    }
-
-    if (!result.esChecklist) {
-      setQrState({ kind: "missing", result })
-    } else {
-      // El registro conoce el `elementoTareaId` y el `planillaId` que le corresponden.
-      // Comparamos case-insensitive porque el QR viene lowercased pero la API tira
-      // guids con casing mixto en algunos endpoints.
-      const esperadoPlanilla = (registro?.planillaId ?? "").toLowerCase()
-      const esperadoElementoTarea = (registro?.elementoTareaId ?? "").toLowerCase()
-      const matchea =
-        result.planillaId === esperadoPlanilla &&
-        result.elementoTareaId === esperadoElementoTarea
-      setQrState({ kind: matchea ? "ok" : "mismatch", result })
-    }
-
-    // Detección de firma: solo si el registro tiene slots Fisica configurados.
-    // Corre en paralelo — no bloqueamos el flujo si tarda.
-    if (!hayFirmasFisicas) {
-      setFirmaState({ kind: "no-aplica" })
-      return
-    }
-    setFirmaState({ kind: "detectando" })
-    const rotacion = result.esChecklist ? result.rotacionDetectada : 0
-    try {
-      const deteccion = await detectSignatureInFooter(file, { rotacion })
-      setFirmaState({
-        kind: deteccion.detected ? "detectada" : "no-detectada",
-        densidadPct: deteccion.densidadPct,
-      })
-    } catch (err) {
-      console.error("[handleSeleccionarFisico] detectSignatureInFooter threw:", err)
-      setFirmaState({ kind: "no-detectada", densidadPct: 0 })
-    }
-  }
-
   // Extrae la fecha del próximo ciclo del response de completar/firmar, si el
   // backend disparó el generador de preservación. Retorna null cuando no
   // corresponde (registro no era de preservación, flag off, elemento retirado).
@@ -397,47 +296,15 @@ export default function RegistroFormPage({ params }: PageProps) {
     else router.back()
   }
 
-  // El submit se puede invocar en dos flujos:
-  //   1) Click en "Subir y completar" → sin override; si hay mismatch/firma no
-  //      detectada, abrimos el dialog correspondiente.
-  //   2) Confirmación desde el dialog → con `forzarOverride=true`, salteamos el gate.
-  async function handleSubmitFisico(forzarOverride: boolean = false) {
-    if (!archivoFisico) return
-    if (qrState?.kind === "mismatch" && !forzarOverride) {
-      setConfirmarMismatch(true)
-      return
-    }
-    if (firmaState?.kind === "no-detectada" && !forzarOverride) {
-      setConfirmarFirmaNoDetectada(true)
-      return
-    }
-    // Capa 2: si el QR se leyó rotado (imagen o PDF boca abajo/de costado),
-    // rotamos el archivo antes de subirlo. `rotateFile` es no-op cuando el
-    // ángulo es 0 y silencioso ante error → siempre devuelve un File válido.
-    const rotacion =
-      (qrState?.kind === "ok" || qrState?.kind === "mismatch") && qrState.result
-        ? qrState.result.rotacionDetectada
-        : 0
-    const archivoFinal = await rotateFile(archivoFisico, rotacion)
-
+  // Callback que le pasamos al <CargaFisicaUploader>. Los gates (QR mismatch,
+  // firma no detectada) y la rotación pre-subida los maneja el componente; acá
+  // solo armamos el FormData, mandamos y manejamos el response.
+  async function handleSubmitFisico(params: CargaFisicaSubmitParams) {
     const fd = new FormData()
-    fd.append("Archivo", archivoFinal)
+    fd.append("Archivo", params.archivoFinal)
     if (observaciones) fd.append("Observaciones", observaciones)
-    // Auditoría: si el user aceptó cargar con QR no coincidente, mandamos el
-    // detalle al backend (esperado vs encontrado) para que quede en Observaciones.
-    if (qrState?.kind === "mismatch" && forzarOverride) {
-      const r = qrState.result
-      const detalle =
-        `esperado planilla=${registro?.planillaId ?? "?"} tarea=${registro?.elementoTareaId ?? "?"} · ` +
-        `encontrado planilla=${r.planillaId ?? "?"} tarea=${r.elementoTareaId ?? "?"}`
-      fd.append("QrOverrideDetalle", detalle.slice(0, 500))
-    }
-    // Auditoría: si el user forzó carga sin firma detectada, mandamos la densidad
-    // observada para dejar constancia de cuán baja fue.
-    if (firmaState?.kind === "no-detectada" && forzarOverride) {
-      const detalle = `densidad tinta ${firmaState.densidadPct.toFixed(2)}% en la zona de firmas`
-      fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
-    }
+    if (params.qrOverrideDetalle) fd.append("QrOverrideDetalle", params.qrOverrideDetalle)
+    if (params.firmaOverrideDetalle) fd.append("FirmaOverrideDetalle", params.firmaOverrideDetalle)
     const res = await completarFisico.mutateAsync(fd)
     const fecha = extraerFechaProximoCiclo(res)
     if (fecha) setProximoCicloFecha(fecha)
@@ -545,97 +412,22 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── Modo PDF físico ── */}
+      {/* ── Modo PDF físico ──
+          Todo el flow (drop zone, chequeos QR, detección firma, dialogs, rotación)
+          vive en <CargaFisicaUploader>. Este componente le entrega el archivo listo
+          y los detalles de override para auditoría a través del callback onSubmit. */}
       {modo === "fisico" && !isReadOnly && permitirFisico && (
-        <div className="rounded-xl border bg-white p-6 space-y-4">
-          <h2 className="font-semibold text-gray-800">Cargar planilla física escaneada</h2>
-          <p className="text-sm text-muted-foreground">
-            Adjuntá el archivo PDF o imagen (JPG/PNG) de la planilla completada a mano.
-          </p>
-
-          <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-            <FileUp className="h-8 w-8 text-gray-400 mb-2" />
-            <span className="text-sm font-medium text-gray-700">
-              {archivoFisico ? archivoFisico.name : "Seleccioná o arrastrá el archivo aquí"}
-            </span>
-            <span className="text-xs text-muted-foreground mt-1">PDF, JPG o PNG · máx. 20 MB</span>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              className="sr-only"
-              onChange={(e) => handleSeleccionarFisico(e.target.files?.[0] ?? null)}
-            />
-          </label>
-
-          {/* Banner del estado del QR — el frontend decodifica el QR de la
-              primera página del PDF (o del bitmap si es imagen) y compara contra
-              el registro. Ver features/registros/lib/read-qr.ts. */}
-          {qrState?.kind === "reading" && (
-            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Verificando QR del archivo...
-            </div>
-          )}
-          {qrState?.kind === "ok" && (
-            <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              QR verificado — el archivo corresponde a este registro.
-            </div>
-          )}
-          {qrState?.kind === "mismatch" && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-medium">El QR del archivo NO coincide con este registro.</p>
-                <p className="text-xs mt-1">
-                  El QR apunta a otra planilla o tarea. Si estás seguro, podés cargarlo de
-                  todos modos — quedará registrado en las observaciones.
-                </p>
-              </div>
-            </div>
-          )}
-          {qrState?.kind === "missing" && (
-            <div className="flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-              <Info className="h-4 w-4 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                No se detectó QR de checklist en el archivo. Verificá que corresponda a este
-                registro antes de cargarlo.
-                {qrState.result.error && (
-                  <p className="text-[11px] mt-1 opacity-80">Detalle: {qrState.result.error}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Detección visual de firma manuscrita — sólo cuando el registro
-              tiene slots Fisica configurados. Densidad de tinta en la zona de
-              firmas de la última página vs umbral. */}
-          {firmaState?.kind === "detectando" && (
-            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Verificando firma en el escaneo...
-            </div>
-          )}
-          {firmaState?.kind === "detectada" && (
-            <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              Firma detectada en el escaneo ({firmaState.densidadPct.toFixed(1)}% de tinta en la zona esperada).
-            </div>
-          )}
-          {firmaState?.kind === "no-detectada" && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-medium">No se detectó firma manuscrita en el escaneo.</p>
-                <p className="text-xs mt-1">
-                  Densidad de tinta {firmaState.densidadPct.toFixed(1)}% (muy baja) en la zona
-                  esperada. Si estás seguro que la planilla está firmada, podés cargarla de todos
-                  modos — se registra en las observaciones.
-                </p>
-              </div>
-            </div>
-          )}
-
+        <CargaFisicaUploader
+          esperadoPlanillaId={(registro.planillaId ?? "").toLowerCase()}
+          esperadoElementoTareaId={(registro.elementoTareaId ?? "").toLowerCase()}
+          hayFirmasFisicas={hayFirmasFisicas}
+          onSubmit={handleSubmitFisico}
+          isSubmitting={isSaving}
+          submitLabel="Subir y completar"
+          submittingLabel="Subiendo..."
+          titulo="Cargar planilla física escaneada"
+          descripcion="Adjuntá el archivo PDF o imagen (JPG/PNG) de la planilla completada a mano."
+        >
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
             <Textarea
@@ -645,108 +437,8 @@ export default function RegistroFormPage({ params }: PageProps) {
               rows={3}
             />
           </div>
-
-          <Button
-            onClick={() => handleSubmitFisico()}
-            disabled={!archivoFisico || isSaving || qrState?.kind === "reading" || firmaState?.kind === "detectando"}
-            className="gap-2"
-          >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Subir y completar
-          </Button>
-        </div>
+        </CargaFisicaUploader>
       )}
-
-      {/* Confirmación cuando el QR del archivo no coincide con este registro.
-          El user puede cargar igual — el detalle queda en Observaciones para auditoría. */}
-      <AlertDialog
-        open={confirmarMismatch}
-        onOpenChange={(o) => !o && setConfirmarMismatch(false)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              El QR no coincide con este registro
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              El QR del archivo pertenece a otra planilla o tarea. Si continuás, se cargará
-              de todos modos y quedará marcado automáticamente en las observaciones del
-              registro para auditoría.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {qrState?.kind === "mismatch" && (
-            <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1">
-              <p>
-                <span className="text-muted-foreground">Esperado:</span>{" "}
-                <span className="font-mono">planilla {registro.planillaId ?? "—"}</span> /{" "}
-                <span className="font-mono">tarea {registro.elementoTareaId ?? "—"}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Encontrado:</span>{" "}
-                <span className="font-mono">planilla {qrState.result.planillaId ?? "—"}</span> /{" "}
-                <span className="font-mono">tarea {qrState.result.elementoTareaId ?? "—"}</span>
-              </p>
-            </div>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmarMismatch(false)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setConfirmarMismatch(false)
-                void handleSubmitFisico(true)
-              }}
-            >
-              Cargar de todos modos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Confirmación cuando no se detectó firma manuscrita en el escaneo. */}
-      <AlertDialog
-        open={confirmarFirmaNoDetectada}
-        onOpenChange={(o) => !o && setConfirmarFirmaNoDetectada(false)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              No se detectó firma en el escaneo
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              El sistema no encontró tinta suficiente en la zona donde debería
-              estar la firma manuscrita. Si estás seguro que la planilla está firmada
-              correctamente, podés cargarla igual — quedará registrado en las
-              observaciones del registro para revisión posterior.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {firmaState?.kind === "no-detectada" && (
-            <div className="rounded-md border bg-muted/40 p-3 text-xs">
-              Densidad de tinta observada:{" "}
-              <span className="font-mono font-medium">
-                {firmaState.densidadPct.toFixed(2)}%
-              </span>
-              <span className="text-muted-foreground"> (mínima esperada 0.8%)</span>
-            </div>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmarFirmaNoDetectada(false)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setConfirmarFirmaNoDetectada(false)
-                void handleSubmitFisico(true)
-              }}
-            >
-              Cargar de todos modos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* ── Observaciones del registro físico (read-only) ──
           El form digital ya muestra observaciones dentro de su card, pero en flujo físico
