@@ -55,9 +55,19 @@ export const columns: ColumnDef<Nivel>[] = [
   {
     accessorKey: "nombre",
     header: "Nombre",
-    cell: ({ row }) => (
-      <span className="font-medium">{row.original.nombre}</span>
-    ),
+    cell: ({ row }) => {
+      const color = row.original.color
+      return (
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block h-3 w-3 rounded-full border border-gray-200"
+            style={{ backgroundColor: color || "#e5e7eb" }}
+            aria-label={`Color ${color ?? "sin definir"}`}
+          />
+          <span className="font-medium">{row.original.nombre}</span>
+        </div>
+      )
+    },
   },
   {
     id: "actions",

@@ -8,6 +8,7 @@ import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/ap
 import { useIniciarTarea } from "@/features/elementos-tareas/api/use-iniciar-tarea"
 import { useReiniciarTarea } from "@/features/elementos-tareas/api/use-reiniciar-tarea"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
+import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
 import { useDownloadProcedimiento } from "@/features/procedimientos/api/use-download-procedimiento"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
@@ -96,6 +97,15 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   // en el Set. Reset al cambiar de elemento — se maneja con `key` en el sheet
   // de nivel superior; acá alcanza con setState local.
   const [nivelesSel, setNivelesSel] = useState<Set<string>>(new Set())
+
+  // Mapa nivelId → color para los chips y encabezados. Se consulta el catálogo
+  // global de niveles porque el ElementoTareaDTO trae nivelNombre / nivelPosicion
+  // pero no el color. Cached por react-query.
+  const { data: nivelesData } = useGetNivelesSelect()
+  const nivelColorPorId = new Map<string, string>()
+  for (const n of nivelesData?.data ?? []) {
+    if (n.color) nivelColorPorId.set(n.id, n.color)
+  }
   const toggleNivel = (key: string) => {
     setNivelesSel((prev) => {
       const next = new Set(prev)
@@ -260,20 +270,27 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
                       <span className="text-muted-foreground mr-1">Nivel:</span>
                       {gruposTodos.map((g) => {
                         const activo = nivelesSel.has(g.key)
+                        const color = nivelColorPorId.get(g.key) ?? "#6b7280"
                         return (
                           <button
                             key={g.key}
                             type="button"
                             onClick={() => toggleNivel(g.key)}
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer ${
+                            className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer"
+                            style={
                               activo
-                                ? "bg-blue-50 text-blue-700 border-blue-300"
-                                : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"
-                            }`}
+                                ? { backgroundColor: `${color}22`, color, borderColor: color }
+                                : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
+                            }
                             title={g.nombre}
                           >
+                            <span
+                              className="h-1.5 w-1.5 rounded-full"
+                              style={{ backgroundColor: color }}
+                              aria-hidden
+                            />
                             {g.nombre}
-                            <span className={activo ? "text-blue-600" : "text-gray-400"}>
+                            <span style={activo ? { color } : undefined} className={activo ? "" : "text-gray-400"}>
                               ({g.tareas.length})
                             </span>
                           </button>
@@ -297,11 +314,20 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
                     </p>
                   ) : (
                     <div className="space-y-4">
-                      {gruposVisibles.map((g) => (
+                      {gruposVisibles.map((g) => {
+                        const color = nivelColorPorId.get(g.key)
+                        return (
                         <div key={g.key} className="space-y-2">
-                          <h4 className="text-xs font-semibold text-gray-500 px-1">
-                            {g.nombre}
-                            <span className="ml-1.5 text-gray-400 font-normal">({g.tareas.length})</span>
+                          <h4 className="text-xs font-semibold text-gray-500 px-1 flex items-center gap-1.5">
+                            {color && (
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: color }}
+                                aria-hidden
+                              />
+                            )}
+                            <span style={color ? { color } : undefined}>{g.nombre}</span>
+                            <span className="text-gray-400 font-normal">({g.tareas.length})</span>
                           </h4>
                           {g.tareas.map((t) => (
                             <TareaCard
@@ -322,7 +348,8 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
                             />
                           ))}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>

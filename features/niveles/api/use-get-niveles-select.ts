@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 
-interface NivelSelectItem { id: string; nombre: string; posicion: number }
+interface NivelSelectItem { id: string; nombre: string; posicion: number; color: string | null }
 interface NivelesResponse { data: NivelSelectItem[] }
 
 /**
