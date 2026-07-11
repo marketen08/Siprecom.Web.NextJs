@@ -20,7 +20,6 @@ import {
   type RegistroResolverResult,
 } from "@/features/registros/api/use-resolver-registro-por-et"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
-import { apiClient } from "@/lib/api-client"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -155,10 +154,18 @@ export default function CargaRapidaQrPage() {
         const archivoFinal = await rotateFile(fila.archivo, rotacion)
         const fd = new FormData()
         fd.append("Archivo", archivoFinal)
-        await apiClient.post(
+        // fetch directo con FormData: no usamos apiClient.post porque fuerza
+        // Content-Type=application/json y hace JSON.stringify, lo que rompe el
+        // multipart. Con `body: FormData` el browser setea el Content-Type con
+        // boundary correctamente.
+        const res = await fetch(
           `/api/registros/${fila.resuelto.registroId}/completar/fisico`,
-          fd as unknown as BodyInit,
+          { method: "POST", body: fd },
         )
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ message: res.statusText }))
+          throw new Error(err.message ?? `Error ${res.status} al subir el archivo`)
+        }
         actualizar(fila.id, { estado: "sincronizado", mensaje: null })
       } catch (err) {
         actualizar(fila.id, {
