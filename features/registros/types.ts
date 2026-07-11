@@ -180,8 +180,10 @@ export interface FirmaIntegridad {
   rolFirmante: string
   fechaFirma: string
   integro: boolean
-  hashPersistido: string
-  hashRecalculado: string
+  hashPersistido: string | null
+  hashRecalculado: string | null
+  /** true si es firma manuscrita (auto-marcada al cargar PDF físico) — no se verifica hash. */
+  esFirmaEnPapel: boolean
 }
 
 export interface IntegridadRegistro {
