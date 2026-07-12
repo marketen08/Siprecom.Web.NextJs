@@ -48,6 +48,8 @@ export interface RegistroDetalle {
   terminalId: string
   estado: string
   esFisico: boolean
+  /** Registro creado vía "Marcar completada sin registro" — no tiene planilla completada. */
+  sinPlanilla: boolean
   fechaInicio: string
   fechaTerminado: string | null
   observaciones: string | null

@@ -4,16 +4,18 @@ import { useRef, useState, type ComponentType } from "react"
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban, BookOpen,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
-  Link2, MoreVertical, Paperclip, PenLine, RotateCcw,
+  Link2, MoreVertical, Paperclip, PenLine, RotateCcw, ClipboardCheck,
 } from "lucide-react"
 
 import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
 import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
 import { useDownloadProcedimiento } from "@/features/procedimientos/api/use-download-procedimiento"
+import { useMarcarCompletadaSinRegistro } from "@/features/elementos-tareas/api/use-marcar-completada-sin-registro"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import { DependenciasSheet } from "@/features/elementos-tareas/components/dependencias-sheet"
 
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +49,8 @@ interface TareaCardProps {
   fisicoPreFirmado: boolean
   permiteAdjuntosProyecto: boolean
   permitirDescargarProcedimientos: boolean
+  /** Habilita la acción "Marcar completada sin registro". Viene del proyecto. */
+  permitirAvanceSinRegistro: boolean
   canWrite: boolean
   /** Prefijo opcional para mostrar arriba del código (ej. "Ciclo #3"). */
   prefijoContexto?: string
@@ -65,12 +69,18 @@ export function TareaCard({
   fisicoPreFirmado,
   permiteAdjuntosProyecto,
   permitirDescargarProcedimientos,
+  permitirAvanceSinRegistro,
   canWrite,
   prefijoContexto,
 }: TareaCardProps) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
   const [dependenciasOpen, setDependenciasOpen] = useState(false)
+  // Dialog para "Marcar completada sin registro" — solo si el proyecto permite.
+  const [marcarSinRegistroOpen, setMarcarSinRegistroOpen] = useState(false)
+  const [observacionSinRegistro, setObservacionSinRegistro] = useState("")
+  const [errorSinRegistro, setErrorSinRegistro] = useState<string | null>(null)
+  const marcarSinRegistroMutation = useMarcarCompletadaSinRegistro()
   const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
   const adjuntoInputRef = useRef<HTMLInputElement>(null)
   const uploadAdjunto = useUploadRegistroArchivo(tarea.registroId ?? "")
@@ -115,6 +125,11 @@ export function TareaCard({
     onDescargarProcedimiento: handleDescargarProcedimiento,
     onRequestReiniciar: () => setReiniciarOpen(true),
     onAbrirDependencias: () => setDependenciasOpen(true),
+    onMarcarSinRegistro: () => {
+      setObservacionSinRegistro("")
+      setErrorSinRegistro(null)
+      setMarcarSinRegistroOpen(true)
+    },
     isIniciando,
     isReiniciando,
     showFirmas,
@@ -126,10 +141,11 @@ export function TareaCard({
     adjuntandoPending: uploadAdjunto.isPending,
     descargandoProcedimientoPending: downloadProcedimiento.isPending,
     permitirDescargarProcedimientos,
+    permitirAvanceSinRegistro,
     canWrite,
   })
 
-  const busy = isIniciando || uploadAdjunto.isPending || downloadProcedimiento.isPending
+  const busy = isIniciando || uploadAdjunto.isPending || downloadProcedimiento.isPending || marcarSinRegistroMutation.isPending
 
   async function handleConfirmReiniciar() {
     try {
@@ -271,6 +287,62 @@ export function TareaCard({
         tareaNombre={tarea.tareaNombre}
         elementoId={tarea.elementoId}
       />
+
+      <AlertDialog open={marcarSinRegistroOpen} onOpenChange={(v) => {
+        if (!marcarSinRegistroMutation.isPending) setMarcarSinRegistroOpen(v)
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Marcar tarea como completada sin registro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La tarea pasará a <strong>completada</strong> sin cargar planilla
+              (física ni digital). Se aplicará la configuración de firmas del
+              proyecto: si tenés rol de firma y firma guardada en tu perfil, se
+              auto-firmarán los slots correspondientes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium text-gray-700">
+              Motivo / observación <span className="text-xs text-muted-foreground">(opcional)</span>
+            </label>
+            <Textarea
+              value={observacionSinRegistro}
+              onChange={(e) => setObservacionSinRegistro(e.target.value)}
+              placeholder="Ej: verificación visual sin planilla asociada."
+              rows={3}
+              disabled={marcarSinRegistroMutation.isPending}
+            />
+            {errorSinRegistro && (
+              <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1 whitespace-pre-line">
+                {errorSinRegistro}
+              </p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={marcarSinRegistroMutation.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async (e) => {
+                e.preventDefault()
+                setErrorSinRegistro(null)
+                try {
+                  await marcarSinRegistroMutation.mutateAsync({
+                    elementoTareaId: tarea.id,
+                    observacion: observacionSinRegistro.trim() || null,
+                  })
+                  setMarcarSinRegistroOpen(false)
+                } catch (err) {
+                  setErrorSinRegistro((err as Error).message ?? "No se pudo marcar la tarea.")
+                }
+              }}
+              disabled={marcarSinRegistroMutation.isPending}
+            >
+              {marcarSinRegistroMutation.isPending ? "Marcando..." : "Marcar completada"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -297,6 +369,7 @@ export function buildTareaMenuItems({
   onAdjuntarArchivo,
   onRequestReiniciar,
   onAbrirDependencias,
+  onMarcarSinRegistro,
   isIniciando,
   isReiniciando,
   showFirmas,
@@ -309,6 +382,7 @@ export function buildTareaMenuItems({
   onDescargarProcedimiento,
   descargandoProcedimientoPending,
   permitirDescargarProcedimientos,
+  permitirAvanceSinRegistro,
   canWrite,
 }: {
   tarea: ElementoTarea
@@ -319,6 +393,7 @@ export function buildTareaMenuItems({
   onDescargarProcedimiento: () => void
   onRequestReiniciar: () => void
   onAbrirDependencias: () => void
+  onMarcarSinRegistro: () => void
   isIniciando: boolean
   isReiniciando: boolean
   showFirmas: boolean
@@ -330,6 +405,7 @@ export function buildTareaMenuItems({
   adjuntandoPending: boolean
   descargandoProcedimientoPending: boolean
   permitirDescargarProcedimientos: boolean
+  permitirAvanceSinRegistro: boolean
   canWrite: boolean
 }): MenuItem[] {
   const items: MenuItem[] = []
@@ -362,6 +438,17 @@ export function buildTareaMenuItems({
           label: cargarRegistroLabel,
           icon: Upload,
           onSelect: () => onCargarPdf(tarea),
+          disabled: isIniciando,
+        })
+      }
+      // "Marcar completada sin registro" — solo desde PENDIENTE. Salta el carga
+      // digital/física; las firmas del proyecto siguen aplicando.
+      if (permitirAvanceSinRegistro) {
+        items.push({
+          kind: "item",
+          label: "Marcar completada sin registro",
+          icon: ClipboardCheck,
+          onSelect: onMarcarSinRegistro,
           disabled: isIniciando,
         })
       }
@@ -496,6 +583,7 @@ export function buildTareaMenuItems({
       "Cargar registro firmado",
       "Adjuntar archivo",
       "Reiniciar tarea",
+      "Marcar completada sin registro",
     ])
     const renombrar: Record<string, string> = {
       "Completar formulario": "Ver formulario",

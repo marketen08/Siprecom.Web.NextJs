@@ -94,6 +94,7 @@ export function ElementoPreservacionSheet({ elementoId, open, onClose }: Props) 
   const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
+  const permitirAvanceSinRegistro = proyecto?.permitirAvanceSinRegistro ?? false
 
   const canWrite = useCanWrite()
 
@@ -200,6 +201,7 @@ export function ElementoPreservacionSheet({ elementoId, open, onClose }: Props) 
                       fisicoPreFirmado={fisicoPreFirmado}
                       permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                       permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+                      permitirAvanceSinRegistro={permitirAvanceSinRegistro}
                       canWrite={canWrite}
                       prefijoContexto={t.cicloNumero > 0 ? `Ciclo #${t.cicloNumero}` : "Ciclo inicial"}
                     />

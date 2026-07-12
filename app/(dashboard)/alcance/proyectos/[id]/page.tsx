@@ -272,7 +272,7 @@ const FLAGS: {
   {
     campo: "PermitirAvanceSinRegistro",
     label: "Avance sin registro",
-    descripcion: "Permite registrar avance de tareas sin completar un registro asociado.",
+    descripcion: "Habilita en el menú de la tarea la acción 'Marcar completada sin registro'. Cierra la tarea sin completar planilla física ni digital; la configuración de firmas del proyecto sigue aplicando. Si el usuario tiene rol de firma en el proyecto y firma guardada en su perfil, esos slots se firman automáticamente.",
   },
   // Nota: PermitirDescargarPlanillas, PermitirDescargarRegistros y PermitirTestFuncional
   // existen en la entidad/DTO pero no gatean ningún comportamiento todavía, así que no se

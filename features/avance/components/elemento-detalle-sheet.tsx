@@ -100,6 +100,7 @@ export function ElementoDetalleSheet({
   // Funcionalidad DESCARGAR_PROCEDIMIENTOS (default true en el catálogo). Cae a false
   // si el proyecto todavía no cargó (conservador — el menú no muestra la acción).
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
+  const permitirAvanceSinRegistro = proyecto?.permitirAvanceSinRegistro ?? false
 
   // Filtro por nivel — chips multi-select. Sin nada seleccionado = mostrar todos.
   // Con al menos un chip activo, solo se muestran los grupos cuya `nivelId` está
@@ -300,6 +301,7 @@ export function ElementoDetalleSheet({
                               fisicoPreFirmado={fisicoPreFirmado}
                               permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                               permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+                              permitirAvanceSinRegistro={permitirAvanceSinRegistro}
                               canWrite={canWrite}
                             />
                           ))}
