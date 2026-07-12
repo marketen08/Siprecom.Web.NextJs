@@ -240,7 +240,7 @@ export default function TareasListadoPage() {
             <label className="text-[11px] text-muted-foreground font-medium">Búsqueda</label>
             <Input
               value={search}
-              placeholder="Tag / nombre…"
+              placeholder="Tag / nombre / código…"
               onChange={(e) => { setSearch(e.target.value); resetFiltrado() }}
               className="h-9 mt-0.5"
             />
