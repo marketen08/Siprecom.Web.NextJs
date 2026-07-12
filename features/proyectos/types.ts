@@ -22,7 +22,8 @@ export interface Proyecto {
   observaciones: string
   permitirAvanceSinRegistro: boolean
   permitirDescargarPlanillas: boolean
-  permitirDescargarProcedimientos: boolean
+  // permitirDescargarProcedimientos y nivelesSecuenciales viven en `funcionalidadesEfectivas`
+  // (claves DESCARGAR_PROCEDIMIENTOS y NIVELES_SECUENCIALES).
   permitirDescargarRegistros: boolean
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean
@@ -33,8 +34,6 @@ export interface Proyecto {
   renderizarFirmasDigitalesEnRecuadro: boolean
   /** Si está en false, ningún registro del proyecto acepta adjuntos. Default true. */
   permiteAdjuntos: boolean
-  /** Si está en true, cada nivel debe iniciar después del fin del nivel anterior (mismo subsistema). */
-  nivelesSecuenciales: boolean
   /** Calendario laboral: lun-vie son siempre laborables. Estos flags habilitan sábado y/o domingo. */
   incluirSabado: boolean
   incluirDomingo: boolean

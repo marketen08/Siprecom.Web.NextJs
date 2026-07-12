@@ -270,23 +270,15 @@ const FLAGS: {
     descripcion: "Permite a los usuarios adjuntar archivos (fotos, PDFs, etc.) a los registros del proyecto. Cada planilla puede vetar individualmente.",
   },
   {
-    campo: "NivelesSecuenciales",
-    label: "Niveles secuenciales",
-    descripcion: "Si está activo, en la planificación por subsistema cada nivel debe iniciar después del fin del nivel anterior. Útil para flujos donde un nivel depende del anterior (precomisionado → comisionado → puesta en marcha).",
-  },
-  {
     campo: "PermitirAvanceSinRegistro",
     label: "Avance sin registro",
     descripcion: "Permite registrar avance de tareas sin completar un registro asociado.",
   },
-  {
-    campo: "PermitirDescargarProcedimientos",
-    label: "Descarga de procedimientos",
-    descripcion: "Habilita la descarga de documentos de procedimientos.",
-  },
   // Nota: PermitirDescargarPlanillas, PermitirDescargarRegistros y PermitirTestFuncional
   // existen en la entidad/DTO pero no gatean ningún comportamiento todavía, así que no se
   // muestran acá. La columna se conserva en la DB por si se reactivan.
+  // NivelesSecuenciales y PermitirDescargarProcedimientos migraron a Funcionalidades
+  // (se toggean en la sección Funcionalidades del mismo tab).
 ]
 
 const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
@@ -295,9 +287,7 @@ const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   RegistrosFisicosPreFirmados:     "registrosFisicosPreFirmados",
   RenderizarFirmasDigitalesEnRecuadro: "renderizarFirmasDigitalesEnRecuadro",
   PermiteAdjuntos:                 "permiteAdjuntos",
-  NivelesSecuenciales:             "nivelesSecuenciales",
   PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
-  PermitirDescargarProcedimientos: "permitirDescargarProcedimientos",
 }
 
 function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
@@ -333,35 +323,42 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
   }
 
   return (
-    <div className="space-y-3 max-w-lg">
-      {FLAGS.map((flag) => {
-        const parentOn = flag.dependeDe ? !!localFlags[flag.dependeDe] : true
-        const disabled = saving !== null || !parentOn
-        return (
-          <div
-            key={flag.campo}
-            className={`flex items-center justify-between gap-4 rounded-lg border bg-white p-4 ${!parentOn ? "opacity-60" : ""}`}
-          >
-            <div className="space-y-0.5 min-w-0">
-              <p className="text-sm font-medium text-gray-900">{flag.label}</p>
-              <p className="text-xs text-muted-foreground">{flag.descripcion}</p>
+    <div className="space-y-6 max-w-lg">
+      {/* Sección Operación — modos de trabajo del proyecto. Estos toggles determinan
+          "cómo trabaja" este proyecto (físico vs digital, adjuntos, etc). */}
+      <section className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Operación</p>
+        {FLAGS.map((flag) => {
+          const parentOn = flag.dependeDe ? !!localFlags[flag.dependeDe] : true
+          const disabled = saving !== null || !parentOn
+          return (
+            <div
+              key={flag.campo}
+              className={`flex items-center justify-between gap-4 rounded-lg border bg-white p-4 ${!parentOn ? "opacity-60" : ""}`}
+            >
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-sm font-medium text-gray-900">{flag.label}</p>
+                <p className="text-xs text-muted-foreground">{flag.descripcion}</p>
+              </div>
+              <div className="shrink-0 flex items-center gap-2">
+                {saving === flag.campo && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+                )}
+                <Toggle
+                  checked={localFlags[flag.campo]}
+                  onChange={(v) => handleToggle(flag.campo, v)}
+                  disabled={disabled}
+                />
+              </div>
             </div>
-            <div className="shrink-0 flex items-center gap-2">
-              {saving === flag.campo && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
-              )}
-              <Toggle
-                checked={localFlags[flag.campo]}
-                onChange={(v) => handleToggle(flag.campo, v)}
-                disabled={disabled}
-              />
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
 
-      <NivelMcSelector proyecto={proyecto} />
+        <NivelMcSelector proyecto={proyecto} />
+      </section>
 
+      {/* Sección Funcionalidades — feature flags del producto. El SuperAdmin puede
+          matarlas globalmente; acá el Admin del proyecto activa/desactiva override. */}
       <FuncionalidadesProyecto proyectoId={proyecto.id} />
     </div>
   )
@@ -444,7 +441,7 @@ function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
   if (isLoading || !data || data.length === 0) return null
 
   return (
-    <div className="space-y-3 pt-2">
+    <section className="space-y-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funcionalidades</p>
       {data.map((f) => {
         // Si el SuperAdmin la apagó globalmente, no se puede activar por proyecto.
@@ -475,7 +472,7 @@ function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
           </div>
         )
       })}
-    </div>
+    </section>
   )
 }
 

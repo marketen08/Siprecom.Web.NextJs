@@ -97,7 +97,9 @@ export function ElementoDetalleSheet({
   const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
   // Descarga de procedimientos: gateada por la config del proyecto. Default false
   // (conservador) hasta que carga el proyecto, así no ofrecemos algo no permitido.
-  const permitirDescargarProcedimientos = proyecto?.permitirDescargarProcedimientos ?? false
+  // Funcionalidad DESCARGAR_PROCEDIMIENTOS (default true en el catálogo). Cae a false
+  // si el proyecto todavía no cargó (conservador — el menú no muestra la acción).
+  const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
 
   // Filtro por nivel — chips multi-select. Sin nada seleccionado = mostrar todos.
   // Con al menos un chip activo, solo se muestran los grupos cuya `nivelId` está

@@ -93,7 +93,7 @@ export function ElementoPreservacionSheet({ elementoId, open, onClose }: Props) 
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
   const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
-  const permitirDescargarProcedimientos = proyecto?.permitirDescargarProcedimientos ?? false
+  const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
 
   const canWrite = useCanWrite()
 

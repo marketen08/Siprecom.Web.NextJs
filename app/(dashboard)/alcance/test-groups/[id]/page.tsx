@@ -297,7 +297,7 @@ function TabTareas({ testGroupId, proyectoId, bloqueado }: { testGroupId: string
   const proyecto = proyectoRaw?.data
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const preFirmado = proyecto?.registrosFisicosPreFirmados ?? false
-  const permitirDescargarProcedimientos = proyecto?.permitirDescargarProcedimientos ?? false
+  const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
 
   return (
     <Card className="p-0 overflow-hidden">
