@@ -61,6 +61,10 @@ function AvanceElementosContent() {
   const sistemaIdParam = searchParams.get("sistemaId") ?? undefined
   const subSistemaIdParam = searchParams.get("subSistemaId") ?? undefined
   const elementoIdParam = searchParams.get("elementoId") ?? undefined
+  // `?preservacion=1` en la URL indica que se debe mostrar el sheet secundario de
+  // preservación del elemento. Deep-linkable desde /ejecucion/preservacion y desde
+  // el banner del sheet principal.
+  const preservacionOpen = searchParams.get("preservacion") === "1"
 
   const [sistemaId, setSistemaId] = useState<string>(sistemaIdParam ?? "")
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam ?? "")
@@ -117,8 +121,26 @@ function AvanceElementosContent() {
     // replace para no contaminar history con cierres manuales del sheet.
     const qs = new URLSearchParams(searchParams.toString())
     qs.delete("elementoId")
+    qs.delete("preservacion")
     const s = qs.toString()
     router.replace(s ? `/ejecucion/elementos?${s}` : "/ejecucion/elementos")
+  }
+
+  // Abre el sheet secundario de preservación — push para que el back del browser
+  // vuelva al sheet principal (sin `preservacion=1`).
+  function handleOpenPreservacion() {
+    const qs = new URLSearchParams(searchParams.toString())
+    qs.set("preservacion", "1")
+    router.push(`/ejecucion/elementos?${qs.toString()}`)
+  }
+
+  // Cierra sólo el sheet secundario: mantiene el elementoId para que el principal
+  // vuelva a mostrarse detrás. Si venís de /ejecucion/preservacion, el back del
+  // browser te devuelve allí.
+  function handleClosePreservacion() {
+    const qs = new URLSearchParams(searchParams.toString())
+    qs.delete("preservacion")
+    router.replace(`/ejecucion/elementos?${qs.toString()}`)
   }
 
   const { data: sistemasRaw } = useGetSistemasSelect()
@@ -634,6 +656,9 @@ function AvanceElementosContent() {
         avance={selectedElemento?.avance ?? null}
         open={!!selectedElemento}
         onClose={handleCloseSheet}
+        preservacionOpen={preservacionOpen}
+        onOpenPreservacion={handleOpenPreservacion}
+        onClosePreservacion={handleClosePreservacion}
       />
 
       <ObtenerPlanillasDialog

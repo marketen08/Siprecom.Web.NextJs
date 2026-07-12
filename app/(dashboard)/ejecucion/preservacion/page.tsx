@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import Link from "next/link"
+import { Suspense, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { CalendarClock, ExternalLink, Loader2 } from "lucide-react"
 
 import { useGetCiclosPreservacion } from "@/features/preservacion/api/use-get-ciclos"
@@ -10,6 +10,7 @@ import {
   ESTADO_ET_LABEL,
   ESTADOS_ABIERTOS,
 } from "@/features/preservacion/types"
+import { ElementoPreservacionSheet } from "@/features/preservacion/components/elemento-preservacion-sheet"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 
 import { Input } from "@/components/ui/input"
@@ -73,7 +74,34 @@ function EstadoBadge({ estado }: { estado: number }) {
 }
 
 export default function PreservacionDashboardPage() {
+  return (
+    <Suspense>
+      <PreservacionDashboardContent />
+    </Suspense>
+  )
+}
+
+function PreservacionDashboardContent() {
   useBreadcrumb([{ label: "Ejecución" }, { label: "Preservación" }])
+
+  // Sheet de preservación embebido en esta página — no hay context switch a la
+  // lista de elementos. `?elementoId=...` en la URL hace deep-link.
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const elementoIdParam = searchParams.get("elementoId")
+
+  function abrirElemento(elementoId: string) {
+    const qs = new URLSearchParams(searchParams.toString())
+    qs.set("elementoId", elementoId)
+    router.push(`/ejecucion/preservacion?${qs.toString()}`)
+  }
+
+  function cerrarSheet() {
+    const qs = new URLSearchParams(searchParams.toString())
+    qs.delete("elementoId")
+    const s = qs.toString()
+    router.replace(s ? `/ejecucion/preservacion?${s}` : "/ejecucion/preservacion")
+  }
 
   const [estado, setEstado] = useState<string>(ALL)
   const [desde, setDesde] = useState<string>("")
@@ -250,13 +278,14 @@ export default function PreservacionDashboardPage() {
                       <EstadoBadge estado={c.estado} />
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
-                      <Link
-                        href={`/ejecucion/elementos?elementoId=${c.elementoId}`}
-                        className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900"
+                      <button
+                        type="button"
+                        onClick={() => abrirElemento(c.elementoId)}
+                        className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 cursor-pointer"
                       >
-                        Ver elemento
+                        Ver preservación
                         <ExternalLink className="h-3 w-3" />
-                      </Link>
+                      </button>
                     </TableCell>
                   </TableRow>
                 )
@@ -265,6 +294,12 @@ export default function PreservacionDashboardPage() {
           </Table>
         )}
       </div>
+
+      <ElementoPreservacionSheet
+        elementoId={elementoIdParam}
+        open={!!elementoIdParam}
+        onClose={cerrarSheet}
+      />
     </div>
   )
 }

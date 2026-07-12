@@ -58,10 +58,12 @@ function agruparPorTarea(tareas: ElementoTarea[]): GrupoTarea[] {
     grupo.ciclos.push(t)
   }
   for (const g of map.values()) {
+    // Descendente: el ciclo más reciente (mayor fecha planificada) primero. El
+    // usuario quiere el próximo trabajo arriba y el histórico hacia abajo.
     g.ciclos.sort((a, b) => {
       const fa = a.fechaPlanificada ?? a.createdAt
       const fb = b.fechaPlanificada ?? b.createdAt
-      return new Date(fa).getTime() - new Date(fb).getTime()
+      return new Date(fb).getTime() - new Date(fa).getTime()
     })
   }
   return Array.from(map.values()).sort((a, b) =>

@@ -35,6 +35,9 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
   // Sheet de tareas del Elemento — el mismo de /ejecucion/elementos. Lo abrimos
   // inline desde "Ver avance del Elemento" en vez de navegar.
   const [avanceOpen, setAvanceOpen] = useState(false)
+  // Sheet secundario de preservación — dentro del visor 3D no exponemos el estado
+  // vía URL (el visor no vive en /ejecucion/elementos). Toggle local.
+  const [preservacionOpen, setPreservacionOpen] = useState(false)
 
   // TAG protagonista: el del Elemento vinculado; si no hay, el detectado en el modelo.
   const tagPrincipal = entidad.elementoTag ?? entidad.tagDetectado ?? null
@@ -150,7 +153,10 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
               elementoId={entidad.elementoId}
               avance={avance}
               open={avanceOpen}
-              onClose={() => setAvanceOpen(false)}
+              onClose={() => { setAvanceOpen(false); setPreservacionOpen(false) }}
+              preservacionOpen={preservacionOpen}
+              onOpenPreservacion={() => setPreservacionOpen(true)}
+              onClosePreservacion={() => setPreservacionOpen(false)}
             />
           </>
         ) : (

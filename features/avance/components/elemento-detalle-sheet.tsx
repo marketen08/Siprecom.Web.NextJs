@@ -38,9 +38,25 @@ interface Props {
   avance: AvanceElementoDTO | null
   open: boolean
   onClose: () => void
+  /**
+   * Estado del sheet secundario de preservación — vive en la URL (`?preservacion=1`).
+   * Cuando está abierto, el sheet principal se oculta para evitar dos sheets
+   * superpuestos.
+   */
+  preservacionOpen: boolean
+  onOpenPreservacion: () => void
+  onClosePreservacion: () => void
 }
 
-export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onClose }: Props) {
+export function ElementoDetalleSheet({
+  elementoId,
+  avance: avanceProp,
+  open,
+  onClose,
+  preservacionOpen,
+  onOpenPreservacion,
+  onClosePreservacion,
+}: Props) {
   const { data: elementoRaw, isLoading: loadingElemento } = useGetElemento(elementoId)
   const { data: tareasRaw, isLoading: loadingTareas } = useGetElementosTareasPorElemento(elementoId)
   // Cuando el sheet se abre desde la lista, `avanceProp` viene con la fila. Cuando se
@@ -69,8 +85,6 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   // elemento acumula ciclos. Se accede al secundario desde el banner.
   const tareas = tareasRaw2.filter((t) => !t.esPreservacion)
   const tareasPreservacion = tareasRaw2.filter((t) => t.esPreservacion)
-
-  const [preservacionOpen, setPreservacionOpen] = useState(false)
 
   const { data: proyectoRaw } = useGetProyecto(elemento?.proyectoId ?? null)
   const proyecto = proyectoRaw?.data
@@ -110,8 +124,13 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
   const limpiarNiveles = () => setNivelesSel(new Set())
 
 
+  // Cuando el sheet secundario de preservación está abierto, ocultamos el principal
+  // para evitar dos sheets superpuestos. El componente sigue montado (mantiene el
+  // fetch de tareas cacheado); solo el `<Sheet>` se cierra visualmente.
+  const principalOpen = open && !preservacionOpen
+
   return (
-    <Sheet open={open} onOpenChange={onClose}>
+    <Sheet open={principalOpen} onOpenChange={(v) => { if (!v) onClose() }}>
       <SheetContent className="w-full sm:max-w-4xl! overflow-y-auto" side="right">
         <SheetHeader className="pb-2">
           {loadingElemento ? (
@@ -297,7 +316,7 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
           {tareasPreservacion.length > 0 && (
             <button
               type="button"
-              onClick={() => setPreservacionOpen(true)}
+              onClick={onOpenPreservacion}
               className="w-full flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-left hover:bg-blue-100 transition-colors cursor-pointer"
             >
               <CalendarClock className="h-5 w-5 text-blue-700 shrink-0" />
@@ -331,8 +350,8 @@ export function ElementoDetalleSheet({ elementoId, avance: avanceProp, open, onC
 
       <ElementoPreservacionSheet
         elementoId={elementoId}
-        open={preservacionOpen}
-        onClose={() => setPreservacionOpen(false)}
+        open={open && preservacionOpen}
+        onClose={onClosePreservacion}
       />
     </Sheet>
   )
