@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 
@@ -13,6 +13,48 @@ export function usePlanillasReferencias() {
   return useQuery({
     queryKey: ["planillas", "uso-referencias"],
     queryFn: () => apiClient.get<PlanillasReferencias>("/api/planillas/uso-referencias"),
+  })
+}
+
+// ─── LIMPIEZA DE PLANILLAS NO USADAS ────────────────────────────────────────
+
+export interface PlanillaNoUsada {
+  id: string
+  codigo: string
+  version: string
+  nombre: string
+}
+
+export interface PlanillasNoUsadasPreview {
+  planillas: PlanillaNoUsada[]
+  camposHuerfanosCount: number
+}
+
+/**
+ * Planillas sin referencias (ni Tarea ni Registro) + cuántos Campos quedarían
+ * huérfanos al eliminarlas. SuperAdmin. Preview idempotente.
+ */
+export function usePlanillasNoUsadasPreview() {
+  return useQuery({
+    queryKey: ["planillas", "no-usadas", "preview"],
+    queryFn: () => apiClient.get<PlanillasNoUsadasPreview>("/api/planillas/no-usadas/preview"),
+  })
+}
+
+export interface PlanillasNoUsadasEliminarResultado {
+  planillasEliminadas: number
+  camposEliminados: number
+}
+
+/** Aplica la limpieza: hard-delete planillas no referenciadas + campos huérfanos. */
+export function useEliminarPlanillasNoUsadas() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<PlanillasNoUsadasEliminarResultado>("/api/planillas/no-usadas/eliminar", {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["planillas"] })
+    },
   })
 }
 
@@ -71,8 +113,6 @@ export function useImportPlanillaPreview() {
       apiClient.post<ApiResponse<PlanillaImportPreview>>("/api/planillas/import/preview", data),
   })
 }
-
-import { useQueryClient } from "@tanstack/react-query"
 
 export function useImportPlanillaApply() {
   const qc = useQueryClient()

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Loader2, Download, Upload, AlertTriangle, CheckCircle2, FileJson } from "lucide-react"
+import { Loader2, Download, Upload, AlertTriangle, CheckCircle2, FileJson, Trash2 } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,8 @@ import {
   useImportPlanillasAllPreview,
   useImportPlanillasAllApply,
   usePlanillasReferencias,
+  usePlanillasNoUsadasPreview,
+  useEliminarPlanillasNoUsadas,
   type ImportModo,
 } from "@/features/planillas/api/use-import-export"
 
@@ -112,6 +114,9 @@ export default function PlanillasExportImportPage() {
           <Download className="h-4 w-4" /> Exportar todas las planillas
         </Button>
       </Card>
+
+      {/* Limpieza de planillas no usadas */}
+      <PlanillasNoUsadasCard />
 
       {/* Import */}
       <Card className="p-6 space-y-4">
@@ -347,5 +352,126 @@ export default function PlanillasExportImportPage() {
         )}
       </Card>
     </div>
+  )
+}
+
+// ─── Limpieza de planillas no usadas (cross-tenant, SuperAdmin) ─────────────
+
+function PlanillasNoUsadasCard() {
+  const [expandido, setExpandido] = useState(false)
+  const previewQuery = usePlanillasNoUsadasPreview()
+  const eliminarMut = useEliminarPlanillasNoUsadas()
+
+  const preview = previewQuery.data
+  const cantPlanillas = preview?.planillas.length ?? 0
+  const cantCampos = preview?.camposHuerfanosCount ?? 0
+  const hayAlgo = cantPlanillas > 0 || cantCampos > 0
+  const resultado = eliminarMut.data
+
+  return (
+    <Card className="p-6 space-y-3">
+      <div>
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+          <Trash2 className="h-4 w-4 text-red-600" />
+          Limpiar planillas no usadas
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Elimina las planillas que no están referenciadas por ninguna Tarea ni Registro
+          en ningún proyecto. Después limpia los campos huérfanos que queden.
+        </p>
+      </div>
+
+      {previewQuery.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Analizando…
+        </div>
+      ) : previewQuery.isError ? (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+          No se pudo obtener el preview.
+        </div>
+      ) : (
+        <>
+          <div className="rounded-md border bg-gray-50 p-3 text-sm">
+            <p>
+              <strong className="text-gray-900">{cantPlanillas}</strong> planilla(s) sin uso
+              <span className="text-muted-foreground"> · </span>
+              <strong className="text-gray-900">{cantCampos}</strong> campo(s) que quedarían huérfanos
+            </p>
+            {cantPlanillas > 0 && (
+              <button
+                type="button"
+                onClick={() => setExpandido((v) => !v)}
+                className="mt-1 text-xs text-blue-700 hover:text-blue-900 cursor-pointer"
+              >
+                {expandido ? "Ocultar detalle" : "Ver detalle"}
+              </button>
+            )}
+            {expandido && cantPlanillas > 0 && (
+              <ul className="mt-2 max-h-56 overflow-auto text-xs text-gray-700 space-y-0.5">
+                {preview!.planillas.map((p) => (
+                  <li key={p.id} className="font-mono">
+                    <span className="text-blue-700 font-semibold">{p.codigo}</span>
+                    <span className="text-muted-foreground"> v{p.version}</span>
+                    <span className="text-muted-foreground"> · </span>
+                    <span className="font-sans">{p.nombre}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {hayAlgo ? (
+              <ConfirmActionDialog
+                trigger={
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar {cantPlanillas} planilla(s) + {cantCampos} campo(s)
+                  </>
+                }
+                triggerClassName="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors cursor-pointer"
+                title="¿Eliminar planillas no usadas?"
+                description={
+                  <>
+                    Vas a borrar <strong>{cantPlanillas}</strong> planilla(s) y{" "}
+                    <strong>{cantCampos}</strong> campo(s) huérfano(s). Esta acción no se puede
+                    deshacer.
+                  </>
+                }
+                confirmText="Eliminar"
+                pendingText="Eliminando..."
+                variant="destructive"
+                onConfirm={async () => {
+                  await eliminarMut.mutateAsync()
+                  await previewQuery.refetch()
+                  setExpandido(false)
+                }}
+              />
+            ) : (
+              <Button variant="outline" disabled className="gap-2">
+                <Trash2 className="h-4 w-4" /> Nada para eliminar
+              </Button>
+            )}
+            {eliminarMut.isPending && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
+          </div>
+
+          {resultado && !eliminarMut.isPending && (
+            <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md p-3 flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Se eliminaron <strong>{resultado.planillasEliminadas}</strong> planilla(s) y{" "}
+                <strong>{resultado.camposEliminados}</strong> campo(s).
+              </span>
+            </div>
+          )}
+          {eliminarMut.isError && (
+            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{(eliminarMut.error as Error)?.message ?? "No se pudo eliminar."}</span>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
   )
 }
