@@ -58,6 +58,37 @@ export function useEliminarPlanillasNoUsadas() {
   })
 }
 
+// ─── RESTAURAR PLANILLAS SOFT-DELETED ───────────────────────────────────────
+
+export interface PlanillaEliminada {
+  id: string
+  codigo: string
+  version: string
+  nombre: string
+  updatedAt: string
+  updatedByNombre: string | null
+}
+
+/** Lista todas las planillas soft-deleted, cross-tenant. SuperAdmin. */
+export function usePlanillasEliminadas() {
+  return useQuery({
+    queryKey: ["planillas", "eliminadas"],
+    queryFn: () => apiClient.get<PlanillaEliminada[]>("/api/planillas/eliminadas"),
+  })
+}
+
+/** Restaura una planilla soft-deleted (IsActive=true). */
+export function useReactivarPlanilla() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.patch<{ message: string; id: string }>(`/api/planillas/${id}/reactivar`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["planillas"] })
+    },
+  })
+}
+
 export interface PlanillaImportPreview {
   codigoOriginal: string
   codigoAplicar: string

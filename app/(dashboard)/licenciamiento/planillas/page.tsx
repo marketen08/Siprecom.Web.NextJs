@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Loader2, Download, Upload, AlertTriangle, CheckCircle2, FileJson, Trash2 } from "lucide-react"
+import { Loader2, Download, Upload, AlertTriangle, CheckCircle2, FileJson, Trash2, RotateCcw } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,8 @@ import {
   usePlanillasReferencias,
   usePlanillasNoUsadasPreview,
   useEliminarPlanillasNoUsadas,
+  usePlanillasEliminadas,
+  useReactivarPlanilla,
   type ImportModo,
 } from "@/features/planillas/api/use-import-export"
 
@@ -117,6 +119,9 @@ export default function PlanillasExportImportPage() {
 
       {/* Limpieza de planillas no usadas */}
       <PlanillasNoUsadasCard />
+
+      {/* Restauración de planillas soft-deleted */}
+      <PlanillasEliminadasCard />
 
       {/* Import */}
       <Card className="p-6 space-y-4">
@@ -468,6 +473,139 @@ function PlanillasNoUsadasCard() {
             <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{(eliminarMut.error as Error)?.message ?? "No se pudo eliminar."}</span>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  )
+}
+
+// ─── Restaurar planillas soft-deleted (cross-tenant, SuperAdmin) ────────────
+
+function PlanillasEliminadasCard() {
+  const [expandido, setExpandido] = useState(false)
+  const eliminadasQuery = usePlanillasEliminadas()
+  const reactivarMut = useReactivarPlanilla()
+
+  const eliminadas = eliminadasQuery.data ?? []
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [errorInline, setErrorInline] = useState<string | null>(null)
+  const [okId, setOkId] = useState<string | null>(null)
+
+  async function handleReactivar(id: string) {
+    setPendingId(id)
+    setErrorInline(null)
+    try {
+      await reactivarMut.mutateAsync(id)
+      setOkId(id)
+      await eliminadasQuery.refetch()
+      setTimeout(() => setOkId(null), 2000)
+    } catch (err) {
+      setErrorInline((err as Error)?.message ?? "No se pudo restaurar.")
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  return (
+    <Card className="p-6 space-y-3">
+      <div>
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+          <RotateCcw className="h-4 w-4 text-blue-700" />
+          Restaurar planillas eliminadas
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Planillas dadas de baja con soft-delete (siguen en DB con IsActive=false). Sus campos
+          y secciones no se tocaron — al restaurar quedan como antes.
+        </p>
+      </div>
+
+      {eliminadasQuery.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Buscando…
+        </div>
+      ) : eliminadasQuery.isError ? (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+          No se pudo obtener la lista.
+        </div>
+      ) : eliminadas.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No hay planillas eliminadas para restaurar.
+        </p>
+      ) : (
+        <>
+          <div className="rounded-md border bg-gray-50 p-3 text-sm">
+            <p>
+              <strong className="text-gray-900">{eliminadas.length}</strong> planilla(s) eliminada(s)
+            </p>
+            <button
+              type="button"
+              onClick={() => setExpandido((v) => !v)}
+              className="mt-1 text-xs text-blue-700 hover:text-blue-900 cursor-pointer"
+            >
+              {expandido ? "Ocultar lista" : "Ver lista"}
+            </button>
+          </div>
+
+          {expandido && (
+            <div className="max-h-72 overflow-auto rounded-md border">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-100 text-gray-600 sticky top-0">
+                  <tr>
+                    <th className="text-left p-2 font-medium">Código</th>
+                    <th className="text-left p-2 font-medium">Nombre</th>
+                    <th className="text-left p-2 font-medium">Eliminada</th>
+                    <th className="text-right p-2 font-medium w-24">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eliminadas.map((p) => (
+                    <tr key={p.id} className="border-t hover:bg-gray-50">
+                      <td className="p-2 font-mono">
+                        <span className="text-blue-700 font-semibold">{p.codigo}</span>
+                        <span className="text-muted-foreground"> v{p.version}</span>
+                      </td>
+                      <td className="p-2 text-gray-800 truncate max-w-xs">{p.nombre}</td>
+                      <td className="p-2 text-muted-foreground">
+                        {new Date(p.updatedAt).toLocaleDateString("es-AR")}
+                        {p.updatedByNombre && (
+                          <span className="text-[10px] block">por {p.updatedByNombre}</span>
+                        )}
+                      </td>
+                      <td className="p-2 text-right">
+                        {okId === p.id ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 text-xs font-medium">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Restaurada
+                          </span>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            disabled={pendingId === p.id}
+                            onClick={() => handleReactivar(p.id)}
+                          >
+                            {pendingId === p.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            )}
+                            Restaurar
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {errorInline && (
+            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{errorInline}</span>
             </div>
           )}
         </>
