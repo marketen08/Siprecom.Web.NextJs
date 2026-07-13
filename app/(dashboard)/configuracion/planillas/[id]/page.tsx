@@ -177,6 +177,12 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
                       ? secciones.find((s) => s.id === selectedSeccionId)?.nombre ?? "Sección"
                       : "Sin sección"}
                   </h3>
+                  {selectedSeccionId && (() => {
+                    const alt = secciones.find((s) => s.id === selectedSeccionId)?.nombreAlt
+                    return alt ? (
+                      <span className="text-xs italic text-gray-500 truncate">{alt}</span>
+                    ) : null
+                  })()}
                   {selectedSeccionId && (
                     <Button
                       variant="ghost"

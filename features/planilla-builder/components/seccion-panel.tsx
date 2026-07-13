@@ -178,13 +178,18 @@ export function SeccionPanel({
                 <button
                   onClick={() => onSelect(s.id)}
                   className={cn(
-                    "flex-1 text-left px-3 py-2 rounded-md text-sm transition-colors truncate",
+                    "flex-1 text-left px-3 py-2 rounded-md text-sm transition-colors min-w-0",
                     selectedSeccionId === s.id
                       ? "bg-blue-50 text-blue-900 font-medium"
                       : "hover:bg-gray-100"
                   )}
                 >
-                  {s.nombre}
+                  <span className="block truncate">{s.nombre}</span>
+                  {s.nombreAlt && (
+                    <span className="block truncate text-[11px] italic text-gray-500 font-normal">
+                      {s.nombreAlt}
+                    </span>
+                  )}
                 </button>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
