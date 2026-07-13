@@ -64,8 +64,12 @@ export function SeccionPanel({
         id: seccion.id,
         planillaId,
         nombre: editingNombre.trim(),
+        // Preservamos nombreAlt/mostrarTitulo/descripcion: el inline solo cambia el nombre;
+        // el DTO de update es full-replace, así que sin esto se pierde el resto.
+        nombreAlt: seccion.nombreAlt ?? null,
         descripcion: seccion.descripcion,
         orden: seccion.orden,
+        mostrarTitulo: seccion.mostrarTitulo ?? true,
       },
       {
         onSuccess: () => {
@@ -81,6 +85,8 @@ export function SeccionPanel({
   }
 
   // Swap del orden de dos secciones (no hay índice unique sobre orden, así que es seguro).
+  // Update es full-replace, así que arrastramos nombreAlt/mostrarTitulo/descripcion para
+  // no perderlos.
   const swapOrden = async (a: PlanillaSeccion, b: PlanillaSeccion) => {
     const ordenA = a.orden
     const ordenB = b.orden
@@ -88,15 +94,19 @@ export function SeccionPanel({
       id: a.id,
       planillaId,
       nombre: a.nombre,
+      nombreAlt: a.nombreAlt ?? null,
       descripcion: a.descripcion,
       orden: ordenB,
+      mostrarTitulo: a.mostrarTitulo ?? true,
     })
     await updateMutation.mutateAsync({
       id: b.id,
       planillaId,
       nombre: b.nombre,
+      nombreAlt: b.nombreAlt ?? null,
       descripcion: b.descripcion,
       orden: ordenA,
+      mostrarTitulo: b.mostrarTitulo ?? true,
     })
   }
 

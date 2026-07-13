@@ -29,6 +29,7 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
   const seccion = secciones.find((s) => s.id === id) ?? null
 
   const [nombre, setNombre] = useState("")
+  const [nombreAlt, setNombreAlt] = useState("")
   const [descripcion, setDescripcion] = useState("")
   const [mostrarTitulo, setMostrarTitulo] = useState(true)
 
@@ -38,11 +39,12 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
   useEffect(() => {
     if (seccion) {
       setNombre(seccion.nombre)
+      setNombreAlt(seccion.nombreAlt ?? "")
       setDescripcion(seccion.descripcion ?? "")
       // Default true por compat con secciones viejas (backend hace lo mismo).
       setMostrarTitulo(seccion.mostrarTitulo ?? true)
     }
-  }, [seccion?.id, seccion?.nombre, seccion?.descripcion, seccion?.mostrarTitulo])
+  }, [seccion?.id, seccion?.nombre, seccion?.nombreAlt, seccion?.descripcion, seccion?.mostrarTitulo])
 
   const handleSave = () => {
     if (!seccion || !nombre.trim()) return
@@ -51,6 +53,7 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
         id: seccion.id,
         planillaId,
         nombre: nombre.trim(),
+        nombreAlt: nombreAlt.trim() || null,
         descripcion: descripcion.trim() || undefined,
         orden: seccion.orden,
         mostrarTitulo,
@@ -83,6 +86,22 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
                   placeholder="Datos generales"
                   disabled={mutation.isPending}
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="seccion-nombre-alt">Nombre alternativo</Label>
+                <Input
+                  id="seccion-nombre-alt"
+                  value={nombreAlt}
+                  onChange={(e) => setNombreAlt(e.target.value)}
+                  placeholder="General information (traducción o aclaración)"
+                  maxLength={200}
+                  disabled={mutation.isPending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se renderiza debajo del título en itálica. Útil para traducciones o
+                  aclaraciones. Dejalo vacío para no mostrar.
+                </p>
               </div>
 
               <div className="space-y-1.5">

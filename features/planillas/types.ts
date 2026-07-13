@@ -28,6 +28,8 @@ export interface PlanillaSeccion {
   id: string
   planillaId: string
   nombre: string
+  /** Nombre alternativo opcional (traducción/aclaración). Se renderiza debajo del título en PDF. */
+  nombreAlt?: string | null
   descripcion?: string
   orden: number
   /** Si es false, el header de la sección no se dibuja en el PDF. Default true. */
@@ -244,6 +246,7 @@ export interface PlanillaUpdateInput {
 export interface PlanillaSeccionCreateInput {
   planillaId: string
   nombre: string
+  nombreAlt?: string | null
   descripcion?: string
   orden: number
   mostrarTitulo?: boolean
@@ -253,6 +256,7 @@ export interface PlanillaSeccionUpdateInput {
   id: string
   planillaId: string
   nombre: string
+  nombreAlt?: string | null
   descripcion?: string
   orden: number
   mostrarTitulo?: boolean
