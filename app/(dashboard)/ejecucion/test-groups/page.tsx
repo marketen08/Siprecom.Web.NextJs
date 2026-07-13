@@ -23,11 +23,17 @@ import {
 
 const ALL = "__all__"
 
-// Por default mostramos los packs "en ejecución" (ACTIVO + COMPLETADO). BORRADOR y
-// CERRADO viven en Alcance / archivo; el user puede pedirlos con el filtro.
+// Por default mostramos los packs "en ejecución" (ACTIVO + COMPLETADO). CERRADO
+// se ve con "todos". BORRADOR queda oculto en toda la pantalla — es estado de
+// Alcance/armado, no de ejecución.
 const DEFAULT_ESTADOS: EstadoTestGroup[] = [
   ESTADO_TEST_GROUP.ACTIVO,
   ESTADO_TEST_GROUP.COMPLETADO,
+]
+const ESTADOS_TODOS_EN_EJECUCION: EstadoTestGroup[] = [
+  ESTADO_TEST_GROUP.ACTIVO,
+  ESTADO_TEST_GROUP.COMPLETADO,
+  ESTADO_TEST_GROUP.CERRADO,
 ]
 
 export default function EjecucionTestGroupsPage() {
@@ -41,7 +47,7 @@ export default function EjecucionTestGroupsPage() {
 
   const estados: EstadoTestGroup[] | undefined =
     estadoFilter === "en-ejecucion" ? DEFAULT_ESTADOS
-    : estadoFilter === "todos" ? undefined
+    : estadoFilter === "todos" ? ESTADOS_TODOS_EN_EJECUCION
     : [Number(estadoFilter) as EstadoTestGroup]
 
   const tipoParam: TipoTestGroup | undefined =
@@ -83,8 +89,7 @@ export default function EjecucionTestGroupsPage() {
           <SelectTrigger className="w-56">
             <SelectValue placeholder="Estado">
               {estadoFilter === "en-ejecucion" ? "En ejecución (activo+completado)"
-                : estadoFilter === "todos" ? "Todos los estados"
-                : estadoFilter === String(ESTADO_TEST_GROUP.BORRADOR) ? "Borrador"
+                : estadoFilter === "todos" ? "Todos (sin borrador)"
                 : estadoFilter === String(ESTADO_TEST_GROUP.ACTIVO) ? "Activo"
                 : estadoFilter === String(ESTADO_TEST_GROUP.COMPLETADO) ? "Completado"
                 : estadoFilter === String(ESTADO_TEST_GROUP.CERRADO) ? "Cerrado"
@@ -93,8 +98,7 @@ export default function EjecucionTestGroupsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="en-ejecucion">En ejecución (activo+completado)</SelectItem>
-            <SelectItem value="todos">Todos los estados</SelectItem>
-            <SelectItem value={String(ESTADO_TEST_GROUP.BORRADOR)}>Borrador</SelectItem>
+            <SelectItem value="todos">Todos (sin borrador)</SelectItem>
             <SelectItem value={String(ESTADO_TEST_GROUP.ACTIVO)}>Activo</SelectItem>
             <SelectItem value={String(ESTADO_TEST_GROUP.COMPLETADO)}>Completado</SelectItem>
             <SelectItem value={String(ESTADO_TEST_GROUP.CERRADO)}>Cerrado</SelectItem>
