@@ -104,7 +104,10 @@ export const menu: MenuItem[] = [
     label: "Alcance",
     minRole: "Supervisor",
     children: [
-      { label: "Proyectos",    href: "/alcance/proyectos" },
+      // "Proyecto" (singular) apunta al detalle del proyecto activo del user.
+      // `/alcance/proyecto` es un wrapper que resuelve el activo y redirige a
+      // `/alcance/proyectos/{id}`. La lista global vive en `/configuracion/proyectos`.
+      { label: "Proyecto",     href: "/alcance/proyecto" },
       { label: "Sistemas",     href: "/alcance/sistemas" },
       { label: "Subsistemas",  href: "/alcance/subsistemas" },
       { label: "Elementos",    href: "/alcance/elementos" },
@@ -128,6 +131,7 @@ export const menu: MenuItem[] = [
     label: "Configuración",
     minRole: "Admin",
     children: [
+      { label: "Proyectos",         href: "/configuracion/proyectos" },
       { label: "Especialidades",    href: "/configuracion/especialidades" },
       { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
       { label: "Niveles",           href: "/configuracion/niveles" },
@@ -273,6 +277,7 @@ export const segmentLabels: Record<string, string> = {
   tareas:        "Tareas",
   planillas:     "Planillas",
   proyectos:     "Proyectos",
+  proyecto:      "Proyecto",
   usuarios:      "Usuarios",
   perfil:        "Mi perfil",
   "mis-firmas":  "Mis firmas",

@@ -1,11 +1,12 @@
 "use client"
 
-import { Loader2, FolderOpen, Check, ChevronDown, BarChart3 } from "lucide-react"
+import { Loader2, FolderOpen, Check, ChevronDown, BarChart3, Settings2 } from "lucide-react"
 import { useIsFetching } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useCambiarProyectoActivo } from "@/features/auth/api/use-cambiar-proyecto-activo"
+import { useMeetsRole } from "@/lib/use-roles"
 
 import {
   DropdownMenu,
@@ -20,6 +21,8 @@ export function ProyectoSwitcher() {
   const { data: proyectos, isLoading: loadingProyectos } = useGetMisProyectos()
   const mutation = useCambiarProyectoActivo()
   const isFetching = useIsFetching()
+  // "Configuración de todos los proyectos" solo tiene sentido para Admin+ (gestión).
+  const isAdmin = useMeetsRole("Admin")
 
   const isUpdating = mutation.isPending || (mutation.isSuccess && isFetching > 0)
   const proyectoActivo = proyectos?.find((p) => p.esActivo)
@@ -90,6 +93,15 @@ export function ProyectoSwitcher() {
           <BarChart3 className="h-4 w-4 shrink-0 text-blue-900" />
           <span className="truncate">Avance de todos los proyectos</span>
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem
+            onClick={() => router.push("/configuracion/proyectos")}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <Settings2 className="h-4 w-4 shrink-0 text-blue-900" />
+            <span className="truncate">Configuración de todos los proyectos</span>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
