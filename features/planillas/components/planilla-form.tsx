@@ -66,6 +66,8 @@ export function PlanillaForm({
       // de C# (false) si no lo mandamos. Ver plan de cleanup futuro para eliminarlo.
       generaPdfFinal: defaultValues?.generaPdfFinal ?? true,
       orientacionPdf: defaultValues?.orientacionPdf ?? 0,
+      modoCompacto: defaultValues?.modoCompacto ?? false,
+      margenPagina: defaultValues?.margenPagina ?? 0,
       especialidadId: defaultValues?.especialidadId ?? null,
     },
   })
@@ -275,6 +277,40 @@ export function PlanillaForm({
                 />
                 PDF horizontal (apaisado)
               </label>
+
+              {/* Ajuste vertical para caber en 1 hoja */}
+              <div className="flex flex-col gap-2 pt-1">
+                <label className="flex items-start gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 mt-0.5"
+                    checked={!!form.watch("modoCompacto")}
+                    onChange={(e) => form.setValue("modoCompacto", e.target.checked)}
+                    disabled={isPending}
+                  />
+                  <span>
+                    Modo compacto
+                    <span className="block text-xs text-muted-foreground">
+                      Reduce paddings verticales, títulos de sección y sub-labels. Usá
+                      cuando la planilla queda a pocos milímetros de entrar en 1 hoja.
+                    </span>
+                  </span>
+                </label>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm">Margen de página</label>
+                  <select
+                    className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm max-w-xs"
+                    value={form.watch("margenPagina") ?? 0}
+                    onChange={(e) => form.setValue("margenPagina", Number(e.target.value) as 0 | 1 | 2)}
+                    disabled={isPending}
+                  >
+                    <option value={0}>Normal (2 cm arriba, 1 cm abajo, 1.2 cm lados)</option>
+                    <option value={1}>Estrecho (~1 cm arriba/lados, 0.7 cm abajo)</option>
+                    <option value={2}>Ultra estrecho (~0.5 cm — al borde imprimible)</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </TooltipProvider>
         </div>

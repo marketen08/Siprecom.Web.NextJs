@@ -1,6 +1,9 @@
 /** Orientación del PDF de la planilla: 0 = Vertical, 1 = Horizontal (apaisado). */
 export type OrientacionPdf = 0 | 1
 
+/** Preset de márgenes de página. 0 = Normal (default), 1 = Estrecho, 2 = UltraEstrecho. */
+export type MargenPagina = 0 | 1 | 2
+
 export interface Planilla {
   id: string
   codigo?: string
@@ -13,6 +16,9 @@ export interface Planilla {
   permiteAdjuntos: boolean
   generaPdfFinal: boolean
   orientacionPdf: OrientacionPdf
+  /** Reduce paddings verticales y tamaños en el PDF para caber en 1 hoja. */
+  modoCompacto: boolean
+  margenPagina: MargenPagina
   /** Especialidad opcional. Null = genérica (aparece al filtrar por cualquier especialidad). */
   especialidadId?: string | null
   especialidadNombre?: string | null
@@ -226,6 +232,8 @@ export interface PlanillaCreateInput {
   permiteAdjuntos?: boolean
   generaPdfFinal?: boolean
   orientacionPdf?: OrientacionPdf
+  modoCompacto?: boolean
+  margenPagina?: MargenPagina
   especialidadId?: string | null
 }
 
@@ -240,6 +248,8 @@ export interface PlanillaUpdateInput {
   permiteAdjuntos?: boolean
   generaPdfFinal?: boolean
   orientacionPdf?: OrientacionPdf
+  modoCompacto?: boolean
+  margenPagina?: MargenPagina
   especialidadId?: string | null
 }
 
