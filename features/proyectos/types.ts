@@ -44,6 +44,12 @@ export interface Proyecto {
    */
   apsTagProperties: string | null
   /**
+   * URL canónica del logo combinado del proyecto. Cuando está seteado, el PDF
+   * de planillas muestra solo esta imagen en el header (reemplaza al par
+   * cliente+contratista). Null = comportamiento default.
+   */
+  urlLogoHeader: string | null
+  /**
    * Nivel del catálogo que representa "Mechanical Completion" en este proyecto.
    * Cuando es null, el certificado MC queda en "no aplica" en todo el proyecto.
    */

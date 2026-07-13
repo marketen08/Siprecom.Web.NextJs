@@ -14,6 +14,11 @@ import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
 import { useUpdateProyectoNivelMc } from "@/features/proyectos/api/use-update-proyecto-nivel-mc"
+import {
+  useUploadProyectoLogoHeader,
+  useDeleteProyectoLogoHeader,
+  useProyectoLogoHeaderSas,
+} from "@/features/proyectos/api/use-proyecto-logo-header"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import {
   useGetFuncionalidadesProyecto,
@@ -355,6 +360,8 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
         })}
 
         <NivelMcSelector proyecto={proyecto} />
+
+        <ProyectoLogoHeaderCard proyecto={proyecto} />
       </section>
 
       {/* Sección Funcionalidades — feature flags del producto. El SuperAdmin puede
@@ -418,6 +425,107 @@ function NivelMcSelector({ proyecto }: { proyecto: Proyecto }) {
           ))}
         </SelectContent>
       </Select>
+    </div>
+  )
+}
+
+// ─── Logo combinado del proyecto (reemplaza cliente+contratista en el PDF) ───
+
+function ProyectoLogoHeaderCard({ proyecto }: { proyecto: Proyecto }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const uploadMut = useUploadProyectoLogoHeader(proyecto.id)
+  const deleteMut = useDeleteProyectoLogoHeader(proyecto.id)
+  const tieneLogo = !!proyecto.urlLogoHeader
+  const { data: sasUrl, isLoading: sasLoading } = useProyectoLogoHeaderSas(proyecto.id, tieneLogo)
+  const [error, setError] = useState<string | null>(null)
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setError(null)
+    try {
+      await uploadMut.mutateAsync(file)
+    } catch (err) {
+      setError((err as Error).message ?? "No se pudo subir el logo.")
+    }
+  }
+
+  async function onDelete() {
+    setError(null)
+    try {
+      await deleteMut.mutateAsync()
+    } catch (err) {
+      setError((err as Error).message ?? "No se pudo eliminar el logo.")
+    }
+  }
+
+  const pending = uploadMut.isPending || deleteMut.isPending
+
+  return (
+    <div className="rounded-lg border bg-white p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-gray-900">Logo del proyecto para el PDF</p>
+        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Cuando está configurado, reemplaza al par cliente + contratista en el
+        header del PDF de planillas. Sin logo, el PDF usa el layout default.
+        PNG / JPG / SVG, máx. 2 MB.
+      </p>
+
+      <div className="flex items-center gap-3 pt-1">
+        <div className="w-32 h-16 rounded-md border bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
+          {tieneLogo ? (
+            sasLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            ) : sasUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={sasUrl} alt="Logo del proyecto" className="max-w-full max-h-full object-contain" />
+            ) : (
+              <span className="text-[10px] text-muted-foreground">Sin preview</span>
+            )
+          ) : (
+            <span className="text-[10px] text-muted-foreground">Sin logo</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml"
+            className="hidden"
+            onChange={onFile}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2"
+            disabled={pending}
+            onClick={() => inputRef.current?.click()}
+          >
+            <PenLine className="h-3.5 w-3.5" />
+            {tieneLogo ? "Cambiar" : "Subir logo"}
+          </Button>
+          {tieneLogo && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={pending}
+              onClick={onDelete}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Quitar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-1 mt-2">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
