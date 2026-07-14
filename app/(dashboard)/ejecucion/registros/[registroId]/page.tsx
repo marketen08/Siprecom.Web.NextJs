@@ -541,7 +541,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
       {/* ── Firmas ── */}
       {(registro.estado === "COMPLETADO" || registro.estado === "FIRMADO") && (
-        <FirmasSection registroId={registroId} canWrite={canWrite} />
+        <FirmasSection registroId={registroId} canWrite={canWrite} esRegistroFisico={registro.esFisico} />
       )}
 
       {/* Dialog de "próximo ciclo de preservación" — se abre cuando el backend
@@ -561,7 +561,18 @@ export default function RegistroFormPage({ params }: PageProps) {
 
 // ─── Sección de firmas ────────────────────────────────────────────────────────
 
-function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite: boolean }) {
+function FirmasSection({
+  registroId,
+  canWrite,
+  esRegistroFisico,
+}: {
+  registroId: string
+  canWrite: boolean
+  /** Si el registro se completó como físico (escaneo). Slots Fisica solo se
+   * auto-firman con el escaneo en registros físicos — si el registro es digital,
+   * los slots Fisica se firman electrónicamente como cualquier otro. */
+  esRegistroFisico: boolean
+}) {
   const { data: raw, isLoading } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
   const miFirmaQuery = useGetMiFirma()
@@ -748,7 +759,9 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
                   <div>
                     <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
                       {slot.rolNombre}
-                      {slot.tipoFirma === 2 && (
+                      {/* Badge "En papel" solo cuando el registro es físico —
+                          en registros digitales el slot Fisica se firma electrónicamente. */}
+                      {slot.tipoFirma === 2 && esRegistroFisico && (
                         <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">
                           En papel
                         </span>
@@ -765,7 +778,10 @@ function FirmasSection({ registroId, canWrite }: { registroId: string; canWrite:
                     <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
                     <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
-                ) : slot.tipoFirma === 2 ? (
+                ) : slot.tipoFirma === 2 && esRegistroFisico ? (
+                  // Slot configurado como Fisica + registro físico → se auto-firma al subir
+                  // el PDF escaneado. Si el registro es digital, no bloqueamos: el user firma
+                  // electrónicamente como cualquier slot Digital (el backend ya lo permite).
                   <span className="inline-flex items-center gap-1 text-xs text-amber-700 shrink-0">
                     <Clock className="h-3 w-3" />
                     Se marca al subir el PDF físico
