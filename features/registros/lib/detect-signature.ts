@@ -20,18 +20,20 @@ export interface DetectSignatureOptions {
   rotacion?: 0 | 90 | 180 | 270
   /**
    * Umbral de brillo por píxel (0-255). Un píxel con luminosidad menor cuenta
-   * como "tinta". Default 180 — filtra el ruido de fondo del papel viejo.
+   * como "tinta". Default 130 — solo cuenta píxeles genuinamente oscuros (tinta
+   * real), ignora el fondo levemente sombreado de escaneos/screenshots.
    */
   umbralBrillo?: number
   /**
    * Densidad mínima (% de píxeles oscuros dentro del recorte) para considerar
-   * que hay firma. Default 0.8 — bajo, porque una firma manuscrita en un
-   * bloque de firmas ocupa poca superficie.
+   * que hay firma. Default 3.0 — por encima de lo que aportan solo los bordes
+   * de las cajas de firma + labels del template ("Operador", "Fecha", etc.).
    */
   umbralDensidadPct?: number
   /**
-   * Porcentaje inferior de la página que se analiza. Default 15 — el
-   * bloque de firmas del template ocupa aprox. esa altura al pie.
+   * Porcentaje inferior de la página que se analiza. Default 10 — franja
+   * ajustada al bloque de firmas del template; evita incluir labels debajo
+   * de las cajas y contenido de la sección anterior.
    */
   altoZonaPct?: number
 }
@@ -56,9 +58,9 @@ export async function detectSignatureInFooter(
   opts: DetectSignatureOptions = {},
 ): Promise<DetectSignatureResult> {
   const rotacion = opts.rotacion ?? 0
-  const umbralBrillo = opts.umbralBrillo ?? 180
-  const umbralDensidadPct = opts.umbralDensidadPct ?? 0.8
-  const altoZonaPct = Math.max(1, Math.min(50, opts.altoZonaPct ?? 15))
+  const umbralBrillo = opts.umbralBrillo ?? 130
+  const umbralDensidadPct = opts.umbralDensidadPct ?? 3.0
+  const altoZonaPct = Math.max(1, Math.min(50, opts.altoZonaPct ?? 10))
 
   try {
     const ext = (file.name.split(".").pop() ?? "").toLowerCase()
