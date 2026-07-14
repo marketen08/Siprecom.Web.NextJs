@@ -245,7 +245,7 @@ export default function ProyectosPage() {
             (data?.data ?? []).map((p: Proyecto) => (
               <div key={p.id} className="rounded-lg border bg-white p-3 space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <Link href={`/alcance/proyectos/${p.id}`} className="min-w-0 flex-1">
+                  <Link href={`/configuracion/proyectos/${p.id}`} className="min-w-0 flex-1">
                     <p className="font-medium text-blue-700 truncate">{p.nombre}</p>
                     <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {p.clienteNombre ?? "—"}

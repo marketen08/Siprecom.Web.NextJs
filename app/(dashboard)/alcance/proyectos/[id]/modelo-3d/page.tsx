@@ -73,7 +73,7 @@ function ModeloPageContent() {
     proyecto
       ? [
           { label: "Alcance" },
-          { label: "Proyectos", href: "/alcance/proyectos" },
+          { label: "Proyecto", href: "/alcance/proyecto" },
           { label: proyecto.nombre, href: `/alcance/proyectos/${id}` },
           { label: "Modelo 3D" },
         ]

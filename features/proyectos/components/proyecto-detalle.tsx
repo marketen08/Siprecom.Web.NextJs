@@ -1,7 +1,6 @@
 "use client"
 
 import { useRef, useEffect, useState, Suspense } from "react"
-import { useParams } from "next/navigation"
 import Link from "next/link"
 import {
   Save, Plus, Trash2, ChevronUp, ChevronDown,
@@ -62,21 +61,31 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
-function ProyectoDetailContent() {
-  const { id } = useParams<{ id: string }>()
+/** Contexto desde el que se abre el detalle: determina el breadcrumb y la URL "up". */
+export type ProyectoDetalleContexto = "alcance" | "config"
+
+function ProyectoDetailContent({ id, contexto }: { id: string; contexto: ProyectoDetalleContexto }) {
   const [tab, setTab] = useState<Tab>("general")
 
   const { data: raw, isLoading } = useGetProyecto(id)
   const proyecto = raw?.data
 
-  // Breadcrumb dinámico: Alcance → Proyectos (link) → {nombre del proyecto}
+  // Breadcrumb según el contexto de entrada:
+  //  - alcance: Alcance → Proyecto (el activo del user) → {nombre}
+  //  - config:  Configuración → Proyectos (lista global) → {nombre}
   useBreadcrumb(
     proyecto
-      ? [
-          { label: "Alcance" },
-          { label: "Proyectos", href: "/alcance/proyectos" },
-          { label: proyecto.nombre },
-        ]
+      ? contexto === "config"
+        ? [
+            { label: "Configuración" },
+            { label: "Proyectos", href: "/configuracion/proyectos" },
+            { label: proyecto.nombre },
+          ]
+        : [
+            { label: "Alcance" },
+            { label: "Proyecto", href: "/alcance/proyecto" },
+            { label: proyecto.nombre },
+          ]
       : null
   )
 
@@ -1101,10 +1110,16 @@ function TabPendientes({ proyectoId }: { proyectoId: string }) {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export default function ProyectoDetailPage() {
+/**
+ * Detalle/gestión de un proyecto (tabs: datos, configuración, usuarios, firmas,
+ * pendientes, modelo 3D). Se renderiza desde dos rutas con distinto breadcrumb:
+ *  - /alcance/proyectos/[id]        (contexto="alcance", vía "Alcance → Proyecto")
+ *  - /configuracion/proyectos/[id]  (contexto="config",  vía "Configuración → Proyectos")
+ */
+export function ProyectoDetalle({ id, contexto }: { id: string; contexto: ProyectoDetalleContexto }) {
   return (
     <Suspense>
-      <ProyectoDetailContent />
+      <ProyectoDetailContent id={id} contexto={contexto} />
     </Suspense>
   )
 }

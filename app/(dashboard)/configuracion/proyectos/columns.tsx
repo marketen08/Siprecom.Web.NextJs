@@ -73,7 +73,7 @@ export const columns: ColumnDef<Proyecto>[] = [
     header: "Nombre",
     cell: ({ row }) => (
       <Link
-        href={`/alcance/proyectos/${row.original.id}`}
+        href={`/configuracion/proyectos/${row.original.id}`}
         className="font-medium text-blue-700 hover:underline"
       >
         {row.original.nombre}
