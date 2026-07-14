@@ -63,12 +63,26 @@ export async function readQrFromFile(file: File): Promise<QrLeidoResult> {
 
 // ── Imagen ────────────────────────────────────────────────────────────────────
 
+/** Ancho/alto mínimo (el que sea mayor) para pasar a jsQR. Screenshots suelen
+ *  tener ~1920px de ancho; el QR ocupa ~5% ⇒ ~90px, en el límite de detección.
+ *  Upscaling agresivo a 3000px hace que el QR quede en ~150px, cómodo para jsQR. */
+const TARGET_MAX_DIM = 3000
+
 async function readQrFromImage(file: File): Promise<QrLeidoResult> {
   const url = URL.createObjectURL(file)
   try {
     const bitmap = await loadBitmap(url)
-    const imageData = bitmapToImageData(bitmap)
-    return scanImageData(imageData)
+
+    // Pase 1: imagen completa (upscaleada si es chica). Cubre el caso normal.
+    const fullImage = bitmapToImageData(bitmap, TARGET_MAX_DIM)
+    const resFull = scanImageData(fullImage)
+    if (resFull.qrEncontrado) return resFull
+
+    // Pase 2: crop del cuarto top-right — en nuestro layout el QR vive ahí.
+    // Al recortar, el QR ocupa proporcionalmente mucho más y jsQR lo detecta
+    // más fácil. Sirve para screenshots muy chicos donde el upscale no alcanzó.
+    const topRight = cropTopRightImageData(bitmap, TARGET_MAX_DIM)
+    return scanImageData(topRight)
   } finally {
     URL.revokeObjectURL(url)
   }
@@ -80,14 +94,60 @@ async function loadBitmap(url: string): Promise<ImageBitmap> {
   return await createImageBitmap(blob)
 }
 
-function bitmapToImageData(bitmap: ImageBitmap): ImageData {
+/**
+ * Convierte un bitmap a ImageData escalado — si `targetMaxDim` es mayor que la
+ * dimensión más grande, escala hacia arriba con bilinear (`imageSmoothingQuality
+ * = high`) para suavizar los bordes del QR, que ayuda a jsQR.
+ */
+function bitmapToImageData(bitmap: ImageBitmap, targetMaxDim?: number): ImageData {
+  const maxNatural = Math.max(bitmap.width, bitmap.height)
+  const scale = targetMaxDim && maxNatural < targetMaxDim
+    ? targetMaxDim / maxNatural
+    : 1
+  const w = Math.round(bitmap.width * scale)
+  const h = Math.round(bitmap.height * scale)
   const canvas = document.createElement("canvas")
-  canvas.width = bitmap.width
-  canvas.height = bitmap.height
+  canvas.width = w
+  canvas.height = h
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("No se pudo crear el canvas 2D.")
-  ctx.drawImage(bitmap, 0, 0)
-  return ctx.getImageData(0, 0, canvas.width, canvas.height)
+  if (scale > 1) {
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = "high"
+  }
+  ctx.drawImage(bitmap, 0, 0, w, h)
+  return ctx.getImageData(0, 0, w, h)
+}
+
+/**
+ * Recorta el cuarto top-right del bitmap (o el tercio superior + mitad derecha),
+ * luego escala al `targetMaxDim` para que jsQR reciba un QR con mucha más
+ * densidad de píxeles relativa al total de la imagen.
+ */
+function cropTopRightImageData(bitmap: ImageBitmap, targetMaxDim: number): ImageData {
+  // Cuarto top-right — cubre el rango donde el QR aparece en TODOS los layouts
+  // (planilla blanco, registro digital, testgroup).
+  const cropW = Math.round(bitmap.width / 2)
+  const cropH = Math.round(bitmap.height / 3)
+  const cropX = bitmap.width - cropW
+  const cropY = 0
+
+  const maxNatural = Math.max(cropW, cropH)
+  const scale = maxNatural < targetMaxDim ? targetMaxDim / maxNatural : 1
+  const w = Math.round(cropW * scale)
+  const h = Math.round(cropH * scale)
+
+  const canvas = document.createElement("canvas")
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext("2d")
+  if (!ctx) throw new Error("No se pudo crear el canvas 2D.")
+  if (scale > 1) {
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = "high"
+  }
+  ctx.drawImage(bitmap, cropX, cropY, cropW, cropH, 0, 0, w, h)
+  return ctx.getImageData(0, 0, w, h)
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
@@ -110,9 +170,11 @@ async function readQrFromPdf(file: File): Promise<QrLeidoResult> {
     if (doc.numPages === 0) return emptyResult({ error: "PDF sin páginas." })
 
     // Sólo primera página — la planilla oficial pone el QR ahí. Renderizamos a
-    // 2x para que el QR quede legible incluso en escaneos de calidad mediocre.
+    // 3x: el QR ocupa ~5% del ancho de la página en el header comprimido; a 2x
+    // quedaba en el límite de detección de jsQR para capturas de pantalla, a 3x
+    // hay margen. Costo: ~2.25× RAM/CPU en el render (aceptable, es one-shot).
     const page = await doc.getPage(1)
-    const viewport = page.getViewport({ scale: 2 })
+    const viewport = page.getViewport({ scale: 3 })
     const canvas = document.createElement("canvas")
     canvas.width = viewport.width
     canvas.height = viewport.height
