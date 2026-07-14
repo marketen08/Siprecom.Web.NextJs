@@ -36,18 +36,42 @@ export interface DetectSignatureOptions {
    * de las cajas y contenido de la sección anterior.
    */
   altoZonaPct?: number
+  /**
+   * Cantidad de slots de firma física esperados. Si > 1, la franja se divide
+   * horizontalmente en N regiones (el template las renderiza en un Row con
+   * RelativeItem — ancho uniforme) y cada una se analiza por separado.
+   * Default 1 → comportamiento clásico (franja como un solo blob).
+   */
+  cantidadSlots?: number
+}
+
+export interface DetectSignatureSlotResult {
+  indice: number
+  detected: boolean
+  densidadPct: number
 }
 
 export interface DetectSignatureResult {
+  /** True si TODOS los slots esperados están firmados. */
   detected: boolean
+  /** Cuántos slots (de `slotsTotal`) se detectaron con firma. */
+  slotsDetectados: number
+  /** N esperado (== `cantidadSlots` del input, ≥ 1). */
+  slotsTotal: number
+  /** Densidad global del recorte (compat con consumers previos). */
   densidadPct: number
+  /** Detalle por slot cuando N > 1. Vacío cuando N == 1. */
+  slots: DetectSignatureSlotResult[]
   paginaAnalizada: number | null
   error: string | null
 }
 
 const empty = (patch: Partial<DetectSignatureResult>): DetectSignatureResult => ({
   detected: false,
+  slotsDetectados: 0,
+  slotsTotal: 1,
   densidadPct: 0,
+  slots: [],
   paginaAnalizada: null,
   error: null,
   ...patch,
@@ -61,6 +85,7 @@ export async function detectSignatureInFooter(
   const umbralBrillo = opts.umbralBrillo ?? 130
   const umbralDensidadPct = opts.umbralDensidadPct ?? 3.0
   const altoZonaPct = Math.max(1, Math.min(50, opts.altoZonaPct ?? 10))
+  const cantidadSlots = Math.max(1, Math.floor(opts.cantidadSlots ?? 1))
 
   try {
     const ext = (file.name.split(".").pop() ?? "").toLowerCase()
@@ -74,7 +99,7 @@ export async function detectSignatureInFooter(
       imageData = rendered.imageData
       pagina = rendered.pagina
     } else {
-      return empty({ error: `Formato no soportado para detección: .${ext}` })
+      return empty({ error: `Formato no soportado para detección: .${ext}`, slotsTotal: cantidadSlots })
     }
 
     if (rotacion !== 0) imageData = rotateImageData(imageData, rotacion)
@@ -85,25 +110,71 @@ export async function detectSignatureInFooter(
     const cropW = imageData.width
     const cropped = cropImageData(imageData, 0, cropY, cropW, cropH)
 
-    // Densidad de tinta = píxeles bajo umbral / total.
-    let oscuros = 0
-    const total = cropped.width * cropped.height
-    for (let i = 0; i < cropped.data.length; i += 4) {
-      const r = cropped.data[i]
-      const g = cropped.data[i + 1]
-      const b = cropped.data[i + 2]
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b
-      if (lum < umbralBrillo) oscuros++
-    }
-    const densidadPct = total > 0 ? (oscuros / total) * 100 : 0
-    const detected = densidadPct >= umbralDensidadPct
+    // Densidad de tinta global (compat / KPI). Sirve incluso cuando N=1.
+    const densidadGlobal = densidadOscuraPct(cropped, umbralBrillo)
 
-    return { detected, densidadPct, paginaAnalizada: pagina, error: null }
+    if (cantidadSlots === 1) {
+      const detected = densidadGlobal >= umbralDensidadPct
+      return {
+        detected,
+        slotsDetectados: detected ? 1 : 0,
+        slotsTotal: 1,
+        densidadPct: densidadGlobal,
+        slots: [],
+        paginaAnalizada: pagina,
+        error: null,
+      }
+    }
+
+    // N > 1: dividimos la franja horizontalmente en N regiones. El template
+    // renderiza los slots en un Row con RelativeItem() (todos igual peso) + gap
+    // de 8pt entre cada uno. En proporción al ancho útil (~500pt), el gap es
+    // <2% del ancho por slot — despreciable a fines de la detección.
+    const anchoSlot = Math.floor(cropped.width / cantidadSlots)
+    const slotResults: DetectSignatureSlotResult[] = []
+    for (let i = 0; i < cantidadSlots; i++) {
+      const x = i * anchoSlot
+      const w = i === cantidadSlots - 1 ? cropped.width - x : anchoSlot
+      const region = cropImageData(cropped, x, 0, w, cropped.height)
+      const densidad = densidadOscuraPct(region, umbralBrillo)
+      slotResults.push({
+        indice: i,
+        detected: densidad >= umbralDensidadPct,
+        densidadPct: densidad,
+      })
+    }
+
+    const slotsDetectados = slotResults.filter((s) => s.detected).length
+    return {
+      detected: slotsDetectados === cantidadSlots,
+      slotsDetectados,
+      slotsTotal: cantidadSlots,
+      densidadPct: densidadGlobal,
+      slots: slotResults,
+      paginaAnalizada: pagina,
+      error: null,
+    }
   } catch (err) {
     return empty({
       error: err instanceof Error ? err.message : "Error inesperado al analizar el archivo.",
+      slotsTotal: cantidadSlots,
     })
   }
+}
+
+/** Porcentaje de píxeles cuya luminosidad cae bajo el umbral dado. */
+function densidadOscuraPct(img: ImageData, umbralBrillo: number): number {
+  let oscuros = 0
+  const total = img.width * img.height
+  if (total === 0) return 0
+  for (let i = 0; i < img.data.length; i += 4) {
+    const r = img.data[i]
+    const g = img.data[i + 1]
+    const b = img.data[i + 2]
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b
+    if (lum < umbralBrillo) oscuros++
+  }
+  return (oscuros / total) * 100
 }
 
 // ── Imagen ────────────────────────────────────────────────────────────────────

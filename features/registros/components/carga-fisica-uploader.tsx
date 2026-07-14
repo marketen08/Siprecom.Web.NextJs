@@ -44,6 +44,10 @@ interface Props {
   esperadoElementoTareaId: string
   /** Si el proyecto/tarea tiene al menos un slot Fisica → activa la detección visual. */
   hayFirmasFisicas: boolean
+  /** Cantidad de slots Fisica configurados. Si > 1, la detección analiza cada
+   *  slot horizontalmente (los slots se renderizan lado a lado en el footer).
+   *  Default 1 → comportamiento clásico. Ignorado si hayFirmasFisicas=false. */
+  cantidadFirmasFisicas?: number
   /**
    * Callback al confirmar el submit. Recibe el archivo rotado + los detalles de
    * override que correspondan. El padre decide qué hacer (subir directo, iniciar
@@ -87,6 +91,7 @@ export function CargaFisicaUploader({
   esperadoPlanillaId,
   esperadoElementoTareaId,
   hayFirmasFisicas,
+  cantidadFirmasFisicas = 1,
   onSubmit,
   isSubmitting = false,
   submitLabel = "Subir planilla",
@@ -107,8 +112,8 @@ export function CargaFisicaUploader({
   const [firmaState, setFirmaState] = useState<
     | null
     | { kind: "detectando" }
-    | { kind: "detectada"; densidadPct: number }
-    | { kind: "no-detectada"; densidadPct: number }
+    | { kind: "detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
+    | { kind: "no-detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
     | { kind: "no-aplica" }
   >(null)
   const [confirmarMismatch, setConfirmarMismatch] = useState(false)
@@ -160,14 +165,24 @@ export function CargaFisicaUploader({
     setFirmaState({ kind: "detectando" })
     const rotacion = result.esChecklist ? result.rotacionDetectada : 0
     try {
-      const deteccion = await detectSignatureInFooter(f, { rotacion })
+      const deteccion = await detectSignatureInFooter(f, {
+        rotacion,
+        cantidadSlots: cantidadFirmasFisicas,
+      })
       setFirmaState({
         kind: deteccion.detected ? "detectada" : "no-detectada",
         densidadPct: deteccion.densidadPct,
+        slotsDetectados: deteccion.slotsDetectados,
+        slotsTotal: deteccion.slotsTotal,
       })
     } catch (err) {
       console.error("[CargaFisicaUploader] detectSignatureInFooter threw:", err)
-      setFirmaState({ kind: "no-detectada", densidadPct: 0 })
+      setFirmaState({
+        kind: "no-detectada",
+        densidadPct: 0,
+        slotsDetectados: 0,
+        slotsTotal: cantidadFirmasFisicas,
+      })
     }
   }
 
@@ -197,9 +212,10 @@ export function CargaFisicaUploader({
       ).slice(0, 500)
     }
     if (firmaState?.kind === "no-detectada" && forzarOverride) {
-      params.firmaOverrideDetalle = (
-        `densidad tinta ${firmaState.densidadPct.toFixed(2)}% en la zona de firmas`
-      ).slice(0, 500)
+      const detalle = firmaState.slotsTotal > 1
+        ? `firmas detectadas ${firmaState.slotsDetectados}/${firmaState.slotsTotal} en la zona de firmas`
+        : `densidad tinta ${firmaState.densidadPct.toFixed(2)}% en la zona de firmas`
+      params.firmaOverrideDetalle = detalle.slice(0, 500)
     }
     await onSubmit(params)
   }
@@ -324,18 +340,25 @@ export function CargaFisicaUploader({
       {firmaState?.kind === "detectada" && (
         <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
-          Firma detectada en el escaneo ({firmaState.densidadPct.toFixed(1)}% de tinta en la zona esperada).
+          {firmaState.slotsTotal > 1
+            ? `Todas las firmas detectadas (${firmaState.slotsDetectados}/${firmaState.slotsTotal}) en el escaneo.`
+            : `Firma detectada en el escaneo (${firmaState.densidadPct.toFixed(1)}% de tinta en la zona esperada).`}
         </div>
       )}
       {firmaState?.kind === "no-detectada" && (
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-medium">No se detectó firma manuscrita en el escaneo.</p>
+            <p className="font-medium">
+              {firmaState.slotsTotal > 1
+                ? `Faltan firmas: ${firmaState.slotsDetectados}/${firmaState.slotsTotal} detectadas en el escaneo.`
+                : "No se detectó firma manuscrita en el escaneo."}
+            </p>
             <p className="text-xs mt-1">
-              Densidad de tinta {firmaState.densidadPct.toFixed(1)}% (muy baja) en la zona
-              esperada. Si estás seguro que la planilla está firmada, podés cargarla igual —
-              queda registrado en las observaciones.
+              {firmaState.slotsTotal > 1
+                ? `Se esperaban ${firmaState.slotsTotal} firmas y se detectaron ${firmaState.slotsDetectados}.`
+                : `Densidad de tinta ${firmaState.densidadPct.toFixed(1)}% (muy baja) en la zona esperada.`}
+              {" "}Si estás seguro que la planilla está firmada, podés cargarla igual — queda registrado en las observaciones.
             </p>
           </div>
         </div>
@@ -431,11 +454,23 @@ export function CargaFisicaUploader({
           </AlertDialogHeader>
           {firmaState?.kind === "no-detectada" && (
             <div className="rounded-md border bg-muted/40 p-3 text-xs">
-              Densidad de tinta observada:{" "}
-              <span className="font-mono font-medium">
-                {firmaState.densidadPct.toFixed(2)}%
-              </span>
-              <span className="text-muted-foreground"> (mínima esperada 0.8%)</span>
+              {firmaState.slotsTotal > 1 ? (
+                <>
+                  Firmas detectadas:{" "}
+                  <span className="font-mono font-medium">
+                    {firmaState.slotsDetectados}/{firmaState.slotsTotal}
+                  </span>
+                  <span className="text-muted-foreground"> (se esperaban las {firmaState.slotsTotal})</span>
+                </>
+              ) : (
+                <>
+                  Densidad de tinta observada:{" "}
+                  <span className="font-mono font-medium">
+                    {firmaState.densidadPct.toFixed(2)}%
+                  </span>
+                  <span className="text-muted-foreground"> (mínima esperada 3.0%)</span>
+                </>
+              )}
             </div>
           )}
           <AlertDialogFooter>

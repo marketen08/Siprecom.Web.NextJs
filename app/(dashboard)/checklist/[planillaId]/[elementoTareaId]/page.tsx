@@ -57,6 +57,7 @@ function CargarPdfContent() {
   // Config de firmas efectiva — para saber si activar detección visual de firma.
   const { data: firmasConfigRaw } = useGetFirmasConfigEfectivaPorEt(elementoTareaId)
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
+  const cantidadFirmasFisicas = firmasConfigRaw?.data?.cantidadSlotsFisica ?? 0
 
   // Breadcrumb: Ejecución → Registros → Cargar planilla física
   useBreadcrumb([
@@ -246,6 +247,7 @@ function CargarPdfContent() {
         esperadoPlanillaId={planillaIdEsperada}
         esperadoElementoTareaId={elementoTareaIdEsperada}
         hayFirmasFisicas={hayFirmasFisicas}
+        cantidadFirmasFisicas={cantidadFirmasFisicas}
         onSubmit={handleSubmit}
         isSubmitting={ocupado}
         submitLabel="Subir planilla"

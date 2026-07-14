@@ -52,12 +52,14 @@ type FilaEstado =
   | "sincronizado"
   | "error"
 
-/** Resultado de la detección visual de firma. `null` = no corrió todavía. */
+/** Resultado de la detección visual de firma. `null` = no corrió todavía.
+ *  Los kinds "detectada" y "no-detectada" ahora traen el conteo per-slot para
+ *  planillas con N > 1 firmas físicas. `slotsDetectados==slotsTotal` = todas. */
 type FirmaDeteccion =
   | null
   | { kind: "no-aplica" }
-  | { kind: "detectada"; densidadPct: number }
-  | { kind: "no-detectada"; densidadPct: number }
+  | { kind: "detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
+  | { kind: "no-detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
 
 interface Fila {
   id: string
@@ -81,11 +83,11 @@ export default function CargaRapidaQrPage() {
   const resolver = useResolverRegistroPorEt()
   const queryClient = useQueryClient()
 
-  // Cache local del batch: `hayFirmasFisicas` es una propiedad del proyecto/tarea,
+  // Cache local del batch: `cantidadFirmasFisicas` es una propiedad del proyecto/tarea,
   // no del archivo, así que la primera fila del proyecto la consulta y las demás
   // reusan el valor. Si el batch tiene 30 archivos de un solo proyecto, hacemos
-  // 1 llamada en vez de 30. Persiste con useRef entre renders.
-  const cacheFirmasFisicas = useRef<Map<string, boolean>>(new Map())
+  // 1 llamada en vez de 30. Persiste con useRef entre renders. 0 = sin firmas físicas.
+  const cacheFirmasFisicas = useRef<Map<string, number>>(new Map())
 
   // Estado agregado para el header.
   const total = filas.length
@@ -153,7 +155,9 @@ export default function CargaRapidaQrPage() {
       const firmaDeteccion = await detectarFirmaSiCorresponde(res.data, archivo, qr)
       const mensajeFirma =
         firmaDeteccion?.kind === "no-detectada"
-          ? `Firma no detectada (${firmaDeteccion.densidadPct.toFixed(1)}%) — se registra en observaciones.`
+          ? firmaDeteccion.slotsTotal > 1
+            ? `Faltan firmas: se detectaron ${firmaDeteccion.slotsDetectados}/${firmaDeteccion.slotsTotal} — se registra en observaciones.`
+            : `Firma no detectada (${firmaDeteccion.densidadPct.toFixed(1)}%) — se registra en observaciones.`
           : null
 
       actualizar(id, {
@@ -198,32 +202,43 @@ export default function CargaRapidaQrPage() {
     qr: QrLeidoResult,
   ): Promise<FirmaDeteccion> {
     const proyectoId = resuelto.proyectoId
-    let hayFirmasFisicas = cacheFirmasFisicas.current.get(proyectoId)
-    if (hayFirmasFisicas === undefined) {
+    let cantidadFirmas = cacheFirmasFisicas.current.get(proyectoId)
+    if (cantidadFirmas === undefined) {
       try {
         const res = await apiClient.get<{ data: FirmasConfigEfectiva }>(
           `/api/elementos-tareas/${resuelto.elementoTareaId}/firmas-config-efectiva`,
         )
-        hayFirmasFisicas = res.data.hayFirmasFisicas
-        cacheFirmasFisicas.current.set(proyectoId, hayFirmasFisicas)
+        cantidadFirmas = res.data.cantidadSlotsFisica ?? 0
+        cacheFirmasFisicas.current.set(proyectoId, cantidadFirmas)
       } catch (err) {
         console.error("[carga-rapida-qr] firmas-config-efectiva threw:", err)
         // No romper el flujo — asumimos que no aplica y seguimos.
-        cacheFirmasFisicas.current.set(proyectoId, false)
+        cacheFirmasFisicas.current.set(proyectoId, 0)
         return { kind: "no-aplica" }
       }
     }
-    if (!hayFirmasFisicas) return { kind: "no-aplica" }
+    if (cantidadFirmas === 0) return { kind: "no-aplica" }
     try {
       const deteccion = await detectSignatureInFooter(archivo, {
         rotacion: qr.rotacionDetectada,
+        cantidadSlots: cantidadFirmas,
       })
       return deteccion.detected
-        ? { kind: "detectada", densidadPct: deteccion.densidadPct }
-        : { kind: "no-detectada", densidadPct: deteccion.densidadPct }
+        ? {
+            kind: "detectada",
+            densidadPct: deteccion.densidadPct,
+            slotsDetectados: deteccion.slotsDetectados,
+            slotsTotal: deteccion.slotsTotal,
+          }
+        : {
+            kind: "no-detectada",
+            densidadPct: deteccion.densidadPct,
+            slotsDetectados: deteccion.slotsDetectados,
+            slotsTotal: deteccion.slotsTotal,
+          }
     } catch (err) {
       console.error("[carga-rapida-qr] detectSignatureInFooter threw:", err)
-      return { kind: "no-detectada", densidadPct: 0 }
+      return { kind: "no-detectada", densidadPct: 0, slotsDetectados: 0, slotsTotal: cantidadFirmas }
     }
   }
 
@@ -246,7 +261,10 @@ export default function CargaRapidaQrPage() {
         // el detalle para que el backend lo agregue a Observaciones. Consistente
         // con las pantallas individuales (/registros/{id} y /checklist/...).
         if (fila.firmaDeteccion?.kind === "no-detectada") {
-          const detalle = `densidad tinta ${fila.firmaDeteccion.densidadPct.toFixed(2)}% en la zona de firmas`
+          const { slotsDetectados, slotsTotal, densidadPct } = fila.firmaDeteccion
+          const detalle = slotsTotal > 1
+            ? `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`
+            : `densidad tinta ${densidadPct.toFixed(2)}% en la zona de firmas`
           fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
         }
         // fetch directo con FormData: no usamos apiClient.post porque fuerza
@@ -556,20 +574,24 @@ function FirmaBadge({ deteccion }: { deteccion: FirmaDeteccion }) {
   if (deteccion.kind === "no-aplica") {
     return <span className="text-[11px] text-muted-foreground">N/A</span>
   }
-  if (deteccion.kind === "detectada") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium w-fit"
-        title={`Densidad de tinta ${deteccion.densidadPct.toFixed(1)}%`}>
-        <CheckCircle2 className="h-3 w-3" />
-        Detectada
-      </span>
-    )
-  }
+  // Cuando hay más de 1 slot, mostramos ratio "X/N"; sino solo el estado.
+  const multi = deteccion.slotsTotal > 1
+  const label = multi
+    ? `${deteccion.slotsDetectados}/${deteccion.slotsTotal} firmas`
+    : deteccion.kind === "detectada" ? "Detectada" : "No detectada"
+  const title = multi
+    ? `${deteccion.slotsDetectados} de ${deteccion.slotsTotal} slots con firma detectada${deteccion.kind === "no-detectada" ? " — se registra en observaciones" : ""}`
+    : `Densidad de tinta ${deteccion.densidadPct.toFixed(1)}%${deteccion.kind === "no-detectada" ? " — se registra en observaciones" : ""}`
+  const detectadaTodas = deteccion.kind === "detectada"
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium w-fit"
-      title={`Densidad de tinta ${deteccion.densidadPct.toFixed(1)}% — se registra en observaciones`}>
-      <AlertTriangle className="h-3 w-3" />
-      No detectada
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit ${
+        detectadaTodas ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+      }`}
+      title={title}
+    >
+      {detectadaTodas ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+      {label}
     </span>
   )
 }

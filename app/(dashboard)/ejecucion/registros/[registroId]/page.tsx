@@ -159,6 +159,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const { data: firmasConfigRaw } = useGetFirmasConfigEfectiva(registroId)
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
+  const cantidadFirmasFisicas = firmasConfigRaw?.data?.cantidadSlotsFisica ?? 0
 
   // Info del próximo ciclo de preservación generado por completar/firmar. Cuando
   // viene con generado=true mostramos el dialog y postergamos el router.back()
@@ -421,6 +422,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           esperadoPlanillaId={(registro.planillaId ?? "").toLowerCase()}
           esperadoElementoTareaId={(registro.elementoTareaId ?? "").toLowerCase()}
           hayFirmasFisicas={hayFirmasFisicas}
+          cantidadFirmasFisicas={cantidadFirmasFisicas}
           onSubmit={handleSubmitFisico}
           isSubmitting={isSaving}
           submitLabel="Subir y completar"
