@@ -376,12 +376,16 @@ export default function CargaRapidaQrPage() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Elemento</TableHead>
                 <TableHead>Tarea</TableHead>
+                <TableHead>Firma</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {filas.map((f) => (
-                <TableRow key={f.id}>
+                <TableRow
+                  key={f.id}
+                  className={f.firmaDeteccion?.kind === "no-detectada" ? "bg-amber-50/60" : undefined}
+                >
                   <TableCell className="text-sm">
                     <div className="flex flex-col">
                       <span className="font-medium truncate max-w-64" title={f.archivo.name}>
@@ -418,6 +422,9 @@ export default function CargaRapidaQrPage() {
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    <FirmaBadge deteccion={f.firmaDeteccion} />
                   </TableCell>
                   <TableCell className="text-right">
                     <button
@@ -534,10 +541,35 @@ function EstadoBadge({
         {it.label}
       </span>
       {mensaje && (
-        <span className="text-[11px] text-muted-foreground max-w-72 line-clamp-2" title={mensaje}>
+        <span className="text-[11px] text-muted-foreground max-w-xs whitespace-normal wrap-break-word">
           {mensaje}
         </span>
       )}
     </div>
+  )
+}
+
+// ─── Badge de detección de firma ─────────────────────────────────────────────
+
+function FirmaBadge({ deteccion }: { deteccion: FirmaDeteccion }) {
+  if (!deteccion) return <span className="text-[11px] text-muted-foreground">—</span>
+  if (deteccion.kind === "no-aplica") {
+    return <span className="text-[11px] text-muted-foreground">N/A</span>
+  }
+  if (deteccion.kind === "detectada") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium w-fit"
+        title={`Densidad de tinta ${deteccion.densidadPct.toFixed(1)}%`}>
+        <CheckCircle2 className="h-3 w-3" />
+        Detectada
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium w-fit"
+      title={`Densidad de tinta ${deteccion.densidadPct.toFixed(1)}% — se registra en observaciones`}>
+      <AlertTriangle className="h-3 w-3" />
+      No detectada
+    </span>
   )
 }
