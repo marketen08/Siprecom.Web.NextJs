@@ -4,7 +4,7 @@ import { use, useState, useMemo, Suspense } from "react"
 import {
   Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
-  UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight,
+  UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight, Link as LinkIcon, Copy,
 } from "lucide-react"
 import { useEffect } from "react"
 
@@ -17,6 +17,7 @@ import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
+import { useGetPasswordLink } from "@/features/usuarios/api/use-get-password-link"
 import { useResendInvite } from "@/features/usuarios/api/use-resend-invite"
 import { useCambiarLoginMethod } from "@/features/usuarios/api/use-cambiar-login-method"
 import { useSetProyectoActivoAdmin } from "@/features/usuarios/api/use-set-proyecto-activo-admin"
@@ -135,6 +136,7 @@ function UsuarioDetailContent({ id }: { id: string }) {
 function TabDatos({ usuario }: { usuario: any }) {
   const update = useUpdateUsuarioAdmin(usuario.id)
   const resetPassword = useResetPasswordAdmin(usuario.id)
+  const passwordLink = useGetPasswordLink(usuario.id)
   const resendInvite = useResendInvite(usuario.id)
   const [nombre, setNombre]   = useState(usuario.nombre ?? "")
   const [apellido, setApellido] = useState(usuario.apellido ?? "")
@@ -143,6 +145,21 @@ function TabDatos({ usuario }: { usuario: any }) {
   const [newPassword, setNewPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [passwordSaved, setPasswordSaved] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const esMicrosoft = (usuario.loginMethod ?? 0) === 1
+  const linkUrl = passwordLink.data?.url ?? null
+
+  async function handleCopyLink() {
+    if (!linkUrl) return
+    try {
+      await navigator.clipboard.writeText(linkUrl)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2500)
+    } catch {
+      // Si clipboard falla (permiso/http), el usuario igual puede copiar del input.
+    }
+  }
 
   // Opciones de empresa: clientes + contratistas, con badge de rol en el label.
   // El backend admite "" para desasignar (lo interpretamos en el handleSave).
@@ -316,6 +333,62 @@ function TabDatos({ usuario }: { usuario: any }) {
 
         {resetPassword.isError && (
           <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
+        )}
+      </div>
+
+      {/* Link para definir contraseña (compartir manual, útil si el email no llega) */}
+      <div className="space-y-3">
+        <Separator />
+        <div className="flex items-center gap-2">
+          <LinkIcon className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-gray-700">Link para definir contraseña</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Generá un link y compartíselo al usuario (por WhatsApp, chat, etc.) para que defina su
+          contraseña. Sirve cuando el email de invitación no llega.
+        </p>
+
+        {esMicrosoft ? (
+          <p className="text-xs text-amber-600">
+            El usuario ingresa con Microsoft. Cambialo a mail + contraseña (más arriba) para poder generar el link.
+          </p>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => passwordLink.mutate()}
+              disabled={passwordLink.isPending}
+            >
+              {passwordLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+              {passwordLink.isPending ? "Generando..." : "Generar link"}
+            </Button>
+
+            {linkUrl && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={linkUrl}
+                    className="text-xs font-mono"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={handleCopyLink}>
+                    {linkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    {linkCopied ? "Copiado" : "Copiar"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  El link vence en ~1 día. Si expira, generá uno nuevo.
+                </p>
+              </div>
+            )}
+
+            {passwordLink.isError && (
+              <p className="text-sm text-red-600">{(passwordLink.error as Error)?.message ?? "No se pudo generar el link"}</p>
+            )}
+          </>
         )}
       </div>
 
