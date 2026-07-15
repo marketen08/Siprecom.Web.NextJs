@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   FileUp,
+  Info,
   Loader2,
   QrCode,
   Trash2,
@@ -58,8 +59,11 @@ type FilaEstado =
 type FirmaDeteccion =
   | null
   | { kind: "no-aplica" }
-  | { kind: "detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
-  | { kind: "no-detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
+  | { kind: "detectada"; slotsDetectados: number; slotsTotal: number }
+  | { kind: "no-detectada"; slotsDetectados: number; slotsTotal: number }
+  // Planilla sin fiduciales impresos — la detección no puede afirmar nada.
+  // Diferenciado de "no-detectada" para no dar falso negativo en el badge.
+  | { kind: "sin-fiduciales"; slotsTotal: number }
 
 interface Fila {
   id: string
@@ -157,8 +161,10 @@ export default function CargaRapidaQrPage() {
         firmaDeteccion?.kind === "no-detectada"
           ? firmaDeteccion.slotsTotal > 1
             ? `Faltan firmas: se detectaron ${firmaDeteccion.slotsDetectados}/${firmaDeteccion.slotsTotal} — se registra en observaciones.`
-            : `Firma no detectada (${firmaDeteccion.densidadPct.toFixed(1)}%) — se registra en observaciones.`
-          : null
+            : `Firma no detectada — se registra en observaciones.`
+          : firmaDeteccion?.kind === "sin-fiduciales"
+            ? `Planilla sin fiduciales — no fue posible verificar firmas visualmente.`
+            : null
 
       actualizar(id, {
         estado: estadoBase,
@@ -223,22 +229,23 @@ export default function CargaRapidaQrPage() {
         rotacion: qr.rotacionDetectada,
         cantidadSlots: cantidadFirmas,
       })
+      if (deteccion.sinFiduciales) {
+        return { kind: "sin-fiduciales", slotsTotal: cantidadFirmas }
+      }
       return deteccion.detected
         ? {
             kind: "detectada",
-            densidadPct: deteccion.densidadPct,
             slotsDetectados: deteccion.slotsDetectados,
             slotsTotal: deteccion.slotsTotal,
           }
         : {
             kind: "no-detectada",
-            densidadPct: deteccion.densidadPct,
             slotsDetectados: deteccion.slotsDetectados,
             slotsTotal: deteccion.slotsTotal,
           }
     } catch (err) {
       console.error("[carga-rapida-qr] detectSignatureInFooter threw:", err)
-      return { kind: "no-detectada", densidadPct: 0, slotsDetectados: 0, slotsTotal: cantidadFirmas }
+      return { kind: "no-detectada", slotsDetectados: 0, slotsTotal: cantidadFirmas }
     }
   }
 
@@ -261,10 +268,11 @@ export default function CargaRapidaQrPage() {
         // el detalle para que el backend lo agregue a Observaciones. Consistente
         // con las pantallas individuales (/registros/{id} y /checklist/...).
         if (fila.firmaDeteccion?.kind === "no-detectada") {
-          const { slotsDetectados, slotsTotal, densidadPct } = fila.firmaDeteccion
-          const detalle = slotsTotal > 1
-            ? `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`
-            : `densidad tinta ${densidadPct.toFixed(2)}% en la zona de firmas`
+          const { slotsDetectados, slotsTotal } = fila.firmaDeteccion
+          const detalle = `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`
+          fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
+        } else if (fila.firmaDeteccion?.kind === "sin-fiduciales") {
+          const detalle = `planilla sin fiduciales — no fue posible verificar firmas visualmente`
           fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
         }
         // fetch directo con FormData: no usamos apiClient.post porque fuerza
@@ -574,14 +582,25 @@ function FirmaBadge({ deteccion }: { deteccion: FirmaDeteccion }) {
   if (deteccion.kind === "no-aplica") {
     return <span className="text-[11px] text-muted-foreground">N/A</span>
   }
-  // Cuando hay más de 1 slot, mostramos ratio "X/N"; sino solo el estado.
+  // Sin fiduciales: azul, no verificable — distinto de "faltan firmas".
+  if (deteccion.kind === "sin-fiduciales") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit bg-blue-100 text-blue-800"
+        title="La planilla fue impresa antes del sistema de fiduciales. La firma no se puede verificar visualmente."
+      >
+        <Info className="h-3 w-3" />
+        Sin fiduciales
+      </span>
+    )
+  }
   const multi = deteccion.slotsTotal > 1
   const label = multi
     ? `${deteccion.slotsDetectados}/${deteccion.slotsTotal} firmas`
     : deteccion.kind === "detectada" ? "Detectada" : "No detectada"
   const title = multi
     ? `${deteccion.slotsDetectados} de ${deteccion.slotsTotal} slots con firma detectada${deteccion.kind === "no-detectada" ? " — se registra en observaciones" : ""}`
-    : `Densidad de tinta ${deteccion.densidadPct.toFixed(1)}%${deteccion.kind === "no-detectada" ? " — se registra en observaciones" : ""}`
+    : deteccion.kind === "detectada" ? "Firma detectada" : "Firma no detectada — se registra en observaciones"
   const detectadaTodas = deteccion.kind === "detectada"
   return (
     <span

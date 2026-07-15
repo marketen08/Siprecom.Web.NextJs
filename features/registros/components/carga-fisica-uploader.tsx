@@ -112,8 +112,13 @@ export function CargaFisicaUploader({
   const [firmaState, setFirmaState] = useState<
     | null
     | { kind: "detectando" }
-    | { kind: "detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
-    | { kind: "no-detectada"; densidadPct: number; slotsDetectados: number; slotsTotal: number }
+    | { kind: "detectada"; slotsDetectados: number; slotsTotal: number }
+    | { kind: "no-detectada"; slotsDetectados: number; slotsTotal: number }
+    // Planilla no tiene fiduciales impresos (generada antes del cambio) —
+    // no podemos verificar visualmente, mostramos el estado y dejamos al
+    // usuario decidir. Diferenciado de "no-detectada" para no dar falso
+    // negativo.
+    | { kind: "sin-fiduciales" }
     | { kind: "no-aplica" }
   >(null)
   const [confirmarMismatch, setConfirmarMismatch] = useState(false)
@@ -169,17 +174,19 @@ export function CargaFisicaUploader({
         rotacion,
         cantidadSlots: cantidadFirmasFisicas,
       })
-      setFirmaState({
-        kind: deteccion.detected ? "detectada" : "no-detectada",
-        densidadPct: deteccion.densidadPct,
-        slotsDetectados: deteccion.slotsDetectados,
-        slotsTotal: deteccion.slotsTotal,
-      })
+      if (deteccion.sinFiduciales) {
+        setFirmaState({ kind: "sin-fiduciales" })
+      } else {
+        setFirmaState({
+          kind: deteccion.detected ? "detectada" : "no-detectada",
+          slotsDetectados: deteccion.slotsDetectados,
+          slotsTotal: deteccion.slotsTotal,
+        })
+      }
     } catch (err) {
       console.error("[CargaFisicaUploader] detectSignatureInFooter threw:", err)
       setFirmaState({
         kind: "no-detectada",
-        densidadPct: 0,
         slotsDetectados: 0,
         slotsTotal: cantidadFirmasFisicas,
       })
@@ -212,9 +219,11 @@ export function CargaFisicaUploader({
       ).slice(0, 500)
     }
     if (firmaState?.kind === "no-detectada" && forzarOverride) {
-      const detalle = firmaState.slotsTotal > 1
-        ? `firmas detectadas ${firmaState.slotsDetectados}/${firmaState.slotsTotal} en la zona de firmas`
-        : `densidad tinta ${firmaState.densidadPct.toFixed(2)}% en la zona de firmas`
+      const detalle = `firmas detectadas ${firmaState.slotsDetectados}/${firmaState.slotsTotal} en la zona de firmas`
+      params.firmaOverrideDetalle = detalle.slice(0, 500)
+    }
+    if (firmaState?.kind === "sin-fiduciales") {
+      const detalle = `planilla sin fiduciales — no fue posible verificar firmas visualmente`
       params.firmaOverrideDetalle = detalle.slice(0, 500)
     }
     await onSubmit(params)
@@ -342,7 +351,7 @@ export function CargaFisicaUploader({
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {firmaState.slotsTotal > 1
             ? `Todas las firmas detectadas (${firmaState.slotsDetectados}/${firmaState.slotsTotal}) en el escaneo.`
-            : `Firma detectada en el escaneo (${firmaState.densidadPct.toFixed(1)}% de tinta en la zona esperada).`}
+            : "Firma detectada en el escaneo."}
         </div>
       )}
       {firmaState?.kind === "no-detectada" && (
@@ -355,10 +364,20 @@ export function CargaFisicaUploader({
                 : "No se detectó firma manuscrita en el escaneo."}
             </p>
             <p className="text-xs mt-1">
-              {firmaState.slotsTotal > 1
-                ? `Se esperaban ${firmaState.slotsTotal} firmas y se detectaron ${firmaState.slotsDetectados}.`
-                : `Densidad de tinta ${firmaState.densidadPct.toFixed(1)}% (muy baja) en la zona esperada.`}
-              {" "}Si estás seguro que la planilla está firmada, podés cargarla igual — queda registrado en las observaciones.
+              Si estás seguro que la planilla está firmada, podés cargarla igual — queda registrado en las observaciones.
+            </p>
+          </div>
+        </div>
+      )}
+      {firmaState?.kind === "sin-fiduciales" && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">No se puede verificar la firma en este escaneo.</p>
+            <p className="text-xs mt-1">
+              La planilla impresa fue generada antes del sistema de fiduciales. Podés cargarla igual —
+              para futuras cargas conviene reimprimir la planilla desde el sistema para que se puedan
+              detectar las firmas automáticamente.
             </p>
           </div>
         </div>
@@ -454,23 +473,11 @@ export function CargaFisicaUploader({
           </AlertDialogHeader>
           {firmaState?.kind === "no-detectada" && (
             <div className="rounded-md border bg-muted/40 p-3 text-xs">
-              {firmaState.slotsTotal > 1 ? (
-                <>
-                  Firmas detectadas:{" "}
-                  <span className="font-mono font-medium">
-                    {firmaState.slotsDetectados}/{firmaState.slotsTotal}
-                  </span>
-                  <span className="text-muted-foreground"> (se esperaban las {firmaState.slotsTotal})</span>
-                </>
-              ) : (
-                <>
-                  Densidad de tinta observada:{" "}
-                  <span className="font-mono font-medium">
-                    {firmaState.densidadPct.toFixed(2)}%
-                  </span>
-                  <span className="text-muted-foreground"> (mínima esperada 3.0%)</span>
-                </>
-              )}
+              Firmas detectadas:{" "}
+              <span className="font-mono font-medium">
+                {firmaState.slotsDetectados}/{firmaState.slotsTotal}
+              </span>
+              <span className="text-muted-foreground"> (se esperaban las {firmaState.slotsTotal})</span>
             </div>
           )}
           <AlertDialogFooter>
