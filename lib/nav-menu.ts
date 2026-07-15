@@ -52,6 +52,7 @@ export const menu: MenuItem[] = [
       { label: "Paquetes de prueba",       href: "/ejecucion/test-groups" },
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Carga rápida por QR",     href: "/ejecucion/carga-rapida-qr", minRole: "User" },
+      { label: "App de escritorio",       href: "/ejecucion/app-escritorio", minRole: "User" },
       { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
       // Mis firmas es solo para roles que firman: Consultor/Auditor no firman.
