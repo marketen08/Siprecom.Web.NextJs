@@ -19,7 +19,14 @@ export async function GET() {
       { status: 500 }
     )
   }
-  // Sin trailing slash — el WinForms concatena `/api/...` cuando lo usa.
-  const normalized = backendUrl.replace(/\/+$/, "")
+  // Devolvemos la RAIZ del backend (sin trailing slash y sin sufijo `/api`).
+  // El WinForms concatena `api/auth/login` etc a partir de esta URL, y el
+  // backend tiene una convention `UseRoutePrefix("api")` que agrega /api a
+  // todos los controllers. Por eso el API_URL de Railway suele terminar en
+  // `/api` (para que el frontend proxy haga `${API_URL}/auth/login`), pero
+  // el cliente headless de escritorio necesita la raiz.
+  const normalized = backendUrl
+    .replace(/\/+$/, "")   // quita trailing slash
+    .replace(/\/api$/, "") // quita "/api" si vino con eso
   return NextResponse.json({ backendUrl: normalized })
 }
