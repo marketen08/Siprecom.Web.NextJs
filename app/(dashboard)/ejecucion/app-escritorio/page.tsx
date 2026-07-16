@@ -15,7 +15,12 @@ export default function AppEscritorioPage() {
     setError(null)
     setDescargando(true)
     try {
-      const res = await fetch("/api/downloads/win-local/installer")
+      // Pasamos el origen del frontend como query. El backend lo codifica en el
+      // nombre del installer descargado (`Siprecom-Setup~<base64url>.exe`) para
+      // que la app, al primer arranque, lo lea de Downloads y auto-configure —
+      // sin que el operador tenga que pegar URL a mano.
+      const from = encodeURIComponent(window.location.origin)
+      const res = await fetch(`/api/downloads/win-local/installer?from=${from}`)
       if (!res.ok) {
         if (res.status === 404) {
           setError("Todavía no se publicó una versión del instalador. Contactate con el administrador.")
