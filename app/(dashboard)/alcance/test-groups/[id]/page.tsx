@@ -20,6 +20,9 @@ import {
 import { useCambiarEstadoTarea } from "@/features/testgroups/api/use-cambiar-estado-tarea"
 import { useIniciarRegistroTarea } from "@/features/testgroups/api/use-iniciar-registro-tarea"
 import { useReiniciarTareaPack } from "@/features/testgroups/api/use-reiniciar-tarea-pack"
+import { useExcluirTareaPack } from "@/features/testgroups/api/use-excluir-tarea-pack"
+import { useReincorporarTareaPack } from "@/features/testgroups/api/use-reincorporar-tarea-pack"
+import { useGetTareasExcluidasPack } from "@/features/testgroups/api/use-get-tareas-excluidas-pack"
 import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
 import { useCanWrite } from "@/lib/use-roles"
 
@@ -56,6 +59,17 @@ export default function TestGroupDetallePage({
   const backHref = pathname?.startsWith("/ejecucion")
     ? "/ejecucion/test-groups"
     : "/alcance/test-groups"
+
+  // Modo derivado de la URL:
+  //   - "ejecucion": tab Tareas muestra acciones operativas (iniciar/completar/
+  //     cargar físico/reiniciar/rechazar). Tab Elementos es solo lectura.
+  //   - "alcance": tab Tareas muestra acciones de config (excluir/reincorporar).
+  //     Tab Elementos permite agregar/quitar. Sin acciones operativas.
+  // Un mismo componente sirve a las dos rutas; los subcomponentes lo consumen
+  // para gate el UI.
+  const modo: "alcance" | "ejecucion" = pathname?.startsWith("/ejecucion")
+    ? "ejecucion"
+    : "alcance"
 
   const { data, isLoading } = useGetTestGroup(id)
   const tg = data?.data
@@ -139,8 +153,8 @@ export default function TestGroupDetallePage({
           tarea, cargar planilla física). El backend igual devolvería 403; esto
           evita mostrar botones que no van a funcionar. */}
       {tab === "info" && <TabInfo tg={tg} isPressure={isPressure} />}
-      {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} />}
-      {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} />}
+      {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} modo={modo} />}
+      {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} modo={modo} />}
       {tab === "progreso" && <TabProgreso testGroupId={tg.id} />}
     </div>
   )
@@ -231,12 +245,25 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 // ─── TAB: Elementos ───────────────────────────────────────────────────────
 
-function TabElementos({ testGroupId, bloqueado }: { testGroupId: string; bloqueado: boolean }) {
+function TabElementos({
+  testGroupId, bloqueado, modo,
+}: {
+  testGroupId: string
+  bloqueado: boolean
+  modo: "alcance" | "ejecucion"
+}) {
   // Detalle del pack: mostramos todos los asignados de una — pageSize=500 es el tope
   // duro del backend. Si algún pack supera eso, hay que paginar acá también.
   const { data, isLoading } = useGetElementosAsignados({ testGroupId, pageSize: 500 })
   const desasignar = useDesasignarElemento()
   const elementos = data?.data?.data ?? []
+  // Quitar elementos = decisión de config. Sólo Alcance. En Ejecución es solo lectura.
+  const esAlcance = modo === "alcance"
+
+  // Columna "Acciones" solo tiene sentido en Alcance (config del pack). En
+  // Ejecución el operador no quita elementos → la columna se oculta directo.
+  const mostrarAcciones = esAlcance
+  const colspan = mostrarAcciones ? 6 : 5
 
   return (
     <Card className="p-0 overflow-hidden">
@@ -245,39 +272,49 @@ function TabElementos({ testGroupId, bloqueado }: { testGroupId: string; bloquea
           <TableRow>
             <TableHead className="w-32">TAG</TableHead>
             <TableHead>Nombre</TableHead>
+            <TableHead>Especialidad</TableHead>
             <TableHead>Tipo</TableHead>
             <TableHead>Subsistema</TableHead>
-            <TableHead className="w-24 text-right">Acciones</TableHead>
+            {mostrarAcciones && <TableHead className="w-24 text-right">Acciones</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Cargando…</TableCell></TableRow>
+            <TableRow><TableCell colSpan={colspan} className="text-center py-8 text-muted-foreground">Cargando…</TableCell></TableRow>
           ) : elementos.length === 0 ? (
-            <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin elementos asignados.</TableCell></TableRow>
+            <TableRow><TableCell colSpan={colspan} className="text-center py-8 text-muted-foreground">Sin elementos asignados.</TableCell></TableRow>
           ) : (
             elementos.map((el) => (
               <TableRow key={el.id}>
                 <TableCell className="font-mono text-xs">{el.tag}</TableCell>
                 <TableCell className="text-sm">{el.nombre}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{el.especialidadNombre || "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{el.elementoTipoNombre || "—"}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{el.subSistemaCodigo || "—"}</TableCell>
-                <TableCell className="text-right">
-                  {!bloqueado && (
-                    <ConfirmActionDialog
-                      trigger={<XCircle className="h-4 w-4" />}
-                      triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
-                      title="¿Quitar elemento?"
-                      description={<>Se quitará <strong>{el.tag}</strong> del paquete.</>}
-                      confirmText="Quitar"
-                      pendingText="Quitando..."
-                      variant="destructive"
-                      onConfirm={() =>
-                        desasignar.mutateAsync({ testGroupId, elementoId: el.id })
-                      }
-                    />
-                  )}
+                <TableCell className="text-sm text-muted-foreground">
+                  {el.subSistemaCodigo
+                    ? el.subSistemaNombre
+                      ? `${el.subSistemaCodigo} · ${el.subSistemaNombre}`
+                      : el.subSistemaCodigo
+                    : "—"}
                 </TableCell>
+                {mostrarAcciones && (
+                  <TableCell className="text-right">
+                    {!bloqueado && (
+                      <ConfirmActionDialog
+                        trigger={<XCircle className="h-4 w-4" />}
+                        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+                        title="¿Quitar elemento?"
+                        description={<>Se quitará <strong>{el.tag}</strong> del paquete.</>}
+                        confirmText="Quitar"
+                        pendingText="Quitando..."
+                        variant="destructive"
+                        onConfirm={() =>
+                          desasignar.mutateAsync({ testGroupId, elementoId: el.id })
+                        }
+                      />
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))
           )}
@@ -289,9 +326,24 @@ function TabElementos({ testGroupId, bloqueado }: { testGroupId: string; bloquea
 
 // ─── TAB: Tareas (ejecución) ──────────────────────────────────────────────
 
-function TabTareas({ testGroupId, proyectoId, bloqueado }: { testGroupId: string; proyectoId: string; bloqueado: boolean }) {
+function TabTareas({
+  testGroupId, proyectoId, bloqueado, modo,
+}: {
+  testGroupId: string
+  proyectoId: string
+  bloqueado: boolean
+  modo: "alcance" | "ejecucion"
+}) {
   const { data, isLoading } = useGetTareasPack(testGroupId)
   const tareas = data?.data ?? []
+
+  // Panel de tareas EXCLUIDAS — solo relevante en Alcance (config del pack).
+  // En Ejecución no lo mostramos: el operador ejecuta lo que aplica, no le
+  // interesa ver las excluidas.
+  const excluidasEnabled = modo === "alcance"
+  const { data: excluidasRaw } = useGetTareasExcluidasPack(excluidasEnabled ? testGroupId : null)
+  const excluidas = excluidasEnabled ? (excluidasRaw?.data ?? []) : []
+  const reincorporar = useReincorporarTareaPack()
 
   // Flags del proyecto — mismos que usa el sheet de detalle de elemento en /ejecucion.
   const { data: proyectoRaw } = useGetProyecto(proyectoId)
@@ -335,17 +387,58 @@ function TabTareas({ testGroupId, proyectoId, bloqueado }: { testGroupId: string
                 permitirFisico={permitirFisico}
                 preFirmado={preFirmado}
                 permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+                modo={modo}
               />
             ))
           )}
         </TableBody>
       </Table>
+
+      {/* Panel de excluidas — sólo Alcance. Se muestra si hay al menos 1. */}
+      {excluidasEnabled && excluidas.length > 0 && (
+        <div className="border-t bg-muted/30 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <XCircle className="h-3.5 w-3.5" /> Tareas excluidas del pack ({excluidas.length})
+          </div>
+          <p className="text-xs text-muted-foreground">
+            No aplican a este pack — no cuentan para el conteo de avance.
+            Se pueden reincorporar cuando corresponda.
+          </p>
+          <div className="divide-y">
+            {excluidas.map((t) => (
+              <div key={t.id} className="flex items-center justify-between py-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-muted-foreground">{t.tareaCodigo}</span>
+                  <span>{t.tareaNombre}</span>
+                  {t.tareaElementoTipoNombre && (
+                    <span className="text-xs text-muted-foreground">· {t.tareaElementoTipoNombre}</span>
+                  )}
+                </div>
+                {!bloqueado && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => reincorporar.mutateAsync({ testGroupId, tareaId: t.id })}
+                    disabled={reincorporar.isPending}
+                  >
+                    {reincorporar.isPending && reincorporar.variables?.tareaId === t.id
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <RotateCcw className="h-3 w-3" />}
+                    Reincorporar
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
   )
 }
 
 function TareaRow({
-  tarea, testGroupId, bloqueado, permitirFisico, preFirmado, permitirDescargarProcedimientos,
+  tarea, testGroupId, bloqueado, permitirFisico, preFirmado, permitirDescargarProcedimientos, modo,
 }: {
   tarea: TestGroupTareaItem
   testGroupId: string
@@ -353,11 +446,18 @@ function TareaRow({
   permitirFisico: boolean
   preFirmado: boolean
   permitirDescargarProcedimientos: boolean
+  modo: "alcance" | "ejecucion"
 }) {
   const cambiar = useCambiarEstadoTarea()
   const iniciarRegistro = useIniciarRegistroTarea()
   const reiniciar = useReiniciarTareaPack()
+  const excluir = useExcluirTareaPack()
   const router = useRouter()
+
+  // Modo determina qué acciones aparecen — ver split de Ejecución vs Alcance
+  // en Program.cs / nav-menu. Alcance = config, Ejecución = trabajo operativo.
+  const esEjecucion = modo === "ejecucion"
+  const esAlcance = modo === "alcance"
 
   const tienePlanilla = !!tarea.tareaPlanillaId
   const tieneRegistro = !!tarea.registroId
@@ -401,8 +501,9 @@ function TareaRow({
       <TableCell className="text-xs text-muted-foreground">{fmtFecha(tarea.fechaFinalizacion)}</TableCell>
       <TableCell>
         <div className="flex items-center gap-1 justify-end">
-          {/* Con planilla: un botón único que crea/reanuda el registro y navega al editor. */}
-          {!bloqueado && tienePlanilla && tarea.estado !== ESTADO_TAREA.RECHAZADO && tarea.estado !== ESTADO_TAREA.CANCELADO && (
+          {/* Con planilla: un botón único que crea/reanuda el registro y navega al editor.
+              Solo Ejecución — Alcance no ejecuta trabajo. */}
+          {esEjecucion && !bloqueado && tienePlanilla && tarea.estado !== ESTADO_TAREA.RECHAZADO && tarea.estado !== ESTADO_TAREA.CANCELADO && (
             <Button
               size="sm"
               className={`h-7 gap-1 text-xs ${tarea.estado === ESTADO_TAREA.COMPLETADO ? "" : "bg-blue-700 hover:bg-blue-600"}`}
@@ -420,8 +521,8 @@ function TareaRow({
                   : "Completar planilla"}
             </Button>
           )}
-          {/* Sin planilla: flujo legacy de estados sin registro. */}
-          {!bloqueado && !tienePlanilla && canIniciar && (
+          {/* Sin planilla: flujo legacy de estados sin registro. Solo Ejecución. */}
+          {esEjecucion && !bloqueado && !tienePlanilla && canIniciar && (
             <Button size="sm" variant="outline" className="h-7 gap-1 text-xs"
               onClick={() => runChange(ESTADO_TAREA.EN_PROCESO)}
               disabled={cambiar.isPending}
@@ -429,7 +530,7 @@ function TareaRow({
               <Play className="h-3 w-3" /> Iniciar
             </Button>
           )}
-          {!bloqueado && !tienePlanilla && canCompletar && (
+          {esEjecucion && !bloqueado && !tienePlanilla && canCompletar && (
             <Button size="sm" className="h-7 gap-1 text-xs bg-green-700 hover:bg-green-600"
               onClick={() => runChange(ESTADO_TAREA.COMPLETADO)}
               disabled={cambiar.isPending}
@@ -437,7 +538,7 @@ function TareaRow({
               <CheckCircle2 className="h-3 w-3" /> Completar
             </Button>
           )}
-          {!bloqueado && canRechazar && (
+          {esEjecucion && !bloqueado && canRechazar && (
             <ConfirmActionDialog
               trigger={<span className="inline-flex items-center gap-1 text-xs text-red-700"><XCircle className="h-3 w-3" /> Rechazar</span>}
               triggerClassName="inline-flex items-center h-7 px-2 rounded-md hover:bg-red-50 transition-colors"
@@ -449,7 +550,7 @@ function TareaRow({
               onConfirm={() => runChange(ESTADO_TAREA.RECHAZADO, "Rechazada desde detalle")}
             />
           )}
-          {!bloqueado && canRevertir && (
+          {esEjecucion && !bloqueado && canRevertir && (
             <ConfirmActionDialog
               trigger={<span className="inline-flex items-center gap-1 text-xs text-gray-700"><RotateCcw className="h-3 w-3" /> Revertir</span>}
               triggerClassName="inline-flex items-center h-7 px-2 rounded-md hover:bg-accent transition-colors"
@@ -461,31 +562,34 @@ function TareaRow({
             />
           )}
 
-          {/* Menú compacto con las acciones secundarias — mismo patrón que el sheet
-              de detalle del elemento en ejecución. */}
+          {/* Menú compacto con las acciones secundarias — dependen del modo:
+              Ejecución muestra operacionales (reiniciar / cargar físico);
+              Alcance muestra config (excluir). Descargas están en ambos. */}
           {(() => {
-            // Cargar registro firmado: si el proyecto permite físico, la tarea tiene
-            // planilla y el estado admite subir (mismo criterio que la vista de elemento).
+            // Cargar registro firmado: sólo Ejecución.
             const puedeCargarFisico =
-              !bloqueado && permitirFisico && tienePlanilla &&
+              esEjecucion && !bloqueado && permitirFisico && tienePlanilla &&
               (tarea.estado === ESTADO_TAREA.PENDIENTE
                 || tarea.estado === ESTADO_TAREA.EN_PROCESO
                 || tarea.estado === ESTADO_TAREA.RECHAZADO)
             const puedeDescargarProcedimiento =
               permitirDescargarProcedimientos && tarea.tareaProcedimientoTieneArchivo
             // Reiniciar: mismo criterio que ElementoTareaService.ReiniciarTareaAsync —
-            // solo tareas con avance. PENDIENTE no aplica (nada que reiniciar);
-            // CANCELADO tampoco (estado terminal por diseño).
+            // solo tareas con avance. Sólo Ejecución.
             const puedeReiniciar =
-              !bloqueado && (
+              esEjecucion && !bloqueado && (
                 tarea.estado === ESTADO_TAREA.EN_PROCESO
                 || tarea.estado === ESTADO_TAREA.COMPLETADO
                 || tarea.estado === ESTADO_TAREA.RECHAZADO
                 || tarea.estado === ESTADO_TAREA.APROBADO
                 || tarea.estado === ESTADO_TAREA.FIRMADO
               )
+            // Excluir del pack: sólo Alcance. El backend rechaza si hay Registro
+            // asociado — el UI lo replica para no ofrecer una acción que va a fallar.
+            const puedeExcluir =
+              esAlcance && !bloqueado && !tieneRegistro
             const hayAlgo = tienePlanilla || tieneRegistro || puedeCargarFisico
-              || puedeDescargarProcedimiento || puedeReiniciar
+              || puedeDescargarProcedimiento || puedeReiniciar || puedeExcluir
 
             if (!hayAlgo) return null
 
@@ -557,6 +661,33 @@ function TareaRow({
                       variant="destructive"
                       onConfirm={() =>
                         reiniciar.mutateAsync({ testGroupId, tareaId: tarea.id })
+                      }
+                    />
+                  )}
+                  {puedeExcluir && (
+                    <ConfirmActionDialog
+                      trigger={
+                        <DropdownMenuItem
+                          onSelect={(e) => e.preventDefault()}
+                          className="text-red-700 focus:text-red-700"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Excluir del pack
+                        </DropdownMenuItem>
+                      }
+                      title="¿Excluir del pack?"
+                      description={
+                        <>
+                          La tarea no aplicará a este paquete de prueba. No cuenta
+                          para el conteo de avance. Se puede reincorporar después
+                          desde el panel <strong>Tareas excluidas</strong>.
+                        </>
+                      }
+                      confirmText="Excluir"
+                      pendingText="Excluyendo..."
+                      variant="destructive"
+                      onConfirm={() =>
+                        excluir.mutateAsync({ testGroupId, tareaId: tarea.id })
                       }
                     />
                   )}

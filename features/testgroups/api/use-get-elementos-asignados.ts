@@ -8,6 +8,7 @@ export interface ElementoAsignable {
   tag: string
   nombre: string
   elementoTipoNombre: string | null
+  especialidadNombre: string | null
   subSistemaCodigo: string | null
   subSistemaNombre: string | null
 }
