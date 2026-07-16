@@ -510,12 +510,16 @@ function TareaRow({
       <TableCell>
         <div className="flex items-center gap-1 justify-end">
           {/* Con planilla: un botón único que crea/reanuda el registro y navega al editor.
-              Solo Ejecución — Alcance no ejecuta trabajo. */}
+              Solo Ejecución — Alcance no ejecuta trabajo. Label sigue el mismo criterio
+              que TareaCard del elemento: "Ver y firmar" cuando quedó COMPLETADO (espera
+              firmas), "Ver registro" en terminales de firma, y wording de flujo cuando
+              está en curso. Al navegar, la página de registros renderiza la FirmasSection
+              (misma que ve el elemento) — ahí se firma. */}
           {esEjecucion && !bloqueado && tienePlanilla && tarea.estado !== ESTADO_TAREA.RECHAZADO && tarea.estado !== ESTADO_TAREA.CANCELADO && (
             <Button
               size="sm"
-              className={`h-7 gap-1 text-xs ${tarea.estado === ESTADO_TAREA.COMPLETADO ? "" : "bg-blue-700 hover:bg-blue-600"}`}
-              variant={tarea.estado === ESTADO_TAREA.COMPLETADO ? "outline" : "default"}
+              className={`h-7 gap-1 text-xs ${tarea.estado === ESTADO_TAREA.PENDIENTE || tarea.estado === ESTADO_TAREA.EN_PROCESO ? "bg-blue-700 hover:bg-blue-600" : ""}`}
+              variant={tarea.estado === ESTADO_TAREA.PENDIENTE || tarea.estado === ESTADO_TAREA.EN_PROCESO ? "default" : "outline"}
               onClick={irAPlanilla}
               disabled={iniciarRegistro.isPending}
             >
@@ -523,10 +527,12 @@ function TareaRow({
                 ? <Loader2 className="h-3 w-3 animate-spin" />
                 : <FileText className="h-3 w-3" />}
               {tarea.estado === ESTADO_TAREA.COMPLETADO
-                ? "Ver planilla"
-                : tieneRegistro
-                  ? "Continuar planilla"
-                  : "Completar planilla"}
+                ? "Ver y firmar"
+                : tarea.estado === ESTADO_TAREA.APROBADO || tarea.estado === ESTADO_TAREA.FIRMADO
+                  ? "Ver registro"
+                  : tieneRegistro
+                    ? "Continuar planilla"
+                    : "Completar planilla"}
             </Button>
           )}
           {/* Sin planilla: flujo legacy de estados sin registro. Solo Ejecución. */}
