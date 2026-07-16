@@ -19,6 +19,7 @@ import {
 } from "@/features/testgroups/api/use-get-tareas-pack"
 import { useCambiarEstadoTarea } from "@/features/testgroups/api/use-cambiar-estado-tarea"
 import { useIniciarRegistroTarea } from "@/features/testgroups/api/use-iniciar-registro-tarea"
+import { useReiniciarTareaPack } from "@/features/testgroups/api/use-reiniciar-tarea-pack"
 import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
 import { useCanWrite } from "@/lib/use-roles"
 
@@ -355,6 +356,7 @@ function TareaRow({
 }) {
   const cambiar = useCambiarEstadoTarea()
   const iniciarRegistro = useIniciarRegistroTarea()
+  const reiniciar = useReiniciarTareaPack()
   const router = useRouter()
 
   const tienePlanilla = !!tarea.tareaPlanillaId
@@ -471,7 +473,19 @@ function TareaRow({
                 || tarea.estado === ESTADO_TAREA.RECHAZADO)
             const puedeDescargarProcedimiento =
               permitirDescargarProcedimientos && tarea.tareaProcedimientoTieneArchivo
-            const hayAlgo = tienePlanilla || tieneRegistro || puedeCargarFisico || puedeDescargarProcedimiento
+            // Reiniciar: mismo criterio que ElementoTareaService.ReiniciarTareaAsync —
+            // solo tareas con avance. PENDIENTE no aplica (nada que reiniciar);
+            // CANCELADO tampoco (estado terminal por diseño).
+            const puedeReiniciar =
+              !bloqueado && (
+                tarea.estado === ESTADO_TAREA.EN_PROCESO
+                || tarea.estado === ESTADO_TAREA.COMPLETADO
+                || tarea.estado === ESTADO_TAREA.RECHAZADO
+                || tarea.estado === ESTADO_TAREA.APROBADO
+                || tarea.estado === ESTADO_TAREA.FIRMADO
+              )
+            const hayAlgo = tienePlanilla || tieneRegistro || puedeCargarFisico
+              || puedeDescargarProcedimiento || puedeReiniciar
 
             if (!hayAlgo) return null
 
@@ -518,6 +532,33 @@ function TareaRow({
                       <BookOpen className="h-4 w-4" />
                       Descargar procedimiento
                     </DropdownMenuItem>
+                  )}
+                  {puedeReiniciar && (
+                    <ConfirmActionDialog
+                      trigger={
+                        <DropdownMenuItem
+                          onSelect={(e) => e.preventDefault()}
+                          className="text-red-700 focus:text-red-700"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          Reiniciar tarea
+                        </DropdownMenuItem>
+                      }
+                      title="¿Reiniciar tarea?"
+                      description={
+                        <>
+                          Se elimina el Registro asociado (planilla, archivos, firmas)
+                          y la tarea vuelve a <strong>PENDIENTE</strong>. Esta acción
+                          no se puede deshacer.
+                        </>
+                      }
+                      confirmText="Reiniciar"
+                      pendingText="Reiniciando..."
+                      variant="destructive"
+                      onConfirm={() =>
+                        reiniciar.mutateAsync({ testGroupId, tareaId: tarea.id })
+                      }
+                    />
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
