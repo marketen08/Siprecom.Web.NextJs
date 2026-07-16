@@ -8,10 +8,9 @@ import { useGetTareasPack, ESTADO_TAREA_LABEL } from "@/features/testgroups/api/
 import { useGetTestGroup } from "@/features/testgroups/api/use-get-testgroup"
 import { useIniciarRegistroTarea } from "@/features/testgroups/api/use-iniciar-registro-tarea"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
-import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import { Button } from "@/components/ui/button"
 import {
-  Upload, CheckCircle2, Loader2, ArrowLeft, FileUp, X, FileText,
+  Upload, Loader2, ArrowLeft, FileUp, X, FileText,
 } from "lucide-react"
 
 // ─── Página ─────────────────────────────────────────────────────────────────
@@ -50,12 +49,10 @@ function CargarPdfTestGroupContent() {
 
   const iniciarRegistro = useIniciarRegistroTarea()
 
-  const [archivo, setArchivo]       = useState<File | null>(null)
-  const [observaciones, setObs]     = useState("")
-  const [subiendo, setSubiendo]     = useState<"idle" | "iniciando" | "subiendo" | "ok" | "error">("idle")
-  const [mensajeError, setError]    = useState("")
-  const [registroIdFinal, setRegistroIdFinal] = useState<string | null>(null)
-  const [urlArchivo, setUrlArchivo] = useState<string | null>(null)
+  const [archivo, setArchivo]    = useState<File | null>(null)
+  const [observaciones, setObs]  = useState("")
+  const [subiendo, setSubiendo]  = useState<"idle" | "iniciando" | "subiendo" | "error">("idle")
+  const [mensajeError, setError] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function handleSubir() {
@@ -66,12 +63,14 @@ function CargarPdfTestGroupContent() {
     let registroId = tarea.registroId
 
     // Si aún no hay registro, lo creamos con el hook dedicado del pack. El backend
-    // crea el registro asociado a esta TestGroupTarea.
+    // crea el registro asociado a esta TestGroupTarea. Importante: el endpoint
+    // espera el Id de la TG-tarea (`tarea.id`), NO el id de la Tarea del catálogo
+    // (`tarea.tareaId`) — pasarle el segundo devuelve "Tarea no encontrada".
     if (!registroId) {
       try {
         const res = await iniciarRegistro.mutateAsync({
           testGroupId,
-          tareaId: tarea.tareaId,
+          tareaId: tarea.id,
         })
         registroId = res?.data?.registroId ?? null
       } catch (err) {
@@ -99,20 +98,18 @@ function CargarPdfTestGroupContent() {
     })
 
     if (res.ok) {
-      setRegistroIdFinal(registroId)
       queryClient.invalidateQueries({ queryKey: ["testgroups", testGroupId, "tareas"] })
       queryClient.invalidateQueries({ queryKey: ["testgroups", testGroupId] })
       queryClient.invalidateQueries({ queryKey: ["avance"] })
-      // SAS URL del archivo recién subido.
-      try {
-        const archRes = await fetch(`/api/registros/${registroId}/archivos`)
-        if (archRes.ok) {
-          const archJson = await archRes.json()
-          const primero = archJson?.data?.[0]
-          if (primero?.url) setUrlArchivo(primero.url)
-        }
-      } catch { /* no crítico */ }
-      setSubiendo("ok")
+      // Volvemos a la lista de tareas del pack. router.back() respeta la ruta
+      // de origen (Alcance o Ejecución) sin hardcodear un path. Evita el
+      // mensaje confuso "Esta tarea está en estado Completado y no admite
+      // carga de planilla" que aparecía antes por race condition entre el
+      // refetch de la tarea (que ya venía en COMPLETADO) y el flag `subiendo`.
+      // Desde la lista el user ve el badge actualizado y puede firmar directo
+      // con el botón "Ver y firmar".
+      router.back()
+      return
     } else {
       const json = await res.json().catch(() => ({}))
       setError(json?.message ?? "Error al subir el archivo.")
@@ -179,38 +176,10 @@ function CargarPdfTestGroupContent() {
     )
   }
 
-  if (subiendo === "ok") {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
-        <TaskHeader tarea={tarea} tg={tg} estadoLabel={estadoLabel} />
-        <div className="rounded-xl border bg-green-50 border-green-200 p-6 space-y-4">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <CheckCircle2 className="h-14 w-14 text-green-500" />
-            <h2 className="text-xl font-bold text-gray-900">Planilla cargada correctamente</h2>
-            <p className="text-sm text-muted-foreground">
-              {preFirmado
-                ? "El archivo fue subido y la tarea quedó marcada como Firmado físico."
-                : "El archivo fue subido. La tarea queda en Completado a la espera de firmas digitales."}
-            </p>
-            <div className="flex gap-3 flex-wrap justify-center pt-1">
-              {urlArchivo && (
-                <a href={urlArchivo} target="_blank" rel="noreferrer">
-                  <Button variant="outline" className="gap-2">
-                    <FileUp className="h-4 w-4" />
-                    Ver archivo subido
-                  </Button>
-                </a>
-              )}
-              <Button variant="outline" onClick={() => router.back()}>
-                <ArrowLeft className="h-4 w-4 mr-1" /> Volver
-              </Button>
-            </div>
-          </div>
-        </div>
-        {registroIdFinal && !preFirmado && <FirmaPanel registroId={registroIdFinal} />}
-      </div>
-    )
-  }
+  // Nota: la pantalla intermedia de "OK — cargada" quedó eliminada. Después del
+  // upload exitoso, redirigimos con router.back() a la lista del pack — el badge
+  // ya viene actualizado por la invalidación de queryClient, y la firma se hace
+  // desde ahí con "Ver y firmar". Evita el mensaje confuso del race condition.
 
   const ocupado = subiendo === "iniciando" || subiendo === "subiendo"
 
