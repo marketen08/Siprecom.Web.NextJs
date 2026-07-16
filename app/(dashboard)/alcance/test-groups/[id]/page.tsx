@@ -459,6 +459,14 @@ function TareaRow({
   const esEjecucion = modo === "ejecucion"
   const esAlcance = modo === "alcance"
 
+  // Estados de los dialogs — controlados afuera del DropdownMenu porque Radix
+  // tiene un race condition entre "DropdownMenu cerrandose" y "AlertDialog
+  // abriendose" que interpreta el evento como click-outside del dialog y lo
+  // cierra inmediatamente. El fix oficial de Radix: separar Trigger de Content
+  // via state controlado.
+  const [reiniciarOpen, setReiniciarOpen] = useState(false)
+  const [excluirOpen, setExcluirOpen] = useState(false)
+
   const tienePlanilla = !!tarea.tareaPlanillaId
   const tieneRegistro = !!tarea.registroId
 
@@ -638,64 +646,67 @@ function TareaRow({
                     </DropdownMenuItem>
                   )}
                   {puedeReiniciar && (
-                    <ConfirmActionDialog
-                      trigger={
-                        <DropdownMenuItem
-                          onSelect={(e) => e.preventDefault()}
-                          className="text-red-700 focus:text-red-700"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                          Reiniciar tarea
-                        </DropdownMenuItem>
-                      }
-                      title="¿Reiniciar tarea?"
-                      description={
-                        <>
-                          Se elimina el Registro asociado (planilla, archivos, firmas)
-                          y la tarea vuelve a <strong>PENDIENTE</strong>. Esta acción
-                          no se puede deshacer.
-                        </>
-                      }
-                      confirmText="Reiniciar"
-                      pendingText="Reiniciando..."
-                      variant="destructive"
-                      onConfirm={() =>
-                        reiniciar.mutateAsync({ testGroupId, tareaId: tarea.id })
-                      }
-                    />
+                    <DropdownMenuItem
+                      onSelect={() => setReiniciarOpen(true)}
+                      className="text-red-700 focus:text-red-700"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reiniciar tarea
+                    </DropdownMenuItem>
                   )}
                   {puedeExcluir && (
-                    <ConfirmActionDialog
-                      trigger={
-                        <DropdownMenuItem
-                          onSelect={(e) => e.preventDefault()}
-                          className="text-red-700 focus:text-red-700"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Excluir del pack
-                        </DropdownMenuItem>
-                      }
-                      title="¿Excluir del pack?"
-                      description={
-                        <>
-                          La tarea no aplicará a este paquete de prueba. No cuenta
-                          para el conteo de avance. Se puede reincorporar después
-                          desde el panel <strong>Tareas excluidas</strong>.
-                        </>
-                      }
-                      confirmText="Excluir"
-                      pendingText="Excluyendo..."
-                      variant="destructive"
-                      onConfirm={() =>
-                        excluir.mutateAsync({ testGroupId, tareaId: tarea.id })
-                      }
-                    />
+                    <DropdownMenuItem
+                      onSelect={() => setExcluirOpen(true)}
+                      className="text-red-700 focus:text-red-700"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Excluir del pack
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )
           })()}
         </div>
+
+        {/* Dialogs controlados — fuera del DropdownMenu para evitar el race
+            condition de Radix (ver comentario en el useState de arriba). */}
+        <ConfirmActionDialog
+          open={reiniciarOpen}
+          onOpenChange={setReiniciarOpen}
+          title="¿Reiniciar tarea?"
+          description={
+            <>
+              Se elimina el Registro asociado (planilla, archivos, firmas)
+              y la tarea vuelve a <strong>PENDIENTE</strong>. Esta acción
+              no se puede deshacer.
+            </>
+          }
+          confirmText="Reiniciar"
+          pendingText="Reiniciando..."
+          variant="destructive"
+          onConfirm={() =>
+            reiniciar.mutateAsync({ testGroupId, tareaId: tarea.id })
+          }
+        />
+        <ConfirmActionDialog
+          open={excluirOpen}
+          onOpenChange={setExcluirOpen}
+          title="¿Excluir del pack?"
+          description={
+            <>
+              La tarea no aplicará a este paquete de prueba. No cuenta
+              para el conteo de avance. Se puede reincorporar después
+              desde el panel <strong>Tareas excluidas</strong>.
+            </>
+          }
+          confirmText="Excluir"
+          pendingText="Excluyendo..."
+          variant="destructive"
+          onConfirm={() =>
+            excluir.mutateAsync({ testGroupId, tareaId: tarea.id })
+          }
+        />
       </TableCell>
     </TableRow>
   )
