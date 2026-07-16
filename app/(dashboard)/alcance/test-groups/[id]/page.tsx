@@ -647,7 +647,7 @@ function TareaRow({
                   )}
                   {puedeReiniciar && (
                     <DropdownMenuItem
-                      onSelect={() => setReiniciarOpen(true)}
+                      onClick={() => setReiniciarOpen(true)}
                       className="text-red-700 focus:text-red-700"
                     >
                       <RotateCcw className="h-4 w-4" />
@@ -656,7 +656,7 @@ function TareaRow({
                   )}
                   {puedeExcluir && (
                     <DropdownMenuItem
-                      onSelect={() => setExcluirOpen(true)}
+                      onClick={() => setExcluirOpen(true)}
                       className="text-red-700 focus:text-red-700"
                     >
                       <XCircle className="h-4 w-4" />
@@ -744,24 +744,31 @@ function fmtFecha(iso: string | null): string {
 
 // ─── TAB: Progreso ────────────────────────────────────────────────────────
 
-const TERMINALES: EstadoTarea[] = [
-  ESTADO_TAREA.COMPLETADO,
-  ESTADO_TAREA.APROBADO,
-  ESTADO_TAREA.FIRMADO,
-  ESTADO_TAREA.RECHAZADO,
-  ESTADO_TAREA.CANCELADO,
-]
-
 function TabProgreso({ testGroupId }: { testGroupId: string }) {
   const { data, isLoading } = useGetTareasPack(testGroupId)
   const tareas = data?.data ?? []
 
   const total = tareas.length
-  const terminales = tareas.filter((t) => TERMINALES.includes(t.estado)).length
+  // Desglose por estado, mismo criterio que las cards del dashboard del elemento:
+  //   Firmadas   = FIRMADO (electrónica) + APROBADO (firmada en papel)
+  //   Completadas = COMPLETADO (esperando firmas)
+  //   En Proceso = EN_PROCESO
+  //   Pendientes = PENDIENTE
+  //   Rechazadas / Canceladas se muestran solo si count > 0 — mantiene el card
+  //     limpio en el caso normal y explicíta cuando pasa.
+  const firmadas = tareas.filter(
+    (t) => t.estado === ESTADO_TAREA.FIRMADO || t.estado === ESTADO_TAREA.APROBADO,
+  ).length
+  const completadas = tareas.filter((t) => t.estado === ESTADO_TAREA.COMPLETADO).length
   const enProceso = tareas.filter((t) => t.estado === ESTADO_TAREA.EN_PROCESO).length
   const pendientes = tareas.filter((t) => t.estado === ESTADO_TAREA.PENDIENTE).length
   const rechazadas = tareas.filter((t) => t.estado === ESTADO_TAREA.RECHAZADO).length
-  const porcentaje = total > 0 ? Math.round((terminales / total) * 100) : 0
+  const canceladas = tareas.filter((t) => t.estado === ESTADO_TAREA.CANCELADO).length
+
+  // Numerador del % de progreso: mismo criterio que AvanceService.AplicarConteos.
+  // Tareas cerradas (Firmadas + Completadas) sobre el total.
+  const cerradas = firmadas + completadas
+  const porcentaje = total > 0 ? Math.round((cerradas / total) * 100) : 0
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -771,7 +778,7 @@ function TabProgreso({ testGroupId }: { testGroupId: string }) {
           {isLoading ? "…" : `${porcentaje}%`}
         </div>
         <p className="text-xs text-muted-foreground">
-          {terminales} / {total} tareas completadas
+          {cerradas} / {total} tareas cerradas
         </p>
         <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
           <div className="h-full bg-blue-600 transition-all" style={{ width: `${porcentaje}%` }} />
@@ -780,10 +787,16 @@ function TabProgreso({ testGroupId }: { testGroupId: string }) {
 
       <Card className="p-6 space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Desglose</p>
+        <BreakdownRow label="Firmadas" count={firmadas} total={total} colorClass="bg-emerald-600" />
+        <BreakdownRow label="Completadas" count={completadas} total={total} colorClass="bg-green-600" />
+        <BreakdownRow label="En Proceso" count={enProceso} total={total} colorClass="bg-blue-600" />
         <BreakdownRow label="Pendientes" count={pendientes} total={total} colorClass="bg-gray-500" />
-        <BreakdownRow label="En proceso" count={enProceso} total={total} colorClass="bg-blue-600" />
-        <BreakdownRow label="Terminales" count={terminales} total={total} colorClass="bg-green-600" />
-        <BreakdownRow label="Rechazadas" count={rechazadas} total={total} colorClass="bg-red-600" />
+        {rechazadas > 0 && (
+          <BreakdownRow label="Rechazadas" count={rechazadas} total={total} colorClass="bg-red-600" />
+        )}
+        {canceladas > 0 && (
+          <BreakdownRow label="Canceladas" count={canceladas} total={total} colorClass="bg-gray-400" />
+        )}
       </Card>
     </div>
   )
