@@ -31,8 +31,7 @@ export interface Elemento {
   moduloNombre: string | null
   areaIds: string[]
   /** Override del flag del tipo. null = usar el heredado. */
-  permiteAgruparEnTestPack: boolean | null
-  permiteAgruparEnBasicFunction: boolean | null
+  permiteAgrupar: boolean | null
   /** Baja operativa (preservación). ISO date "YYYY-MM-DD" o null si está activo. */
   fechaBajaOperativa: string | null
   motivoBajaOperativa: string | null
@@ -56,8 +55,7 @@ export interface ElementoCreateInput {
   observaciones: string
   moduloId: string | null
   areaIds: string[]
-  permiteAgruparEnTestPack: boolean | null
-  permiteAgruparEnBasicFunction: boolean | null
+  permiteAgrupar: boolean | null
 }
 
 export interface ElementoUpdateInput {
@@ -76,8 +74,7 @@ export interface ElementoUpdateInput {
   observaciones: string
   moduloId: string | null
   areaIds: string[]
-  permiteAgruparEnTestPack: boolean | null
-  permiteAgruparEnBasicFunction: boolean | null
+  permiteAgrupar: boolean | null
   fechaBajaOperativa?: string | null
   motivoBajaOperativa?: string | null
 }

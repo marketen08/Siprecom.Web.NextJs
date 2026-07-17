@@ -80,8 +80,7 @@ export function ElementoForm({
       observaciones: defaultValues?.observaciones ?? "",
       moduloId: defaultValues?.moduloId ?? null,
       areaIds: defaultValues?.areaIds ?? [],
-      permiteAgruparEnTestPack: defaultValues?.permiteAgruparEnTestPack ?? null,
-      permiteAgruparEnBasicFunction: defaultValues?.permiteAgruparEnBasicFunction ?? null,
+      permiteAgrupar: defaultValues?.permiteAgrupar ?? null,
       fechaBajaOperativa: defaultValues?.fechaBajaOperativa ?? null,
       motivoBajaOperativa: defaultValues?.motivoBajaOperativa ?? null,
     },
@@ -509,73 +508,38 @@ export function ElementoForm({
             }}
           />
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="permiteAgruparEnTestPack"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Agrupable en TestPack <span className="text-muted-foreground font-normal">(override)</span>
-                  </FormLabel>
-                  <Select
-                    disabled={isPending}
-                    value={field.value === null ? "__inherit__" : field.value ? "true" : "false"}
-                    onValueChange={(v) =>
-                      field.onChange(v === "__inherit__" ? null : v === "true")
-                    }
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue>
-                          {field.value === null ? "Heredar del tipo" : field.value ? "Sí" : "No"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="__inherit__">Heredar del tipo</SelectItem>
-                      <SelectItem value="true">Sí</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="permiteAgruparEnBasicFunction"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Agrupable en BasicFunction <span className="text-muted-foreground font-normal">(override)</span>
-                  </FormLabel>
-                  <Select
-                    disabled={isPending}
-                    value={field.value === null ? "__inherit__" : field.value ? "true" : "false"}
-                    onValueChange={(v) =>
-                      field.onChange(v === "__inherit__" ? null : v === "true")
-                    }
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue>
-                          {field.value === null ? "Heredar del tipo" : field.value ? "Sí" : "No"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="__inherit__">Heredar del tipo</SelectItem>
-                      <SelectItem value="true">Sí</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="permiteAgrupar"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Agrupable en Test Packs <span className="text-muted-foreground font-normal">(override del tipo)</span>
+                </FormLabel>
+                <Select
+                  disabled={isPending}
+                  value={field.value === null ? "__inherit__" : field.value ? "true" : "false"}
+                  onValueChange={(v) =>
+                    field.onChange(v === "__inherit__" ? null : v === "true")
+                  }
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {field.value === null ? "Heredar del tipo" : field.value ? "Sí" : "No"}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="__inherit__">Heredar del tipo</SelectItem>
+                    <SelectItem value="true">Sí</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <Separator />

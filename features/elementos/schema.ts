@@ -16,8 +16,7 @@ export const elementoSchema = z
     moduloId: z.string().nullable().optional().default(null),
     areaIds: z.array(z.string()).optional().default([]),
     /** null = heredar de ElementoTipo, true/false = override explícito. */
-    permiteAgruparEnTestPack: z.boolean().nullable().optional().default(null),
-    permiteAgruparEnBasicFunction: z.boolean().nullable().optional().default(null),
+    permiteAgrupar: z.boolean().nullable().optional().default(null),
     // ── Baja operativa (preservación) ──
     // Fecha ISO "YYYY-MM-DD" o null. Motivo obligatorio si hay fecha.
     fechaBajaOperativa: z.string().nullable().optional().default(null),
