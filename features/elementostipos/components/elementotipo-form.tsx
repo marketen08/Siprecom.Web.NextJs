@@ -4,7 +4,16 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { elementoTipoSchema, type ElementoTipoFormValues } from "../schema"
-import type { ElementoTipo } from "../types"
+import {
+  FAMILIA_METADATA_TG,
+  FAMILIA_METADATA_TG_LABEL,
+  type ElementoTipo,
+} from "../types"
+import {
+  TIPO_CERTIFICADO,
+  TIPO_CERTIFICADO_LABEL,
+  type TipoCertificado,
+} from "@/features/certificados/types"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 
 import { Button } from "@/components/ui/button"
@@ -55,8 +64,13 @@ export function ElementoTipoForm({
       impactoFactorDefault: defaultValues?.impactoFactorDefault ?? 1,
       permiteAgruparEnTestPack: defaultValues?.permiteAgruparEnTestPack ?? false,
       permiteAgruparEnBasicFunction: defaultValues?.permiteAgruparEnBasicFunction ?? false,
+      esSintetico: defaultValues?.esSintetico ?? false,
+      certificadoQueAlimenta: defaultValues?.certificadoQueAlimenta ?? null,
+      familiaMetadataTG: defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.NINGUNA,
     },
   })
+
+  const esSintetico = form.watch("esSintetico")
 
   return (
     <Form {...form}>
@@ -222,6 +236,149 @@ export function ElementoTipoForm({
               )}
             />
           </div>
+        </div>
+
+        <Separator />
+
+        {/* Test Groups — elemento sintético (rediseño 2026-07) */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Test Groups — elemento sintético
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Marcá este tipo como sintético si su rol es portar las tareas de un
+            paquete de pruebas (no se instancia sobre elementos físicos). Un
+            TestGroup elige uno de estos tipos al crearse.
+          </p>
+
+          <FormField
+            control={form.control}
+            name="esSintetico"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>¿Es tipo sintético de TestGroup?</FormLabel>
+                <Select
+                  disabled={isPending}
+                  value={field.value ? "true" : "false"}
+                  onValueChange={(v) => {
+                    const activo = v === "true"
+                    field.onChange(activo)
+                    if (!activo) {
+                      // Al apagar sintético, blanqueamos los campos dependientes
+                      // para no dejar valores contradictorios guardados.
+                      form.setValue("certificadoQueAlimenta", null)
+                      form.setValue(
+                        "familiaMetadataTG",
+                        FAMILIA_METADATA_TG.NINGUNA,
+                      )
+                    }
+                  }}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue>{field.value ? "Sí" : "No"}</SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="false">No</SelectItem>
+                    <SelectItem value="true">Sí</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {esSintetico && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="certificadoQueAlimenta"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Certificado que alimenta</FormLabel>
+                    <Select
+                      disabled={isPending}
+                      value={
+                        field.value == null ? "" : String(field.value)
+                      }
+                      onValueChange={(v) =>
+                        field.onChange(
+                          v === "" ? null : (Number(v) as TipoCertificado),
+                        )
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {field.value == null
+                              ? "Seleccionar..."
+                              : TIPO_CERTIFICADO_LABEL[field.value]}
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={String(TIPO_CERTIFICADO.RFC)}>
+                          RFC
+                        </SelectItem>
+                        <SelectItem value={String(TIPO_CERTIFICADO.RFSU)}>
+                          RFSU
+                        </SelectItem>
+                        <SelectItem value={String(TIPO_CERTIFICADO.AOC)}>
+                          AOC
+                        </SelectItem>
+                        <SelectItem value={String(TIPO_CERTIFICADO.MC)}>
+                          MC
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="familiaMetadataTG"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Familia de metadata del encabezado</FormLabel>
+                    <Select
+                      disabled={isPending}
+                      value={String(field.value)}
+                      onValueChange={(v) => field.onChange(Number(v))}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {FAMILIA_METADATA_TG_LABEL[field.value]}
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem
+                          value={String(FAMILIA_METADATA_TG.NINGUNA)}
+                        >
+                          Ninguna
+                        </SelectItem>
+                        <SelectItem
+                          value={String(FAMILIA_METADATA_TG.PRESSURE)}
+                        >
+                          Pressure (presión / fluido / P&amp;ID)
+                        </SelectItem>
+                        <SelectItem
+                          value={String(FAMILIA_METADATA_TG.BASIC_FUNCTION)}
+                        >
+                          Basic Function (FTS / OTS / alcance)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
         </div>
 
         {/* Botones */}

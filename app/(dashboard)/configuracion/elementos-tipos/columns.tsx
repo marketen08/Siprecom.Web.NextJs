@@ -6,7 +6,9 @@ import { Pencil, Trash2 } from "lucide-react"
 import type { ElementoTipo } from "@/features/elementostipos/types"
 import { useOpenElementoTipo } from "@/features/elementostipos/hooks/use-open-elementotipo"
 import { useDeleteElementoTipo } from "@/features/elementostipos/api/use-delete-elementotipo"
+import { TIPO_CERTIFICADO_LABEL } from "@/features/certificados/types"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
@@ -47,9 +49,22 @@ export const columns: ColumnDef<ElementoTipo>[] = [
   {
     accessorKey: "nombre",
     header: "Nombre",
-    cell: ({ row }) => (
-      <span className="font-medium">{row.original.nombre}</span>
-    ),
+    cell: ({ row }) => {
+      const { nombre, esSintetico, certificadoQueAlimenta } = row.original
+      return (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{nombre}</span>
+          {esSintetico && (
+            <Badge variant="secondary" className="text-xs">
+              Sintético
+              {certificadoQueAlimenta
+                ? ` · ${TIPO_CERTIFICADO_LABEL[certificadoQueAlimenta]}`
+                : ""}
+            </Badge>
+          )}
+        </div>
+      )
+    },
   },
   {
     accessorKey: "especialidadNombre",
