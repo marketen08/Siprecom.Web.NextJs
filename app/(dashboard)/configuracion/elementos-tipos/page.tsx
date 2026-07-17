@@ -40,14 +40,21 @@ const ALL = "__all__"
 export default function ElementosTiposPage() {
   const [search, setSearch] = useState("")
   const [especialidadId, setEspecialidadId] = useState<string>(ALL)
+  const [sinteticoFilter, setSinteticoFilter] = useState<string>(ALL)
+  const [agruparFilter, setAgruparFilter] = useState<string>(ALL)
   const [page, setPage] = useState(1)
   const pageSize = 10
+
+  const toBool = (v: string): boolean | undefined =>
+    v === ALL ? undefined : v === "true"
 
   const { data, isLoading, isFetching } = useGetElementosTipos({
     page,
     pageSize,
     nombre: search || undefined,
     especialidadId: especialidadId !== ALL ? especialidadId : undefined,
+    esSintetico: toBool(sinteticoFilter),
+    permiteAgrupar: toBool(agruparFilter),
   })
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
@@ -100,6 +107,42 @@ export default function ElementosTiposPage() {
                   {esp.codigo ? `${esp.codigo} — ${esp.nombre}` : esp.nombre}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={sinteticoFilter}
+            onValueChange={(v) => { setSinteticoFilter(v ?? ALL); setPage(1) }}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue>
+                {sinteticoFilter === ALL
+                  ? "Sintético: todos"
+                  : sinteticoFilter === "true" ? "Sintético: sí" : "Sintético: no"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Sintético: todos</SelectItem>
+              <SelectItem value="true">Sintético: sí</SelectItem>
+              <SelectItem value="false">Sintético: no</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={agruparFilter}
+            onValueChange={(v) => { setAgruparFilter(v ?? ALL); setPage(1) }}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue>
+                {agruparFilter === ALL
+                  ? "Agrupar: todos"
+                  : agruparFilter === "true" ? "Agrupar: sí" : "Agrupar: no"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Agrupar: todos</SelectItem>
+              <SelectItem value="true">Agrupar: sí</SelectItem>
+              <SelectItem value="false">Agrupar: no</SelectItem>
             </SelectContent>
           </Select>
 
