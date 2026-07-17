@@ -11,7 +11,6 @@ import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
 import { useNewTestGroup } from "@/features/testgroups/hooks/use-new-testgroup"
 import { NewTestGroupSheet } from "@/features/testgroups/components/new-testgroup-sheet"
 import { EditTestGroupSheet } from "@/features/testgroups/components/edit-testgroup-sheet"
-import { TIPO_TEST_GROUP, type TipoTestGroup } from "@/features/testgroups/types"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
@@ -25,25 +24,20 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 
-const TIPO_ALL = "__all__"
 const SUBSISTEMA_ALL = "__all__"
 
 export default function TestGroupsPage() {
   const [search, setSearch] = useState("")
-  const [tipoFilter, setTipoFilter] = useState<string>(TIPO_ALL)
   const [subSistemaFilter, setSubSistemaFilter] = useState<string>(SUBSISTEMA_ALL)
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const tipoParam: TipoTestGroup | undefined =
-    tipoFilter === TIPO_ALL ? undefined : (parseInt(tipoFilter, 10) as TipoTestGroup)
   const subSistemaParam: string | undefined =
     subSistemaFilter === SUBSISTEMA_ALL ? undefined : subSistemaFilter
 
   const { data, isLoading, isFetching } = useGetTestGroups({
     page, pageSize,
     nombre: search || undefined,
-    tipo: tipoParam,
     subSistemaId: subSistemaParam,
   })
   const { open } = useNewTestGroup()
@@ -87,23 +81,6 @@ export default function TestGroupsPage() {
             />
           </div>
 
-          <Select value={tipoFilter} onValueChange={(v) => { setTipoFilter(v ?? TIPO_ALL); setPage(1) }}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Todos los tipos">
-                {tipoFilter === TIPO_ALL
-                  ? "Todos los tipos"
-                  : tipoFilter === String(TIPO_TEST_GROUP.PRESSURE)
-                    ? "Pressure Test Pack"
-                    : "Basic Function"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TIPO_ALL}>Todos los tipos</SelectItem>
-              <SelectItem value={String(TIPO_TEST_GROUP.PRESSURE)}>Pressure Test Pack</SelectItem>
-              <SelectItem value={String(TIPO_TEST_GROUP.BASIC_FUNCTION)}>Basic Function</SelectItem>
-            </SelectContent>
-          </Select>
-
           <Select
             value={subSistemaFilter}
             onValueChange={(v) => { setSubSistemaFilter(v ?? SUBSISTEMA_ALL); setPage(1) }}
@@ -128,13 +105,9 @@ export default function TestGroupsPage() {
                 Asignar elementos
               </Link>
             </Button>
-            <Button variant="outline" onClick={() => open(TIPO_TEST_GROUP.BASIC_FUNCTION)} className="gap-2">
+            <Button onClick={() => open()} className="gap-2">
               <Plus className="h-4 w-4" />
-              Basic Function
-            </Button>
-            <Button onClick={() => open(TIPO_TEST_GROUP.PRESSURE)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Pressure Test Pack
+              Nuevo Test Pack
             </Button>
           </div>
         </div>

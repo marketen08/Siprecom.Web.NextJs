@@ -1,10 +1,3 @@
-export const TIPO_TEST_GROUP = {
-  PRESSURE: 1,
-  BASIC_FUNCTION: 2,
-} as const
-
-export type TipoTestGroup = (typeof TIPO_TEST_GROUP)[keyof typeof TIPO_TEST_GROUP]
-
 export const ESTADO_TEST_GROUP = {
   BORRADOR: 1,
   ACTIVO: 2,
@@ -29,14 +22,23 @@ export const TIPO_PRUEBA_FUNCIONAL = {
 
 export type TipoPruebaFuncional = (typeof TIPO_PRUEBA_FUNCIONAL)[keyof typeof TIPO_PRUEBA_FUNCIONAL]
 
+import type {
+  FamiliaMetadataTG,
+} from "@/features/elementostipos/types"
+import type { TipoCertificado } from "@/features/certificados/types"
+
 export interface TestGroup {
   id: string
   proyectoId: string
   subSistemaId: string
   subSistemaCodigo: string | null
   subSistemaNombre: string | null
-  tipo: TipoTestGroup
-  tipoTexto: string
+  // Rediseño 2026-07: la "tipología" ahora viene del ElementoTipo del sintético.
+  elementoSinteticoId: string
+  elementoTipoSinteticoId: string
+  elementoTipoSinteticoNombre: string | null
+  familiaMetadataTG: FamiliaMetadataTG
+  certificadoQueAlimenta: TipoCertificado | null
   codigo: string
   nombre: string
   descripcion: string | null
@@ -73,13 +75,10 @@ export interface TestGroup {
 
 export interface TestGroupCreateInput {
   subSistemaId: string
-  tipo: TipoTestGroup
+  elementoTipoSinteticoId: string
   codigo: string
   nombre: string
   descripcion?: string | null
-  // Rediseño 2026-07: cuando viene poblado, el backend crea el Elemento
-  // sintético que portará las tareas del pack. Opcional durante la transición.
-  elementoTipoSinteticoId?: string | null
   presion?: number | null
   fluido?: string | null
   pidReferencia?: string | null

@@ -7,7 +7,7 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
-import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, type EstadoTestGroup } from "@/features/testgroups/types"
+import { ESTADO_TEST_GROUP, type EstadoTestGroup } from "@/features/testgroups/types"
 import { EstadoVisualIds, filtroVacio, isFiltroVacio, type FiltroVisor } from "../types"
 
 // Para el panel del visor 3D nos interesan solo los packs que están en juego:
@@ -205,7 +205,7 @@ export function FiltrosVisorPanel({
           <ChecklistMulti
             items={testGroups.map((tg) => ({
               id: tg.id,
-              label: `${tg.codigo} · ${tg.nombre || "(sin nombre)"} [${tg.tipo === TIPO_TEST_GROUP.PRESSURE ? "P" : "BF"}]`,
+              label: `${tg.codigo} · ${tg.nombre || "(sin nombre)"}${tg.elementoTipoSinteticoNombre ? ` [${tg.elementoTipoSinteticoNombre}]` : ""}`,
             }))}
             selectedIds={filtro.testGroupIds}
             onToggle={(id) => toggleSet(filtro.testGroupIds, id, (next) => ({ testGroupIds: next }))}

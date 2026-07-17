@@ -5,7 +5,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import { Users } from "lucide-react"
 
 import type { TestGroup } from "@/features/testgroups/types"
-import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP } from "@/features/testgroups/types"
+import { ESTADO_TEST_GROUP } from "@/features/testgroups/types"
 import { TestGroupActionsMenu } from "@/features/testgroups/components/testgroup-actions-menu"
 
 import { Badge } from "@/components/ui/badge"
@@ -36,11 +36,11 @@ export const columns: ColumnDef<TestGroup>[] = [
     ),
   },
   {
-    accessorKey: "tipo",
+    id: "tipoSintetico",
     header: "Tipo",
     cell: ({ row }) => (
-      <Badge variant={row.original.tipo === TIPO_TEST_GROUP.PRESSURE ? "default" : "secondary"}>
-        {row.original.tipo === TIPO_TEST_GROUP.PRESSURE ? "Pressure" : "Basic Function"}
+      <Badge variant="secondary">
+        {row.original.elementoTipoSinteticoNombre ?? "—"}
       </Badge>
     ),
   },

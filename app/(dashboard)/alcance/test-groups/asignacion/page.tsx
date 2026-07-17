@@ -15,7 +15,7 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
-import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, type EstadoTestGroup, type TipoTestGroup } from "@/features/testgroups/types"
+import { ESTADO_TEST_GROUP, type EstadoTestGroup } from "@/features/testgroups/types"
 
 // La asignación solo tiene sentido sobre packs "en juego" (BORRADOR o ACTIVO).
 // COMPLETADO y CERRADO no aceptan cambios de composición.
@@ -31,7 +31,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 
-const TIPO_ALL = "__all__"
 const SUB_ALL = "__all__"
 const TIPO_ELEM_ALL = "__all__"
 const ESP_ALL = "__all__"
@@ -244,7 +243,6 @@ function AsignacionPageContent() {
   const searchParams = useSearchParams()
   const testGroupIdFromUrl = searchParams.get("testGroupId")
 
-  const [tipoFilter, setTipoFilter] = useState<string>(TIPO_ALL)
   const [testGroupId, setTestGroupId] = useState<string | null>(testGroupIdFromUrl)
   const [subFilter, setSubFilter] = useState<string>(SUB_ALL)
   const [especialidadFilter, setEspecialidadFilter] = useState<string>(ESP_ALL)
@@ -277,10 +275,7 @@ function AsignacionPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testGroupIdFromUrl])
 
-  const tipoParam: TipoTestGroup | undefined =
-    tipoFilter === TIPO_ALL ? undefined : (parseInt(tipoFilter, 10) as TipoTestGroup)
-
-  const { data: tgData } = useGetTestGroups({ tipo: tipoParam, estados: ESTADOS_ASIGNABLES })
+  const { data: tgData } = useGetTestGroups({ estados: ESTADOS_ASIGNABLES })
   const testGroups = tgData?.data ?? []
 
   const { data: subsData } = useGetSubSistemasSelect()
@@ -378,30 +373,13 @@ function AsignacionPageContent() {
       {/* Header con selectores de TestGroup */}
       <div className="rounded-lg border bg-card p-4 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <Select value={tipoFilter} onValueChange={(v) => { setTipoFilter(v ?? TIPO_ALL); setTestGroupId(null) }}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Todos los tipos">
-                {tipoFilter === TIPO_ALL
-                  ? "Todos los tipos"
-                  : tipoFilter === String(TIPO_TEST_GROUP.PRESSURE)
-                    ? "Pressure Test Pack"
-                    : "Basic Function"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TIPO_ALL}>Todos los tipos</SelectItem>
-              <SelectItem value={String(TIPO_TEST_GROUP.PRESSURE)}>Pressure Test Pack</SelectItem>
-              <SelectItem value={String(TIPO_TEST_GROUP.BASIC_FUNCTION)}>Basic Function</SelectItem>
-            </SelectContent>
-          </Select>
-
           <Select value={testGroupId ?? ""} onValueChange={(v) => { setTestGroupId(v || null); setSelectedDisp(new Set()); setSelectedAsig(new Set()) }}>
             <SelectTrigger className="w-96">
               <SelectValue placeholder="Elegí un paquete de prueba">
                 {(() => {
                   const tg = testGroups.find((x) => x.id === testGroupId)
                   return tg
-                    ? `${tg.codigo} — ${tg.nombre || "(sin nombre)"} [${tg.tipoTexto}]`
+                    ? `${tg.codigo} — ${tg.nombre || "(sin nombre)"} [${tg.elementoTipoSinteticoNombre ?? "—"}]`
                     : "Elegí un paquete de prueba"
                 })()}
               </SelectValue>
@@ -412,7 +390,7 @@ function AsignacionPageContent() {
               )}
               {testGroups.map((tg) => (
                 <SelectItem key={tg.id} value={tg.id}>
-                  {tg.codigo} — {tg.nombre || "(sin nombre)"} [{tg.tipoTexto}]
+                  {tg.codigo} — {tg.nombre || "(sin nombre)"} [{tg.elementoTipoSinteticoNombre ?? "—"}]
                 </SelectItem>
               ))}
             </SelectContent>

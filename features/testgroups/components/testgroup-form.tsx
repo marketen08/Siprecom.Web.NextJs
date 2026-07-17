@@ -3,8 +3,17 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { testGroupCreateSchema, testGroupUpdateSchema, type TestGroupCreateFormValues, type TestGroupUpdateFormValues } from "../schema"
-import { METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL, TIPO_TEST_GROUP, type TestGroup, type TipoTestGroup } from "../types"
+import {
+  testGroupCreateSchema,
+  testGroupUpdateSchema,
+  type TestGroupCreateFormValues,
+  type TestGroupUpdateFormValues,
+} from "../schema"
+import {
+  METODO_PRUEBA,
+  TIPO_PRUEBA_FUNCIONAL,
+  type TestGroup,
+} from "../types"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { FAMILIA_METADATA_TG } from "@/features/elementostipos/types"
@@ -15,32 +24,49 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import {
-  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from "@/components/ui/form"
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select"
 
 interface Props {
   mode: "create" | "edit"
-  tipo: TipoTestGroup
   defaultValues?: Partial<TestGroup>
-  onSubmit: (values: TestGroupCreateFormValues | TestGroupUpdateFormValues) => void
+  onSubmit: (
+    values: TestGroupCreateFormValues | TestGroupUpdateFormValues,
+  ) => void
   isPending: boolean
   onCancel: () => void
 }
 
-export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, onCancel }: Props) {
+export function TestGroupForm({
+  mode,
+  defaultValues,
+  onSubmit,
+  isPending,
+  onCancel,
+}: Props) {
   const { data: subSistemasData, isLoading: loadingSub } = useGetSubSistemasSelect()
   const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
 
   const schema = mode === "create" ? testGroupCreateSchema : testGroupUpdateSchema
 
-  // React Hook Form quiere el mismo tipo para todo el ciclo. Usamos "any" acotado.
   const form = useForm<any>({
     resolver: zodResolver(schema as any),
     defaultValues: {
-      ...(mode === "create" ? { tipo, elementoTipoSinteticoId: null } : {}),
+      ...(mode === "create"
+        ? { elementoTipoSinteticoId: defaultValues?.elementoTipoSinteticoId ?? "" }
+        : {}),
       subSistemaId: defaultValues?.subSistemaId ?? "",
       codigo: defaultValues?.codigo ?? "",
       nombre: defaultValues?.nombre ?? "",
@@ -55,93 +81,77 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
     },
   })
 
-  const isPressure = tipo === TIPO_TEST_GROUP.PRESSURE
+  const tiposSinteticos = (tiposData?.data ?? []).filter((t) => t.esSintetico)
 
-  // Rediseño 2026-07: filtramos tipos sintéticos cuya familia coincide con el
-  // tipo del pack (PRESSURE se mapea a familia PRESSURE, BASIC_FUNCTION a
-  // BASIC_FUNCTION o NINGUNA). Sólo aplica en create — en edit no se cambia.
-  const familiaEsperada = isPressure
-    ? FAMILIA_METADATA_TG.PRESSURE
-    : FAMILIA_METADATA_TG.BASIC_FUNCTION
-  const tiposSinteticos = (tiposData?.data ?? []).filter(
-    (t) =>
-      t.esSintetico &&
-      (t.familiaMetadataTG === familiaEsperada ||
-        t.familiaMetadataTG === FAMILIA_METADATA_TG.NINGUNA),
-  )
+  // Familia efectiva: en create la deriva del tipo elegido; en edit viene del pack.
+  const tipoElegidoId: string = form.watch("elementoTipoSinteticoId") ?? ""
+  const tipoElegido = tiposSinteticos.find((t) => t.id === tipoElegidoId)
+  const familia =
+    mode === "create"
+      ? tipoElegido?.familiaMetadataTG ?? FAMILIA_METADATA_TG.NINGUNA
+      : defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.NINGUNA
+  const isPressure = familia === FAMILIA_METADATA_TG.PRESSURE
+  const isBasicFunction = familia === FAMILIA_METADATA_TG.BASIC_FUNCTION
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Información general — {isPressure ? "Pressure Test Pack" : "Basic Function"}
+            Información general
           </p>
 
           {mode === "create" && (
             <FormField
               control={form.control}
               name="elementoTipoSinteticoId"
-              render={({ field }) => {
-                const seleccionado = tiposSinteticos.find(
-                  (t) => t.id === field.value,
-                )
-                return (
-                  <FormItem>
-                    <FormLabel>
-                      Tipo sintético
-                      <span className="text-xs font-normal text-muted-foreground ml-1">
-                        (rediseño — opcional; portará las tareas del paquete)
-                      </span>
-                    </FormLabel>
-                    <Select
-                      disabled={isPending || loadingTipos}
-                      value={field.value ?? "__none__"}
-                      onValueChange={(v) =>
-                        field.onChange(v === "__none__" ? null : v)
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              loadingTipos ? "Cargando..." : "Sin sintético (legacy)"
-                            }
-                          >
-                            {seleccionado
-                              ? `${seleccionado.nombre}${
-                                  seleccionado.certificadoQueAlimenta
-                                    ? ` · ${TIPO_CERTIFICADO_LABEL[seleccionado.certificadoQueAlimenta]}`
-                                    : ""
-                                }`
-                              : "Sin sintético (legacy)"}
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">
-                          Sin sintético (legacy)
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo sintético del pack</FormLabel>
+                  <Select
+                    disabled={isPending || loadingTipos}
+                    value={field.value ?? ""}
+                    onValueChange={(v) => v && field.onChange(v)}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            loadingTipos ? "Cargando..." : "Seleccioná el tipo"
+                          }
+                        >
+                          {tipoElegido
+                            ? `${tipoElegido.nombre}${
+                                tipoElegido.certificadoQueAlimenta
+                                  ? ` · ${TIPO_CERTIFICADO_LABEL[tipoElegido.certificadoQueAlimenta]}`
+                                  : ""
+                              }`
+                            : loadingTipos
+                              ? "Cargando..."
+                              : "Seleccioná el tipo"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {tiposSinteticos.length === 0 && !loadingTipos && (
+                        <SelectItem value="__empty__" disabled>
+                          No hay tipos sintéticos cargados. Creá uno en
+                          Configuración → Tipos de elemento.
                         </SelectItem>
-                        {tiposSinteticos.length === 0 && !loadingTipos && (
-                          <SelectItem value="__empty__" disabled>
-                            No hay tipos sintéticos compatibles. Creá uno en
-                            Configuración → Tipos de elemento.
-                          </SelectItem>
-                        )}
-                        {tiposSinteticos.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.nombre}
-                            {t.certificadoQueAlimenta
-                              ? ` · ${TIPO_CERTIFICADO_LABEL[t.certificadoQueAlimenta]}`
-                              : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )
-              }}
+                      )}
+                      {tiposSinteticos.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nombre}
+                          {t.certificadoQueAlimenta
+                            ? ` · ${TIPO_CERTIFICADO_LABEL[t.certificadoQueAlimenta]}`
+                            : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
           )}
 
@@ -158,17 +168,27 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder={loadingSub ? "Cargando..." : "Seleccioná un subsistema"}>
+                      <SelectValue
+                        placeholder={
+                          loadingSub ? "Cargando..." : "Seleccioná un subsistema"
+                        }
+                      >
                         {(() => {
                           const s = subSistemasData?.data.find((x) => x.id === field.value)
-                          return s ? `${s.codigo} — ${s.nombre}` : (loadingSub ? "Cargando..." : "Seleccioná un subsistema")
+                          return s
+                            ? `${s.codigo} — ${s.nombre}`
+                            : loadingSub
+                              ? "Cargando..."
+                              : "Seleccioná un subsistema"
                         })()}
                       </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     {subSistemasData?.data.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.codigo} — {s.nombre}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -185,7 +205,7 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                 <FormItem>
                   <FormLabel>Código</FormLabel>
                   <FormControl>
-                    <Input placeholder={isPressure ? "Ej: TP-001" : "Ej: BF-001"} disabled={isPending} {...field} />
+                    <Input placeholder="Ej: TP-001" disabled={isPending} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -213,7 +233,13 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
               <FormItem>
                 <FormLabel>Descripción</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Notas" disabled={isPending} rows={2} {...field} value={field.value ?? ""} />
+                  <Textarea
+                    placeholder="Notas"
+                    disabled={isPending}
+                    rows={2}
+                    {...field}
+                    value={field.value ?? ""}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -221,9 +247,9 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
           />
         </div>
 
-        <Separator />
+        {(isPressure || isBasicFunction) && <Separator />}
 
-        {isPressure ? (
+        {isPressure && (
           <div className="flex flex-col gap-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Parámetros de prueba (Pressure)
@@ -242,7 +268,11 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                         min={0}
                         disabled={isPending}
                         value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value === "" ? null : parseFloat(e.target.value),
+                          )
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -258,7 +288,9 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                     <Select
                       disabled={isPending}
                       value={field.value == null ? "__none__" : String(field.value)}
-                      onValueChange={(v) => field.onChange(!v || v === "__none__" ? null : parseInt(v, 10))}
+                      onValueChange={(v) =>
+                        field.onChange(!v || v === "__none__" ? null : parseInt(v, 10))
+                      }
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -275,8 +307,12 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="__none__">—</SelectItem>
-                        <SelectItem value={String(METODO_PRUEBA.HIDROSTATICA)}>Hidrostática</SelectItem>
-                        <SelectItem value={String(METODO_PRUEBA.NEUMATICA)}>Neumática</SelectItem>
+                        <SelectItem value={String(METODO_PRUEBA.HIDROSTATICA)}>
+                          Hidrostática
+                        </SelectItem>
+                        <SelectItem value={String(METODO_PRUEBA.NEUMATICA)}>
+                          Neumática
+                        </SelectItem>
                         <SelectItem value={String(METODO_PRUEBA.VACIO)}>Vacío</SelectItem>
                       </SelectContent>
                     </Select>
@@ -292,7 +328,12 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                 <FormItem>
                   <FormLabel>Fluido</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: Agua, Nitrógeno" disabled={isPending} {...field} value={field.value ?? ""} />
+                    <Input
+                      placeholder="Ej: Agua, Nitrógeno"
+                      disabled={isPending}
+                      {...field}
+                      value={field.value ?? ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -305,7 +346,12 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                 <FormItem>
                   <FormLabel>P&amp;ID referencia</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: PID-042" disabled={isPending} {...field} value={field.value ?? ""} />
+                    <Input
+                      placeholder="Ej: PID-042"
+                      disabled={isPending}
+                      {...field}
+                      value={field.value ?? ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -318,14 +364,22 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                 <FormItem>
                   <FormLabel>Límites de batería</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Descripción de los límites" disabled={isPending} rows={2} {...field} value={field.value ?? ""} />
+                    <Textarea
+                      placeholder="Descripción de los límites"
+                      disabled={isPending}
+                      rows={2}
+                      {...field}
+                      value={field.value ?? ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
-        ) : (
+        )}
+
+        {isBasicFunction && (
           <div className="flex flex-col gap-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Parámetros funcionales (Basic Function)
@@ -337,9 +391,6 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                 <FormItem>
                   <FormLabel>
                     Tipo de prueba <span className="text-destructive">*</span>
-                    <span className="text-xs font-normal text-muted-foreground ml-1">
-                      (FTS → alimenta RFSU; OTS → alimenta AOC)
-                    </span>
                   </FormLabel>
                   <Select
                     disabled={isPending}
@@ -373,7 +424,13 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
                 <FormItem>
                   <FormLabel>Alcance funcional</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Detalle del alcance" disabled={isPending} rows={3} {...field} value={field.value ?? ""} />
+                    <Textarea
+                      placeholder="Detalle del alcance"
+                      disabled={isPending}
+                      rows={3}
+                      {...field}
+                      value={field.value ?? ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -383,10 +440,20 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
         )}
 
         <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="flex-1 bg-blue-900 hover:bg-blue-800"
+          >
             {isPending ? "Guardando..." : "Guardar"}
           </Button>
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isPending} className="flex-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isPending}
+            className="flex-1"
+          >
             Cancelar
           </Button>
         </div>

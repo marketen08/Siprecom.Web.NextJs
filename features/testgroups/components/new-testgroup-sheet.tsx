@@ -8,33 +8,28 @@ import type { TestGroupCreateFormValues } from "../schema"
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet"
-import { TIPO_TEST_GROUP } from "../types"
 
 export function NewTestGroupSheet() {
-  const { isOpen, tipo, close } = useNewTestGroup()
+  const { isOpen, close } = useNewTestGroup()
   const mutation = useCreateTestGroup()
 
   const onSubmit = (values: TestGroupCreateFormValues) => {
-    // enum types en el input son estrechos (MetodoPrueba, TipoPruebaFuncional);
-    // el schema usa number.nullable() por practicidad. Cast al enviar.
     mutation.mutate(values as any, { onSuccess: close })
   }
-
-  const tipoResolved = tipo ?? TIPO_TEST_GROUP.PRESSURE
-  const titulo = tipoResolved === TIPO_TEST_GROUP.PRESSURE ? "Nuevo Pressure Test Pack" : "Nueva Basic Function"
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{titulo}</SheetTitle>
-          <SheetDescription>Completá los datos del nuevo paquete.</SheetDescription>
+          <SheetTitle>Nuevo Test Pack</SheetTitle>
+          <SheetDescription>
+            Elegí el tipo sintético del pack y completá los datos.
+          </SheetDescription>
         </SheetHeader>
         <div className="mt-6 px-4 pb-6">
-          {isOpen && tipo != null && (
+          {isOpen && (
             <TestGroupForm
               mode="create"
-              tipo={tipoResolved}
               onSubmit={onSubmit as any}
               isPending={mutation.isPending}
               onCancel={close}

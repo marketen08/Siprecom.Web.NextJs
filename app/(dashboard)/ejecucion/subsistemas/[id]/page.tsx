@@ -8,7 +8,7 @@ import { AlertCircle, ArrowRight, CalendarClock, FileText, Layers, ListChecks, L
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetAvanceSubsistema } from "@/features/avance/api/use-get-avance-subsistema"
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
-import { TIPO_TEST_GROUP, ESTADO_TEST_GROUP, type TestGroup } from "@/features/testgroups/types"
+import { ESTADO_TEST_GROUP, type TestGroup } from "@/features/testgroups/types"
 import { fetchPlanoUrl } from "@/features/subsistemas/api/use-subsistema-plano"
 import { NivelesDetalle, ProximaMetaCelda } from "@/features/avance/components/niveles-cells"
 import { BarraAvance } from "@/components/barra-avance"
@@ -221,8 +221,8 @@ function TestGroupCard({ tg }: { tg: TestGroup }) {
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-mono text-xs text-blue-700 font-semibold">{tg.codigo}</span>
-            <Badge variant={tg.tipo === TIPO_TEST_GROUP.PRESSURE ? "default" : "secondary"} className="h-5 text-[10px]">
-              {tg.tipoTexto}
+            <Badge variant="secondary" className="h-5 text-[10px]">
+              {tg.elementoTipoSinteticoNombre ?? "—"}
             </Badge>
           </div>
           <p className="text-sm font-medium text-gray-900 mt-0.5 truncate">{tg.nombre}</p>

@@ -23,7 +23,8 @@ import { useReiniciarTareaPack } from "@/features/testgroups/api/use-reiniciar-t
 import { useExcluirTareaPack } from "@/features/testgroups/api/use-excluir-tarea-pack"
 import { useReincorporarTareaPack } from "@/features/testgroups/api/use-reincorporar-tarea-pack"
 import { useGetTareasExcluidasPack } from "@/features/testgroups/api/use-get-tareas-excluidas-pack"
-import { ESTADO_TEST_GROUP, TIPO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
+import { ESTADO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
+import { FAMILIA_METADATA_TG } from "@/features/elementostipos/types"
 import { useCanWrite } from "@/lib/use-roles"
 
 import { Badge } from "@/components/ui/badge"
@@ -82,7 +83,7 @@ export default function TestGroupDetallePage({
     return <div className="p-6 text-destructive">No se pudo cargar el paquete.</div>
   }
 
-  const isPressure = tg.tipo === TIPO_TEST_GROUP.PRESSURE
+  const isPressure = tg.familiaMetadataTG === FAMILIA_METADATA_TG.PRESSURE
 
   return (
     <div className="space-y-4">
@@ -90,7 +91,10 @@ export default function TestGroupDetallePage({
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold tracking-tight font-mono">{tg.codigo}</h1>
-          <p className="text-sm text-muted-foreground">{tg.nombre || "(sin nombre)"} · {tg.tipoTexto}</p>
+          <p className="text-sm text-muted-foreground">
+            {tg.nombre || "(sin nombre)"}
+            {tg.elementoTipoSinteticoNombre ? ` · ${tg.elementoTipoSinteticoNombre}` : ""}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <EstadoBadge estado={tg.estado} texto={tg.estadoTexto} />

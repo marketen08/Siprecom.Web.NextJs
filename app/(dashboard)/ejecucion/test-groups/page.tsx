@@ -6,7 +6,7 @@ import { Search } from "lucide-react"
 
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
 import {
-  ESTADO_TEST_GROUP, TIPO_TEST_GROUP, type EstadoTestGroup, type TipoTestGroup,
+  ESTADO_TEST_GROUP, type EstadoTestGroup,
 } from "@/features/testgroups/types"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
@@ -38,7 +38,6 @@ const ESTADOS_TODOS_EN_EJECUCION: EstadoTestGroup[] = [
 
 export default function EjecucionTestGroupsPage() {
   const [search, setSearch] = useState("")
-  const [tipoFilter, setTipoFilter] = useState<string>(ALL)
   const [subFilter, setSubFilter] = useState<string>(ALL)
   const [espFilter, setEspFilter] = useState<string>(ALL)
   const [estadoFilter, setEstadoFilter] = useState<string>("en-ejecucion")
@@ -50,13 +49,9 @@ export default function EjecucionTestGroupsPage() {
     : estadoFilter === "todos" ? ESTADOS_TODOS_EN_EJECUCION
     : [Number(estadoFilter) as EstadoTestGroup]
 
-  const tipoParam: TipoTestGroup | undefined =
-    tipoFilter === ALL ? undefined : (parseInt(tipoFilter, 10) as TipoTestGroup)
-
   const { data, isLoading, isFetching } = useGetTestGroups({
     page, pageSize,
     nombre: search || undefined,
-    tipo: tipoParam,
     subSistemaId: subFilter === ALL ? undefined : subFilter,
     especialidadId: espFilter === ALL ? undefined : espFilter,
     estados,
@@ -102,21 +97,6 @@ export default function EjecucionTestGroupsPage() {
             <SelectItem value={String(ESTADO_TEST_GROUP.ACTIVO)}>Activo</SelectItem>
             <SelectItem value={String(ESTADO_TEST_GROUP.COMPLETADO)}>Completado</SelectItem>
             <SelectItem value={String(ESTADO_TEST_GROUP.CERRADO)}>Cerrado</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={tipoFilter} onValueChange={(v) => { setTipoFilter(v ?? ALL); setPage(1) }}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Todos los tipos">
-              {tipoFilter === ALL ? "Todos los tipos"
-                : tipoFilter === String(TIPO_TEST_GROUP.PRESSURE) ? "Pressure Test Pack"
-                : "Basic Function"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todos los tipos</SelectItem>
-            <SelectItem value={String(TIPO_TEST_GROUP.PRESSURE)}>Pressure Test Pack</SelectItem>
-            <SelectItem value={String(TIPO_TEST_GROUP.BASIC_FUNCTION)}>Basic Function</SelectItem>
           </SelectContent>
         </Select>
 
@@ -197,8 +177,8 @@ export default function EjecucionTestGroupsPage() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={tg.tipo === TIPO_TEST_GROUP.PRESSURE ? "default" : "secondary"}>
-                      {tg.tipo === TIPO_TEST_GROUP.PRESSURE ? "Pressure" : "Basic Function"}
+                    <Badge variant="secondary">
+                      {tg.elementoTipoSinteticoNombre ?? "—"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm font-medium">{tg.nombre || "—"}</TableCell>

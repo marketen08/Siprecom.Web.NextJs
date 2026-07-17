@@ -34,7 +34,6 @@ export function EditTestGroupSheet() {
           ) : tg ? (
             <TestGroupForm
               mode="edit"
-              tipo={tg.tipo}
               defaultValues={tg}
               onSubmit={onSubmit as any}
               isPending={mutation.isPending}

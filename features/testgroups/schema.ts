@@ -1,5 +1,4 @@
 import { z } from "zod"
-import { TIPO_TEST_GROUP } from "./types"
 
 const baseFields = {
   subSistemaId: z.string().min(1, "El subsistema es requerido"),
@@ -16,10 +15,10 @@ const baseFields = {
 }
 
 export const testGroupCreateSchema = z.object({
-  tipo: z.union([z.literal(TIPO_TEST_GROUP.PRESSURE), z.literal(TIPO_TEST_GROUP.BASIC_FUNCTION)]),
-  // Rediseño 2026-07 — opcional. Cuando se elige, el TG portará sus tareas en
-  // un Elemento sintético (nuevo modelo). Cuando queda null, flujo legacy.
-  elementoTipoSinteticoId: z.string().nullable().optional().default(null),
+  // Rediseño 2026-07: el "tipo" del pack se define eligiendo un ElementoTipo
+  // sintético del catálogo. La familia (Pressure / Basic Function / Ninguna)
+  // se deriva de ese tipo.
+  elementoTipoSinteticoId: z.string().min(1, "Elegí el tipo sintético del pack"),
   ...baseFields,
 })
 
