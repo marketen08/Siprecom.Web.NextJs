@@ -1,9 +1,6 @@
 import { z } from "zod"
 
-// Valores válidos de FamiliaMetadataTG (espejo del enum backend).
 const FAMILIA_METADATA_TG_VALUES = [0, 1, 2] as const
-
-// Valores válidos de TipoCertificado (espejo del enum backend).
 const TIPO_CERTIFICADO_VALUES = [1, 2, 3, 4] as const
 
 export const elementoTipoSchema = z
@@ -12,8 +9,6 @@ export const elementoTipoSchema = z
     especialidadId: z.string().min(1, "La especialidad es requerida"),
     horasAdicionalesDefault: z.number().min(0),
     impactoFactorDefault: z.number().min(0),
-    permiteAgruparEnTestPack: z.boolean(),
-    permiteAgruparEnBasicFunction: z.boolean(),
     esSintetico: z.boolean(),
     certificadoQueAlimenta: z
       .union([
@@ -28,11 +23,12 @@ export const elementoTipoSchema = z
       z.literal(FAMILIA_METADATA_TG_VALUES[1]),
       z.literal(FAMILIA_METADATA_TG_VALUES[2]),
     ]),
+    // Capa 1 — puerta gruesa. Se aplica a tipos físicos.
+    permiteAgrupar: z.boolean(),
+    // Capa 2 — restricción granular por sintético. Vacío = fallback permisivo.
+    tiposFisicosPermitidosIds: z.array(z.string()).default([]),
   })
   .refine(
-    // Si NO es sintético, no tiene sentido tener certificado ni familia poblados —
-    // los normalizamos a null/NINGUNA silenciosamente. El refine solo valida el
-    // caso donde el usuario activó sintético: le pedimos definir el certificado.
     (v) => !v.esSintetico || v.certificadoQueAlimenta !== null,
     {
       path: ["certificadoQueAlimenta"],

@@ -15,6 +15,7 @@ import {
   type TipoCertificado,
 } from "@/features/certificados/types"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetElementosTiposSelect } from "../api/use-get-elementostipos-select"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -50,23 +51,29 @@ export function ElementoTipoForm({
   onCancel,
 }: ElementoTipoFormProps) {
   const { data: especialidadesData, isLoading: cargandoEsp } = useGetEspecialidades()
+  const { data: tiposData } = useGetElementosTiposSelect()
+  // Candidatos para el multi-select: todos los tipos físicos (no sintéticos)
+  // con PermiteAgrupar=true. Excluye a este mismo tipo si es edit.
+  const candidatosFisicos = (tiposData?.data ?? []).filter(
+    (t) => !t.esSintetico && t.permiteAgrupar && t.id !== defaultValues?.id,
+  )
   const especialidadOpts = (especialidadesData?.data ?? []).map((e) => ({
     value: e.id,
     label: e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre,
   }))
 
-  const form = useForm<ElementoTipoFormValues>({
-    resolver: zodResolver(elementoTipoSchema),
+  const form = useForm<any>({
+    resolver: zodResolver(elementoTipoSchema as any),
     defaultValues: {
       nombre: defaultValues?.nombre ?? "",
       especialidadId: defaultValues?.especialidadId ?? "",
       horasAdicionalesDefault: defaultValues?.horasAdicionalesDefault ?? 0,
       impactoFactorDefault: defaultValues?.impactoFactorDefault ?? 1,
-      permiteAgruparEnTestPack: defaultValues?.permiteAgruparEnTestPack ?? false,
-      permiteAgruparEnBasicFunction: defaultValues?.permiteAgruparEnBasicFunction ?? false,
       esSintetico: defaultValues?.esSintetico ?? false,
       certificadoQueAlimenta: defaultValues?.certificadoQueAlimenta ?? null,
       familiaMetadataTG: defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.NINGUNA,
+      permiteAgrupar: defaultValues?.permiteAgrupar ?? false,
+      tiposFisicosPermitidosIds: defaultValues?.tiposFisicosPermitidosIds ?? [],
     },
   })
 
@@ -174,48 +181,23 @@ export function ElementoTipoForm({
 
         <Separator />
 
-        {/* Agrupamiento por defecto (paquetes de prueba) */}
-        <div className="flex flex-col gap-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Agrupamiento por defecto (paquetes de prueba)
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Cada elemento de este tipo hereda estos flags. Se puede sobreescribir por elemento en su form.
-          </p>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="permiteAgruparEnTestPack"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Agrupable en Pressure Test Pack</FormLabel>
-                  <Select
-                    disabled={isPending}
-                    value={field.value ? "true" : "false"}
-                    onValueChange={(v) => field.onChange(v === "true")}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue>{field.value ? "Sí" : "No"}</SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="false">No</SelectItem>
-                      <SelectItem value="true">Sí</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        {/* Agrupabilidad en TestGroups — sólo relevante para tipos físicos */}
+        {!esSintetico && (
+          <div className="flex flex-col gap-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Agrupabilidad en Test Packs
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Los Elementos de este tipo van a poder asignarse a un TestGroup
+              (activá si son válvulas, bridas, spools, motores…).
+            </p>
 
             <FormField
               control={form.control}
-              name="permiteAgruparEnBasicFunction"
+              name="permiteAgrupar"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Agrupable en Basic Function</FormLabel>
+                  <FormLabel>¿Los elementos de este tipo pueden formar parte de un pack?</FormLabel>
                   <Select
                     disabled={isPending}
                     value={field.value ? "true" : "false"}
@@ -236,7 +218,7 @@ export function ElementoTipoForm({
               )}
             />
           </div>
-        </div>
+        )}
 
         <Separator />
 
@@ -378,6 +360,61 @@ export function ElementoTipoForm({
                 )}
               />
             </div>
+          )}
+
+          {esSintetico && (
+            <FormField
+              control={form.control}
+              name="tiposFisicosPermitidosIds"
+              render={({ field }) => {
+                const selected: string[] = field.value ?? []
+                const toggle = (id: string) => {
+                  if (selected.includes(id)) {
+                    field.onChange(selected.filter((x) => x !== id))
+                  } else {
+                    field.onChange([...selected, id])
+                  }
+                }
+                return (
+                  <FormItem>
+                    <FormLabel>Tipos físicos permitidos</FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Elegí qué tipos de elemento físico pueden entrar a un pack de este
+                      tipo sintético. Dejar vacío = aceptar cualquier tipo con
+                      &quot;Permite agrupar&quot; activo.
+                    </p>
+                    {candidatosFisicos.length === 0 ? (
+                      <p className="text-sm text-muted-foreground italic">
+                        No hay tipos físicos con &quot;Permite agrupar&quot; activo.
+                        Marcá ese flag en cada tipo (Configuración → Tipos de elemento) para verlos acá.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
+                        {candidatosFisicos.map((t) => {
+                          const checked = selected.includes(t.id)
+                          return (
+                            <label
+                              key={t.id}
+                              className="flex items-center gap-2 text-sm cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={isPending}
+                                checked={checked}
+                                onChange={() => toggle(t.id)}
+                                className="h-4 w-4"
+                              />
+                              <span>{t.nombre}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
+            />
           )}
         </div>
 
