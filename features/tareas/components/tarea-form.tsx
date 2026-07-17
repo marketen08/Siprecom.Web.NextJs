@@ -9,7 +9,6 @@ import {
   CALCULO_PROXIMA_FECHA,
   CALCULO_PROXIMA_FECHA_LABEL,
   PRIORIDAD,
-  TIPO_ASIGNACION_TAREA,
 } from "../types"
 import type { Tarea } from "../types"
 
@@ -113,15 +112,14 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
     [tiposFiltrados]
   )
 
-  // Opciones de tarea precedente: solo tareas del catálogo con MISMO ElementoTipo
-  // + MISMO TipoAsignacion, menos la propia (si estamos editando). Ciclos
-  // transitivos los valida el backend — acá no calculamos la cadena inversa.
+  // Opciones de tarea precedente: solo tareas del catálogo con MISMO ElementoTipo,
+  // menos la propia (si estamos editando). Ciclos transitivos los valida el backend —
+  // acá no calculamos la cadena inversa.
   //
   // El filtro por ElementoTipoId es la restricción crítica: la dependencia solo
   // se materializa cuando ambas tareas coexisten en el mismo elemento, y un
   // elemento tiene un único tipo. Cross-tipo era un no-op silencioso.
   const elementoTipoIdActual = form.watch("elementoTipoId")
-  const tipoAsignacionActual = form.watch("tipoAsignacion")
 
   const tareaPrecedenteOptions = useMemo(() => {
     const currentId = defaultValues?.id
@@ -134,44 +132,43 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
         codigo: number
         nombre: string
         elementoTipoId?: string
-        tipoAsignacion?: number
       }>)
         .filter((t) => (!currentId || t.id !== currentId)
-          && t.elementoTipoId === elementoTipoIdActual
-          && t.tipoAsignacion === tipoAsignacionActual)
+          && t.elementoTipoId === elementoTipoIdActual)
         .map((t) => ({
           value: t.id,
           label: `${t.codigo} — ${t.nombre}`,
         })),
     ]
-  }, [tareasCatalogo, defaultValues?.id, elementoTipoIdActual, tipoAsignacionActual])
+  }, [tareasCatalogo, defaultValues?.id, elementoTipoIdActual])
 
-  // Si cambia el ElementoTipo o el TipoAsignacion, limpiamos el precedente para
-  // que no quede apuntando a una tarea que dejó de ser compatible.
+  // Si cambia el ElementoTipo, limpiamos el precedente para que no quede apuntando
+  // a una tarea que dejó de ser compatible.
   useEffect(() => {
     const actual = form.getValues("tareaPrecedenteId")
     if (!actual) return
-    const sigueValida = (tareasCatalogo as Array<{ id: string; elementoTipoId?: string; tipoAsignacion?: number }>)
-      .some((t) => t.id === actual
-        && t.elementoTipoId === elementoTipoIdActual
-        && t.tipoAsignacion === tipoAsignacionActual)
+    const sigueValida = (tareasCatalogo as Array<{ id: string; elementoTipoId?: string }>)
+      .some((t) => t.id === actual && t.elementoTipoId === elementoTipoIdActual)
     if (!sigueValida) {
       form.setValue("tareaPrecedenteId", null)
       form.setValue("lagDias", 0)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elementoTipoIdActual, tipoAsignacionActual])
+  }, [elementoTipoIdActual])
 
-  // Preservación solo aplica a ELEMENTO_INDIVIDUAL — el backend lo rechaza si no.
-  // Al salir de ese tipo, limpiamos los campos para que no viajen valores fantasma
-  // en el submit y para que el estado del form sea coherente con lo visible.
-  const esElementoIndividual = tipoAsignacionActual === TIPO_ASIGNACION_TAREA.ELEMENTO_INDIVIDUAL
+  // Preservación no aplica a ElementoTipos sintéticos: las tareas del tipo
+  // sintético corren sobre el elemento sintético del TG, y los packs se
+  // ejecutan una vez (no soportan ciclos recurrentes).
+  const tipoElegido = (tipos as Array<{ id: string; esSintetico?: boolean }>).find(
+    (t) => t.id === elementoTipoIdActual,
+  )
+  const tipoEsSintetico = tipoElegido?.esSintetico === true
   useEffect(() => {
-    if (esElementoIndividual) return
+    if (!tipoEsSintetico) return
     if (form.getValues("esPreservacion")) form.setValue("esPreservacion", false)
     if (form.getValues("periodoSemanas") != null) form.setValue("periodoSemanas", null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esElementoIndividual])
+  }, [tipoEsSintetico])
 
   // Cuántas tareas del mismo tipo hay (excluyendo la propia). Si son 0, el
   // combobox se muestra deshabilitado con un hint — sino el usuario queda
@@ -581,7 +578,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
             control={form.control}
             name="esPreservacion"
             render={({ field }) => {
-              const disabled = isPending || !esElementoIndividual
+              const disabled = isPending || tipoEsSintetico
               return (
                 <FormItem>
                   <label
@@ -598,10 +595,10 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                       Esta tarea es de preservación (se repite en ciclos)
                     </span>
                   </label>
-                  {!esElementoIndividual && (
+                  {tipoEsSintetico && (
                     <p className="text-[11px] text-muted-foreground pl-6">
-                      Solo disponible para tareas de tipo <em>Por elemento</em>. Los
-                      paquetes de prueba no soportan ciclos recurrentes.
+                      No disponible para tipos sintéticos (test packs).
+                      Los paquetes se ejecutan una vez y no soportan ciclos recurrentes.
                     </p>
                   )}
                   <FormMessage />
