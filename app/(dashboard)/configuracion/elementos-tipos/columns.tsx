@@ -12,6 +12,22 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
+// Chip Sí/No con colores discretos para las columnas booleanas.
+function BoolChip({ value }: { value: boolean }) {
+  return (
+    <Badge
+      variant="outline"
+      className={
+        value
+          ? "border-emerald-300 bg-emerald-50 text-emerald-700 text-xs"
+          : "border-gray-200 bg-gray-50 text-gray-500 text-xs"
+      }
+    >
+      {value ? "Sí" : "No"}
+    </Badge>
+  )
+}
+
 function RowActions({ tipo }: { tipo: ElementoTipo }) {
   const { open } = useOpenElementoTipo()
   const deleteMutation = useDeleteElementoTipo()
@@ -100,6 +116,16 @@ export const columns: ColumnDef<ElementoTipo>[] = [
     cell: ({ row }) => (
       <span className="text-sm font-mono">{row.original.impactoFactorDefault}</span>
     ),
+  },
+  {
+    accessorKey: "esSintetico",
+    header: "Sintético",
+    cell: ({ row }) => <BoolChip value={row.original.esSintetico} />,
+  },
+  {
+    accessorKey: "permiteAgrupar",
+    header: "Agrupar",
+    cell: ({ row }) => <BoolChip value={row.original.permiteAgrupar} />,
   },
   {
     id: "actions",
