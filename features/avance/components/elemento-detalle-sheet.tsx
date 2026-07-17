@@ -1,7 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { Package } from "lucide-react"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
+import { useGetElementoTestGroups } from "@/features/elementos/api/use-get-elemento-testgroups"
 import { useGetAvanceElemento } from "@/features/avance/api/use-get-avance-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
@@ -58,6 +62,14 @@ export function ElementoDetalleSheet({
   onClosePreservacion,
 }: Props) {
   const { data: elementoRaw, isLoading: loadingElemento } = useGetElemento(elementoId)
+  const { data: elementoTestGroupsRaw } = useGetElementoTestGroups(elementoId)
+  const testGroupsDelElemento = elementoTestGroupsRaw?.data ?? []
+  // El detalle vive tanto en Alcance como Ejecución. Los links a paquetes van
+  // al listado del mismo módulo.
+  const pathname = usePathname()
+  const packBaseHref = pathname?.startsWith("/ejecucion")
+    ? "/ejecucion/test-groups"
+    : "/alcance/test-groups"
   const { data: tareasRaw, isLoading: loadingTareas } = useGetElementosTareasPorElemento(elementoId)
   // Cuando el sheet se abre desde la lista, `avanceProp` viene con la fila. Cuando se
   // abre por URL directa (elemento fuera de la página cargada) llega null — pedimos el
@@ -192,6 +204,44 @@ export function ElementoDetalleSheet({
                   </div>
                 )}
               </dl>
+            </section>
+          )}
+
+          {/* Test packs que abarcan al elemento — aviso readonly.
+              Un mismo elemento puede pertenecer a N packs. Las tareas del pack
+              corren sobre el elemento sintético (no acá) — por eso el operador
+              puede verlo como "cubierto" sin haber firmado nada en este detalle. */}
+          {testGroupsDelElemento.length > 0 && (
+            <section className="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="h-4 w-4 text-blue-700" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-blue-900">
+                  Pertenece a {testGroupsDelElemento.length === 1 ? "1 test pack" : `${testGroupsDelElemento.length} test packs`}
+                </h3>
+              </div>
+              <p className="text-xs text-blue-900/70 mb-2">
+                Las tareas de estos paquetes se ejecutan sobre el paquete, no sobre
+                este elemento. Abrí el paquete para ver su estado.
+              </p>
+              <ul className="space-y-1">
+                {testGroupsDelElemento.map((tg) => (
+                  <li key={tg.testGroupId}>
+                    <Link
+                      href={`${packBaseHref}/${tg.testGroupId}`}
+                      className="inline-flex items-center gap-2 text-sm text-blue-800 hover:underline"
+                    >
+                      <span className="font-mono font-semibold">{tg.codigo}</span>
+                      {tg.nombre && <span>· {tg.nombre}</span>}
+                      {tg.elementoTipoSinteticoNombre && (
+                        <span className="text-xs text-blue-900/60">
+                          ({tg.elementoTipoSinteticoNombre})
+                        </span>
+                      )}
+                      <span className="text-xs text-blue-900/50">— {tg.estadoTexto}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 
