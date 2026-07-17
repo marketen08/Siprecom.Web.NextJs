@@ -11,7 +11,7 @@ export const tareaSchema = z
     prioridad: z.number().min(1).max(4),
     horasBase: z.number().min(0),
     impactoBase: z.number().min(0),
-    tipoAsignacion: z.number().int().min(1).max(3),
+    tipoAsignacion: z.number().int(),
     // Nullable string: null = sin precedencia, string = id de la tarea precedente.
     tareaPrecedenteId: z.string().nullable(),
     lagDias: z.number().int().min(0).max(365),

@@ -420,10 +420,10 @@ export function ElementoForm({
 
         <Separator />
 
-        {/* Agrupamiento (paquetes de prueba) */}
+        {/* Ubicación / clasificación (dimensiones ortogonales al modelo de packs) */}
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Agrupamiento (paquetes de prueba)
+            Ubicación / clasificación
           </p>
 
           <FormField
@@ -508,6 +508,16 @@ export function ElementoForm({
             }}
           />
 
+        </div>
+
+        <Separator />
+
+        {/* Agrupamiento (paquetes de prueba) */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Agrupamiento (paquetes de prueba)
+          </p>
+
           <FormField
             control={form.control}
             name="permiteAgrupar"
@@ -548,7 +558,7 @@ export function ElementoForm({
         <div className="flex flex-col gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Baja operativa
+              Baja operativa del el elemento y su preservación
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Marcá una baja operativa cuando el elemento se retire de servicio. El sistema

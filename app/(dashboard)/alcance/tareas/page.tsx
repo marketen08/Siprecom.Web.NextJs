@@ -17,7 +17,7 @@ import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-ge
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
-import { PRIORIDAD, TIPO_ASIGNACION_LABEL, TIPO_ASIGNACION_TAREA } from "@/features/tareas/types"
+import { PRIORIDAD } from "@/features/tareas/types"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -56,7 +56,6 @@ export default function TareasPage() {
   const [nivelId, setNivelId] = useState<string>(ALL)
   const [planillaId, setPlanillaId] = useState<string>(ALL)
   const [prioridad, setPrioridad] = useState<string>(ALL)
-  const [tipoAsignacion, setTipoAsignacion] = useState<string>(ALL)
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const pageSize = 10
@@ -70,7 +69,6 @@ export default function TareasPage() {
     nivelId: nivelId !== ALL ? nivelId : undefined,
     planillaId: planillaId !== ALL ? planillaId : undefined,
     prioridad: prioridad !== ALL ? Number(prioridad) : undefined,
-    tipoAsignacion: tipoAsignacion !== ALL ? Number(tipoAsignacion) : undefined,
   })
   const { open } = useNewTarea()
 
@@ -108,7 +106,6 @@ export default function TareasPage() {
     setNivelId(ALL)
     setPlanillaId(ALL)
     setPrioridad(ALL)
-    setTipoAsignacion(ALL)
     setPage(1)
   }
 
@@ -151,13 +148,6 @@ export default function TareasPage() {
       id: "prioridad",
       label: `Prioridad: ${PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "—"}`,
       onRemove: () => { setPrioridad(ALL); setPage(1) },
-    })
-  }
-  if (tipoAsignacion !== ALL) {
-    activeFilters.push({
-      id: "tipoAsignacion",
-      label: `Se instancia por: ${TIPO_ASIGNACION_LABEL[Number(tipoAsignacion)] ?? "—"}`,
-      onRemove: () => { setTipoAsignacion(ALL); setPage(1) },
     })
   }
 
@@ -312,32 +302,6 @@ export default function TareasPage() {
             </Select>
           </FilterField>
 
-          <FilterField label="Se instancia por">
-            <Select
-              value={tipoAsignacion}
-              onValueChange={(v) => { setTipoAsignacion(v ?? ALL); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {tipoAsignacion === ALL
-                    ? "Todos los modos"
-                    : TIPO_ASIGNACION_LABEL[Number(tipoAsignacion)] ?? "Modo"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos los modos</SelectItem>
-                <SelectItem value={String(TIPO_ASIGNACION_TAREA.ELEMENTO_INDIVIDUAL)}>
-                  Por elemento
-                </SelectItem>
-                <SelectItem value={String(TIPO_ASIGNACION_TAREA.TEST_GROUP_PRESSURE)}>
-                  Por Pressure Test Pack
-                </SelectItem>
-                <SelectItem value={String(TIPO_ASIGNACION_TAREA.TEST_GROUP_BASIC_FUNCTION)}>
-                  Por Basic Function
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </FilterField>
         </FiltersSheet>
 
         {/* Tabla */}

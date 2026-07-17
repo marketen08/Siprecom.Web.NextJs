@@ -9,7 +9,6 @@ import {
   CALCULO_PROXIMA_FECHA,
   CALCULO_PROXIMA_FECHA_LABEL,
   PRIORIDAD,
-  TIPO_ASIGNACION_LABEL,
   TIPO_ASIGNACION_TAREA,
 } from "../types"
 import type { Tarea } from "../types"
@@ -482,52 +481,6 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
               )}
             />
           </div>
-        </div>
-
-        {/* Modo de asignación (Fase 4 — Paquetes de prueba) */}
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Modo de asignación
-          </p>
-          <FormField
-            control={form.control}
-            name="tipoAsignacion"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Se instancia por{" "}
-                  <span className="text-muted-foreground font-normal">
-                    (elemento individual o paquete de prueba)
-                  </span>
-                </FormLabel>
-                <Select
-                  disabled={isPending}
-                  value={String(field.value ?? 1)}
-                  onValueChange={(v) => v && field.onChange(parseInt(v, 10))}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue>
-                        {TIPO_ASIGNACION_LABEL[Number(field.value)] ?? "Por elemento"}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={String(TIPO_ASIGNACION_TAREA.ELEMENTO_INDIVIDUAL)}>
-                      Por elemento (una ejecución por cada Elemento del tipo)
-                    </SelectItem>
-                    <SelectItem value={String(TIPO_ASIGNACION_TAREA.TEST_GROUP_PRESSURE)}>
-                      Por Pressure Test Pack (una ejecución por cada TestGroup Pressure)
-                    </SelectItem>
-                    <SelectItem value={String(TIPO_ASIGNACION_TAREA.TEST_GROUP_BASIC_FUNCTION)}>
-                      Por Basic Function (una ejecución por cada TestGroup Basic Function)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
 
         <Separator />

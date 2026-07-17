@@ -12,19 +12,16 @@ export const PRIORIDAD_COLOR: Record<number, string> = {
   4: "bg-red-100 text-red-700",
 }
 
-// Espejo del enum TipoAsignacionTarea del backend.
+// Espejo del enum TipoAsignacionTarea del backend. Post-rediseño 2026-07 solo
+// queda un valor: las tareas de pack son ETs del elemento sintético (=1).
 export const TIPO_ASIGNACION_TAREA = {
   ELEMENTO_INDIVIDUAL: 1,
-  TEST_GROUP_PRESSURE: 2,
-  TEST_GROUP_BASIC_FUNCTION: 3,
 } as const
 
 export type TipoAsignacionTarea = (typeof TIPO_ASIGNACION_TAREA)[keyof typeof TIPO_ASIGNACION_TAREA]
 
 export const TIPO_ASIGNACION_LABEL: Record<number, string> = {
   1: "Por elemento",
-  2: "Por Pressure Test Pack",
-  3: "Por Basic Function",
 }
 
 // Espejo del enum CalculoProximaFecha del backend (preservación).
