@@ -35,6 +35,15 @@ export const elementoTipoSchema = z
       message: "Elegí a qué certificado alimenta este tipo sintético",
     },
   )
+  .refine(
+    // Un tipo sintético porta tareas de un pack; no puede ser al mismo tiempo
+    // un tipo agrupable (que iría dentro de un pack). Son excluyentes por diseño.
+    (v) => !(v.esSintetico && v.permiteAgrupar),
+    {
+      path: ["permiteAgrupar"],
+      message: "Un tipo sintético no puede ser agrupable — son excluyentes",
+    },
+  )
 
 export type ElementoTipoFormInput = z.input<typeof elementoTipoSchema>
 export type ElementoTipoFormValues = z.output<typeof elementoTipoSchema>

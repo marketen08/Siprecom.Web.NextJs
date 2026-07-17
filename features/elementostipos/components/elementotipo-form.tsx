@@ -78,6 +78,7 @@ export function ElementoTipoForm({
   })
 
   const esSintetico = form.watch("esSintetico")
+  const permiteAgrupar = form.watch("permiteAgrupar")
 
   return (
     <Form {...form}>
@@ -201,7 +202,17 @@ export function ElementoTipoForm({
                   <Select
                     disabled={isPending}
                     value={field.value ? "true" : "false"}
-                    onValueChange={(v) => field.onChange(v === "true")}
+                    onValueChange={(v) => {
+                      const activo = v === "true"
+                      field.onChange(activo)
+                      // Excluyente: si prendo agrupar, apago sintético y sus campos derivados.
+                      if (activo && form.getValues("esSintetico")) {
+                        form.setValue("esSintetico", false)
+                        form.setValue("certificadoQueAlimenta", null)
+                        form.setValue("familiaMetadataTG", FAMILIA_METADATA_TG.NINGUNA)
+                        form.setValue("tiposFisicosPermitidosIds", [])
+                      }
+                    }}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -238,9 +249,16 @@ export function ElementoTipoForm({
             name="esSintetico"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>¿Es tipo sintético de TestGroup?</FormLabel>
+                <FormLabel>
+                  ¿Es tipo sintético de TestGroup?
+                  {permiteAgrupar && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      (bloqueado: el tipo está marcado como agrupable)
+                    </span>
+                  )}
+                </FormLabel>
                 <Select
-                  disabled={isPending}
+                  disabled={isPending || permiteAgrupar}
                   value={field.value ? "true" : "false"}
                   onValueChange={(v) => {
                     const activo = v === "true"
@@ -253,6 +271,7 @@ export function ElementoTipoForm({
                         "familiaMetadataTG",
                         FAMILIA_METADATA_TG.NINGUNA,
                       )
+                      form.setValue("tiposFisicosPermitidosIds", [])
                     }
                   }}
                 >
