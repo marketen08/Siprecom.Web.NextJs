@@ -77,6 +77,9 @@ export interface TestGroupCreateInput {
   codigo: string
   nombre: string
   descripcion?: string | null
+  // Rediseño 2026-07: cuando viene poblado, el backend crea el Elemento
+  // sintético que portará las tareas del pack. Opcional durante la transición.
+  elementoTipoSinteticoId?: string | null
   presion?: number | null
   fluido?: string | null
   pidReferencia?: string | null

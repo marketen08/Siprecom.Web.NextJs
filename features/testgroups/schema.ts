@@ -17,6 +17,9 @@ const baseFields = {
 
 export const testGroupCreateSchema = z.object({
   tipo: z.union([z.literal(TIPO_TEST_GROUP.PRESSURE), z.literal(TIPO_TEST_GROUP.BASIC_FUNCTION)]),
+  // Rediseño 2026-07 — opcional. Cuando se elige, el TG portará sus tareas en
+  // un Elemento sintético (nuevo modelo). Cuando queda null, flujo legacy.
+  elementoTipoSinteticoId: z.string().nullable().optional().default(null),
   ...baseFields,
 })
 

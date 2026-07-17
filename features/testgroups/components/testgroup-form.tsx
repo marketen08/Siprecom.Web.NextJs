@@ -6,6 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { testGroupCreateSchema, testGroupUpdateSchema, type TestGroupCreateFormValues, type TestGroupUpdateFormValues } from "../schema"
 import { METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL, TIPO_TEST_GROUP, type TestGroup, type TipoTestGroup } from "../types"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
+import { FAMILIA_METADATA_TG } from "@/features/elementostipos/types"
+import { TIPO_CERTIFICADO_LABEL } from "@/features/certificados/types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +32,7 @@ interface Props {
 
 export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, onCancel }: Props) {
   const { data: subSistemasData, isLoading: loadingSub } = useGetSubSistemasSelect()
+  const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
 
   const schema = mode === "create" ? testGroupCreateSchema : testGroupUpdateSchema
 
@@ -36,7 +40,7 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
   const form = useForm<any>({
     resolver: zodResolver(schema as any),
     defaultValues: {
-      ...(mode === "create" ? { tipo } : {}),
+      ...(mode === "create" ? { tipo, elementoTipoSinteticoId: null } : {}),
       subSistemaId: defaultValues?.subSistemaId ?? "",
       codigo: defaultValues?.codigo ?? "",
       nombre: defaultValues?.nombre ?? "",
@@ -53,6 +57,19 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
 
   const isPressure = tipo === TIPO_TEST_GROUP.PRESSURE
 
+  // Rediseño 2026-07: filtramos tipos sintéticos cuya familia coincide con el
+  // tipo del pack (PRESSURE se mapea a familia PRESSURE, BASIC_FUNCTION a
+  // BASIC_FUNCTION o NINGUNA). Sólo aplica en create — en edit no se cambia.
+  const familiaEsperada = isPressure
+    ? FAMILIA_METADATA_TG.PRESSURE
+    : FAMILIA_METADATA_TG.BASIC_FUNCTION
+  const tiposSinteticos = (tiposData?.data ?? []).filter(
+    (t) =>
+      t.esSintetico &&
+      (t.familiaMetadataTG === familiaEsperada ||
+        t.familiaMetadataTG === FAMILIA_METADATA_TG.NINGUNA),
+  )
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
@@ -60,6 +77,73 @@ export function TestGroupForm({ mode, tipo, defaultValues, onSubmit, isPending, 
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Información general — {isPressure ? "Pressure Test Pack" : "Basic Function"}
           </p>
+
+          {mode === "create" && (
+            <FormField
+              control={form.control}
+              name="elementoTipoSinteticoId"
+              render={({ field }) => {
+                const seleccionado = tiposSinteticos.find(
+                  (t) => t.id === field.value,
+                )
+                return (
+                  <FormItem>
+                    <FormLabel>
+                      Tipo sintético
+                      <span className="text-xs font-normal text-muted-foreground ml-1">
+                        (rediseño — opcional; portará las tareas del paquete)
+                      </span>
+                    </FormLabel>
+                    <Select
+                      disabled={isPending || loadingTipos}
+                      value={field.value ?? "__none__"}
+                      onValueChange={(v) =>
+                        field.onChange(v === "__none__" ? null : v)
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              loadingTipos ? "Cargando..." : "Sin sintético (legacy)"
+                            }
+                          >
+                            {seleccionado
+                              ? `${seleccionado.nombre}${
+                                  seleccionado.certificadoQueAlimenta
+                                    ? ` · ${TIPO_CERTIFICADO_LABEL[seleccionado.certificadoQueAlimenta]}`
+                                    : ""
+                                }`
+                              : "Sin sintético (legacy)"}
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">
+                          Sin sintético (legacy)
+                        </SelectItem>
+                        {tiposSinteticos.length === 0 && !loadingTipos && (
+                          <SelectItem value="__empty__" disabled>
+                            No hay tipos sintéticos compatibles. Creá uno en
+                            Configuración → Tipos de elemento.
+                          </SelectItem>
+                        )}
+                        {tiposSinteticos.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.nombre}
+                            {t.certificadoQueAlimenta
+                              ? ` · ${TIPO_CERTIFICADO_LABEL[t.certificadoQueAlimenta]}`
+                              : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
+            />
+          )}
 
           <FormField
             control={form.control}
