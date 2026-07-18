@@ -76,9 +76,25 @@ export function PlanillaForm({
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
 
+  // Encabezado TG: la planilla no firma ni genera PDF propio — el PDF del pack
+  // sale del certificado del TG (RFC/RFSU/AOC). Deshabilitamos los flags relacionados
+  // y ocultamos el bloque de ajustes de PDF. El backend además hace guard.
+  const esEncabezadoTG = !!form.watch("esEncabezadoTG")
+
+  // Al guardar, si es encabezado forzamos los flags dependientes a false — el
+  // backend hace el mismo guard, pero mandarlo consistente evita "el checkbox
+  // decía true y quedó false" post-save.
+  const handleSubmit = form.handleSubmit((values) => {
+    if (values.esEncabezadoTG) {
+      values.requiereFirma = false
+      values.generaPdfFinal = false
+    }
+    onSubmit(values)
+  })
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Información general
@@ -224,13 +240,43 @@ export function PlanillaForm({
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-1">
                 Opciones
               </p>
+              {/* Va primero: los demás flags dependen de este. */}
               <div className="flex items-center gap-2 text-sm">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-gray-300"
-                    {...form.register("requiereFirma")}
+                    {...form.register("esEncabezadoTG")}
                     disabled={isPending}
+                  />
+                  Es planilla de encabezado (Test Pack)
+                </label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    Marca esta planilla como candidata al select "Planilla del
+                    encabezado" del tipo de elemento sintético. Al activarlo se
+                    deshabilitan Requiere firma y las opciones de PDF —
+                    el pack firma y emite PDF vía el certificado (RFC/RFSU/AOC).
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              {esEncabezadoTG && (
+                <p className="text-xs text-muted-foreground pl-6 -mt-1 mb-1">
+                  El encabezado no firma ni genera PDF propio — esos flags se
+                  ignoran mientras esté activo.
+                </p>
+              )}
+              <div className="flex items-center gap-2 text-sm">
+                <label className={`flex items-center gap-2 ${esEncabezadoTG ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    {...form.register("requiereFirma")}
+                    disabled={isPending || esEncabezadoTG}
+                    checked={esEncabezadoTG ? false : undefined}
                   />
                   Requiere firma
                 </label>
@@ -268,72 +314,55 @@ export function PlanillaForm({
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300"
-                    {...form.register("esEncabezadoTG")}
-                    disabled={isPending}
-                  />
-                  Es planilla de encabezado (Test Pack)
-                </label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-xs">
-                    Marca esta planilla como candidata al select "Planilla del
-                    encabezado" del tipo de elemento sintético. No cambia el
-                    comportamiento en registros/firmas/PDF — sólo filtra qué
-                    planillas aparecen al configurar el encabezado del pack.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300"
-                  checked={form.watch("orientacionPdf") === 1}
-                  onChange={(e) => form.setValue("orientacionPdf", e.target.checked ? 1 : 0)}
-                  disabled={isPending}
-                />
-                PDF horizontal (apaisado)
-              </label>
 
-              {/* Ajuste vertical para caber en 1 hoja */}
-              <div className="flex flex-col gap-2 pt-1">
-                <label className="flex items-start gap-2 cursor-pointer text-sm">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 mt-0.5"
-                    checked={!!form.watch("modoCompacto")}
-                    onChange={(e) => form.setValue("modoCompacto", e.target.checked)}
-                    disabled={isPending}
-                  />
-                  <span>
-                    Modo compacto
-                    <span className="block text-xs text-muted-foreground">
-                      Reduce paddings verticales, títulos de sección y sub-labels. Usá
-                      cuando la planilla queda a pocos milímetros de entrar en 1 hoja.
-                    </span>
-                  </span>
-                </label>
+              {/* Opciones de PDF sólo si NO es encabezado — el pack emite PDF por el certificado. */}
+              {!esEncabezadoTG && (
+                <>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300"
+                      checked={form.watch("orientacionPdf") === 1}
+                      onChange={(e) => form.setValue("orientacionPdf", e.target.checked ? 1 : 0)}
+                      disabled={isPending}
+                    />
+                    PDF horizontal (apaisado)
+                  </label>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm">Margen de página</label>
-                  <select
-                    className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm max-w-xs"
-                    value={form.watch("margenPagina") ?? 0}
-                    onChange={(e) => form.setValue("margenPagina", Number(e.target.value) as 0 | 1 | 2)}
-                    disabled={isPending}
-                  >
-                    <option value={0}>Normal (2 cm arriba, 1 cm abajo, 1.2 cm lados)</option>
-                    <option value={1}>Estrecho (~1 cm arriba/lados, 0.7 cm abajo)</option>
-                    <option value={2}>Ultra estrecho (~0.5 cm — al borde imprimible)</option>
-                  </select>
-                </div>
-              </div>
+                  <div className="flex flex-col gap-2 pt-1">
+                    <label className="flex items-start gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 mt-0.5"
+                        checked={!!form.watch("modoCompacto")}
+                        onChange={(e) => form.setValue("modoCompacto", e.target.checked)}
+                        disabled={isPending}
+                      />
+                      <span>
+                        Modo compacto
+                        <span className="block text-xs text-muted-foreground">
+                          Reduce paddings verticales, títulos de sección y sub-labels. Usá
+                          cuando la planilla queda a pocos milímetros de entrar en 1 hoja.
+                        </span>
+                      </span>
+                    </label>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm">Margen de página</label>
+                      <select
+                        className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm max-w-xs"
+                        value={form.watch("margenPagina") ?? 0}
+                        onChange={(e) => form.setValue("margenPagina", Number(e.target.value) as 0 | 1 | 2)}
+                        disabled={isPending}
+                      >
+                        <option value={0}>Normal (2 cm arriba, 1 cm abajo, 1.2 cm lados)</option>
+                        <option value={1}>Estrecho (~1 cm arriba/lados, 0.7 cm abajo)</option>
+                        <option value={2}>Ultra estrecho (~0.5 cm — al borde imprimible)</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </TooltipProvider>
         </div>
