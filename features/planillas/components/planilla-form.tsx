@@ -88,6 +88,7 @@ export function PlanillaForm({
     if (values.esEncabezadoTG) {
       values.requiereFirma = false
       values.generaPdfFinal = false
+      values.permiteAdjuntos = false
     }
     onSubmit(values)
   })
@@ -258,15 +259,16 @@ export function PlanillaForm({
                   <TooltipContent side="right" className="max-w-xs">
                     Marca esta planilla como candidata al select "Planilla del
                     encabezado" del tipo de elemento sintético. Al activarlo se
-                    deshabilitan Requiere firma y las opciones de PDF —
-                    el pack firma y emite PDF vía el certificado (RFC/RFSU/AOC).
+                    deshabilitan Requiere firma, Permite adjuntos y las opciones
+                    de PDF — el pack firma y emite PDF vía el certificado
+                    (RFC/RFSU/AOC), y los adjuntos viven en las tareas del pack.
                   </TooltipContent>
                 </Tooltip>
               </div>
               {esEncabezadoTG && (
                 <p className="text-xs text-muted-foreground pl-6 -mt-1 mb-1">
-                  El encabezado no firma ni genera PDF propio — esos flags se
-                  ignoran mientras esté activo.
+                  El encabezado no firma, no acepta adjuntos ni genera PDF propio
+                  — esos flags se ignoran mientras esté activo.
                 </p>
               )}
               <div className="flex items-center gap-2 text-sm">
@@ -294,12 +296,13 @@ export function PlanillaForm({
                 </Tooltip>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className={`flex items-center gap-2 ${esEncabezadoTG ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-gray-300"
                     {...form.register("permiteAdjuntos")}
-                    disabled={isPending}
+                    disabled={isPending || esEncabezadoTG}
+                    checked={esEncabezadoTG ? false : undefined}
                   />
                   Permite adjuntos
                 </label>
