@@ -23,6 +23,7 @@ import { useReiniciarTareaPack } from "@/features/testgroups/api/use-reiniciar-t
 import { useExcluirTareaPack } from "@/features/testgroups/api/use-excluir-tarea-pack"
 import { useReincorporarTareaPack } from "@/features/testgroups/api/use-reincorporar-tarea-pack"
 import { useGetTareasExcluidasPack } from "@/features/testgroups/api/use-get-tareas-excluidas-pack"
+import { useGetTestGroupRegistroEncabezado } from "@/features/testgroups/api/use-get-registro-encabezado"
 import { ESTADO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
 import { FAMILIA_METADATA_TG } from "@/features/elementostipos/types"
 import { useCanWrite } from "@/lib/use-roles"
@@ -156,7 +157,7 @@ export default function TestGroupDetallePage({
           las acciones de mutación (asignar/desasignar elementos, cambiar estado de
           tarea, cargar planilla física). El backend igual devolvería 403; esto
           evita mostrar botones que no van a funcionar. */}
-      {tab === "info" && <TabInfo tg={tg} isPressure={isPressure} />}
+      {tab === "info" && <TabInfo tg={tg} isPressure={isPressure} testGroupId={id} />}
       {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} modo={modo} />}
       {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} modo={modo} />}
       {tab === "progreso" && <TabProgreso testGroupId={tg.id} />}
@@ -198,7 +199,15 @@ function EstadoBadge({ estado, texto }: { estado: number; texto: string }) {
 
 // ─── TAB: Info ────────────────────────────────────────────────────────────
 
-function TabInfo({ tg, isPressure }: { tg: any; isPressure: boolean }) {
+function TabInfo({
+  tg, isPressure, testGroupId,
+}: {
+  tg: any
+  isPressure: boolean
+  testGroupId: string
+}) {
+  const { data: encabezadoRaw } = useGetTestGroupRegistroEncabezado(testGroupId)
+  const encabezado = encabezadoRaw?.data
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card className="p-4 space-y-2">
@@ -210,6 +219,33 @@ function TabInfo({ tg, isPressure }: { tg: any; isPressure: boolean }) {
         <InfoRow label="Subsistema" value={tg.subSistemaCodigo ? `${tg.subSistemaCodigo} — ${tg.subSistemaNombre}` : "—"} />
         <InfoRow label="Descripción" value={tg.descripcion || "—"} />
       </Card>
+
+      {encabezado && (
+        <Card className="p-4 space-y-3 md:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Encabezado del pack
+              </p>
+              <p className="text-sm mt-1">
+                {encabezado.planillaCodigo
+                  ? `${encabezado.planillaCodigo} — ${encabezado.planillaNombre ?? "Planilla"}`
+                  : encabezado.planillaNombre ?? "Planilla"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Completá los datos específicos del pack según la planilla
+                configurada en el tipo sintético.
+              </p>
+            </div>
+            <Button asChild size="sm" className="gap-2 shrink-0">
+              <Link href={`/ejecucion/registros/${encabezado.registroId}?returnTo=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "")}`}>
+                <FileText className="h-4 w-4" />
+                {encabezado.porcentajeCompletitud > 0 ? "Editar encabezado" : "Completar encabezado"}
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {isPressure ? (
         <Card className="p-4 space-y-2">
