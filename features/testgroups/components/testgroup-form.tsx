@@ -88,8 +88,8 @@ export function TestGroupForm({
   const tipoElegido = tiposSinteticos.find((t) => t.id === tipoElegidoId)
   const familia =
     mode === "create"
-      ? tipoElegido?.familiaMetadataTG ?? FAMILIA_METADATA_TG.NINGUNA
-      : defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.NINGUNA
+      ? tipoElegido?.familiaMetadataTG ?? FAMILIA_METADATA_TG.GENERICA
+      : defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.GENERICA
   const isPressure = familia === FAMILIA_METADATA_TG.PRESSURE
   const isBasicFunction = familia === FAMILIA_METADATA_TG.BASIC_FUNCTION
 

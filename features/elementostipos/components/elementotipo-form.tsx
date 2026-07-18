@@ -16,6 +16,7 @@ import {
 } from "@/features/certificados/types"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetElementosTiposSelect } from "../api/use-get-elementostipos-select"
+import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -52,6 +53,9 @@ export function ElementoTipoForm({
 }: ElementoTipoFormProps) {
   const { data: especialidadesData, isLoading: cargandoEsp } = useGetEspecialidades()
   const { data: tiposData } = useGetElementosTiposSelect()
+  const { data: planillasData, isLoading: loadingPlanillas } = useGetPlanillasSelect()
+  const planillas: Array<{ id: string; codigo: string; nombre: string }> =
+    (planillasData as any)?.data ?? []
   // Candidatos para el multi-select: todos los tipos físicos (no sintéticos)
   // con PermiteAgrupar=true. Excluye a este mismo tipo si es edit.
   const candidatosFisicos = (tiposData?.data ?? []).filter(
@@ -71,9 +75,10 @@ export function ElementoTipoForm({
       impactoFactorDefault: defaultValues?.impactoFactorDefault ?? 1,
       esSintetico: defaultValues?.esSintetico ?? false,
       certificadoQueAlimenta: defaultValues?.certificadoQueAlimenta ?? null,
-      familiaMetadataTG: defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.NINGUNA,
+      familiaMetadataTG: defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.GENERICA,
       permiteAgrupar: defaultValues?.permiteAgrupar ?? false,
       tiposFisicosPermitidosIds: defaultValues?.tiposFisicosPermitidosIds ?? [],
+      planillaEncabezadoId: defaultValues?.planillaEncabezadoId ?? null,
     },
   })
 
@@ -209,8 +214,9 @@ export function ElementoTipoForm({
                       if (activo && form.getValues("esSintetico")) {
                         form.setValue("esSintetico", false)
                         form.setValue("certificadoQueAlimenta", null)
-                        form.setValue("familiaMetadataTG", FAMILIA_METADATA_TG.NINGUNA)
+                        form.setValue("familiaMetadataTG", FAMILIA_METADATA_TG.GENERICA)
                         form.setValue("tiposFisicosPermitidosIds", [])
+                        form.setValue("planillaEncabezadoId", null)
                       }
                     }}
                   >
@@ -269,9 +275,10 @@ export function ElementoTipoForm({
                       form.setValue("certificadoQueAlimenta", null)
                       form.setValue(
                         "familiaMetadataTG",
-                        FAMILIA_METADATA_TG.NINGUNA,
+                        FAMILIA_METADATA_TG.GENERICA,
                       )
                       form.setValue("tiposFisicosPermitidosIds", [])
+                      form.setValue("planillaEncabezadoId", null)
                     }
                   }}
                 >
@@ -358,7 +365,7 @@ export function ElementoTipoForm({
                       </FormControl>
                       <SelectContent>
                         <SelectItem
-                          value={String(FAMILIA_METADATA_TG.NINGUNA)}
+                          value={String(FAMILIA_METADATA_TG.GENERICA)}
                         >
                           Ninguna
                         </SelectItem>
@@ -379,6 +386,59 @@ export function ElementoTipoForm({
                 )}
               />
             </div>
+          )}
+
+          {esSintetico && (
+            <FormField
+              control={form.control}
+              name="planillaEncabezadoId"
+              render={({ field }) => {
+                const seleccionada = planillas.find((p) => p.id === field.value)
+                return (
+                  <FormItem>
+                    <FormLabel>
+                      Planilla del encabezado{" "}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        (opcional — define los campos de metadata que se
+                        capturan al crear el pack)
+                      </span>
+                    </FormLabel>
+                    <Select
+                      disabled={isPending || loadingPlanillas}
+                      value={field.value ?? "__none__"}
+                      onValueChange={(v) =>
+                        field.onChange(v === "__none__" ? null : v)
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              loadingPlanillas ? "Cargando..." : "Sin planilla"
+                            }
+                          >
+                            {seleccionada
+                              ? `${seleccionada.codigo} — ${seleccionada.nombre}`
+                              : "Sin planilla"}
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">
+                          Sin planilla (encabezado vacío)
+                        </SelectItem>
+                        {planillas.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.codigo} — {p.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
+            />
           )}
 
           {esSintetico && (

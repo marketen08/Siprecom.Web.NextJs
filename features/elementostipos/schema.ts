@@ -27,6 +27,8 @@ export const elementoTipoSchema = z
     permiteAgrupar: z.boolean(),
     // Capa 2 — restricción granular por sintético. Vacío = fallback permisivo.
     tiposFisicosPermitidosIds: z.array(z.string()).default([]),
+    // Planilla que define el encabezado del TG (sólo aplica cuando esSintetico=true).
+    planillaEncabezadoId: z.string().nullable().default(null),
   })
   .refine(
     (v) => !v.esSintetico || v.certificadoQueAlimenta !== null,
