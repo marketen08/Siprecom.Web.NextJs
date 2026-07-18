@@ -218,7 +218,7 @@ function TabInfo({
 
       {encabezado && (
         <Card className="p-4 space-y-3 md:col-span-2">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Encabezado del pack
@@ -228,18 +228,36 @@ function TabInfo({
                   ? `${encabezado.planillaCodigo} — ${encabezado.planillaNombre ?? "Planilla"}`
                   : encabezado.planillaNombre ?? "Planilla"}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Completá los datos específicos del pack según la planilla
-                configurada en el tipo sintético.
-              </p>
+              {encabezado.valores.length === 0 ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Completá los datos específicos del pack según la planilla
+                  configurada en el tipo sintético.
+                </p>
+              ) : (
+                <p className="text-xs text-emerald-700 mt-1">
+                  Encabezado completado — {encabezado.porcentajeCompletitud}%
+                </p>
+              )}
             </div>
-            <Button asChild size="sm" className="gap-2 shrink-0">
+            <Button asChild size="sm" variant={encabezado.valores.length > 0 ? "outline" : "default"} className="gap-2 shrink-0">
               <Link href={`/ejecucion/registros/${encabezado.registroId}?returnTo=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "")}`}>
                 <FileText className="h-4 w-4" />
-                {encabezado.porcentajeCompletitud > 0 ? "Editar encabezado" : "Completar encabezado"}
+                {encabezado.valores.length > 0 ? "Editar encabezado" : "Completar encabezado"}
               </Link>
             </Button>
           </div>
+
+          {encabezado.valores.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pt-2 border-t">
+              {encabezado.valores.map((v) => (
+                <InfoRow
+                  key={v.planillaCampoId}
+                  label={v.etiqueta}
+                  value={v.valor}
+                />
+              ))}
+            </div>
+          )}
         </Card>
       )}
     </div>

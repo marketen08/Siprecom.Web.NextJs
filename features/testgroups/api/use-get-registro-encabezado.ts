@@ -3,6 +3,16 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type { EstadoRegistro } from "./use-get-tareas-pack"
 
+export interface TestGroupEncabezadoValor {
+  planillaCampoId: string
+  etiqueta: string
+  orden: number
+  /** Tipo de dato del campo (para formateo si lo necesita el front). */
+  tipoDato: number
+  /** Valor ya formateado para display (fechas ISO, bools "Sí"/"No", nums con "."). */
+  valor: string
+}
+
 export interface TestGroupRegistroEncabezado {
   registroId: string
   planillaId: string
@@ -10,6 +20,8 @@ export interface TestGroupRegistroEncabezado {
   planillaNombre: string | null
   estado: EstadoRegistro
   porcentajeCompletitud: number
+  /** Campos con valor cargado, en orden. Vacío si el encabezado no fue completado. */
+  valores: TestGroupEncabezadoValor[]
 }
 
 /**
