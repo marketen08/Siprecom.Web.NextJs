@@ -26,6 +26,14 @@ import { useGetTareasExcluidasPack } from "@/features/testgroups/api/use-get-tar
 import { useGetTestGroupRegistroEncabezado } from "@/features/testgroups/api/use-get-registro-encabezado"
 import { ESTADO_TEST_GROUP } from "@/features/testgroups/types"
 import { useCanWrite } from "@/lib/use-roles"
+import { TareaCard } from "@/features/elementos-tareas/components/tarea-card"
+import { useTareaHandlers } from "@/features/elementos-tareas/hooks/use-tarea-handlers"
+import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
+
+import {
+  AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -156,7 +164,7 @@ export default function TestGroupDetallePage({
           evita mostrar botones que no van a funcionar. */}
       {tab === "info" && <TabInfo tg={tg} testGroupId={id} />}
       {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} modo={modo} />}
-      {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} modo={modo} />}
+      {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} elementoSinteticoId={tg.elementoSinteticoId} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} modo={modo} />}
       {tab === "progreso" && <TabProgreso testGroupId={tg.id} />}
     </div>
   )
@@ -357,25 +365,126 @@ function TabElementos({
 // ─── TAB: Tareas (ejecución) ──────────────────────────────────────────────
 
 function TabTareas({
-  testGroupId, proyectoId, bloqueado, modo,
+  testGroupId, proyectoId, elementoSinteticoId, bloqueado, modo,
+}: {
+  testGroupId: string
+  proyectoId: string
+  elementoSinteticoId: string
+  bloqueado: boolean
+  modo: "alcance" | "ejecucion"
+}) {
+  // Ejecución: reutilizamos el mismo listado + card que usa el sheet del
+  // Elemento. Las tareas del pack SON las ETs del sintético — traerlas desde
+  // el endpoint canónico nos da el mismo dropdown de acciones, badges de firma,
+  // adjuntos y flujo de "marcar sin registro" sin duplicar código.
+  if (modo === "ejecucion") {
+    return (
+      <TabTareasEjecucion
+        proyectoId={proyectoId}
+        elementoSinteticoId={elementoSinteticoId}
+      />
+    )
+  }
+  return (
+    <TabTareasAlcance
+      testGroupId={testGroupId}
+      proyectoId={proyectoId}
+      bloqueado={bloqueado}
+    />
+  )
+}
+
+// ─── Tab Tareas · Ejecución (reutiliza TareaCard) ─────────────────────────
+function TabTareasEjecucion({
+  proyectoId, elementoSinteticoId,
+}: {
+  proyectoId: string
+  elementoSinteticoId: string
+}) {
+  const { data: tareasRaw, isLoading } = useGetElementosTareasPorElemento(elementoSinteticoId)
+  const tareas = (tareasRaw?.data ?? []).filter((t) => !t.esPreservacion)
+
+  const { data: proyectoRaw } = useGetProyecto(proyectoId)
+  const proyecto = proyectoRaw?.data
+  const permitirFisico = proyecto?.permitirRegistroFisico ?? false
+  const permitirDigital = proyecto?.permitirRegistroDigital ?? true
+  const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
+  const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
+  const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
+  const permitirAvanceSinRegistro = proyecto?.permitirAvanceSinRegistro ?? false
+
+  const canWrite = useCanWrite()
+  const {
+    handleIniciar, handleAbrirFormulario, handleCargarPdf, handleReiniciar,
+    iniciarMutation, reiniciarMutation, errorGate, setErrorGate,
+  } = useTareaHandlers()
+
+  return (
+    <Card className="p-4 space-y-3">
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground text-center py-6">Cargando…</p>
+      ) : tareas.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-6">
+          No hay tareas instanciadas todavía para este pack.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {tareas.map((t) => (
+            <TareaCard
+              key={t.id}
+              tarea={t}
+              onIniciar={handleIniciar}
+              onAbrirFormulario={handleAbrirFormulario}
+              onCargarPdf={handleCargarPdf}
+              onReiniciar={handleReiniciar}
+              isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
+              isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
+              permitirFisico={permitirFisico}
+              permitirDigital={permitirDigital}
+              fisicoPreFirmado={fisicoPreFirmado}
+              permiteAdjuntosProyecto={permiteAdjuntosProyecto}
+              permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+              permitirAvanceSinRegistro={permitirAvanceSinRegistro}
+              canWrite={canWrite}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Error gate: predecesor incompleto u otro motivo. Mismo modal que usa el
+          sheet del elemento — un solo botón "Entendido". */}
+      <AlertDialog open={errorGate !== null} onOpenChange={(v) => !v && setErrorGate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No se puede iniciar la tarea</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {errorGate}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setErrorGate(null)}>Entendido</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  )
+}
+
+// ─── Tab Tareas · Alcance (config + excluir del pack) ─────────────────────
+function TabTareasAlcance({
+  testGroupId, proyectoId, bloqueado,
 }: {
   testGroupId: string
   proyectoId: string
   bloqueado: boolean
-  modo: "alcance" | "ejecucion"
 }) {
   const { data, isLoading } = useGetTareasPack(testGroupId)
   const tareas = data?.data ?? []
 
-  // Panel de tareas EXCLUIDAS — solo relevante en Alcance (config del pack).
-  // En Ejecución no lo mostramos: el operador ejecuta lo que aplica, no le
-  // interesa ver las excluidas.
-  const excluidasEnabled = modo === "alcance"
-  const { data: excluidasRaw } = useGetTareasExcluidasPack(excluidasEnabled ? testGroupId : null)
-  const excluidas = excluidasEnabled ? (excluidasRaw?.data ?? []) : []
+  const { data: excluidasRaw } = useGetTareasExcluidasPack(testGroupId)
+  const excluidas = excluidasRaw?.data ?? []
   const reincorporar = useReincorporarTareaPack()
 
-  // Flags del proyecto — mismos que usa el sheet de detalle de elemento en /ejecucion.
   const { data: proyectoRaw } = useGetProyecto(proyectoId)
   const proyecto = proyectoRaw?.data
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
@@ -417,15 +526,14 @@ function TabTareas({
                 permitirFisico={permitirFisico}
                 preFirmado={preFirmado}
                 permitirDescargarProcedimientos={permitirDescargarProcedimientos}
-                modo={modo}
+                modo="alcance"
               />
             ))
           )}
         </TableBody>
       </Table>
 
-      {/* Panel de excluidas — sólo Alcance. Se muestra si hay al menos 1. */}
-      {excluidasEnabled && excluidas.length > 0 && (
+      {excluidas.length > 0 && (
         <div className="border-t bg-muted/30 p-4 space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <XCircle className="h-3.5 w-3.5" /> Tareas excluidas del pack ({excluidas.length})
