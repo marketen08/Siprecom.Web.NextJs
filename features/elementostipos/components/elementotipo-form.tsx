@@ -50,8 +50,12 @@ export function ElementoTipoForm({
   const { data: especialidadesData, isLoading: cargandoEsp } = useGetEspecialidades()
   const { data: tiposData } = useGetElementosTiposSelect()
   const { data: planillasData, isLoading: loadingPlanillas } = useGetPlanillasSelect()
-  const planillas: Array<{ id: string; codigo: string; nombre: string }> =
-    (planillasData as any)?.data ?? []
+  // Sólo planillas marcadas como "encabezado de TG" son candidatas. Mantener
+  // seleccionada la actual (aun si perdió el flag) para no desconfigurar en silencio.
+  const planillas: Array<{ id: string; codigo: string; nombre: string; esEncabezadoTG?: boolean }> =
+    ((planillasData as any)?.data ?? []).filter(
+      (p: any) => p.esEncabezadoTG || p.id === defaultValues?.planillaEncabezadoId,
+    )
   // Candidatos para el multi-select: todos los tipos físicos (no sintéticos)
   // con PermiteAgrupar=true. Excluye a este mismo tipo si es edit.
   const candidatosFisicos = (tiposData?.data ?? []).filter(

@@ -24,6 +24,8 @@ export interface Planilla {
   especialidadNombre?: string | null
   especialidadCodigo?: string | null
   especialidadColor?: string | null
+  /** True = candidata al select "Planilla del encabezado" del ElementoTipo sintético. */
+  esEncabezadoTG?: boolean
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string
@@ -235,6 +237,7 @@ export interface PlanillaCreateInput {
   modoCompacto?: boolean
   margenPagina?: MargenPagina
   especialidadId?: string | null
+  esEncabezadoTG?: boolean
 }
 
 export interface PlanillaUpdateInput {
@@ -251,6 +254,7 @@ export interface PlanillaUpdateInput {
   modoCompacto?: boolean
   margenPagina?: MargenPagina
   especialidadId?: string | null
+  esEncabezadoTG?: boolean
 }
 
 export interface PlanillaSeccionCreateInput {

@@ -69,6 +69,7 @@ export function PlanillaForm({
       modoCompacto: defaultValues?.modoCompacto ?? false,
       margenPagina: defaultValues?.margenPagina ?? 0,
       especialidadId: defaultValues?.especialidadId ?? null,
+      esEncabezadoTG: defaultValues?.esEncabezadoTG ?? false,
     },
   })
 
@@ -264,6 +265,28 @@ export function PlanillaForm({
                     Permite subir archivos (fotos, PDFs) desde los registros de esta
                     planilla. El proyecto también tiene su propio flag: si cualquiera
                     de los dos está desactivado, no se aceptan adjuntos.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    {...form.register("esEncabezadoTG")}
+                    disabled={isPending}
+                  />
+                  Es planilla de encabezado (Test Pack)
+                </label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    Marca esta planilla como candidata al select "Planilla del
+                    encabezado" del tipo de elemento sintético. No cambia el
+                    comportamiento en registros/firmas/PDF — sólo filtra qué
+                    planillas aparecen al configurar el encabezado del pack.
                   </TooltipContent>
                 </Tooltip>
               </div>

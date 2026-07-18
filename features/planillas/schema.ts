@@ -17,6 +17,8 @@ export const planillaSchema = z.object({
   margenPagina: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
   // Especialidad opcional: string ID o null = "Sin especialidad (genérica)".
   especialidadId: z.string().nullable().optional(),
+  // True = candidata al select "Planilla del encabezado" del ElementoTipo sintético.
+  esEncabezadoTG: z.boolean().optional(),
 })
 
 export type PlanillaFormValues = z.infer<typeof planillaSchema>
