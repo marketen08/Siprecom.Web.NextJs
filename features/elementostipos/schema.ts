@@ -1,6 +1,5 @@
 import { z } from "zod"
 
-const FAMILIA_METADATA_TG_VALUES = [0, 1, 2] as const
 const TIPO_CERTIFICADO_VALUES = [1, 2, 3, 4] as const
 
 export const elementoTipoSchema = z
@@ -18,11 +17,6 @@ export const elementoTipoSchema = z
         z.literal(TIPO_CERTIFICADO_VALUES[3]),
       ])
       .nullable(),
-    familiaMetadataTG: z.union([
-      z.literal(FAMILIA_METADATA_TG_VALUES[0]),
-      z.literal(FAMILIA_METADATA_TG_VALUES[1]),
-      z.literal(FAMILIA_METADATA_TG_VALUES[2]),
-    ]),
     // Capa 1 — puerta gruesa. Se aplica a tipos físicos.
     permiteAgrupar: z.boolean(),
     // Capa 2 — restricción granular por sintético. Vacío = fallback permisivo.

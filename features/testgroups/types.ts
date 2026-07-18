@@ -1,4 +1,3 @@
-import type { FamiliaMetadataTG } from "@/features/elementostipos/types"
 import type { TipoCertificado } from "@/features/certificados/types"
 
 export const ESTADO_TEST_GROUP = {
@@ -20,7 +19,6 @@ export interface TestGroup {
   elementoSinteticoId: string
   elementoTipoSinteticoId: string
   elementoTipoSinteticoNombre: string | null
-  familiaMetadataTG: FamiliaMetadataTG
   certificadoQueAlimenta: TipoCertificado | null
   codigo: string
   nombre: string

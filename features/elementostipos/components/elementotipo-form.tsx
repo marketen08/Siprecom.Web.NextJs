@@ -4,11 +4,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { elementoTipoSchema, type ElementoTipoFormValues } from "../schema"
-import {
-  FAMILIA_METADATA_TG,
-  FAMILIA_METADATA_TG_LABEL,
-  type ElementoTipo,
-} from "../types"
+import { type ElementoTipo } from "../types"
 import {
   TIPO_CERTIFICADO,
   TIPO_CERTIFICADO_LABEL,
@@ -75,7 +71,6 @@ export function ElementoTipoForm({
       impactoFactorDefault: defaultValues?.impactoFactorDefault ?? 1,
       esSintetico: defaultValues?.esSintetico ?? false,
       certificadoQueAlimenta: defaultValues?.certificadoQueAlimenta ?? null,
-      familiaMetadataTG: defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.GENERICA,
       permiteAgrupar: defaultValues?.permiteAgrupar ?? false,
       tiposFisicosPermitidosIds: defaultValues?.tiposFisicosPermitidosIds ?? [],
       planillaEncabezadoId: defaultValues?.planillaEncabezadoId ?? null,
@@ -214,7 +209,6 @@ export function ElementoTipoForm({
                       if (activo && form.getValues("esSintetico")) {
                         form.setValue("esSintetico", false)
                         form.setValue("certificadoQueAlimenta", null)
-                        form.setValue("familiaMetadataTG", FAMILIA_METADATA_TG.GENERICA)
                         form.setValue("tiposFisicosPermitidosIds", [])
                         form.setValue("planillaEncabezadoId", null)
                       }
@@ -273,10 +267,6 @@ export function ElementoTipoForm({
                       // Al apagar sintético, blanqueamos los campos dependientes
                       // para no dejar valores contradictorios guardados.
                       form.setValue("certificadoQueAlimenta", null)
-                      form.setValue(
-                        "familiaMetadataTG",
-                        FAMILIA_METADATA_TG.GENERICA,
-                      )
                       form.setValue("tiposFisicosPermitidosIds", [])
                       form.setValue("planillaEncabezadoId", null)
                     }
@@ -298,8 +288,7 @@ export function ElementoTipoForm({
           />
 
           {esSintetico && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
+            <FormField
                 control={form.control}
                 name="certificadoQueAlimenta"
                 render={({ field }) => (
@@ -344,48 +333,6 @@ export function ElementoTipoForm({
                   </FormItem>
                 )}
               />
-
-              <FormField
-                control={form.control}
-                name="familiaMetadataTG"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Familia de metadata del encabezado</FormLabel>
-                    <Select
-                      disabled={isPending}
-                      value={String(field.value)}
-                      onValueChange={(v) => field.onChange(Number(v))}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue>
-                            {FAMILIA_METADATA_TG_LABEL[field.value]}
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem
-                          value={String(FAMILIA_METADATA_TG.GENERICA)}
-                        >
-                          Ninguna
-                        </SelectItem>
-                        <SelectItem
-                          value={String(FAMILIA_METADATA_TG.PRESSURE)}
-                        >
-                          Pressure (presión / fluido / P&amp;ID)
-                        </SelectItem>
-                        <SelectItem
-                          value={String(FAMILIA_METADATA_TG.BASIC_FUNCTION)}
-                        >
-                          Basic Function (FTS / OTS / alcance)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
           )}
 
           {esSintetico && (
