@@ -168,10 +168,14 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const isLoading = loadingDetalle || loadingEstructura
   // Consultor/Auditor fuerzan modo readonly aunque el registro esté editable.
+  // Excepción: encabezado de TestGroup es siempre re-editable (no firma, no cierra).
+  const esEncabezadoTg = !!registro?.esEncabezadoTg
   const isReadOnly = !canWrite
-    || registro?.estado === "COMPLETADO"
-    || registro?.estado === "FIRMADO"
-    || registro?.estado === "APROBADO"
+    || (!esEncabezadoTg && (
+      registro?.estado === "COMPLETADO"
+      || registro?.estado === "FIRMADO"
+      || registro?.estado === "APROBADO"
+    ))
 
   // Breadcrumb dinámico: Ejecución → Registros → {Elemento (link)} → {Tarea}
   // El nombre del elemento es link a la pantalla de elementos con el sheet

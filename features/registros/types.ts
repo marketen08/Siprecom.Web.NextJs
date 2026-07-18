@@ -56,6 +56,11 @@ export interface RegistroDetalle {
   porcentajeCompletitud: number
   camposPendientes: number
   validacionPasada: boolean
+  /**
+   * True cuando el registro es el encabezado de un TestGroup. Es re-editable
+   * siempre — el UI debe ignorar el bloqueo por estado terminal.
+   */
+  esEncabezadoTg?: boolean
   valores: RegistroValor[]
   archivos: RegistroArchivo[]
   /**
