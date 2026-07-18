@@ -12,23 +12,26 @@ interface Params {
    * cuyo `EspecialidadId` está en la lista, MÁS las genéricas (sin especialidad).
    */
   especialidadIds?: string[]
+  /** true = sólo encabezado TG; false = sólo NO encabezado; undefined = todas. */
+  esEncabezadoTG?: boolean
 }
 
 export function useGetPlanillas(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, especialidadIds } = params
+  const { page = 1, pageSize = 10, nombre, especialidadIds, esEncabezadoTG } = params
 
   // Serializamos como CSV para matchear el binding del PagedRequest en backend.
   const especialidadIdsCsv =
     especialidadIds && especialidadIds.length > 0 ? especialidadIds.join(",") : undefined
 
   return useQuery({
-    queryKey: ["planillas", { page, pageSize, nombre, especialidadIdsCsv }],
+    queryKey: ["planillas", { page, pageSize, nombre, especialidadIdsCsv, esEncabezadoTG }],
     queryFn: () =>
       apiClient.get<PagedResponse<Planilla>>("/api/planillas", {
         page,
         pageSize,
         ...(nombre ? { nombre } : {}),
         ...(especialidadIdsCsv ? { especialidadIds: especialidadIdsCsv } : {}),
+        ...(esEncabezadoTG !== undefined ? { esEncabezadoTG: String(esEncabezadoTG) } : {}),
       }),
   })
 }

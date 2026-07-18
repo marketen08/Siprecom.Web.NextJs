@@ -39,6 +39,8 @@ export default function PlanillasPage() {
   const [page, setPage] = useState(1)
   const pageSize = 10
   const [especialidadesSel, setEspecialidadesSel] = useState<Set<string>>(new Set())
+  // Tri-state: undefined = todas, true = solo encabezado TG, false = solo no encabezado.
+  const [encabezadoFilter, setEncabezadoFilter] = useState<boolean | undefined>(undefined)
 
   const especialidadIdsArr = useMemo(() => Array.from(especialidadesSel), [especialidadesSel])
   const { data, isLoading, isFetching } = useGetPlanillas({
@@ -46,6 +48,7 @@ export default function PlanillasPage() {
     pageSize,
     nombre: search || undefined,
     especialidadIds: especialidadIdsArr.length > 0 ? especialidadIdsArr : undefined,
+    esEncabezadoTG: encabezadoFilter,
   })
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
@@ -182,6 +185,45 @@ export default function PlanillasPage() {
             )}
           </div>
         )}
+
+        {/* Filtro por uso: Encabezado TG vs Estándar. Mutuamente excluyentes;
+            click en el chip activo lo deselecciona (vuelve a "todas"). */}
+        <div className="flex items-center gap-1.5 flex-wrap text-xs">
+          <span className="text-muted-foreground mr-1">Uso:</span>
+          {([
+            { key: true, label: "Encabezado TG", activeColor: "#1d4ed8" },
+            { key: false, label: "Estándar", activeColor: "#4b5563" },
+          ] as const).map(({ key, label, activeColor }) => {
+            const activo = encabezadoFilter === key
+            return (
+              <button
+                key={String(key)}
+                type="button"
+                onClick={() => {
+                  setEncabezadoFilter(activo ? undefined : key)
+                  setPage(1)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer"
+                style={
+                  activo
+                    ? { backgroundColor: `${activeColor}22`, color: activeColor, borderColor: activeColor }
+                    : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+          {encabezadoFilter !== undefined && (
+            <button
+              type="button"
+              onClick={() => { setEncabezadoFilter(undefined); setPage(1) }}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X className="h-3 w-3" /> Limpiar
+            </button>
+          )}
+        </div>
 
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>
