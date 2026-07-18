@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowRight, Search } from "lucide-react"
 
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetElementosAsignados, type ElementoAsignable } from "@/features/testgroups/api/use-get-elementos-asignados"
 import { useGetElementosDisponibles } from "@/features/testgroups/api/use-get-elementos-disponibles"
 import { fetchElementosDisponiblesIds } from "@/features/testgroups/api/use-get-elementos-disponibles-ids"
@@ -333,6 +334,27 @@ function AsignacionPageContent() {
   const desasignarMutation = useDesasignarElementos()
 
   const tgActual = useMemo(() => testGroups.find((t) => t.id === testGroupId), [testGroups, testGroupId])
+
+  // Breadcrumb: cuando venís desde el detalle de un pack, el 3er nivel es el
+  // pack (link back al detalle) y el 4º es "Asignación" — así el user vuelve
+  // clickeando el nombre del pack. Sin pack en URL cae al listado plano.
+  useBreadcrumb(
+    tgActual
+      ? [
+          { label: "Alcance" },
+          { label: "Paquetes de prueba", href: "/alcance/test-groups" },
+          {
+            label: tgActual.nombre ? `${tgActual.codigo} — ${tgActual.nombre}` : tgActual.codigo,
+            href: `/alcance/test-groups/${tgActual.id}`,
+          },
+          { label: "Asignación de elementos" },
+        ]
+      : [
+          { label: "Alcance" },
+          { label: "Paquetes de prueba", href: "/alcance/test-groups" },
+          { label: "Asignación de elementos" },
+        ],
+  )
 
   const toggleDisp = (id: string) => {
     setSelectedDisp((prev) => {

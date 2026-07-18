@@ -29,6 +29,7 @@ import { useCanWrite } from "@/lib/use-roles"
 import { TareaCard } from "@/features/elementos-tareas/components/tarea-card"
 import { useTareaHandlers } from "@/features/elementos-tareas/hooks/use-tarea-handlers"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
@@ -83,6 +84,21 @@ export default function TestGroupDetallePage({
   const { data, isLoading } = useGetTestGroup(id)
   const tg = data?.data
   const canWrite = useCanWrite()
+
+  // Breadcrumb: usa el código + nombre del pack en lugar del genérico "Detalle".
+  // Mismo componente sirve a /alcance y /ejecucion — el nivel superior se
+  // resuelve por el modo (que sale del pathname).
+  const seccionLabel = modo === "ejecucion" ? "Ejecución" : "Alcance"
+  const listadoHref = modo === "ejecucion" ? "/ejecucion/test-groups" : "/alcance/test-groups"
+  useBreadcrumb(
+    tg
+      ? [
+          { label: seccionLabel },
+          { label: "Paquetes de prueba", href: listadoHref },
+          { label: tg.nombre ? `${tg.codigo} — ${tg.nombre}` : tg.codigo },
+        ]
+      : null,
+  )
 
   if (isLoading) {
     return <div className="p-6 flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando…</div>
