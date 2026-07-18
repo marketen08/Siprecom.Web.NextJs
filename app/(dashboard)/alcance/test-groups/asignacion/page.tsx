@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowRight, Search } from "lucide-react"
 
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
+import { useGetTestGroup } from "@/features/testgroups/api/use-get-testgroup"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetElementosAsignados, type ElementoAsignable } from "@/features/testgroups/api/use-get-elementos-asignados"
 import { useGetElementosDisponibles } from "@/features/testgroups/api/use-get-elementos-disponibles"
@@ -237,12 +238,22 @@ export default function AsignacionPage() {
   )
 }
 
-function AsignacionPageContent() {
+/**
+ * Reutilizable por la ruta anidada `/alcance/test-groups/[id]/asignacion`.
+ * Cuando `preSelectedTestGroupId` viene, arranca con ese pack seleccionado y
+ * el breadcrumb muestra el pack como nivel anterior. Sin él, cae al comportamiento
+ * viejo de leer `?testGroupId=` de la URL.
+ */
+export function AsignacionPageContent({
+  preSelectedTestGroupId,
+}: {
+  preSelectedTestGroupId?: string
+} = {}) {
   // Pre-selección desde la URL — se dispara desde el dropdown de acciones en
   // /alcance/test-groups. Solo aplica en el mount inicial; después el user
   // puede cambiarlo normalmente desde el Select.
   const searchParams = useSearchParams()
-  const testGroupIdFromUrl = searchParams.get("testGroupId")
+  const testGroupIdFromUrl = preSelectedTestGroupId ?? searchParams.get("testGroupId")
 
   const [testGroupId, setTestGroupId] = useState<string | null>(testGroupIdFromUrl)
   const [subFilter, setSubFilter] = useState<string>(SUB_ALL)
@@ -335,17 +346,23 @@ function AsignacionPageContent() {
 
   const tgActual = useMemo(() => testGroups.find((t) => t.id === testGroupId), [testGroups, testGroupId])
 
+  // Para el breadcrumb pedimos el pack directo por ID — así funciona aun cuando
+  // no está en la lista paginada (COMPLETADO / CERRADO, o fuera del rango de
+  // página), o la ruta anidada se abre antes de que cargue el `useGetTestGroups`.
+  const { data: tgBreadcrumbRaw } = useGetTestGroup(testGroupId ?? null)
+  const tgBreadcrumb = tgBreadcrumbRaw?.data ?? null
+
   // Breadcrumb: cuando venís desde el detalle de un pack, el 3er nivel es el
   // pack (link back al detalle) y el 4º es "Asignación" — así el user vuelve
   // clickeando el nombre del pack. Sin pack en URL cae al listado plano.
   useBreadcrumb(
-    tgActual
+    tgBreadcrumb
       ? [
           { label: "Alcance" },
           { label: "Paquetes de prueba", href: "/alcance/test-groups" },
           {
-            label: tgActual.nombre ? `${tgActual.codigo} — ${tgActual.nombre}` : tgActual.codigo,
-            href: `/alcance/test-groups/${tgActual.id}`,
+            label: tgBreadcrumb.nombre ? `${tgBreadcrumb.codigo} — ${tgBreadcrumb.nombre}` : tgBreadcrumb.codigo,
+            href: `/alcance/test-groups/${tgBreadcrumb.id}`,
           },
           { label: "Asignación de elementos" },
         ]

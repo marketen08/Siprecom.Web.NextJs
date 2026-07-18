@@ -77,7 +77,7 @@ export function TestGroupActionsMenu({ tg, onAfterDelete, variant = "icon" }: Pr
         />
         <DropdownMenuContent align="end" className="w-56">
           {!isCerrado && (
-            <DropdownMenuItem render={<Link href={`/alcance/test-groups/asignacion?testGroupId=${tg.id}`} />}>
+            <DropdownMenuItem render={<Link href={`/alcance/test-groups/${tg.id}/asignacion`} />}>
               <ArrowRightLeft className="h-4 w-4 text-blue-600" />
               Asignar elementos
             </DropdownMenuItem>
