@@ -1,3 +1,6 @@
+import type { FamiliaMetadataTG } from "@/features/elementostipos/types"
+import type { TipoCertificado } from "@/features/certificados/types"
+
 export const ESTADO_TEST_GROUP = {
   BORRADOR: 1,
   ACTIVO: 2,
@@ -6,26 +9,6 @@ export const ESTADO_TEST_GROUP = {
 } as const
 
 export type EstadoTestGroup = (typeof ESTADO_TEST_GROUP)[keyof typeof ESTADO_TEST_GROUP]
-
-export const METODO_PRUEBA = {
-  HIDROSTATICA: 1,
-  NEUMATICA: 2,
-  VACIO: 3,
-} as const
-
-export type MetodoPrueba = (typeof METODO_PRUEBA)[keyof typeof METODO_PRUEBA]
-
-export const TIPO_PRUEBA_FUNCIONAL = {
-  FTS: 1,
-  OTS: 2,
-} as const
-
-export type TipoPruebaFuncional = (typeof TIPO_PRUEBA_FUNCIONAL)[keyof typeof TIPO_PRUEBA_FUNCIONAL]
-
-import type {
-  FamiliaMetadataTG,
-} from "@/features/elementostipos/types"
-import type { TipoCertificado } from "@/features/certificados/types"
 
 export interface TestGroup {
   id: string
@@ -44,15 +27,6 @@ export interface TestGroup {
   descripcion: string | null
   estado: EstadoTestGroup
   estadoTexto: string
-  // PRESSURE
-  presion: number | null
-  fluido: string | null
-  pidReferencia: string | null
-  metodoPrueba: MetodoPrueba | null
-  limitesBateria: string | null
-  // BASIC_FUNCTION
-  tipoPruebaFuncional: TipoPruebaFuncional | null
-  alcanceFuncional: string | null
 
   cantidadElementos: number
   cantidadTareas: number
@@ -79,13 +53,6 @@ export interface TestGroupCreateInput {
   codigo: string
   nombre: string
   descripcion?: string | null
-  presion?: number | null
-  fluido?: string | null
-  pidReferencia?: string | null
-  metodoPrueba?: MetodoPrueba | null
-  limitesBateria?: string | null
-  tipoPruebaFuncional?: TipoPruebaFuncional | null
-  alcanceFuncional?: string | null
 }
 
 export interface TestGroupUpdateInput {
@@ -93,11 +60,4 @@ export interface TestGroupUpdateInput {
   codigo: string
   nombre: string
   descripcion?: string | null
-  presion?: number | null
-  fluido?: string | null
-  pidReferencia?: string | null
-  metodoPrueba?: MetodoPrueba | null
-  limitesBateria?: string | null
-  tipoPruebaFuncional?: TipoPruebaFuncional | null
-  alcanceFuncional?: string | null
 }

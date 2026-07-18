@@ -5,19 +5,13 @@ const baseFields = {
   codigo: z.string().min(1, "El código es requerido").max(50),
   nombre: z.string().max(200).optional().default(""),
   descripcion: z.string().max(1000).optional().nullable().default(null),
-  presion: z.number().nullable().optional().default(null),
-  fluido: z.string().max(100).nullable().optional().default(null),
-  pidReferencia: z.string().max(200).nullable().optional().default(null),
-  metodoPrueba: z.number().nullable().optional().default(null),
-  limitesBateria: z.string().max(1000).nullable().optional().default(null),
-  tipoPruebaFuncional: z.number().nullable().optional().default(null),
-  alcanceFuncional: z.string().max(1000).nullable().optional().default(null),
 }
 
 export const testGroupCreateSchema = z.object({
   // Rediseño 2026-07: el "tipo" del pack se define eligiendo un ElementoTipo
-  // sintético del catálogo. La familia (Pressure / Basic Function / Ninguna)
-  // se deriva de ese tipo.
+  // sintético del catálogo. La metadata del encabezado (Presion/Fluido/etc.)
+  // se captura en el Registro de encabezado usando la Planilla configurada
+  // en el ElementoTipo — ya no viaja en este DTO.
   elementoTipoSinteticoId: z.string().min(1, "Elegí el tipo sintético del pack"),
   ...baseFields,
 })

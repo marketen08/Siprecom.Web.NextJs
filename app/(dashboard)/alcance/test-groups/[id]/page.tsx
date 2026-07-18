@@ -24,8 +24,7 @@ import { useExcluirTareaPack } from "@/features/testgroups/api/use-excluir-tarea
 import { useReincorporarTareaPack } from "@/features/testgroups/api/use-reincorporar-tarea-pack"
 import { useGetTareasExcluidasPack } from "@/features/testgroups/api/use-get-tareas-excluidas-pack"
 import { useGetTestGroupRegistroEncabezado } from "@/features/testgroups/api/use-get-registro-encabezado"
-import { ESTADO_TEST_GROUP, METODO_PRUEBA, TIPO_PRUEBA_FUNCIONAL } from "@/features/testgroups/types"
-import { FAMILIA_METADATA_TG } from "@/features/elementostipos/types"
+import { ESTADO_TEST_GROUP } from "@/features/testgroups/types"
 import { useCanWrite } from "@/lib/use-roles"
 
 import { Badge } from "@/components/ui/badge"
@@ -83,8 +82,6 @@ export default function TestGroupDetallePage({
   if (!tg) {
     return <div className="p-6 text-destructive">No se pudo cargar el paquete.</div>
   }
-
-  const isPressure = tg.familiaMetadataTG === FAMILIA_METADATA_TG.PRESSURE
 
   return (
     <div className="space-y-4">
@@ -157,7 +154,7 @@ export default function TestGroupDetallePage({
           las acciones de mutación (asignar/desasignar elementos, cambiar estado de
           tarea, cargar planilla física). El backend igual devolvería 403; esto
           evita mostrar botones que no van a funcionar. */}
-      {tab === "info" && <TabInfo tg={tg} isPressure={isPressure} testGroupId={id} />}
+      {tab === "info" && <TabInfo tg={tg} testGroupId={id} />}
       {tab === "elementos" && <TabElementos testGroupId={tg.id} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || !!tg.tieneCertificadoActivo} modo={modo} />}
       {tab === "tareas" && <TabTareas testGroupId={tg.id} proyectoId={tg.proyectoId} bloqueado={!canWrite || tg.estado === ESTADO_TEST_GROUP.CERRADO || tg.estado === ESTADO_TEST_GROUP.BORRADOR || !!tg.tieneCertificadoActivo} modo={modo} />}
       {tab === "progreso" && <TabProgreso testGroupId={tg.id} />}
@@ -200,10 +197,9 @@ function EstadoBadge({ estado, texto }: { estado: number; texto: string }) {
 // ─── TAB: Info ────────────────────────────────────────────────────────────
 
 function TabInfo({
-  tg, isPressure, testGroupId,
+  tg, testGroupId,
 }: {
   tg: any
-  isPressure: boolean
   testGroupId: string
 }) {
   const { data: encabezadoRaw } = useGetTestGroupRegistroEncabezado(testGroupId)
@@ -244,30 +240,6 @@ function TabInfo({
               </Link>
             </Button>
           </div>
-        </Card>
-      )}
-
-      {isPressure ? (
-        <Card className="p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pressure Test Pack</p>
-          <InfoRow label="Presión (bar)" value={tg.presion ?? "—"} />
-          <InfoRow label="Método" value={
-            tg.metodoPrueba === METODO_PRUEBA.HIDROSTATICA ? "Hidrostática" :
-            tg.metodoPrueba === METODO_PRUEBA.NEUMATICA ? "Neumática" :
-            tg.metodoPrueba === METODO_PRUEBA.VACIO ? "Vacío" : "—"
-          } />
-          <InfoRow label="Fluido" value={tg.fluido || "—"} />
-          <InfoRow label="P&ID referencia" value={tg.pidReferencia || "—"} />
-          <InfoRow label="Límites de batería" value={tg.limitesBateria || "—"} />
-        </Card>
-      ) : (
-        <Card className="p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Basic Function</p>
-          <InfoRow label="Tipo de prueba" value={
-            tg.tipoPruebaFuncional === TIPO_PRUEBA_FUNCIONAL.FTS ? "FTS" :
-            tg.tipoPruebaFuncional === TIPO_PRUEBA_FUNCIONAL.OTS ? "OTS" : "—"
-          } />
-          <InfoRow label="Alcance funcional" value={tg.alcanceFuncional || "—"} />
         </Card>
       )}
     </div>

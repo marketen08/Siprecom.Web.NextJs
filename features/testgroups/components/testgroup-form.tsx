@@ -9,14 +9,9 @@ import {
   type TestGroupCreateFormValues,
   type TestGroupUpdateFormValues,
 } from "../schema"
-import {
-  METODO_PRUEBA,
-  TIPO_PRUEBA_FUNCIONAL,
-  type TestGroup,
-} from "../types"
+import type { TestGroup } from "../types"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
-import { FAMILIA_METADATA_TG } from "@/features/elementostipos/types"
 import { TIPO_CERTIFICADO_LABEL } from "@/features/certificados/types"
 
 import { Button } from "@/components/ui/button"
@@ -71,27 +66,15 @@ export function TestGroupForm({
       codigo: defaultValues?.codigo ?? "",
       nombre: defaultValues?.nombre ?? "",
       descripcion: defaultValues?.descripcion ?? "",
-      presion: defaultValues?.presion ?? null,
-      fluido: defaultValues?.fluido ?? "",
-      pidReferencia: defaultValues?.pidReferencia ?? "",
-      metodoPrueba: defaultValues?.metodoPrueba ?? null,
-      limitesBateria: defaultValues?.limitesBateria ?? "",
-      tipoPruebaFuncional: defaultValues?.tipoPruebaFuncional ?? null,
-      alcanceFuncional: defaultValues?.alcanceFuncional ?? "",
     },
   })
 
   const tiposSinteticos = (tiposData?.data ?? []).filter((t) => t.esSintetico)
 
-  // Familia efectiva: en create la deriva del tipo elegido; en edit viene del pack.
+  // Tipo elegido — se usa para mostrar el aviso de "va a crear registro
+  // de encabezado" cuando la planilla está configurada en el tipo sintético.
   const tipoElegidoId: string = form.watch("elementoTipoSinteticoId") ?? ""
   const tipoElegido = tiposSinteticos.find((t) => t.id === tipoElegidoId)
-  const familia =
-    mode === "create"
-      ? tipoElegido?.familiaMetadataTG ?? FAMILIA_METADATA_TG.GENERICA
-      : defaultValues?.familiaMetadataTG ?? FAMILIA_METADATA_TG.GENERICA
-  const isPressure = familia === FAMILIA_METADATA_TG.PRESSURE
-  const isBasicFunction = familia === FAMILIA_METADATA_TG.BASIC_FUNCTION
 
   return (
     <Form {...form}>
@@ -247,195 +230,11 @@ export function TestGroupForm({
           />
         </div>
 
-        {(isPressure || isBasicFunction) && <Separator />}
-
-        {isPressure && (
-          <div className="flex flex-col gap-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Parámetros de prueba (Pressure)
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="presion"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Presión (bar)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        min={0}
-                        disabled={isPending}
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value === "" ? null : parseFloat(e.target.value),
-                          )
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="metodoPrueba"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Método</FormLabel>
-                    <Select
-                      disabled={isPending}
-                      value={field.value == null ? "__none__" : String(field.value)}
-                      onValueChange={(v) =>
-                        field.onChange(!v || v === "__none__" ? null : parseInt(v, 10))
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue>
-                            {field.value === METODO_PRUEBA.HIDROSTATICA
-                              ? "Hidrostática"
-                              : field.value === METODO_PRUEBA.NEUMATICA
-                                ? "Neumática"
-                                : field.value === METODO_PRUEBA.VACIO
-                                  ? "Vacío"
-                                  : "—"}
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">—</SelectItem>
-                        <SelectItem value={String(METODO_PRUEBA.HIDROSTATICA)}>
-                          Hidrostática
-                        </SelectItem>
-                        <SelectItem value={String(METODO_PRUEBA.NEUMATICA)}>
-                          Neumática
-                        </SelectItem>
-                        <SelectItem value={String(METODO_PRUEBA.VACIO)}>Vacío</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="fluido"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fluido</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ej: Agua, Nitrógeno"
-                      disabled={isPending}
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="pidReferencia"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>P&amp;ID referencia</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ej: PID-042"
-                      disabled={isPending}
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="limitesBateria"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Límites de batería</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Descripción de los límites"
-                      disabled={isPending}
-                      rows={2}
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        )}
-
-        {isBasicFunction && (
-          <div className="flex flex-col gap-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Parámetros funcionales (Basic Function)
-            </p>
-            <FormField
-              control={form.control}
-              name="tipoPruebaFuncional"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Tipo de prueba <span className="text-destructive">*</span>
-                  </FormLabel>
-                  <Select
-                    disabled={isPending}
-                    value={field.value == null ? "" : String(field.value)}
-                    onValueChange={(v) => v && field.onChange(parseInt(v, 10))}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Elegí FTS u OTS">
-                          {field.value === TIPO_PRUEBA_FUNCIONAL.FTS
-                            ? "FTS"
-                            : field.value === TIPO_PRUEBA_FUNCIONAL.OTS
-                              ? "OTS"
-                              : ""}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={String(TIPO_PRUEBA_FUNCIONAL.FTS)}>FTS</SelectItem>
-                      <SelectItem value={String(TIPO_PRUEBA_FUNCIONAL.OTS)}>OTS</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="alcanceFuncional"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Alcance funcional</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Detalle del alcance"
-                      disabled={isPending}
-                      rows={3}
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        {tipoElegido?.planillaEncabezadoId && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 text-xs text-blue-900">
+            Al guardar, este pack va a crear un registro de encabezado usando la
+            planilla asignada al tipo. Después vas a poder completarlo desde la
+            vista del pack.
           </div>
         )}
 
