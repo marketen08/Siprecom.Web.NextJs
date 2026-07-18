@@ -59,7 +59,12 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   const tipos = (tiposData as any)?.data ?? []
   const especialidades = especialidadesData?.data ?? []
   const niveles = (nivelesData as any)?.data ?? (Array.isArray(nivelesData) ? nivelesData : [])
-  const planillas = (planillasData as any)?.data ?? []
+  // Las planillas de encabezado son sólo para el header del TG (van en el
+  // ElementoTipo sintético). Excluimos del select de tareas comunes, pero
+  // dejamos pasar la que ya tenía asignada para no borrar la selección al editar.
+  const planillas = ((planillasData as any)?.data ?? []).filter(
+    (p: any) => !p.esEncabezadoTG || p.id === defaultValues?.planillaId,
+  )
   const procedimientos = (procedimientosData as any)?.data ?? []
   const tareasCatalogo = (tareasData as any)?.data ?? []
 
