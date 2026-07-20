@@ -53,6 +53,7 @@ type FilaEstado =
   | "listo"
   | "ya-cargado"
   | "estado-incompatible"
+  | "otro-proyecto"
   | "subiendo"
   | "sincronizado"
   | "error"
@@ -115,6 +116,7 @@ export default function CargaRapidaQrPage() {
     (f) =>
       f.estado === "sin-qr" || f.estado === "qr-invalido" || f.estado === "error",
   ).length
+  const otroProyecto = filas.filter((f) => f.estado === "otro-proyecto").length
   // Warning secundario: filas listas pero sin firma detectada. No bloquean —
   // se suben con FirmaOverrideDetalle y queda auditado en observaciones.
   const sinFirmaDetectada = filas.filter(
@@ -193,9 +195,13 @@ export default function CargaRapidaQrPage() {
     } catch (err) {
       const apiErr = err as ApiError | undefined
       const isConflict = apiErr?.status === 409
+      const msg = err instanceof Error ? err.message : "No se pudo resolver el registro."
+      // El backend devuelve Conflict con "pertenece a otro proyecto" cuando la ET
+      // es de otro. Detectamos por sustring para pintarlo distinto en la UI.
+      const esOtroProyecto = isConflict && /otro proyecto/i.test(msg)
       actualizar(id, {
-        estado: isConflict ? "estado-incompatible" : "error",
-        mensaje: err instanceof Error ? err.message : "No se pudo resolver el registro.",
+        estado: esOtroProyecto ? "otro-proyecto" : (isConflict ? "estado-incompatible" : "error"),
+        mensaje: msg,
       })
     }
   }
@@ -205,9 +211,12 @@ export default function CargaRapidaQrPage() {
     try {
       const res = await resolverPendiente.mutateAsync(qr.pendienteId!)
       if (!res.puedeCargar) {
-        // Ya está terminal o ya tiene PDF cargado (backend rechaza el re-upload).
+        // Ya está terminal, ya tiene PDF cargado, o pertenece a otro proyecto.
+        // El backend nos dice el motivo — matcheamos "otro proyecto" para pintar
+        // distinto (rojo con warning), el resto queda como estado-incompatible.
+        const esOtroProyecto = /otro proyecto/i.test(res.motivo ?? "")
         actualizar(id, {
-          estado: "estado-incompatible",
+          estado: esOtroProyecto ? "otro-proyecto" : "estado-incompatible",
           pendienteResuelto: res,
           mensaje: res.motivo ?? "El pendiente no admite carga en este momento.",
         })
@@ -369,14 +378,18 @@ export default function CargaRapidaQrPage() {
         </p>
       </div>
 
-      {/* KPIs simples */}
-      <div className={`grid grid-cols-2 gap-3 ${sinFirmaDetectada > 0 ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
+      {/* KPIs simples. Tailwind JIT no puede inferir grid-cols-N dinámico, así que
+          usamos flex-wrap para que se distribuyan cuando hay más de 4. */}
+      <div className="flex flex-wrap gap-3 *:flex-1 *:min-w-40">
         <Kpi label="En la lista" value={total} />
         <Kpi label="Listos para subir" value={listos} highlight="blue" />
         <Kpi label="Sincronizados" value={sincronizados} highlight="green" />
         <Kpi label="Con problemas" value={conError} highlight="red" />
         {sinFirmaDetectada > 0 && (
           <Kpi label="Sin firma detectada" value={sinFirmaDetectada} highlight="amber" />
+        )}
+        {otroProyecto > 0 && (
+          <Kpi label="De otro proyecto" value={otroProyecto} highlight="red" />
         )}
       </div>
 
@@ -604,6 +617,11 @@ function EstadoBadge({
     "estado-incompatible": {
       label: "Ya resuelto",
       cls: "bg-amber-100 text-amber-800",
+      icon: <AlertTriangle className="h-3 w-3" />,
+    },
+    "otro-proyecto": {
+      label: "Otro proyecto",
+      cls: "bg-red-100 text-red-800",
       icon: <AlertTriangle className="h-3 w-3" />,
     },
     subiendo: {
