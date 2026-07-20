@@ -4,11 +4,15 @@ import { useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpFromLine,
   Check,
   CheckCircle2,
   FileUp,
   Info,
   Loader2,
+  Paperclip,
   QrCode,
   Trash2,
   Upload,
@@ -57,6 +61,11 @@ type FilaEstado =
   | "subiendo"
   | "sincronizado"
   | "error"
+  // Adjunto de otro archivo: sube a /archivos (tarea) o /adjuntos (pendiente)
+  // después de que su carrier se haya subido con /completar/fisico. Cubre dos
+  // casos: (a) archivos sin QR posteriores a un carrier en el orden, y (b) QR
+  // duplicado de un carrier previo del mismo destino.
+  | "adjunto"
 
 /** Resultado de la detección visual de firma. `null` = no corrió todavía.
  *  Los kinds "detectada" y "no-detectada" ahora traen el conteo per-slot para
@@ -88,6 +97,101 @@ interface Fila {
   mensaje: string | null
   /** Resultado de la detección visual de firma (solo tareas con slots Fisica). */
   firmaDeteccion: FirmaDeteccion
+  /** Orden explícito en la grilla (0-based). Se recalcula al mover filas ↑↓. */
+  orden: number
+  /** Id del carrier al que este archivo se adjunta. null = es carrier propio. */
+  asociadoA: string | null
+}
+
+/** Clave estable del destino del QR — usada para detectar duplicados. */
+function claveDestino(f: Fila): string | null {
+  if (f.tipo === "pendiente" && f.pendienteResuelto)
+    return "PEND::" + f.pendienteResuelto.pendienteId
+  if (f.tipo === "tarea" && f.resuelto)
+    return "ET::" + f.resuelto.elementoTareaId
+  // Fallback: el QR crudo alcanza para dedupe temprano (antes de resolver).
+  if (f.qr?.esChecklist && f.qr.elementoTareaId)
+    return "ET::" + f.qr.elementoTareaId
+  if (f.qr?.esPendienteCarga && f.qr.pendienteId)
+    return "PEND::" + f.qr.pendienteId
+  return null
+}
+
+/**
+ * Recalcula la relación carrier/adjunto sobre el batch entero, respetando el
+ * orden actual de las filas. Espeja `LocalDbService.RecalcularCarriers` de la
+ * app WinForms:
+ *   - Un archivo con QR válido es CARRIER, salvo que ya haya un carrier previo
+ *     con el mismo destino → se degrada a ADJUNTO del primero (QR duplicado).
+ *   - Un archivo SIN QR válido es ADJUNTO del último carrier previo. Si no hay
+ *     ninguno anterior queda como SIN_QR huérfano.
+ * Estados de subida (subiendo/sincronizado/error) NO se recalculan — ya se
+ * consolidaron. Estados en proceso (leyendo-qr/resolviendo) se dejan pasar hasta
+ * que terminen y luego se recalculan.
+ */
+function recalcularAgrupacion(filas: Fila[]): Fila[] {
+  const ordenadas = [...filas].sort((a, b) => a.orden - b.orden)
+  const carrierPorDestino = new Map<string, string>()
+  let lastCarrier: { id: string; estado: FilaEstado } | null = null
+
+  return ordenadas.map((f) => {
+    // No tocar estados terminales o intermedios de subida.
+    if (
+      f.estado === "subiendo"
+      || f.estado === "sincronizado"
+      || f.estado === "error"
+      || f.estado === "leyendo-qr"
+      || f.estado === "resolviendo"
+    ) {
+      // Si es carrier útil, sigue siendo referencia para no-QR posteriores.
+      const clave = claveDestino(f)
+      if (clave && !f.asociadoA) {
+        if (!carrierPorDestino.has(clave)) carrierPorDestino.set(clave, f.id)
+        lastCarrier = { id: f.id, estado: f.estado }
+      }
+      return f
+    }
+
+    // Estados que no son útiles como carrier ni como adjunto (QR inválido, otro
+    // proyecto, incompatible): quedan como están, no arrastran nada.
+    if (f.estado === "qr-invalido" || f.estado === "otro-proyecto" || f.estado === "estado-incompatible") {
+      return { ...f, asociadoA: null }
+    }
+
+    const clave = claveDestino(f)
+
+    if (clave) {
+      // Con QR: candidato a carrier o duplicado.
+      const carrierPrevio = carrierPorDestino.get(clave)
+      if (carrierPrevio && carrierPrevio !== f.id) {
+        return {
+          ...f,
+          asociadoA: carrierPrevio,
+          estado: "adjunto" as FilaEstado,
+          mensaje: "QR duplicado — se adjuntará al primer archivo con este QR.",
+        }
+      }
+      carrierPorDestino.set(clave, f.id)
+      lastCarrier = { id: f.id, estado: f.estado }
+      return { ...f, asociadoA: null }
+    }
+
+    // Sin QR: adjunto del último carrier o huérfano.
+    if (!lastCarrier) {
+      return {
+        ...f,
+        asociadoA: null,
+        estado: "sin-qr" as FilaEstado,
+        mensaje: "Sin QR — no hay archivo con QR previo en el orden.",
+      }
+    }
+    return {
+      ...f,
+      asociadoA: lastCarrier.id,
+      estado: "adjunto" as FilaEstado,
+      mensaje: null,
+    }
+  })
 }
 
 const nuevoId = () =>
@@ -110,7 +214,10 @@ export default function CargaRapidaQrPage() {
 
   // Estado agregado para el header.
   const total = filas.length
+  // "listos" cuenta CARRIERS listos para subir. Los adjuntos se cuentan aparte
+  // porque suben "en cascada" con su carrier.
   const listos = filas.filter((f) => f.estado === "listo" || f.estado === "ya-cargado").length
+  const adjuntos = filas.filter((f) => f.estado === "adjunto").length
   const sincronizados = filas.filter((f) => f.estado === "sincronizado").length
   const conError = filas.filter(
     (f) =>
@@ -131,21 +238,28 @@ export default function CargaRapidaQrPage() {
     // Agregamos filas en estado "leyendo-qr" y arrancamos el pipeline por cada una.
     // La resolución (llamada al backend) también corre por fila para poder mostrar
     // progreso individual — el volumen esperado es de decenas, no miles.
-    const nuevas: Fila[] = archivos.map((archivo) => ({
-      id: nuevoId(),
-      archivo,
-      estado: "leyendo-qr" as FilaEstado,
-      qr: null,
-      tipo: null,
-      resuelto: null,
-      pendienteResuelto: null,
-      mensaje: null,
-      firmaDeteccion: null,
-    }))
-    setFilas((prev) => [...prev, ...nuevas])
-    for (const fila of nuevas) {
-      void procesarFila(fila.id, fila.archivo)
-    }
+    setFilas((prev) => {
+      const baseOrden = prev.length > 0 ? Math.max(...prev.map((f) => f.orden)) + 1 : 0
+      const nuevas: Fila[] = archivos.map((archivo, i) => ({
+        id: nuevoId(),
+        archivo,
+        estado: "leyendo-qr" as FilaEstado,
+        qr: null,
+        tipo: null,
+        resuelto: null,
+        pendienteResuelto: null,
+        mensaje: null,
+        firmaDeteccion: null,
+        orden: baseOrden + i,
+        asociadoA: null,
+      }))
+      // Dispara la lectura del QR en paralelo — cada procesarFila hace su propio
+      // setFilas cuando termina. Cerramos sobre las ids nuevas.
+      for (const fila of nuevas) {
+        void procesarFila(fila.id, fila.archivo)
+      }
+      return [...prev, ...nuevas]
+    })
   }
 
   async function procesarFila(id: string, archivo: File) {
@@ -238,15 +352,51 @@ export default function CargaRapidaQrPage() {
   }
 
   function actualizar(id: string, patch: Partial<Fila>) {
-    setFilas((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+    // Cada patch dispara el recalculo de agrupación — así una fila que resolvió
+    // su QR y descubre que es duplicado se degrada a adjunto automáticamente.
+    setFilas((prev) => recalcularAgrupacion(prev.map((f) => (f.id === id ? { ...f, ...patch } : f))))
   }
 
   function eliminarFila(id: string) {
-    setFilas((prev) => prev.filter((f) => f.id !== id))
+    setFilas((prev) => recalcularAgrupacion(prev.filter((f) => f.id !== id)))
   }
 
   function limpiarSincronizados() {
-    setFilas((prev) => prev.filter((f) => f.estado !== "sincronizado"))
+    setFilas((prev) => recalcularAgrupacion(prev.filter((f) => f.estado !== "sincronizado")))
+  }
+
+  /** Sube o baja una fila en el orden. Reasigna `orden` secuencial y recalcula agrupación. */
+  function moverFila(id: string, direccion: "arriba" | "abajo") {
+    setFilas((prev) => {
+      const ordenadas = [...prev].sort((a, b) => a.orden - b.orden)
+      const idx = ordenadas.findIndex((f) => f.id === id)
+      const target = direccion === "arriba" ? idx - 1 : idx + 1
+      if (idx < 0 || target < 0 || target >= ordenadas.length) return prev
+      ;[ordenadas[idx], ordenadas[target]] = [ordenadas[target], ordenadas[idx]]
+      // Reasignar orden 0..N para normalizar (evita drift si se hicieron muchos moves).
+      const conOrden = ordenadas.map((f, i) => ({ ...f, orden: i }))
+      return recalcularAgrupacion(conOrden)
+    })
+  }
+
+  /** Promueve un adjunto a carrier: lo mueve a la posición del carrier actual del grupo. */
+  function hacerCarrier(id: string) {
+    setFilas((prev) => {
+      const ordenadas = [...prev].sort((a, b) => a.orden - b.orden)
+      const fila = ordenadas.find((f) => f.id === id)
+      if (!fila || !fila.asociadoA) return prev
+      const carrierId = fila.asociadoA
+      const carrierIdx = ordenadas.findIndex((f) => f.id === carrierId)
+      const filaIdx = ordenadas.findIndex((f) => f.id === id)
+      if (carrierIdx < 0 || filaIdx < 0) return prev
+      // Sacamos la fila y la reinsertamos JUSTO ANTES del carrier actual.
+      // Con eso queda como el nuevo primer archivo del grupo (mismo QR o no).
+      const sinFila = ordenadas.filter((f) => f.id !== id)
+      const nuevoCarrierIdx = sinFila.findIndex((f) => f.id === carrierId)
+      sinFila.splice(nuevoCarrierIdx, 0, fila)
+      const conOrden = sinFila.map((f, i) => ({ ...f, orden: i }))
+      return recalcularAgrupacion(conOrden)
+    })
   }
 
   /**
@@ -302,49 +452,48 @@ export default function CargaRapidaQrPage() {
   }
 
   async function subirTodas() {
-    // Secuencial: mejor UX (feedback claro por fila) y evita saturar el backend.
-    // Con volumen chico no vale la pena paralelizar.
-    for (const fila of filas) {
-      if (fila.estado !== "listo" && fila.estado !== "ya-cargado") continue
-      actualizar(fila.id, { estado: "subiendo" })
-      try {
-        const rotacion = fila.qr?.rotacionDetectada ?? 0
-        const archivoFinal = await rotateFile(fila.archivo, rotacion)
+    // Snapshot ordenado del batch — nos importa el ORDEN de los adjuntos para
+    // que suban después de su carrier y en el orden en que están en la grilla.
+    const snapshot = [...filas].sort((a, b) => a.orden - b.orden)
+    const adjuntosPorCarrier = new Map<string, Fila[]>()
+    for (const f of snapshot) {
+      if (f.estado !== "adjunto" || !f.asociadoA) continue
+      const arr = adjuntosPorCarrier.get(f.asociadoA) ?? []
+      arr.push(f)
+      adjuntosPorCarrier.set(f.asociadoA, arr)
+    }
 
-        if (fila.tipo === "pendiente" && fila.pendienteResuelto) {
-          // Pendiente: POST al endpoint dedicado. Sin firma-config (los
-          // pendientes no tienen slots físicos hoy).
-          const fd = new FormData()
-          fd.append("archivo", archivoFinal)
-          const res = await fetch(
-            `/api/pendientes/${fila.pendienteResuelto.pendienteId}/completar/fisico`,
-            { method: "POST", body: fd },
-          )
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({ message: res.statusText }))
-            throw new Error(err.message ?? `Error ${res.status} al subir el archivo`)
-          }
-          actualizar(fila.id, { estado: "sincronizado", mensaje: null })
-          queryClient.invalidateQueries({ queryKey: ["pendientes"] })
-          continue
-        }
+    // Recorremos carriers listos. Cada uno sube primero, y si OK, subimos sus
+    // adjuntos secuencialmente contra el endpoint apropiado del tipo.
+    for (const carrier of snapshot) {
+      if (carrier.estado !== "listo" && carrier.estado !== "ya-cargado") continue
 
-        // Flujo tarea (default).
-        if (!fila.resuelto) {
-          throw new Error("Fila sin registro resuelto.")
-        }
+      const adjuntos = adjuntosPorCarrier.get(carrier.id) ?? []
+      const carrierOk = await subirCarrier(carrier)
+      if (!carrierOk) {
+        // Marcamos sus adjuntos como error para que no se dejen "colgados".
+        for (const adj of adjuntos)
+          actualizar(adj.id, { estado: "error", mensaje: "No se subió porque el archivo principal falló." })
+        continue
+      }
+
+      // Adjuntos: cada uno independiente; uno falla y los otros siguen.
+      for (const adj of adjuntos) await subirAdjunto(carrier, adj)
+    }
+  }
+
+  /** Sube el carrier al endpoint completar/fisico correspondiente. Devuelve true si OK. */
+  async function subirCarrier(fila: Fila): Promise<boolean> {
+    actualizar(fila.id, { estado: "subiendo" })
+    try {
+      const rotacion = fila.qr?.rotacionDetectada ?? 0
+      const archivoFinal = await rotateFile(fila.archivo, rotacion)
+
+      if (fila.tipo === "pendiente" && fila.pendienteResuelto) {
         const fd = new FormData()
-        fd.append("Archivo", archivoFinal)
-        if (fila.firmaDeteccion?.kind === "no-detectada") {
-          const { slotsDetectados, slotsTotal } = fila.firmaDeteccion
-          const detalle = `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`
-          fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
-        } else if (fila.firmaDeteccion?.kind === "sin-fiduciales") {
-          const detalle = `planilla sin fiduciales — no fue posible verificar firmas visualmente`
-          fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
-        }
+        fd.append("archivo", archivoFinal)
         const res = await fetch(
-          `/api/registros/${fila.resuelto.registroId}/completar/fisico`,
+          `/api/pendientes/${fila.pendienteResuelto.pendienteId}/completar/fisico`,
           { method: "POST", body: fd },
         )
         if (!res.ok) {
@@ -352,13 +501,75 @@ export default function CargaRapidaQrPage() {
           throw new Error(err.message ?? `Error ${res.status} al subir el archivo`)
         }
         actualizar(fila.id, { estado: "sincronizado", mensaje: null })
-        invalidarPostCargaRegistro(queryClient, fila.resuelto.registroId)
-      } catch (err) {
-        actualizar(fila.id, {
-          estado: "error",
-          mensaje: err instanceof Error ? err.message : "Error al subir.",
-        })
+        queryClient.invalidateQueries({ queryKey: ["pendientes"] })
+        return true
       }
+
+      if (!fila.resuelto) throw new Error("Fila sin registro resuelto.")
+
+      const fd = new FormData()
+      fd.append("Archivo", archivoFinal)
+      if (fila.firmaDeteccion?.kind === "no-detectada") {
+        const { slotsDetectados, slotsTotal } = fila.firmaDeteccion
+        const detalle = `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`
+        fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
+      } else if (fila.firmaDeteccion?.kind === "sin-fiduciales") {
+        const detalle = `planilla sin fiduciales — no fue posible verificar firmas visualmente`
+        fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
+      }
+      const res = await fetch(
+        `/api/registros/${fila.resuelto.registroId}/completar/fisico`,
+        { method: "POST", body: fd },
+      )
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }))
+        throw new Error(err.message ?? `Error ${res.status} al subir el archivo`)
+      }
+      actualizar(fila.id, { estado: "sincronizado", mensaje: null })
+      invalidarPostCargaRegistro(queryClient, fila.resuelto.registroId)
+      return true
+    } catch (err) {
+      actualizar(fila.id, {
+        estado: "error",
+        mensaje: err instanceof Error ? err.message : "Error al subir.",
+      })
+      return false
+    }
+  }
+
+  /**
+   * Sube un adjunto al endpoint /archivos (tarea) o /adjuntos (pendiente) del
+   * carrier. El tipo se determina por el carrier — el adjunto mismo puede tener
+   * QR duplicado (mismo tipo que el carrier) o no tener QR (hereda el tipo).
+   */
+  async function subirAdjunto(carrier: Fila, fila: Fila): Promise<void> {
+    actualizar(fila.id, { estado: "subiendo" })
+    try {
+      const rotacion = fila.qr?.rotacionDetectada ?? 0
+      const archivoFinal = await rotateFile(fila.archivo, rotacion)
+      const fd = new FormData()
+      fd.append("archivo", archivoFinal)
+
+      let url: string
+      if (carrier.tipo === "pendiente" && carrier.pendienteResuelto) {
+        url = `/api/pendientes/${carrier.pendienteResuelto.pendienteId}/adjuntos`
+      } else if (carrier.tipo === "tarea" && carrier.resuelto) {
+        url = `/api/registros/${carrier.resuelto.registroId}/archivos`
+      } else {
+        throw new Error("Carrier sin destino resuelto.")
+      }
+
+      const res = await fetch(url, { method: "POST", body: fd })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }))
+        throw new Error(err.message ?? `Error ${res.status} al subir el adjunto`)
+      }
+      actualizar(fila.id, { estado: "sincronizado", mensaje: null })
+    } catch (err) {
+      actualizar(fila.id, {
+        estado: "error",
+        mensaje: err instanceof Error ? err.message : "Error al subir adjunto.",
+      })
     }
   }
 
@@ -383,6 +594,9 @@ export default function CargaRapidaQrPage() {
       <div className="flex flex-wrap gap-3 *:flex-1 *:min-w-40">
         <Kpi label="En la lista" value={total} />
         <Kpi label="Listos para subir" value={listos} highlight="blue" />
+        {adjuntos > 0 && (
+          <Kpi label="Adjuntos" value={adjuntos} highlight="blue" />
+        )}
         <Kpi label="Sincronizados" value={sincronizados} highlight="green" />
         <Kpi label="Con problemas" value={conError} highlight="red" />
         {sinFirmaDetectada > 0 && (
@@ -451,7 +665,9 @@ export default function CargaRapidaQrPage() {
               className="gap-1.5 bg-blue-900 hover:bg-blue-800"
             >
               <Upload className="h-4 w-4" />
-              Subir todos ({listos})
+              {adjuntos > 0
+                ? `Subir todos (${listos} + ${adjuntos} adjuntos)`
+                : `Subir todos (${listos})`}
             </Button>
           </div>
         </div>
@@ -472,75 +688,124 @@ export default function CargaRapidaQrPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filas.map((f) => (
-                <TableRow
-                  key={f.id}
-                  className={f.firmaDeteccion?.kind === "no-detectada" ? "bg-amber-50/60" : undefined}
-                >
-                  <TableCell className="text-sm">
-                    <div className="flex flex-col">
-                      <span className="font-medium truncate max-w-64" title={f.archivo.name}>
-                        {f.archivo.name}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {(f.archivo.size / 1024).toFixed(0)} KB
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <EstadoBadge estado={f.estado} mensaje={f.mensaje} />
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {f.tipo === "tarea" && f.resuelto ? (
+              {[...filas].sort((a, b) => a.orden - b.orden).map((f, idxOrdenado, arr) => {
+                // Índice visible (1-based) del carrier al que este adjunto pertenece.
+                const carrierIdx = f.asociadoA
+                  ? arr.findIndex((x) => x.id === f.asociadoA)
+                  : -1
+                const puedeMover = f.estado !== "subiendo" && f.estado !== "resolviendo"
+                return (
+                  <TableRow
+                    key={f.id}
+                    className={
+                      f.firmaDeteccion?.kind === "no-detectada"
+                        ? "bg-amber-50/60"
+                        : f.estado === "adjunto"
+                          ? "bg-blue-50/40"
+                          : undefined
+                    }
+                  >
+                    <TableCell className="text-sm">
                       <div className="flex flex-col">
-                        <span className="font-mono text-xs text-blue-700 font-semibold">
-                          {f.resuelto.elementoTag}
+                        <span className="font-medium truncate max-w-64" title={f.archivo.name}>
+                          {f.archivo.name}
                         </span>
-                        <span className="text-gray-700">{f.resuelto.elementoNombre}</span>
-                      </div>
-                    ) : f.tipo === "pendiente" && f.pendienteResuelto ? (
-                      <div className="flex flex-col">
-                        <span className="font-mono text-xs text-blue-700 font-semibold">
-                          {f.pendienteResuelto.codigoFormateado}
-                        </span>
-                        <span className="text-[11px] text-gray-500">Pendiente</span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {f.tipo === "tarea" && f.resuelto ? (
-                      <div className="flex flex-col">
-                        <span>{f.resuelto.tareaNombre}</span>
                         <span className="text-[11px] text-muted-foreground">
-                          {f.resuelto.planillaNombre ?? "sin planilla"}
+                          {(f.archivo.size / 1024).toFixed(0)} KB
                         </span>
                       </div>
-                    ) : f.tipo === "pendiente" && f.pendienteResuelto ? (
-                      <span className="text-gray-700 line-clamp-2">
-                        {f.pendienteResuelto.descripcion ?? "—"}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    <FirmaBadge deteccion={f.firmaDeteccion} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => eliminarFila(f.id)}
-                      disabled={f.estado === "subiendo" || f.estado === "resolviendo"}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-400 hover:text-red-700 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Quitar de la lista"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell>
+                      <EstadoBadge estado={f.estado} mensaje={f.mensaje} />
+                      {f.estado === "adjunto" && carrierIdx >= 0 && (
+                        <div className="text-[11px] text-blue-800 mt-1 inline-flex items-center gap-1">
+                          <Paperclip className="h-3 w-3" /> Adjunto de #{carrierIdx + 1}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {f.tipo === "tarea" && f.resuelto ? (
+                        <div className="flex flex-col">
+                          <span className="font-mono text-xs text-blue-700 font-semibold">
+                            {f.resuelto.elementoTag}
+                          </span>
+                          <span className="text-gray-700">{f.resuelto.elementoNombre}</span>
+                        </div>
+                      ) : f.tipo === "pendiente" && f.pendienteResuelto ? (
+                        <div className="flex flex-col">
+                          <span className="font-mono text-xs text-blue-700 font-semibold">
+                            {f.pendienteResuelto.codigoFormateado}
+                          </span>
+                          <span className="text-[11px] text-gray-500">Pendiente</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {f.tipo === "tarea" && f.resuelto ? (
+                        <div className="flex flex-col">
+                          <span>{f.resuelto.tareaNombre}</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {f.resuelto.planillaNombre ?? "sin planilla"}
+                          </span>
+                        </div>
+                      ) : f.tipo === "pendiente" && f.pendienteResuelto ? (
+                        <span className="text-gray-700 line-clamp-2">
+                          {f.pendienteResuelto.descripcion ?? "—"}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <FirmaBadge deteccion={f.firmaDeteccion} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => moverFila(f.id, "arriba")}
+                          disabled={!puedeMover || idxOrdenado === 0}
+                          className="inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-400 cursor-pointer hover:text-blue-700 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Subir en el orden"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moverFila(f.id, "abajo")}
+                          disabled={!puedeMover || idxOrdenado === arr.length - 1}
+                          className="inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-400 cursor-pointer hover:text-blue-700 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Bajar en el orden"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </button>
+                        {f.estado === "adjunto" && (
+                          <button
+                            type="button"
+                            onClick={() => hacerCarrier(f.id)}
+                            disabled={!puedeMover}
+                            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-400 cursor-pointer hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Hacer principal (carrier) del grupo"
+                          >
+                            <ArrowUpFromLine className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => eliminarFila(f.id)}
+                          disabled={!puedeMover}
+                          className="inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-400 cursor-pointer hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Quitar de la lista"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
@@ -638,6 +903,11 @@ function EstadoBadge({
       label: "Error",
       cls: "bg-red-100 text-red-800",
       icon: <AlertTriangle className="h-3 w-3" />,
+    },
+    adjunto: {
+      label: "Adjunto",
+      cls: "bg-blue-100 text-blue-800",
+      icon: <Paperclip className="h-3 w-3" />,
     },
   }
   const it = map[estado]
