@@ -106,7 +106,8 @@ export function ElementoDetalleSheet({
   const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   // Adjuntos: el sheet sólo conoce el flag del proyecto. La planilla puede vetar igual,
   // pero eso lo valida el backend al hacer POST (sale como mensaje de error inline).
-  const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
+  // Adjuntos: siempre permitidos. El flag PermiteAdjuntos se dejó de gatear.
+  const permiteAdjuntosProyecto = true
   // Descarga de procedimientos: gateada por la config del proyecto. Default false
   // (conservador) hasta que carga el proyecto, así no ofrecemos algo no permitido.
   // Funcionalidad DESCARGAR_PROCEDIMIENTOS (default true en el catálogo). Cae a false

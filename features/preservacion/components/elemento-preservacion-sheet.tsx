@@ -92,7 +92,8 @@ export function ElementoPreservacionSheet({ elementoId, open, onClose }: Props) 
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
   const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
-  const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? false
+  // Adjuntos: siempre permitidos. El flag PermiteAdjuntos se dejó de gatear.
+  const permiteAdjuntosProyecto = true
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
   const permitirAvanceSinRegistro = proyecto?.permitirAvanceSinRegistro ?? false
 

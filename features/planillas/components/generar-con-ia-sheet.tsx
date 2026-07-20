@@ -298,7 +298,7 @@ export function GenerarConIASheet({ open, onClose }: Props) {
         codigo: codigoPlanilla,
         nombre: planilla.nombre,
         requiereFirma: true,
-        permiteAdjuntos: false,
+        permiteAdjuntos: true,
         generaPdfFinal: false,
       })
       const planillaId = planillaResp.data.id

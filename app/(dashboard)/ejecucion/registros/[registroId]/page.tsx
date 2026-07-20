@@ -112,10 +112,9 @@ export default function RegistroFormPage({ params }: PageProps) {
   // Coincide con el comportamiento previo cuando solo existía permitirRegistroFisico.
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
-  // Adjuntos: AND entre proyecto y planilla. Si alguno veta, no se aceptan.
-  const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? true
-  const permiteAdjuntosPlanilla = (estructura as any)?.planilla?.permiteAdjuntos ?? true
-  const permiteAdjuntos = permiteAdjuntosProyecto && permiteAdjuntosPlanilla
+  // Adjuntos: siempre permitidos. Los flags PermiteAdjuntos del proyecto y de la
+  // planilla se dejaron de gatear en el backend — cualquier registro acepta adjuntos.
+  const permiteAdjuntos = true
 
   const completarDigital = useCompletarDigital(registroId)
   const completarFisico = useCompletarFisico(registroId)

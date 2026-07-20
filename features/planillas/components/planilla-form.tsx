@@ -295,28 +295,10 @@ export function PlanillaForm({
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <label className={`flex items-center gap-2 ${esEncabezadoTG ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300"
-                    {...form.register("permiteAdjuntos")}
-                    disabled={isPending || esEncabezadoTG}
-                    checked={esEncabezadoTG ? false : undefined}
-                  />
-                  Permite adjuntos
-                </label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-xs">
-                    Permite subir archivos (fotos, PDFs) desde los registros de esta
-                    planilla. El proyecto también tiene su propio flag: si cualquiera
-                    de los dos está desactivado, no se aceptan adjuntos.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
+              {/* "Permite adjuntos" removido de la UI — los adjuntos son ahora
+                  aceptados siempre en cualquier planilla/proyecto. El campo del
+                  form se mantiene registrado en el schema para no romper payloads
+                  viejos pero no se muestra ni edita. */}
 
               {/* Opciones de PDF sólo si NO es encabezado — el pack emite PDF por el certificado. */}
               {!esEncabezadoTG && (

@@ -278,11 +278,10 @@ const FLAGS: {
     descripcion: "Si está activo, las firmas electrónicas de registros físicos se pintan superpuestas en el recuadro de firmas del escaneo (última página), además de aparecer en la página de certificado al final. Requiere 'Registro físico'.",
     dependeDe: "PermitirRegistroFisico",
   },
-  {
-    campo: "PermiteAdjuntos",
-    label: "Adjuntar archivos",
-    descripcion: "Permite a los usuarios adjuntar archivos (fotos, PDFs, etc.) a los registros del proyecto. Cada planilla puede vetar individualmente.",
-  },
+  // "PermiteAdjuntos" removido del listado de flags editables — los adjuntos son
+  // aceptados siempre en cualquier proyecto/planilla. La columna DB y el campo
+  // del DTO se preservan por si en el futuro hace falta re-gate, pero hoy no
+  // gatean nada y no se muestran en la UI para no confundir al Admin.
   {
     campo: "PermitirAvanceSinRegistro",
     label: "Avance sin registro",
