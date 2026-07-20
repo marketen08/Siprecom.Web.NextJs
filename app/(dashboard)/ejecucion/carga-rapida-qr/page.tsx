@@ -24,6 +24,10 @@ import {
 } from "@/features/registros/api/use-resolver-registro-por-et"
 import type { FirmasConfigEfectiva } from "@/features/registros/api/use-get-firmas-config-efectiva"
 import { invalidarPostCargaRegistro } from "@/features/registros/api/invalidar-post-carga"
+import {
+  useResolverPendientePorQr,
+  type PendienteResolverQr,
+} from "@/features/pendientes/api/use-resolver-pendiente-por-qr"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { apiClient, type ApiError } from "@/lib/api-client"
 
@@ -65,14 +69,23 @@ type FirmaDeteccion =
   // Diferenciado de "no-detectada" para no dar falso negativo en el badge.
   | { kind: "sin-fiduciales"; slotsTotal: number }
 
+/**
+ * Tipo del QR leído — determina el pipeline (resolver + subir) que se aplica.
+ * "tarea" = flujo clásico de registro/ET; "pendiente" = flujo nuevo de carga
+ * física de pendientes. `null` mientras no se identificó todavía.
+ */
+type FilaTipo = "tarea" | "pendiente" | null
+
 interface Fila {
   id: string
   archivo: File
   estado: FilaEstado
   qr: QrLeidoResult | null
+  tipo: FilaTipo
   resuelto: RegistroResolverResult | null
+  pendienteResuelto: PendienteResolverQr | null
   mensaje: string | null
-  /** Resultado de la detección visual de firma (solo si el proyecto tiene slots Fisica). */
+  /** Resultado de la detección visual de firma (solo tareas con slots Fisica). */
   firmaDeteccion: FirmaDeteccion
 }
 
@@ -85,6 +98,7 @@ export default function CargaRapidaQrPage() {
   const [filas, setFilas] = useState<Fila[]>([])
   const [dragActive, setDragActive] = useState(false)
   const resolver = useResolverRegistroPorEt()
+  const resolverPendiente = useResolverPendientePorQr()
   const queryClient = useQueryClient()
 
   // Cache local del batch: `cantidadFirmasFisicas` es una propiedad del proyecto/tarea,
@@ -120,7 +134,9 @@ export default function CargaRapidaQrPage() {
       archivo,
       estado: "leyendo-qr" as FilaEstado,
       qr: null,
+      tipo: null,
       resuelto: null,
+      pendienteResuelto: null,
       mensaje: null,
       firmaDeteccion: null,
     }))
@@ -136,16 +152,21 @@ export default function CargaRapidaQrPage() {
       actualizar(id, { estado: "sin-qr", qr, mensaje: qr.error ?? "No se detectó QR." })
       return
     }
-    if (!qr.esChecklist) {
+    if (qr.esChecklist) {
+      await procesarFilaTarea(id, archivo, qr)
+    } else if (qr.esPendienteCarga) {
+      await procesarFilaPendiente(id, qr)
+    } else {
       actualizar(id, {
         estado: "qr-invalido",
         qr,
-        mensaje: qr.error ?? "El QR no es de carga de planilla.",
+        mensaje: qr.error ?? "El QR no es de carga (tarea ni pendiente).",
       })
-      return
     }
-    // Tenemos elementoTareaId → resolvemos el registro.
-    actualizar(id, { estado: "resolviendo", qr })
+  }
+
+  async function procesarFilaTarea(id: string, archivo: File, qr: QrLeidoResult) {
+    actualizar(id, { estado: "resolviendo", qr, tipo: "tarea" })
     try {
       const res = await resolver.mutateAsync(qr.elementoTareaId!)
       const estadoBase: FilaEstado = res.data.registroYaExistia ? "ya-cargado" : "listo"
@@ -153,9 +174,6 @@ export default function CargaRapidaQrPage() {
         ? "Ya había un borrador — al subir se sobrescribe."
         : null
 
-      // Detección visual de firma. Se activa solo si el proyecto/tarea tiene al
-      // menos un slot Fisica configurado. Cacheamos el flag por proyectoId para
-      // no consultar N veces cuando el batch es del mismo proyecto.
       const firmaDeteccion = await detectarFirmaSiCorresponde(res.data, archivo, qr)
       const mensajeFirma =
         firmaDeteccion?.kind === "no-detectada"
@@ -173,14 +191,39 @@ export default function CargaRapidaQrPage() {
         mensaje: [mensajeBase, mensajeFirma].filter(Boolean).join(" · ") || null,
       })
     } catch (err) {
-      // 409 = conflicto de estado: la tarea no está en un estado que permita la
-      // carga (COMPLETADO/APROBADO/FIRMADO/etc.). No es un error técnico —
-      // marcamos con un badge menos alarmista que el rojo de "error".
       const apiErr = err as ApiError | undefined
       const isConflict = apiErr?.status === 409
       actualizar(id, {
         estado: isConflict ? "estado-incompatible" : "error",
         mensaje: err instanceof Error ? err.message : "No se pudo resolver el registro.",
+      })
+    }
+  }
+
+  async function procesarFilaPendiente(id: string, qr: QrLeidoResult) {
+    actualizar(id, { estado: "resolviendo", qr, tipo: "pendiente" })
+    try {
+      const res = await resolverPendiente.mutateAsync(qr.pendienteId!)
+      if (!res.puedeCargar) {
+        // Ya está terminal o ya tiene PDF cargado (backend rechaza el re-upload).
+        actualizar(id, {
+          estado: "estado-incompatible",
+          pendienteResuelto: res,
+          mensaje: res.motivo ?? "El pendiente no admite carga en este momento.",
+        })
+        return
+      }
+      actualizar(id, {
+        estado: "listo",
+        pendienteResuelto: res,
+        mensaje: null,
+      })
+    } catch (err) {
+      const apiErr = err as Error & { status?: number }
+      const isNotFound = apiErr?.status === 404
+      actualizar(id, {
+        estado: isNotFound ? "estado-incompatible" : "error",
+        mensaje: err instanceof Error ? err.message : "No se pudo resolver el pendiente.",
       })
     }
   }
@@ -250,23 +293,39 @@ export default function CargaRapidaQrPage() {
   }
 
   async function subirTodas() {
-    // Secuencial: mejor UX (feedback claro por fila) y evita saturar el backend
-    // en Azure App Service serverless. Con volumen chico no vale la pena
-    // paralelizar.
+    // Secuencial: mejor UX (feedback claro por fila) y evita saturar el backend.
+    // Con volumen chico no vale la pena paralelizar.
     for (const fila of filas) {
       if (fila.estado !== "listo" && fila.estado !== "ya-cargado") continue
-      if (!fila.resuelto) continue
       actualizar(fila.id, { estado: "subiendo" })
       try {
-        // Capa 2: si el QR se leyó rotado, corregimos la orientación del
-        // archivo antes de subir así el registro queda derecho en el visor.
         const rotacion = fila.qr?.rotacionDetectada ?? 0
         const archivoFinal = await rotateFile(fila.archivo, rotacion)
+
+        if (fila.tipo === "pendiente" && fila.pendienteResuelto) {
+          // Pendiente: POST al endpoint dedicado. Sin firma-config (los
+          // pendientes no tienen slots físicos hoy).
+          const fd = new FormData()
+          fd.append("archivo", archivoFinal)
+          const res = await fetch(
+            `/api/pendientes/${fila.pendienteResuelto.pendienteId}/completar/fisico`,
+            { method: "POST", body: fd },
+          )
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ message: res.statusText }))
+            throw new Error(err.message ?? `Error ${res.status} al subir el archivo`)
+          }
+          actualizar(fila.id, { estado: "sincronizado", mensaje: null })
+          queryClient.invalidateQueries({ queryKey: ["pendientes"] })
+          continue
+        }
+
+        // Flujo tarea (default).
+        if (!fila.resuelto) {
+          throw new Error("Fila sin registro resuelto.")
+        }
         const fd = new FormData()
         fd.append("Archivo", archivoFinal)
-        // Auditoría de firma no detectada: si la fila tiene ese estado, mandamos
-        // el detalle para que el backend lo agregue a Observaciones. Consistente
-        // con las pantallas individuales (/registros/{id} y /checklist/...).
         if (fila.firmaDeteccion?.kind === "no-detectada") {
           const { slotsDetectados, slotsTotal } = fila.firmaDeteccion
           const detalle = `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`
@@ -275,10 +334,6 @@ export default function CargaRapidaQrPage() {
           const detalle = `planilla sin fiduciales — no fue posible verificar firmas visualmente`
           fd.append("FirmaOverrideDetalle", detalle.slice(0, 500))
         }
-        // fetch directo con FormData: no usamos apiClient.post porque fuerza
-        // Content-Type=application/json y hace JSON.stringify, lo que rompe el
-        // multipart. Con `body: FormData` el browser setea el Content-Type con
-        // boundary correctamente.
         const res = await fetch(
           `/api/registros/${fila.resuelto.registroId}/completar/fisico`,
           { method: "POST", body: fd },
@@ -288,10 +343,6 @@ export default function CargaRapidaQrPage() {
           throw new Error(err.message ?? `Error ${res.status} al subir el archivo`)
         }
         actualizar(fila.id, { estado: "sincronizado", mensaje: null })
-        // Marca queries stale por cada registro subido — así si el user vuelve
-        // al avance / elemento / mis-firmas ya ve el estado nuevo sin refresh.
-        // invalidateQueries es cheap (no re-fetch inmediato, solo marca stale),
-        // así que hacerlo por fila no bloquea el batch.
         invalidarPostCargaRegistro(queryClient, fila.resuelto.registroId)
       } catch (err) {
         actualizar(fila.id, {
@@ -312,8 +363,9 @@ export default function CargaRapidaQrPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Soltá los PDFs firmados en papel — el sistema lee el QR de cada uno y los
-          asocia al registro correcto. Sólo se aceptan tareas en estado{" "}
-          <em>Pendiente</em> o <em>En proceso</em>.
+          asocia al destino correcto. Detecta automáticamente si el QR corresponde a{" "}
+          <em>tareas de elementos</em> o a <em>pendientes</em> y los procesa por el
+          canal adecuado.
         </p>
       </div>
 
@@ -400,8 +452,8 @@ export default function CargaRapidaQrPage() {
               <TableRow>
                 <TableHead>Archivo</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Elemento</TableHead>
-                <TableHead>Tarea</TableHead>
+                <TableHead>Destino</TableHead>
+                <TableHead>Detalle</TableHead>
                 <TableHead>Firma</TableHead>
                 <TableHead />
               </TableRow>
@@ -426,25 +478,36 @@ export default function CargaRapidaQrPage() {
                     <EstadoBadge estado={f.estado} mensaje={f.mensaje} />
                   </TableCell>
                   <TableCell className="text-sm">
-                    {f.resuelto ? (
+                    {f.tipo === "tarea" && f.resuelto ? (
                       <div className="flex flex-col">
                         <span className="font-mono text-xs text-blue-700 font-semibold">
                           {f.resuelto.elementoTag}
                         </span>
                         <span className="text-gray-700">{f.resuelto.elementoNombre}</span>
                       </div>
+                    ) : f.tipo === "pendiente" && f.pendienteResuelto ? (
+                      <div className="flex flex-col">
+                        <span className="font-mono text-xs text-blue-700 font-semibold">
+                          {f.pendienteResuelto.codigoFormateado}
+                        </span>
+                        <span className="text-[11px] text-gray-500">Pendiente</span>
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {f.resuelto ? (
+                    {f.tipo === "tarea" && f.resuelto ? (
                       <div className="flex flex-col">
                         <span>{f.resuelto.tareaNombre}</span>
                         <span className="text-[11px] text-muted-foreground">
                           {f.resuelto.planillaNombre ?? "sin planilla"}
                         </span>
                       </div>
+                    ) : f.tipo === "pendiente" && f.pendienteResuelto ? (
+                      <span className="text-gray-700 line-clamp-2">
+                        {f.pendienteResuelto.descripcion ?? "—"}
+                      </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

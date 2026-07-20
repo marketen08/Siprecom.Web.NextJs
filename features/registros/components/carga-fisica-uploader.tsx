@@ -146,6 +146,8 @@ export function CargaFisicaUploader({
         esChecklist: false,
         planillaId: null,
         elementoTareaId: null,
+        esPendienteCarga: false,
+        pendienteId: null,
         contenidoQr: null,
         error: errMsg,
         rotacionDetectada: 0,

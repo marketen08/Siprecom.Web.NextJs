@@ -4,8 +4,10 @@ import { useEffect, useState } from "react"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
-  FileDown,
+  FileDown, FileUp,
 } from "lucide-react"
+
+import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
 
 import { useOpenPendiente } from "../hooks/use-open-pendiente"
 import { useGetPendiente } from "../api/use-get-pendiente"
@@ -37,12 +39,16 @@ export function PendienteDetalleSheet() {
   const { data, isLoading } = useGetPendiente(id)
   const p = data?.data
   const [isEditing, setIsEditing] = useState(false)
+  const [cargaFisicaOpen, setCargaFisicaOpen] = useState(false)
   // Consultor/Auditor: solo lectura del pendiente (ni editar ni workflow ni comentarios).
   const canWrite = useCanWrite()
 
   // Al cambiar de pendiente o cerrar el sheet, salimos del modo edición.
   useEffect(() => {
-    if (!isOpen) setIsEditing(false)
+    if (!isOpen) {
+      setIsEditing(false)
+      setCargaFisicaOpen(false)
+    }
   }, [isOpen, id])
 
   const puedeEditar = canWrite && p?.estadoId === PENDIENTE_ESTADO_IDS.ABIERTO
@@ -70,6 +76,18 @@ export function PendienteDetalleSheet() {
                         <FileDown className="h-3 w-3" /> PDF
                       </a>
                     </Button>
+                    {canWrite
+                      && p.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
+                      && p.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 h-7 text-xs"
+                        onClick={() => setCargaFisicaOpen(true)}
+                      >
+                        <FileUp className="h-3 w-3" /> Cargar físico
+                      </Button>
+                    )}
                     {puedeEditar && (
                       <Button
                         size="sm"
@@ -156,6 +174,34 @@ export function PendienteDetalleSheet() {
           <p className="text-sm text-destructive px-4 py-6">No se pudo cargar el pendiente.</p>
         )}
       </SheetContent>
+
+      {/* Dialog de carga física. Se abre desde el botón "Cargar físico" del header
+          del sheet. Reusa el mismo uploader que la ruta /pendiente-carga/{id}. */}
+      <AlertDialog
+        open={cargaFisicaOpen}
+        onOpenChange={(v) => setCargaFisicaOpen(v)}
+      >
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cargar PDF firmado del pendiente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Al confirmar el archivo, el pendiente pasa directamente a{" "}
+              <strong>Cerrado</strong> — se asume que las firmas están en el papel.
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {p && (
+            <PendienteCargaFisicaUploader
+              pendienteId={p.id}
+              codigoFormateado={p.codigoFormateado}
+              onSuccess={() => setCargaFisicaOpen(false)}
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cerrar</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   )
 }

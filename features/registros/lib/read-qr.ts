@@ -15,6 +15,10 @@ export interface QrLeidoResult {
   planillaId: string | null
   /** GUID de la ElementoTarea (lowercased) cuando `esChecklist=true`. */
   elementoTareaId: string | null
+  /** true sólo si es del tipo `/pendiente-carga/{pendienteId}`. */
+  esPendienteCarga: boolean
+  /** GUID del Pendiente (lowercased) cuando `esPendienteCarga=true`. */
+  pendienteId: string | null
   /** Texto crudo decodificado del QR (útil para debug). */
   contenidoQr: string | null
   /** Descripción del error cuando aplica (formato no soportado, ilegible, etc). */
@@ -32,6 +36,8 @@ const emptyResult = (patch: Partial<QrLeidoResult> = {}): QrLeidoResult => ({
   esChecklist: false,
   planillaId: null,
   elementoTareaId: null,
+  esPendienteCarga: false,
+  pendienteId: null,
   contenidoQr: null,
   error: null,
   rotacionDetectada: 0,
@@ -277,29 +283,41 @@ function toGrayscale(src: ImageData): ImageData {
 
 function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeidoResult {
   const partes = contenido.split(/[\\/?#\s]+/).filter(Boolean)
-  // Buscar segmento "checklist" (case-insensitive) + 2 GUIDs contiguos.
   const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+  // Formato tareas: `/checklist/{planillaId}/{elementoTareaId}` (2 GUIDs).
   for (let i = 0; i < partes.length - 2; i++) {
     if (partes[i].toLowerCase() !== "checklist") continue
     if (guidRe.test(partes[i + 1]) && guidRe.test(partes[i + 2])) {
-      return {
+      return emptyResult({
         qrEncontrado: true,
         esChecklist: true,
         planillaId: partes[i + 1].toLowerCase(),
         elementoTareaId: partes[i + 2].toLowerCase(),
         contenidoQr: contenido,
-        error: null,
         rotacionDetectada,
-      }
+      })
     }
   }
-  return {
-    qrEncontrado: true,
-    esChecklist: false,
-    planillaId: null,
-    elementoTareaId: null,
-    contenidoQr: contenido,
-    error: "El QR no es de carga (se esperaba /checklist/{planillaId}/{elementoTareaId}).",
-    rotacionDetectada,
+
+  // Formato pendientes: `/pendiente-carga/{pendienteId}` (1 GUID).
+  for (let i = 0; i < partes.length - 1; i++) {
+    if (partes[i].toLowerCase() !== "pendiente-carga") continue
+    if (guidRe.test(partes[i + 1])) {
+      return emptyResult({
+        qrEncontrado: true,
+        esPendienteCarga: true,
+        pendienteId: partes[i + 1].toLowerCase(),
+        contenidoQr: contenido,
+        rotacionDetectada,
+      })
+    }
   }
+
+  return emptyResult({
+    qrEncontrado: true,
+    contenidoQr: contenido,
+    error: "El QR no es de carga (se esperaba /checklist/{...} o /pendiente-carga/{...}).",
+    rotacionDetectada,
+  })
 }
