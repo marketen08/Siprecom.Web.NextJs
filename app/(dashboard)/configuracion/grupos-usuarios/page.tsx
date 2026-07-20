@@ -308,7 +308,14 @@ export default function GruposUsuariosPage() {
 function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: () => void }) {
   const { data: detalle, isLoading } = useGetUsuarioGrupo(grupoId)
   const [busqueda, setBusqueda] = useState("")
-  const { data: usuariosData } = useGetUsuarios({ pageSize: 50, nombre: busqueda || undefined })
+  // Solo activos: agregar a un grupo un usuario dado de baja no tiene efecto
+  // (la autorización lo excluye por IsLocked igual). Filtramos en origen para
+  // no mostrarlos como "candidatos".
+  const { data: usuariosData } = useGetUsuarios({
+    pageSize: 50,
+    nombre: busqueda || undefined,
+    isLocked: false,
+  })
 
   const agregar = useAgregarMiembros()
   const quitar = useQuitarMiembro()
