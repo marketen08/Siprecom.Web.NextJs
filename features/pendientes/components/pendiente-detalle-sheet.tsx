@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
+  FileDown,
 } from "lucide-react"
 
 import { useOpenPendiente } from "../hooks/use-open-pendiente"
@@ -62,15 +63,24 @@ export function PendienteDetalleSheet() {
                 <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
-                {puedeEditar && !isEditing && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="ml-auto gap-1.5 h-7 text-xs"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <Pencil className="h-3 w-3" /> Editar
-                  </Button>
+                {!isEditing && (
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                      <a href={`/api/pendientes/${p.id}/pdf`} target="_blank" rel="noreferrer">
+                        <FileDown className="h-3 w-3" /> PDF
+                      </a>
+                    </Button>
+                    {puedeEditar && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 h-7 text-xs"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Pencil className="h-3 w-3" /> Editar
+                      </Button>
+                    )}
+                  </div>
                 )}
               </SheetTitle>
               {!isEditing && (
