@@ -258,15 +258,22 @@ export function PidViewer({
     }
   }, [modoCrearPin, onCrearPin])
 
-  // Wheel para desktop: zoom in/out centrado en el cursor.
-  const onWheel = useCallback((ev: React.WheelEvent) => {
-    if (!ev.ctrlKey && !ev.metaKey && !ev.shiftKey) {
-      // Zoom "natural" con wheel; el usuario en desktop lo espera.
+  // Wheel para desktop: zoom in/out. React monta `onWheel` como *passive* por
+  // default en varios browsers, y `preventDefault()` sobre passive tira el
+  // warning "Unable to preventDefault inside passive event listener invocation".
+  // Enganchamos el listener a mano con { passive: false } para poder frenar el
+  // scroll del contenedor mientras el usuario hace zoom.
+  useEffect(() => {
+    const wrap = wrapRef.current
+    if (!wrap) return
+    const handleWheel = (ev: WheelEvent) => {
+      ev.preventDefault()
+      const factor = ev.deltaY < 0 ? 1.1 : 0.9
+      const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scaleRef.current * factor))
+      setScale(next)
     }
-    ev.preventDefault()
-    const factor = ev.deltaY < 0 ? 1.1 : 0.9
-    const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scaleRef.current * factor))
-    setScale(next)
+    wrap.addEventListener("wheel", handleWheel, { passive: false })
+    return () => wrap.removeEventListener("wheel", handleWheel)
   }, [])
 
   const zoomIn  = () => setScale((s) => Math.min(MAX_SCALE, s * 1.25))
@@ -366,7 +373,6 @@ export function PidViewer({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onWheel={onWheel}
         style={{ cursor: modoCrearPin ? "crosshair" : "grab" }}
       >
         {/* Canvas del PDF (transform-origin top-left para que pan/zoom sean predecibles) */}
