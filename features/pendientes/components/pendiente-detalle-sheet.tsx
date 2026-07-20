@@ -76,6 +76,18 @@ export function PendienteDetalleSheet() {
                         <FileDown className="h-3 w-3" /> PDF
                       </a>
                     </Button>
+                    {p.tienePdfFisico && (
+                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                        <a
+                          href={`/api/pendientes/${p.id}/pdf-fisico`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Descargar el PDF firmado en papel que cerró el pendiente"
+                        >
+                          <FileDown className="h-3 w-3 text-emerald-700" /> PDF firmado
+                        </a>
+                      </Button>
+                    )}
                     {canWrite
                       && p.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
                       && p.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (

@@ -89,6 +89,8 @@ export interface Pendiente {
   desestimadoPorId: string | null
   desestimadoPorNombre: string | null
   motivoRechazoCierre: string | null
+  /** True cuando el pendiente fue cerrado con carga de PDF físico y ese archivo está disponible para descarga. */
+  tienePdfFisico?: boolean
   createdAt: string
   updatedAt: string
   isActive: boolean
