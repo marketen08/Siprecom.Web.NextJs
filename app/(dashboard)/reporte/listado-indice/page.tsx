@@ -80,6 +80,7 @@ function ListadoIndiceContent() {
   const [especialidadId, setEspecialidadId] = useState<string>("")
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
   const [estado, setEstado] = useState<string>("")
+  const [ocultarSinTareas, setOcultarSinTareas] = useState<boolean>(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -142,7 +143,8 @@ function ListadoIndiceContent() {
     especialidadId: especialidadId || undefined,
     elementoTipoId: elementoTipoId || undefined,
     estado:         estado ? Number(estado) : undefined,
-  }), [nivelId, sistemaId, subSistemaId, especialidadId, elementoTipoId, estado])
+    ocultarSinTareas: ocultarSinTareas || undefined,
+  }), [nivelId, sistemaId, subSistemaId, especialidadId, elementoTipoId, estado, ocultarSinTareas])
 
   const { data, isLoading, isFetching } = useGetListadoIndicePreview(filtros)
   const preview = data?.data
@@ -185,6 +187,7 @@ function ListadoIndiceContent() {
     setEspecialidadId("")
     setElementoTipoId("")
     setEstado("")
+    setOcultarSinTareas(false)
     syncUrl("", "")
   }
 
@@ -237,6 +240,13 @@ function ListadoIndiceContent() {
       id: "estado",
       label: `Estado: ${opcionSel?.label ?? "—"}`,
       onRemove: () => setEstado(""),
+    })
+  }
+  if (ocultarSinTareas) {
+    activeFilters.push({
+      id: "ocultarSinTareas",
+      label: "Ocultar elementos sin tareas",
+      onRemove: () => setOcultarSinTareas(false),
     })
   }
 
@@ -414,6 +424,23 @@ function ListadoIndiceContent() {
               ))}
             </SelectContent>
           </Select>
+        </FilterField>
+
+        <FilterField label="Opciones">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300"
+              checked={ocultarSinTareas}
+              onChange={(e) => setOcultarSinTareas(e.target.checked)}
+            />
+            <span>
+              Ocultar elementos sin tareas
+              <span className="block text-xs text-muted-foreground">
+                Descarta ramas vacías del reporte (útil al filtrar por estado).
+              </span>
+            </span>
+          </label>
         </FilterField>
       </FiltersSheet>
 
