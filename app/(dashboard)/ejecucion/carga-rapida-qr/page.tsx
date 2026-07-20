@@ -101,6 +101,8 @@ interface Fila {
   orden: number
   /** Id del carrier al que este archivo se adjunta. null = es carrier propio. */
   asociadoA: string | null
+  /** Cantidad de páginas del PDF. Se cuenta durante procesarFila (0 = no aplica / imagen). */
+  paginasPdf: number
 }
 
 /** Clave estable del destino del QR — usada para detectar duplicados. */
@@ -133,8 +135,14 @@ function recalcularAgrupacion(filas: Fila[]): Fila[] {
   const ordenadas = [...filas].sort((a, b) => a.orden - b.orden)
   const carrierPorDestino = new Map<string, string>()
   let lastCarrier: { id: string; estado: FilaEstado } | null = null
+  // Filas que recién ahora fueron degradadas a "adjunto" por QR duplicado. Al
+  // final del pass las movemos junto al grupo de su carrier — así el operador
+  // ve el batch reagrupado sin tener que ordenar a mano. Los sin-QR ya son
+  // contiguos por construcción (heredan al carrier previo en el orden), no
+  // necesitan reagrupamiento.
+  const paraReagrupar: Array<{ id: string; carrierId: string }> = []
 
-  return ordenadas.map((f) => {
+  const conAsignacion = ordenadas.map((f) => {
     // No tocar estados terminales o intermedios de subida.
     if (
       f.estado === "subiendo"
@@ -164,6 +172,13 @@ function recalcularAgrupacion(filas: Fila[]): Fila[] {
       // Con QR: candidato a carrier o duplicado.
       const carrierPrevio = carrierPorDestino.get(clave)
       if (carrierPrevio && carrierPrevio !== f.id) {
+        // Sólo marcamos "reagrupar" cuando la fila NO estaba ya como adjunto
+        // del mismo carrier. Sin este check, cada recalculo posterior movería
+        // la fila una y otra vez peleando contra un reordenamiento manual del
+        // usuario.
+        if (f.asociadoA !== carrierPrevio) {
+          paraReagrupar.push({ id: f.id, carrierId: carrierPrevio })
+        }
         return {
           ...f,
           asociadoA: carrierPrevio,
@@ -172,8 +187,25 @@ function recalcularAgrupacion(filas: Fila[]): Fila[] {
         }
       }
       carrierPorDestino.set(clave, f.id)
-      lastCarrier = { id: f.id, estado: f.estado }
-      return { ...f, asociadoA: null }
+      // Si esta fila viene degradada como "adjunto" y ahora la promovemos a
+      // carrier (típicamente por el botón "Hacer principal"), le restauramos
+      // el estado natural según su resuelto — sino quedaba como adjunto sin
+      // grupo y la UI la seguía tratando como tal.
+      let estadoRestaurado: FilaEstado = f.estado
+      let mensajeRestaurado: string | null = f.mensaje
+      if (f.estado === "adjunto") {
+        if (f.tipo === "tarea" && f.resuelto) {
+          estadoRestaurado = f.resuelto.registroYaExistia ? "ya-cargado" : "listo"
+          mensajeRestaurado = f.resuelto.registroYaExistia
+            ? "Ya había un borrador — al subir se sobrescribe."
+            : null
+        } else if (f.tipo === "pendiente" && f.pendienteResuelto) {
+          estadoRestaurado = "listo"
+          mensajeRestaurado = null
+        }
+      }
+      lastCarrier = { id: f.id, estado: estadoRestaurado }
+      return { ...f, asociadoA: null, estado: estadoRestaurado, mensaje: mensajeRestaurado }
     }
 
     // Sin QR: adjunto del último carrier o huérfano.
@@ -192,6 +224,33 @@ function recalcularAgrupacion(filas: Fila[]): Fila[] {
       mensaje: null,
     }
   })
+
+  if (paraReagrupar.length === 0) return conAsignacion
+
+  // Post-pass: reubicar cada fila recién degradada justo después del último
+  // item del grupo de su carrier (carrier + adjuntos actuales). Renormaliza
+  // `orden` al final.
+  const lista = [...conAsignacion].sort((a, b) => a.orden - b.orden)
+  for (const { id, carrierId } of paraReagrupar) {
+    const filaIdx = lista.findIndex((f) => f.id === id)
+    if (filaIdx < 0) continue
+    const fila = lista[filaIdx]
+
+    // Última fila del grupo (excluyendo la propia fila que vamos a mover).
+    let ultimaDelGrupo = -1
+    for (let i = 0; i < lista.length; i++) {
+      if (i === filaIdx) continue
+      const g = lista[i]
+      if (g.id === carrierId || g.asociadoA === carrierId) ultimaDelGrupo = i
+    }
+    if (ultimaDelGrupo < 0) continue
+
+    lista.splice(filaIdx, 1)
+    // Al sacar la fila, si estaba antes del target el índice se corre 1 arriba.
+    const targetIdx = filaIdx < ultimaDelGrupo ? ultimaDelGrupo - 1 : ultimaDelGrupo
+    lista.splice(targetIdx + 1, 0, fila)
+  }
+  return lista.map((f, i) => ({ ...f, orden: i }))
 }
 
 const nuevoId = () =>
@@ -252,6 +311,7 @@ export default function CargaRapidaQrPage() {
         firmaDeteccion: null,
         orden: baseOrden + i,
         asociadoA: null,
+        paginasPdf: 0,
       }))
       // Dispara la lectura del QR en paralelo — cada procesarFila hace su propio
       // setFilas cuando termina. Cerramos sobre las ids nuevas.
@@ -263,6 +323,11 @@ export default function CargaRapidaQrPage() {
   }
 
   async function procesarFila(id: string, archivo: File) {
+    // Contamos páginas si es PDF — sirve para mostrar el total del grupo mergeado
+    // ("Registro final: N páginas + M imágenes") antes de subir.
+    const paginasPdf = await contarPaginasPdf(archivo)
+    if (paginasPdf > 0) actualizar(id, { paginasPdf })
+
     const qr = await readQrFromFile(archivo)
     if (!qr.qrEncontrado) {
       actualizar(id, { estado: "sin-qr", qr, mensaje: qr.error ?? "No se detectó QR." })
@@ -278,6 +343,29 @@ export default function CargaRapidaQrPage() {
         qr,
         mensaje: qr.error ?? "El QR no es de carga (tarea ni pendiente).",
       })
+    }
+  }
+
+  /**
+   * Cuenta páginas de un PDF con pdfjs-dist. Devuelve 0 si no es PDF o si falla
+   * la lectura — mejor esfuerzo (no bloqueamos el flujo por esto).
+   */
+  async function contarPaginasPdf(file: File): Promise<number> {
+    if (!file.name.toLowerCase().endsWith(".pdf")) return 0
+    try {
+      const pdfjs = await import("pdfjs-dist")
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.mjs",
+        import.meta.url,
+      ).toString()
+      const buf = await file.arrayBuffer()
+      const loading = pdfjs.getDocument({ data: buf })
+      const doc = await loading.promise
+      const n = doc.numPages
+      await loading.destroy()
+      return n
+    } catch {
+      return 0
     }
   }
 
@@ -452,8 +540,8 @@ export default function CargaRapidaQrPage() {
   }
 
   async function subirTodas() {
-    // Snapshot ordenado del batch — nos importa el ORDEN de los adjuntos para
-    // que suban después de su carrier y en el orden en que están en la grilla.
+    // Snapshot ordenado del batch — nos importa el ORDEN para que los PDFs se
+    // mergean en el orden correcto y los adjuntos suban después.
     const snapshot = [...filas].sort((a, b) => a.orden - b.orden)
     const adjuntosPorCarrier = new Map<string, Fila[]>()
     for (const f of snapshot) {
@@ -463,22 +551,81 @@ export default function CargaRapidaQrPage() {
       adjuntosPorCarrier.set(f.asociadoA, arr)
     }
 
-    // Recorremos carriers listos. Cada uno sube primero, y si OK, subimos sus
-    // adjuntos secuencialmente contra el endpoint apropiado del tipo.
     for (const carrier of snapshot) {
       if (carrier.estado !== "listo" && carrier.estado !== "ya-cargado") continue
-
       const adjuntos = adjuntosPorCarrier.get(carrier.id) ?? []
-      const carrierOk = await subirCarrier(carrier)
-      if (!carrierOk) {
-        // Marcamos sus adjuntos como error para que no se dejen "colgados".
-        for (const adj of adjuntos)
-          actualizar(adj.id, { estado: "error", mensaje: "No se subió porque el archivo principal falló." })
-        continue
+
+      if (adjuntos.length === 0) {
+        // 1 solo archivo: endpoint clásico.
+        await subirCarrier(carrier)
+      } else {
+        // Grupo con carrier + adjuntos: endpoint multi. El server mergea los
+        // PDFs en 1 archivo principal y guarda las imágenes como adjuntos.
+        await subirGrupoMulti(carrier, adjuntos)
+      }
+    }
+  }
+
+  /**
+   * Sube el grupo entero (carrier + adjuntos) al endpoint `/completar/fisico-multi`.
+   * El server hace el merge de PDFs y separación de imágenes. Actualiza el estado
+   * de todas las filas del grupo según el resultado global.
+   */
+  async function subirGrupoMulti(carrier: Fila, adjuntos: Fila[]) {
+    const grupo = [carrier, ...adjuntos]
+    for (const f of grupo) actualizar(f.id, { estado: "subiendo" })
+
+    try {
+      // Rotamos cada archivo según su rotación de QR detectada antes de subir.
+      const archivosRotados = await Promise.all(
+        grupo.map(async (f) => {
+          const rotacion = f.qr?.rotacionDetectada ?? 0
+          return await rotateFile(f.archivo, rotacion)
+        }),
+      )
+
+      const fd = new FormData()
+      for (const archivo of archivosRotados) fd.append("archivos", archivo)
+
+      // Overrides del carrier (aplican al principal del grupo).
+      if (carrier.firmaDeteccion?.kind === "no-detectada") {
+        const { slotsDetectados, slotsTotal } = carrier.firmaDeteccion
+        fd.append(
+          "firmaOverrideDetalle",
+          `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`.slice(0, 500),
+        )
+      } else if (carrier.firmaDeteccion?.kind === "sin-fiduciales") {
+        fd.append(
+          "firmaOverrideDetalle",
+          "planilla sin fiduciales — no fue posible verificar firmas visualmente".slice(0, 500),
+        )
       }
 
-      // Adjuntos: cada uno independiente; uno falla y los otros siguen.
-      for (const adj of adjuntos) await subirAdjunto(carrier, adj)
+      let url: string
+      if (carrier.tipo === "pendiente" && carrier.pendienteResuelto) {
+        url = `/api/pendientes/${carrier.pendienteResuelto.pendienteId}/completar/fisico-multi`
+      } else if (carrier.tipo === "tarea" && carrier.resuelto) {
+        url = `/api/registros/${carrier.resuelto.registroId}/completar/fisico-multi`
+      } else {
+        throw new Error("Grupo sin destino resuelto.")
+      }
+
+      const res = await fetch(url, { method: "POST", body: fd })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }))
+        throw new Error(err.message ?? `Error ${res.status} al subir el grupo`)
+      }
+
+      // Todo el grupo se marca como sincronizado — el server los procesó juntos.
+      for (const f of grupo) actualizar(f.id, { estado: "sincronizado", mensaje: null })
+      if (carrier.tipo === "pendiente") {
+        queryClient.invalidateQueries({ queryKey: ["pendientes"] })
+      } else if (carrier.resuelto) {
+        invalidarPostCargaRegistro(queryClient, carrier.resuelto.registroId)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error al subir el grupo."
+      for (const f of grupo) actualizar(f.id, { estado: "error", mensaje: msg })
     }
   }
 
@@ -537,41 +684,6 @@ export default function CargaRapidaQrPage() {
     }
   }
 
-  /**
-   * Sube un adjunto al endpoint /archivos (tarea) o /adjuntos (pendiente) del
-   * carrier. El tipo se determina por el carrier — el adjunto mismo puede tener
-   * QR duplicado (mismo tipo que el carrier) o no tener QR (hereda el tipo).
-   */
-  async function subirAdjunto(carrier: Fila, fila: Fila): Promise<void> {
-    actualizar(fila.id, { estado: "subiendo" })
-    try {
-      const rotacion = fila.qr?.rotacionDetectada ?? 0
-      const archivoFinal = await rotateFile(fila.archivo, rotacion)
-      const fd = new FormData()
-      fd.append("archivo", archivoFinal)
-
-      let url: string
-      if (carrier.tipo === "pendiente" && carrier.pendienteResuelto) {
-        url = `/api/pendientes/${carrier.pendienteResuelto.pendienteId}/adjuntos`
-      } else if (carrier.tipo === "tarea" && carrier.resuelto) {
-        url = `/api/registros/${carrier.resuelto.registroId}/archivos`
-      } else {
-        throw new Error("Carrier sin destino resuelto.")
-      }
-
-      const res = await fetch(url, { method: "POST", body: fd })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: res.statusText }))
-        throw new Error(err.message ?? `Error ${res.status} al subir el adjunto`)
-      }
-      actualizar(fila.id, { estado: "sincronizado", mensaje: null })
-    } catch (err) {
-      actualizar(fila.id, {
-        estado: "error",
-        mensaje: err instanceof Error ? err.message : "Error al subir adjunto.",
-      })
-    }
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -719,9 +831,25 @@ export default function CargaRapidaQrPage() {
                       <EstadoBadge estado={f.estado} mensaje={f.mensaje} />
                       {f.estado === "adjunto" && carrierIdx >= 0 && (
                         <div className="text-[11px] text-blue-800 mt-1 inline-flex items-center gap-1">
-                          <Paperclip className="h-3 w-3" /> Adjunto de #{carrierIdx + 1}
+                          <Paperclip className="h-3 w-3" />
+                          {f.paginasPdf > 0
+                            ? `Se combinará con #${carrierIdx + 1} (${f.paginasPdf}p)`
+                            : `Adjunto de #${carrierIdx + 1}`}
                         </div>
                       )}
+                      {(f.estado === "listo" || f.estado === "ya-cargado") && (() => {
+                        // Total del grupo: páginas PDF combinadas + imágenes adjuntas.
+                        const adjuntosGrupo = arr.filter((x) => x.asociadoA === f.id)
+                        if (adjuntosGrupo.length === 0) return null
+                        const paginasTot = f.paginasPdf + adjuntosGrupo.reduce((s, x) => s + x.paginasPdf, 0)
+                        const imgsTot = adjuntosGrupo.filter((x) => x.paginasPdf === 0).length
+                        return (
+                          <div className="text-[11px] text-gray-600 mt-1">
+                            Final: {paginasTot > 0 ? `${paginasTot} pág.` : "—"}
+                            {imgsTot > 0 ? ` + ${imgsTot} img` : ""}
+                          </div>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="text-sm">
                       {f.tipo === "tarea" && f.resuelto ? (
