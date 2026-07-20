@@ -289,6 +289,15 @@ export function PidViewer({
     draggingPinRef.current = pin
     pinPressStartRef.current = { x: ev.clientX, y: ev.clientY }
     cancelLongPress()
+
+    // Atajo desktop: Shift+drag entra en modo drag inmediato, sin esperar el
+    // long-press. Rápido para mouse; touch usa siempre long-press (no hay Shift).
+    if (ev.shiftKey) {
+      setDraggingPinId(pin.id)
+      setDraggedCoord({ x: pin.coordX, y: pin.coordY })
+      return
+    }
+
     longPressTimerRef.current = setTimeout(() => {
       // Long-press cumplido: entrar en modo drag.
       setDraggingPinId(pin.id)
@@ -394,7 +403,7 @@ export function PidViewer({
                     touchAction: "none",
                   }}
                   title={`${pin.codigoFormateado} · ${pin.estadoNombre} — ${pin.categoriaNombre}${
-                    onPinMove ? " (mantené presionado para mover)" : ""
+                    onPinMove ? " (mantené presionado, o Shift+arrastrar en PC, para mover)" : ""
                   }`}
                   onPointerDown={(e) => onPinPointerDown(e, pin)}
                   onPointerMove={onPinPointerMove}
