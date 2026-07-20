@@ -113,6 +113,7 @@ export const menu: MenuItem[] = [
       { label: "Tareas",       href: "/alcance/tareas" },
       { label: "Áreas",        href: "/alcance/areas" },
       { label: "Módulos",      href: "/alcance/modulos" },
+      { label: "PIDs",         href: "/alcance/pids" },
       { label: "Paquetes de prueba", href: "/alcance/test-groups" },
       {
         label: "Importar",

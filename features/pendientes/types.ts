@@ -150,6 +150,15 @@ export interface PendienteCreateInput {
   especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
+
+  /**
+   * Vínculo opcional a un punto de un PID: se setean cuando el pendiente se crea
+   * desde el visor tap-en-plano. Los 4 campos van juntos — el backend valida.
+   */
+  pidArchivoId?: string | null
+  pidPagina?: number | null
+  pidCoordX?: number | null
+  pidCoordY?: number | null
 }
 
 export interface PendienteUpdateInput {

@@ -17,8 +17,21 @@ export function NewPendienteSheet() {
   const { isOpen, close, prefill } = useNewPendiente()
   const mutation = useCreatePendiente()
 
+  const desdePid = !!prefill?.pidArchivoId
+
   const onSubmit = (values: PendienteFormValues) => {
-    mutation.mutate(values, { onSuccess: close })
+    // Los 4 campos PID no viven en el form: cuando vienen del visor los pegamos
+    // al payload en el submit (el backend valida que van los 4 juntos).
+    mutation.mutate(
+      {
+        ...values,
+        pidArchivoId: prefill?.pidArchivoId ?? null,
+        pidPagina: prefill?.pidPagina ?? null,
+        pidCoordX: prefill?.pidCoordX ?? null,
+        pidCoordY: prefill?.pidCoordY ?? null,
+      },
+      { onSuccess: close },
+    )
   }
 
   return (
@@ -27,7 +40,9 @@ export function NewPendienteSheet() {
         <SheetHeader>
           <SheetTitle>Nuevo pendiente</SheetTitle>
           <SheetDescription>
-            Levantá una observación o trabajo pendiente del proyecto.
+            {desdePid
+              ? `Se registrará en el PID ${prefill?.pid ?? ""} (pág. ${prefill?.pidPagina}).`
+              : "Levantá una observación o trabajo pendiente del proyecto."}
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 px-4 pb-6">
@@ -36,6 +51,7 @@ export function NewPendienteSheet() {
               elementoId: prefill?.elementoId ?? null,
               subSistemaId: prefill?.subSistemaId ?? null,
               especialidadId: prefill?.especialidadId ?? null,
+              pid: prefill?.pid ?? null,
             }}
             onSubmit={onSubmit}
             isPending={mutation.isPending}
