@@ -1,0 +1,138 @@
+"use client"
+
+import { use, useMemo, useState } from "react"
+import Link from "next/link"
+import { ArrowLeft, Filter, MapPin, Menu } from "lucide-react"
+
+import { useSidebar } from "@/components/sidebar-context"
+import { useGetPid, useGetPidPendientes } from "@/features/pids/api/use-get-pids"
+import { PidViewer } from "@/features/pids/components/pid-viewer"
+import { NewPendienteSheet } from "@/features/pendientes/components/new-pendiente-sheet"
+import { PendienteDetalleSheet } from "@/features/pendientes/components/pendiente-detalle-sheet"
+import { useNewPendiente } from "@/features/pendientes/hooks/use-new-pendiente"
+import { useOpenPendiente } from "@/features/pendientes/hooks/use-open-pendiente"
+
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default function PidVisorPage({ params }: PageProps) {
+  const { id } = use(params)
+  const { toggle: toggleNav } = useSidebar()
+
+  const { data: pidResp } = useGetPid(id)
+  const pid = pidResp?.data
+
+  const [page, setPage] = useState(1)
+  const [soloAbiertos, setSoloAbiertos] = useState(true)
+  const [modoCrearPin, setModoCrearPin] = useState(false)
+
+  const { data: pinsResp } = useGetPidPendientes(id, soloAbiertos)
+  const pines = useMemo(() => pinsResp?.data ?? [], [pinsResp])
+
+  const openNewPendiente = useNewPendiente((s) => s.open)
+  const openPendienteDetalle = useOpenPendiente((s) => s.open)
+
+  const onCrearPin = ({ x, y }: { x: number; y: number }) => {
+    if (!pid) return
+    // Pre-populamos el sheet con el vínculo al PID + primer subsistema
+    // vinculado (si hay uno, el user puede cambiarlo o dejarlo).
+    const subSistemaId = pid.subSistemaIds?.[0]
+    openNewPendiente({
+      pidArchivoId: pid.id,
+      pidPagina: page,
+      pidCoordX: x,
+      pidCoordY: y,
+      pid: pid.codigo,
+      subSistemaId,
+    })
+    // Volver a modo view: el usuario elige de nuevo si quiere crear otro pin.
+    setModoCrearPin(false)
+  }
+
+  const conteo = pines.filter((p) => p.pagina === page).length
+
+  return (
+    <div className="flex flex-col" style={{ height: "calc(100dvh - 4rem)" }}>
+      <NewPendienteSheet />
+      <PendienteDetalleSheet />
+
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 shadow-sm">
+        <button
+          type="button"
+          onClick={toggleNav}
+          className="-ml-1 shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+          aria-label="Abrir menú"
+          title="Menú"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <Link
+          href="/ejecucion/pids"
+          className="shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 cursor-pointer"
+          title="Volver al listado"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <p className="font-mono text-xs text-blue-700 font-semibold shrink-0">
+              {pid?.codigo ?? "…"}
+            </p>
+            <p className="text-sm text-gray-800 truncate">{pid?.nombre ?? ""}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSoloAbiertos((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              soloAbiertos
+                ? "text-blue-700 bg-blue-50 border-blue-200"
+                : "text-gray-600 bg-white border-input hover:bg-gray-50"
+            }`}
+            title={soloAbiertos ? "Mostrando pendientes activos" : "Mostrando todos"}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            {soloAbiertos ? "Activos" : "Todos"}
+            <span className="ml-1 rounded-full bg-black/70 text-white px-1.5 text-[10px] font-bold tabular-nums">
+              {conteo}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setModoCrearPin((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              modoCrearPin
+                ? "text-white bg-blue-600 border-blue-600 hover:bg-blue-700"
+                : "text-gray-700 bg-white border-input hover:bg-gray-50"
+            }`}
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            {modoCrearPin ? "Tocá el plano para marcar" : "Nuevo pendiente"}
+          </button>
+        </div>
+      </div>
+
+      {/* Visor + toolbar */}
+      {pid ? (
+        <PidViewer
+          pidArchivoId={pid.id}
+          totalPaginas={pid.pageCount}
+          page={page}
+          onPageChange={setPage}
+          pines={pines}
+          modoCrearPin={modoCrearPin}
+          onCrearPin={onCrearPin}
+          onPinClick={(pin) => openPendienteDetalle(pin.id)}
+        />
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+          Cargando PID…
+        </div>
+      )}
+    </div>
+  )
+}

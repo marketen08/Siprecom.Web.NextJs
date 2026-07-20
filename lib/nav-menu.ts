@@ -53,6 +53,7 @@ export const menu: MenuItem[] = [
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
+      { label: "PIDs (visor)",            href: "/ejecucion/pids" },
       // Mis firmas es solo para roles que firman: Consultor/Auditor no firman.
       { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true, minRole: "User" },
     ],
