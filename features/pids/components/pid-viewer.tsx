@@ -17,6 +17,17 @@ interface PidViewerProps {
   modoCrearPin: boolean
   onCrearPin: (coord: { x: number; y: number }) => void
   onPinClick: (pin: PidPendientePin) => void
+  /**
+   * Callback al terminar el drag de un pin existente. El PidViewer solo mueve el
+   * pin visualmente (feedback) — la persistencia es responsabilidad del caller.
+   */
+  onPinMove?: (pin: PidPendientePin, coord: { x: number; y: number }) => void
+  /**
+   * Gate opcional. Si devuelve false, no se activa el long-press → drag para
+   * ese pin (el user no puede moverlo por permisos o estado terminal).
+   * Default: true para todos.
+   */
+  puedeMoverPin?: (pin: PidPendientePin) => boolean
 }
 
 interface PointerState {
@@ -31,6 +42,8 @@ interface PointerState {
 const MIN_SCALE = 0.5
 const MAX_SCALE = 8
 const TAP_MOVE_THRESHOLD_PX = 6
+const LONG_PRESS_MS = 450
+const LONG_PRESS_MOVE_CANCEL_PX = 8
 
 export function PidViewer({
   pidArchivoId,
@@ -41,6 +54,8 @@ export function PidViewer({
   modoCrearPin,
   onCrearPin,
   onPinClick,
+  onPinMove,
+  puedeMoverPin,
 }: PidViewerProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -65,6 +80,24 @@ export function PidViewer({
   const pointersRef = useRef<Map<number, PointerState>>(new Map())
   const pinchStartDistRef = useRef<number | null>(null)
   const pinchStartScaleRef = useRef<number>(1)
+
+  // Estado de drag de un pin (long-press + arrastre). Cuando `draggingPinId` es
+  // no-null, el pin se pinta en `draggedCoord` en vez de sus coord persistidas.
+  // `draggingPointerId` guarda el pointer que originó el drag para que sólo ese
+  // dedo/mouse mueva y suelte el pin.
+  const [draggingPinId, setDraggingPinId] = useState<string | null>(null)
+  const [draggedCoord, setDraggedCoord] = useState<{ x: number; y: number } | null>(null)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draggingPointerIdRef = useRef<number | null>(null)
+  const draggingPinRef = useRef<PidPendientePin | null>(null)
+  const pinPressStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
 
   // ─── 1) Cargar el PDF (SAS URL → pdfjs) ──────────────────────────────────
   useEffect(() => {
@@ -240,6 +273,79 @@ export function PidViewer({
   const zoomOut = () => setScale((s) => Math.max(MIN_SCALE, s / 1.25))
   const zoomReset = () => { setScale(1); setTx(0); setTy(0) }
 
+  // ─── Long-press + drag del pin ────────────────────────────────────────────
+  // El flujo: pointerdown sobre el pin arma un timer 450ms. Si el usuario no
+  // suelta ni se mueve más de 8px en ese lapso, entramos en modo drag: cada
+  // pointermove actualiza `draggedCoord`, y en pointerup persistimos via
+  // `onPinMove` y salimos del modo. Si suelta antes del threshold, tratamos
+  // como click (abrir detalle).
+
+  const onPinPointerDown = useCallback((ev: React.PointerEvent, pin: PidPendientePin) => {
+    ev.stopPropagation() // no propagar al viewer (sino se mete en el pan)
+    if (!onPinMove) return // sin handler = solo click, no drag
+    if (puedeMoverPin && !puedeMoverPin(pin)) return
+    ;(ev.target as HTMLElement).setPointerCapture(ev.pointerId)
+    draggingPointerIdRef.current = ev.pointerId
+    draggingPinRef.current = pin
+    pinPressStartRef.current = { x: ev.clientX, y: ev.clientY }
+    cancelLongPress()
+    longPressTimerRef.current = setTimeout(() => {
+      // Long-press cumplido: entrar en modo drag.
+      setDraggingPinId(pin.id)
+      // Al iniciar, mantenemos las coord actuales del pin.
+      setDraggedCoord({ x: pin.coordX, y: pin.coordY })
+      // Feedback háptico si el device lo soporta (tablets Android sí).
+      try { navigator.vibrate?.(30) } catch { /* noop */ }
+    }, LONG_PRESS_MS)
+  }, [cancelLongPress, onPinMove, puedeMoverPin])
+
+  const onPinPointerMove = useCallback((ev: React.PointerEvent) => {
+    if (draggingPointerIdRef.current !== ev.pointerId) return
+    // Antes del threshold del long-press: si se mueve mucho, cancelar (fue un swipe).
+    if (draggingPinId == null && pinPressStartRef.current) {
+      const dx = ev.clientX - pinPressStartRef.current.x
+      const dy = ev.clientY - pinPressStartRef.current.y
+      if (Math.abs(dx) > LONG_PRESS_MOVE_CANCEL_PX || Math.abs(dy) > LONG_PRESS_MOVE_CANCEL_PX) {
+        cancelLongPress()
+      }
+      return
+    }
+    // Ya en modo drag: mapear a coordenadas normalizadas del canvas.
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const coord = pointerToNormalized({ clientX: ev.clientX, clientY: ev.clientY }, canvas)
+    if (coord) setDraggedCoord(coord)
+  }, [draggingPinId, cancelLongPress])
+
+  const onPinPointerUp = useCallback((ev: React.PointerEvent, pin: PidPendientePin) => {
+    ev.stopPropagation()
+    if (draggingPointerIdRef.current !== ev.pointerId) return
+    const wasDragging = draggingPinId === pin.id && draggedCoord != null
+    cancelLongPress()
+    draggingPointerIdRef.current = null
+    draggingPinRef.current = null
+    pinPressStartRef.current = null
+    if (wasDragging) {
+      const finalCoord = draggedCoord!
+      setDraggingPinId(null)
+      setDraggedCoord(null)
+      onPinMove?.(pin, finalCoord)
+    } else {
+      // Fue un click corto → abrir detalle.
+      onPinClick(pin)
+    }
+  }, [draggingPinId, draggedCoord, cancelLongPress, onPinClick, onPinMove])
+
+  const onPinPointerCancel = useCallback((ev: React.PointerEvent) => {
+    if (draggingPointerIdRef.current !== ev.pointerId) return
+    cancelLongPress()
+    draggingPointerIdRef.current = null
+    draggingPinRef.current = null
+    pinPressStartRef.current = null
+    setDraggingPinId(null)
+    setDraggedCoord(null)
+  }, [cancelLongPress])
+
   // ─── 4) Render ────────────────────────────────────────────────────────────
   return (
     <div className="relative flex-1 min-h-0 bg-neutral-900 overflow-hidden">
@@ -268,28 +374,42 @@ export function PidViewer({
         >
           {pines
             .filter((p) => p.pagina === page)
-            .map((pin) => (
-              <button
-                key={pin.id}
-                type="button"
-                className="absolute pointer-events-auto -translate-x-1/2 -translate-y-full rounded-full border-2 border-white shadow-md cursor-pointer active:scale-110 transition-transform"
-                style={{
-                  left: `${pin.coordX * 100}%`,
-                  top: `${pin.coordY * 100}%`,
-                  width: 24,
-                  height: 24,
-                  backgroundColor: colorPorEstado(pin.estadoId),
-                }}
-                title={`${pin.codigoFormateado} · ${pin.estadoNombre} — ${pin.categoriaNombre}`}
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerUp={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); onPinClick(pin) }}
-              >
-                <span className="text-[10px] font-bold text-white block leading-none">
-                  {pin.codigo}
-                </span>
-              </button>
-            ))}
+            .map((pin) => {
+              const isDragging = draggingPinId === pin.id
+              const coordX = isDragging && draggedCoord ? draggedCoord.x : pin.coordX
+              const coordY = isDragging && draggedCoord ? draggedCoord.y : pin.coordY
+              return (
+                <button
+                  key={pin.id}
+                  type="button"
+                  className={`absolute pointer-events-auto -translate-x-1/2 -translate-y-full rounded-full border-2 border-white shadow-md cursor-pointer transition-transform ${
+                    isDragging ? "scale-150 ring-4 ring-white/70 z-10" : "active:scale-110"
+                  }`}
+                  style={{
+                    left: `${coordX * 100}%`,
+                    top: `${coordY * 100}%`,
+                    width: 24,
+                    height: 24,
+                    backgroundColor: colorPorEstado(pin.estadoId),
+                    touchAction: "none",
+                  }}
+                  title={`${pin.codigoFormateado} · ${pin.estadoNombre} — ${pin.categoriaNombre}${
+                    onPinMove ? " (mantené presionado para mover)" : ""
+                  }`}
+                  onPointerDown={(e) => onPinPointerDown(e, pin)}
+                  onPointerMove={onPinPointerMove}
+                  onPointerUp={(e) => onPinPointerUp(e, pin)}
+                  onPointerCancel={onPinPointerCancel}
+                  // El click nativo lo suprimimos: la lógica está en onPointerUp
+                  // (distingue tap corto vs drag).
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-[10px] font-bold text-white block leading-none">
+                    {pin.codigo}
+                  </span>
+                </button>
+              )
+            })}
         </div>
 
         {/* Loading / error overlay */}

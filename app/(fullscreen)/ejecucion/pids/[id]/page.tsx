@@ -11,6 +11,8 @@ import { NewPendienteSheet } from "@/features/pendientes/components/new-pendient
 import { PendienteDetalleSheet } from "@/features/pendientes/components/pendiente-detalle-sheet"
 import { useNewPendiente } from "@/features/pendientes/hooks/use-new-pendiente"
 import { useOpenPendiente } from "@/features/pendientes/hooks/use-open-pendiente"
+import { useMovePinPendiente } from "@/features/pendientes/api/use-move-pin-pendiente"
+import type { PidPendientePin } from "@/features/pids/types"
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -32,6 +34,22 @@ export default function PidVisorPage({ params }: PageProps) {
 
   const openNewPendiente = useNewPendiente((s) => s.open)
   const openPendienteDetalle = useOpenPendiente((s) => s.open)
+
+  const movePinMutation = useMovePinPendiente()
+  const onPinMove = (pin: PidPendientePin, coord: { x: number; y: number }) => {
+    movePinMutation.mutate({
+      pendienteId: pin.id,
+      pidPagina: pin.pagina, // conservamos la misma página; mover entre páginas es out-of-scope
+      pidCoordX: coord.x,
+      pidCoordY: coord.y,
+    })
+  }
+  const puedeMoverPin = (pin: PidPendientePin) => {
+    // Estados terminales: el backend rechaza. Ocultamos el gesto para no
+    // confundir al usuario. El otro chequeo (creador vs admin/supervisor) lo
+    // hace el backend — el 400 se muestra en el toast del mutation.
+    return pin.estadoId !== "estado-pend-cerrado" && pin.estadoId !== "estado-pend-cancelado"
+  }
 
   const onCrearPin = ({ x, y }: { x: number; y: number }) => {
     if (!pid) return
@@ -116,6 +134,21 @@ export default function PidVisorPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* Feedback del mutation de mover pin */}
+      {movePinMutation.isError && (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-1.5 text-xs text-red-700 flex items-center justify-between gap-2">
+          <span>No se pudo mover el pin: {(movePinMutation.error as Error).message}</span>
+          <button type="button" onClick={() => movePinMutation.reset()} className="text-red-600 hover:text-red-800 leading-none">
+            ✕
+          </button>
+        </div>
+      )}
+      {movePinMutation.isPending && (
+        <div className="border-b border-blue-200 bg-blue-50 px-4 py-1.5 text-xs text-blue-700">
+          Guardando nueva posición del pin…
+        </div>
+      )}
+
       {/* Visor + toolbar */}
       {pid ? (
         <PidViewer
@@ -127,6 +160,8 @@ export default function PidVisorPage({ params }: PageProps) {
           modoCrearPin={modoCrearPin}
           onCrearPin={onCrearPin}
           onPinClick={(pin) => openPendienteDetalle(pin.id)}
+          onPinMove={onPinMove}
+          puedeMoverPin={puedeMoverPin}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
