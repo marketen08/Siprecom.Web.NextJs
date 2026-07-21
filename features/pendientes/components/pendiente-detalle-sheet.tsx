@@ -60,8 +60,21 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
 
   const puedeEditar = canWrite && p?.estadoId === PENDIENTE_ESTADO_IDS.ABIERTO
 
+  // Interceptamos el intento de cerrar (X, click fuera, Escape) para que en
+  // modo edición sólo salgamos del modo edit y el detalle quede visible.
+  // Cerrar el sheet completo requiere una segunda acción (X con el detalle
+  // ya en pantalla, o el botón "Cancelar" del form de edición).
+  const handleOpenChange = (open: boolean) => {
+    if (open) return
+    if (isEditing) {
+      setIsEditing(false)
+      return
+    }
+    close()
+  }
+
   return (
-    <Sheet open={isOpen} onOpenChange={close}>
+    <Sheet open={isOpen} onOpenChange={handleOpenChange}>
       <SheetContent
         className={`w-full overflow-y-auto ${wide ? "sm:max-w-4xl!" : "sm:max-w-2xl!"}`}
         hideOverlay={hideOverlay}

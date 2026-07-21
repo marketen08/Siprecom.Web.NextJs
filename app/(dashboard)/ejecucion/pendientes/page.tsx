@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Plus, Search } from "lucide-react"
 
 import { useSearchPendientes } from "@/features/pendientes/api/use-search-pendientes"
@@ -50,7 +51,39 @@ export default function PendientesPage() {
 
   const { open: openNew } = useNewPendiente()
   const canWrite = useCanWrite()
-  const { open: openDetalle } = useOpenPendiente()
+  const openDetalle = useOpenPendiente((s) => s.open)
+  const openIdEnStore = useOpenPendiente((s) => (s.isOpen ? s.id : null))
+
+  // Sincronización con la URL: `?id=<pendienteId>` refleja qué pendiente está
+  // abierto en el sheet. Sirve para compartir el link y volver al mismo estado.
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const idEnUrl = searchParams.get("id")
+
+  // (1) Al montar / cambiar el `?id=`, si el store no tiene ese pendiente abierto
+  //     lo abrimos. Guard con ref para evitar re-abrir cuando el user cerró el
+  //     sheet manualmente pero el `?id=` sigue en la URL hasta que actualicemos.
+  const lastSyncedFromUrlRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!idEnUrl) return
+    if (openIdEnStore === idEnUrl) return
+    if (lastSyncedFromUrlRef.current === idEnUrl) return
+    lastSyncedFromUrlRef.current = idEnUrl
+    openDetalle(idEnUrl)
+  }, [idEnUrl, openIdEnStore, openDetalle])
+
+  // (2) Cuando cambia el `id` abierto en el store, reflejamos en la URL. Usamos
+  //     `router.replace` (no push) para no llenar el history con cada apertura
+  //     de pendiente — solo queda la URL final visible.
+  useEffect(() => {
+    if (openIdEnStore === idEnUrl) return
+    const params = new URLSearchParams(searchParams.toString())
+    if (openIdEnStore) params.set("id", openIdEnStore)
+    else params.delete("id")
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [openIdEnStore, idEnUrl, pathname, router, searchParams])
 
   const { data: perfil } = useGetPerfil()
   const { data: sistemasRaw } = useGetSistemasSelect()
