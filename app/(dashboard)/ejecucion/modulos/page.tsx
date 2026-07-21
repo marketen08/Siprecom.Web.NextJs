@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Box, ChevronDown, ChevronRight } from "lucide-react"
 
 import { useGetAvancePorModulos } from "@/features/avance/api/use-get-avance-modulos"
@@ -17,8 +18,16 @@ import {
 const SIN_MODULO = "__sin_modulo__"
 
 export default function AvanceModulosPage() {
+  const router = useRouter()
   const { data, isLoading } = useGetAvancePorModulos()
   const modulos: AvanceAgrupacionDTO[] = data?.data ?? []
+
+  // Navega al listado de elementos filtrando por el módulo. El "sin módulo"
+  // (marca especial del backend) no tiene id útil para filtrar → no navega.
+  function irAElementos(moduloId: string) {
+    if (moduloId === SIN_MODULO) return
+    router.push(`/ejecucion/elementos?moduloId=${encodeURIComponent(moduloId)}`)
+  }
 
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   function toggleExpandido(id: string) {
@@ -47,9 +56,10 @@ export default function AvanceModulosPage() {
             return (
               <div
                 key={m.id}
-                className={`rounded-lg border bg-white p-3 space-y-2 ${
-                  esSinModulo ? "border-dashed" : ""
+                className={`rounded-lg border bg-white p-3 space-y-2 transition-colors ${
+                  esSinModulo ? "border-dashed" : "cursor-pointer active:bg-blue-50"
                 }`}
+                onClick={() => !esSinModulo && irAElementos(m.id)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -59,7 +69,7 @@ export default function AvanceModulosPage() {
                     </p>
                     <p className="text-xs text-gray-500">{m.cantidadElementos} elemento(s)</p>
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0" onClick={(ev) => ev.stopPropagation()}>
                     <EstadosPopover avance={m} />
                   </div>
                 </div>
@@ -110,11 +120,18 @@ export default function AvanceModulosPage() {
                 return (
                   <Fragment key={m.id}>
                     <TableRow
-                      className={`hover:bg-blue-50 transition-colors ${esSinModulo ? "bg-muted/20" : ""}`}
+                      className={`hover:bg-blue-50 transition-colors ${
+                        esSinModulo ? "bg-muted/20" : "cursor-pointer"
+                      }`}
+                      onClick={() => irAElementos(m.id)}
                     >
                       <TableCell
                         className="py-3 w-8"
-                        onClick={() => { if (tieneNiveles) toggleExpandido(m.id) }}
+                        onClick={(ev) => {
+                          // Chevron: solo expande/colapsa, no navega.
+                          ev.stopPropagation()
+                          if (tieneNiveles) toggleExpandido(m.id)
+                        }}
                       >
                         {tieneNiveles && (
                           <button
@@ -144,7 +161,7 @@ export default function AvanceModulosPage() {
                       <TableCell className="py-3">
                         <ProximaMetaCelda niveles={m.niveles} />
                       </TableCell>
-                      <TableCell className="py-3 text-center">
+                      <TableCell className="py-3 text-center" onClick={(ev) => ev.stopPropagation()}>
                         <EstadosPopover avance={m} />
                       </TableCell>
                     </TableRow>

@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useState } from "react"
+import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronRight, MapPin } from "lucide-react"
 
 import { useGetAvancePorAreas } from "@/features/avance/api/use-get-avance-areas"
@@ -14,8 +15,14 @@ import {
 } from "@/components/ui/table"
 
 export default function AvanceAreasPage() {
+  const router = useRouter()
   const { data, isLoading } = useGetAvancePorAreas()
   const areas: AvanceAgrupacionDTO[] = data?.data ?? []
+
+  // Navega al listado de elementos con el filtro por área aplicado.
+  function irAElementos(areaId: string) {
+    router.push(`/ejecucion/elementos?areaId=${encodeURIComponent(areaId)}`)
+  }
 
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   function toggleExpandido(id: string) {
@@ -40,7 +47,11 @@ export default function AvanceAreasPage() {
           </div>
         ) : (
           areas.map((a) => (
-            <div key={a.id} className="rounded-lg border bg-white p-3 space-y-2">
+            <div
+              key={a.id}
+              className="rounded-lg border bg-white p-3 space-y-2 cursor-pointer active:bg-blue-50 transition-colors"
+              onClick={() => irAElementos(a.id)}
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-mono text-xs text-gray-500">{a.codigo}</p>
@@ -95,10 +106,17 @@ export default function AvanceAreasPage() {
                 const abierto = expandidos.has(a.id)
                 return (
                   <Fragment key={a.id}>
-                    <TableRow className="hover:bg-blue-50 transition-colors">
+                    <TableRow
+                      className="hover:bg-blue-50 transition-colors cursor-pointer"
+                      onClick={() => irAElementos(a.id)}
+                    >
                       <TableCell
                         className="py-3 w-8"
-                        onClick={() => { if (tieneNiveles) toggleExpandido(a.id) }}
+                        onClick={(ev) => {
+                          // Chevron: solo expande/colapsa, no navega.
+                          ev.stopPropagation()
+                          if (tieneNiveles) toggleExpandido(a.id)
+                        }}
                       >
                         {tieneNiveles && (
                           <button
@@ -126,7 +144,7 @@ export default function AvanceAreasPage() {
                       <TableCell className="py-3">
                         <ProximaMetaCelda niveles={a.niveles} />
                       </TableCell>
-                      <TableCell className="py-3 text-center">
+                      <TableCell className="py-3 text-center" onClick={(ev) => ev.stopPropagation()}>
                         <EstadosPopover avance={a} />
                       </TableCell>
                     </TableRow>
