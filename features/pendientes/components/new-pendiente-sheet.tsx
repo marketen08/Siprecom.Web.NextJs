@@ -47,15 +47,17 @@ export function NewPendienteSheet({ hideOverlay, wide }: NewPendienteSheetProps 
         className={`w-full overflow-y-auto ${wide ? "sm:max-w-4xl!" : "sm:max-w-2xl!"}`}
         hideOverlay={hideOverlay}
       >
-        <SheetHeader>
-          <SheetTitle>Nuevo pendiente</SheetTitle>
-          <SheetDescription>
+        {/* Header sticky en mobile para que el título siga a la vista al
+            scrollear el form largo (y así el X de cerrar quede accesible). */}
+        <SheetHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b pr-10">
+          <SheetTitle className="text-base sm:text-lg">Nuevo pendiente</SheetTitle>
+          <SheetDescription className="text-xs sm:text-sm">
             {desdePid
               ? `Se registrará en el PID ${prefill?.pid ?? ""} (pág. ${prefill?.pidPagina}).`
               : "Levantá una observación o trabajo pendiente del proyecto."}
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-6 px-4 pb-6">
+        <div className="mt-4 sm:mt-6 px-3 sm:px-4 pb-2 sm:pb-6">
           <PendienteForm
             defaultValues={{
               elementoId: prefill?.elementoId ?? null,

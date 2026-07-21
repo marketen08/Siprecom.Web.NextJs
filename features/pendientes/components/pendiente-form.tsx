@@ -150,7 +150,9 @@ export function PendienteForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
+      {/* pb-24 al form para que los botones sticky del footer no tapen el
+          último campo cuando estamos scrolleando en mobile. */}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6 pb-24 sm:pb-4">
         {/* Datos principales */}
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -468,12 +470,29 @@ export function PendienteForm({
           />
         </div>
 
-        {/* Botones */}
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">
+        {/* Botones — sticky al bottom del viewport en mobile para que el user
+            no tenga que scrollear hasta el final del form largo para guardar.
+            En desktop quedan como fila normal al final. En mobile Guardar
+            primero (más ancho) porque es la acción primaria. Respeta safe-area
+            del iPhone. */}
+        <div
+          className="fixed sm:relative inset-x-0 bottom-0 z-10 flex flex-row-reverse sm:flex-row gap-3 border-t border-border bg-background/95 px-4 py-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-2 backdrop-blur supports-backdrop-filter:sm:backdrop-blur-none"
+          style={{ paddingBottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px))` }}
+        >
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="flex-1 h-11 sm:h-10 bg-blue-900 hover:bg-blue-800"
+          >
             {isPending ? "Guardando..." : "Guardar"}
           </Button>
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isPending} className="flex-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isPending}
+            className="flex-1 h-11 sm:h-10"
+          >
             Cancelar
           </Button>
         </div>

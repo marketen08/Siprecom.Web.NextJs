@@ -79,19 +79,20 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
         className={`w-full overflow-y-auto ${wide ? "sm:max-w-4xl!" : "sm:max-w-2xl!"}`}
         hideOverlay={hideOverlay}
       >
-        <SheetHeader>
+        {/* Header sticky para que código + estado + acciones queden accesibles
+            al scrollear un pendiente con historial largo. `pr-10` deja espacio
+            para la X de cerrar del sheet (top-3 right-3). */}
+        <SheetHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b pr-10">
           {isLoading ? (
             <SheetTitle className="text-gray-400">Cargando…</SheetTitle>
           ) : p ? (
             <>
-              {/* pr-10 en el título para que los badges no se metan debajo de
-                  la X de cerrar del sheet (top-3 right-3). */}
-              <SheetTitle className="text-lg font-bold flex items-center gap-2 flex-wrap pr-10">
+              <SheetTitle className="text-base sm:text-lg font-bold flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className="font-mono text-blue-700">{p.codigoFormateado}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
+                <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
                   {ESTADO_LABEL[p.estadoNombre ?? ""] ?? p.estadoNombre}
                 </span>
-                <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
+                <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
               </SheetTitle>
@@ -100,66 +101,90 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                   <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
                     {p.descripcion}
                   </SheetDescription>
-                  {/* Barra de acciones — separada del header para no chocar con
-                      la X de cerrar. Aparecen solo las que aplican al estado
-                      actual y al rol del usuario. */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-2">
-                    {canWrite
-                      && p.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
-                      && p.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5 h-7 text-xs"
-                        onClick={() => setCargaFisicaOpen(true)}
-                      >
-                        <FileUp className="h-3 w-3" /> Cargar PDF Firmado
-                      </Button>
-                    )}
-                    {/* Una vez cargado el PDF firmado, ese reemplaza al PDF
-                        genérico — el usuario ya no necesita el "en blanco". */}
-                    {!p.tienePdfFisico && (
-                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
-                        <a href={`/api/pendientes/${p.id}/pdf`} target="_blank" rel="noreferrer">
-                          <FileDown className="h-3 w-3" /> Descargar PDF
-                        </a>
-                      </Button>
-                    )}
-                    {p.tienePdfFisico && (
-                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
-                        <a
-                          href={`/api/pendientes/${p.id}/pdf-fisico`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Descargar el PDF firmado en papel que cerró el pendiente"
+                  {/* Barra de acciones compacta — solo íconos en mobile con
+                      tooltip por `title`, ícono + label corto en sm+. Botones
+                      chicos (h-8) para no ocupar mucho vertical en el header
+                      sticky. En mobile las acciones de workflow (Iniciar/Enviar/
+                      Aprobar/Rechazar/Cancelar) se meten a la misma fila para
+                      compactar; en sm+ el workflow vive en el content. */}
+                  {/* Layout de dos grupos: acciones de utilidad a la izquierda
+                      (Descargar/Cargar/Ver en PID/Editar), acciones de workflow
+                      a la derecha (Iniciar/Enviar/Aprobar/Rechazar/Cancelar).
+                      `justify-between` los separa; ambos son flex-wrap para
+                      resbalar a una segunda línea si no entran. En sm+ el
+                      workflow no aparece acá (queda en el content). */}
+                  <div className="flex flex-wrap items-center justify-between gap-1 pt-2">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {/* Descargar primero — es la acción más frecuente. */}
+                      {!p.tienePdfFisico && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a href={`/api/pendientes/${p.id}/pdf`} target="_blank" rel="noreferrer" title="Descargar PDF">
+                            <FileDown className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">PDF</span>
+                          </a>
+                        </Button>
+                      )}
+                      {p.tienePdfFisico && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a
+                            href={`/api/pendientes/${p.id}/pdf-fisico`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Descargar PDF Firmado"
+                          >
+                            <FileDown className="h-3.5 w-3.5 text-emerald-700" />
+                            <span className="hidden sm:inline">PDF Firmado</span>
+                          </a>
+                        </Button>
+                      )}
+                      {/* Cargar después — es la acción "más pesada" (cierra el
+                          pendiente al confirmar). */}
+                      {canWrite
+                        && p.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
+                        && p.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 h-8 px-2 sm:px-2.5 text-xs"
+                          onClick={() => setCargaFisicaOpen(true)}
+                          title="Cargar PDF Firmado"
                         >
-                          <FileDown className="h-3 w-3 text-emerald-700" /> Descargar PDF Firmado
-                        </a>
-                      </Button>
-                    )}
-                    {/* Acceso directo al pin en el visor de PID. El link
-                        lleva la página + id del pendiente para que el visor
-                        cambie a la página correcta y abra el detalle con la
-                        flecha apuntando al pin. */}
-                    {p.pidArchivoId && p.pidPagina && (
-                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
-                        <a
-                          href={`/ejecucion/pids/${p.pidArchivoId}?p=${p.pidPagina}&pin=${p.id}`}
-                          title={p.pidArchivoCodigo ? `Ver en ${p.pidArchivoCodigo}` : "Ver en el PID"}
+                          <FileUp className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Cargar</span>
+                        </Button>
+                      )}
+                      {/* Acceso directo al pin en el visor de PID. */}
+                      {p.pidArchivoId && p.pidPagina && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a
+                            href={`/ejecucion/pids/${p.pidArchivoId}?p=${p.pidPagina}&pin=${p.id}`}
+                            title={p.pidArchivoCodigo ? `Ver en ${p.pidArchivoCodigo}` : "Ver en el PID"}
+                          >
+                            <MapPin className="h-3.5 w-3.5 text-blue-700" />
+                            <span className="hidden sm:inline">Ver en PID</span>
+                          </a>
+                        </Button>
+                      )}
+                      {puedeEditar && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 h-8 px-2 sm:px-2.5 text-xs"
+                          onClick={() => setIsEditing(true)}
+                          title="Editar"
                         >
-                          <MapPin className="h-3 w-3 text-blue-700" /> Ver en PID
-                        </a>
-                      </Button>
-                    )}
-                    {puedeEditar && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5 h-7 text-xs"
-                        onClick={() => setIsEditing(true)}
-                      >
-                        <Pencil className="h-3 w-3" /> Editar
-                      </Button>
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Grupo derecho — acciones del workflow (mobile only). En
+                        sm+ vive en el content bajo el título "Acciones". */}
+                    {canWrite && (
+                      <div className="sm:hidden flex flex-wrap items-center gap-1">
+                        <Workflow pendienteId={p.id} estadoId={p.estadoId} compact />
+                      </div>
                     )}
                   </div>
                 </>
@@ -180,9 +205,22 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
             onDone={() => setIsEditing(false)}
           />
         ) : p ? (
-          <div className="mt-4 px-4 pb-8 space-y-6">
-            {/* Datos principales */}
-            <section className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <div className="mt-4 px-3 sm:px-4 pb-8 space-y-6">
+            {/* Workflow / acciones de transición arriba del detalle. En mobile
+                ya se rendera en el header sticky (ver arriba); acá aparece solo
+                en sm+ donde el header no tiene lugar para meterlo. */}
+            {canWrite && (
+              <div className="hidden sm:block">
+                <Workflow pendienteId={p.id} estadoId={p.estadoId} />
+              </div>
+            )}
+
+            {canWrite && <Separator className="hidden sm:block" />}
+
+            {/* Datos principales — 1 columna en mobile (más legible con valores
+                largos como TAG-1234 — Nombre), 2 columnas en sm+. `sm:col-span-2`
+                para el warning de rechazo se aplica solo cuando hay 2 columnas. */}
+            <section className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 text-sm">
               <DataItem label="Categoría"   value={p.categoriaNombre} />
               <DataItem label="Tipo"        value={p.tipoNombre} />
               <DataItem label="Detectado por" value={p.detectadoPorNombre} />
@@ -197,21 +235,11 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
               {p.fechaCierre && <DataItem label="Cierre real" value={p.fechaCierre} />}
               {p.fechaDesestimado && <DataItem label="Cancelado el" value={p.fechaDesestimado} />}
               {p.motivoRechazoCierre && (
-                <div className="col-span-2 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                <div className="sm:col-span-2 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
                   <strong>Cierre rechazado:</strong> {p.motivoRechazoCierre}
                 </div>
               )}
             </section>
-
-            {/* Workflow + acciones solo para roles de escritura. Consultor y Auditor
-                ven el detalle en modo lectura: comentarios/adjuntos listables, pero
-                sin poder agregar ni transicionar. */}
-            {canWrite && (
-              <>
-                <Separator />
-                <Workflow pendienteId={p.id} estadoId={p.estadoId} />
-              </>
-            )}
 
             <Separator />
 
@@ -272,7 +300,16 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
 
 // ─── Workflow ────────────────────────────────────────────────────────────
 
-function Workflow({ pendienteId, estadoId }: { pendienteId: string; estadoId: string }) {
+function Workflow({
+  pendienteId,
+  estadoId,
+  compact = false,
+}: {
+  pendienteId: string
+  estadoId: string
+  /** Variante compacta para embeber en el header sticky: sin título "Acciones" y botones más chicos. */
+  compact?: boolean
+}) {
   const transicion = usePendienteTransicion()
   const [dialog, setDialog] = useState<null | { accion: "rechazar" | "cancelar"; titulo: string; descripcion: string }>(null)
   const [motivo, setMotivo] = useState("")
@@ -291,77 +328,114 @@ function Workflow({ pendienteId, estadoId }: { pendienteId: string; estadoId: st
 
   const busy = transicion.isPending
 
+  // Botones más compactos cuando embebido en header sticky (mobile).
+  const btnBase = compact ? "gap-1 h-8 px-2 sm:px-2.5 text-xs" : "gap-1.5 h-9 sm:h-8"
+  const iconSize = "h-3.5 w-3.5"
+
+  const botones = (
+    <>
+      {estadoId === PENDIENTE_ESTADO_IDS.ABIERTO && (
+        <Button size="sm" disabled={busy} className={btnBase} onClick={() => ejecutar("iniciar")}>
+          <Play className={iconSize} /> Iniciar
+        </Button>
+      )}
+      {estadoId === PENDIENTE_ESTADO_IDS.EN_PROCESO && (
+        <Button size="sm" disabled={busy} className={btnBase} onClick={() => ejecutar("enviar-aprobacion")}>
+          <Send className={iconSize} /> {compact ? "Enviar" : "Enviar a aprobación"}
+        </Button>
+      )}
+      {estadoId === PENDIENTE_ESTADO_IDS.PENDIENTE_APROBACION && (
+        <>
+          <Button size="sm" disabled={busy} className={`${btnBase} bg-green-700 hover:bg-green-600`} onClick={() => ejecutar("aprobar")}>
+            <ThumbsUp className={iconSize} /> {compact ? "Aprobar" : "Aprobar cierre"}
+          </Button>
+          <Button
+            size="sm" variant="outline" disabled={busy} className={btnBase}
+            onClick={() => setDialog({
+              accion: "rechazar",
+              titulo: "Rechazar cierre",
+              descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a EN_PROCESO.",
+            })}
+          >
+            <ThumbsDown className={iconSize} /> Rechazar
+          </Button>
+        </>
+      )}
+      {estadoId !== PENDIENTE_ESTADO_IDS.CERRADO && estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
+        <Button
+          size="sm" variant="outline" disabled={busy}
+          className={`${btnBase} text-red-600 hover:text-red-700`}
+          onClick={() => setDialog({
+            accion: "cancelar",
+            titulo: "Cancelar pendiente",
+            descripcion: "Indicá el motivo. Esta acción no se puede deshacer.",
+          })}
+        >
+          <Ban className={iconSize} /> Cancelar
+        </Button>
+      )}
+    </>
+  )
+
+  // Modo compact: rendereamos los botones como fragment (sin section/wrapper)
+  // para que se integren en el flex-wrap del parent — así en mobile los botones
+  // de workflow quedan en la misma línea que Descargar / Cargar / Editar.
+  // El dialog (para pedir motivo en Rechazar/Cancelar) va aparte al final.
+  if (compact) {
+    return (
+      <>
+        {botones}
+        {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy)}
+      </>
+    )
+  }
+
   return (
     <section className="space-y-3">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Acciones
       </h3>
-      <div className="flex flex-wrap gap-2">
-        {estadoId === PENDIENTE_ESTADO_IDS.ABIERTO && (
-          <Button size="sm" disabled={busy} className="gap-1.5" onClick={() => ejecutar("iniciar")}>
-            <Play className="h-3.5 w-3.5" /> Tomar / Iniciar
-          </Button>
-        )}
-        {estadoId === PENDIENTE_ESTADO_IDS.EN_PROCESO && (
-          <Button size="sm" disabled={busy} className="gap-1.5" onClick={() => ejecutar("enviar-aprobacion")}>
-            <Send className="h-3.5 w-3.5" /> Enviar a aprobación
-          </Button>
-        )}
-        {estadoId === PENDIENTE_ESTADO_IDS.PENDIENTE_APROBACION && (
-          <>
-            <Button size="sm" disabled={busy} className="gap-1.5 bg-green-700 hover:bg-green-600" onClick={() => ejecutar("aprobar")}>
-              <ThumbsUp className="h-3.5 w-3.5" /> Aprobar cierre
-            </Button>
-            <Button
-              size="sm" variant="outline" disabled={busy} className="gap-1.5"
-              onClick={() => setDialog({
-                accion: "rechazar",
-                titulo: "Rechazar cierre",
-                descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a EN_PROCESO.",
-              })}
-            >
-              <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
-            </Button>
-          </>
-        )}
-        {estadoId !== PENDIENTE_ESTADO_IDS.CERRADO && estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
-          <Button
-            size="sm" variant="outline" disabled={busy} className="gap-1.5 text-red-600 hover:text-red-700"
-            onClick={() => setDialog({
-              accion: "cancelar",
-              titulo: "Cancelar pendiente",
-              descripcion: "Indicá el motivo. Esta acción no se puede deshacer.",
-            })}
-          >
-            <Ban className="h-3.5 w-3.5" /> Cancelar
-          </Button>
-        )}
-      </div>
+      <div className="flex flex-wrap gap-2">{botones}</div>
 
-      <AlertDialog open={dialog !== null} onOpenChange={(v) => !v && setDialog(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{dialog?.titulo}</AlertDialogTitle>
-            <AlertDialogDescription>{dialog?.descripcion}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <Textarea
-            placeholder="Motivo..."
-            rows={3}
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={busy || !motivo.trim()}
-              onClick={(e) => { e.preventDefault(); ejecutarConMotivo() }}
-            >
-              {busy ? "Procesando..." : "Confirmar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy)}
     </section>
+  )
+}
+
+// Dialog compartido para pedir motivo en Rechazar / Cancelar. Extraído para
+// que el modo compact del Workflow pueda usarlo sin duplicar el JSX.
+function renderDialog(
+  dialog: { accion: "rechazar" | "cancelar"; titulo: string; descripcion: string } | null,
+  motivo: string,
+  setMotivo: (v: string) => void,
+  ejecutarConMotivo: () => void,
+  setDialog: (v: null) => void,
+  busy: boolean,
+) {
+  return (
+    <AlertDialog open={dialog !== null} onOpenChange={(v) => !v && setDialog(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{dialog?.titulo}</AlertDialogTitle>
+          <AlertDialogDescription>{dialog?.descripcion}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <Textarea
+          placeholder="Motivo..."
+          rows={3}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy || !motivo.trim()}
+            onClick={(e) => { e.preventDefault(); ejecutarConMotivo() }}
+          >
+            {busy ? "Procesando..." : "Confirmar"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
@@ -409,7 +483,9 @@ function Comentarios({
       </div>
 
       {canWrite && (
-        <div className="flex gap-2 items-end">
+        // Mobile: textarea full-width con botón "Enviar" debajo (también full).
+        // Desktop: fila con botón chico a la derecha.
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
           <Textarea
             placeholder="Agregar comentario..."
             rows={2}
@@ -417,7 +493,12 @@ function Comentarios({
             onChange={(e) => setTexto(e.target.value)}
             disabled={agregar.isPending}
           />
-          <Button size="sm" disabled={!texto.trim() || agregar.isPending} onClick={enviar}>
+          <Button
+            size="sm"
+            disabled={!texto.trim() || agregar.isPending}
+            onClick={enviar}
+            className="h-9 sm:h-8 w-full sm:w-auto"
+          >
             {agregar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
           </Button>
         </div>
@@ -459,23 +540,37 @@ function Adjuntos({
           <p className="text-xs text-muted-foreground italic">Sin adjuntos.</p>
         ) : (
           adjuntos.map((a) => (
-            <div key={a.id} className="flex items-center justify-between rounded-md border bg-white px-3 py-2 text-sm">
-              <a href={a.url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline truncate flex-1">
+            // Mobile: nombre arriba (link tapeable, full-width), meta+trash abajo.
+            // Desktop: fila con nombre a la izquierda, meta al centro, trash a la
+            // derecha.
+            <div
+              key={a.id}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 rounded-md border bg-white px-3 py-2 text-sm min-w-0"
+            >
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-700 hover:underline truncate flex-1 min-w-0"
+              >
                 {a.fileName}
               </a>
-              <span className="text-xs text-muted-foreground mx-3 truncate">
-                {a.createdByNombre} · {formatFecha(a.createdAt)}
-              </span>
-              {canWrite && (
-                <Button
-                  size="icon" variant="ghost"
-                  className="h-7 w-7 text-red-600"
-                  disabled={eliminar.isPending}
-                  onClick={() => eliminar.mutate(a.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <span className="text-xs text-muted-foreground truncate">
+                  {a.createdByNombre} · {formatFecha(a.createdAt)}
+                </span>
+                {canWrite && (
+                  <Button
+                    size="icon" variant="ghost"
+                    className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 text-red-600"
+                    disabled={eliminar.isPending}
+                    onClick={() => eliminar.mutate(a.id)}
+                    aria-label="Eliminar adjunto"
+                  >
+                    <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -523,8 +618,8 @@ function Historial({
           <p className="text-xs text-muted-foreground italic">Sin movimientos registrados.</p>
         ) : (
           historial.map((h) => (
-            <div key={h.id} className="text-xs flex gap-3 items-start border-l-2 border-gray-200 pl-3 py-1">
-              <div className="flex-1">
+            <div key={h.id} className="text-xs flex gap-3 items-start border-l-2 border-gray-200 pl-3 py-1 min-w-0">
+              <div className="flex-1 min-w-0 wrap-break-word">
                 <p className="font-medium text-gray-800">
                   {h.estadoAnteriorNombre && h.estadoAnteriorNombre !== h.estadoNuevoNombre
                     ? `${h.estadoAnteriorNombre} → ${h.estadoNuevoNombre}`
@@ -588,7 +683,7 @@ function EditarPendiente({
   }
 
   return (
-    <div className="mt-4 px-4 pb-8">
+    <div className="mt-4 px-3 sm:px-4 pb-8">
       <PendienteForm
         defaultValues={{
           categoriaId: pendiente.categoriaId,
@@ -617,9 +712,11 @@ function EditarPendiente({
 function DataItem({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null
   return (
-    <div>
+    // `min-w-0` para que el DataItem colapse en grid parent. `wrap-break-word`
+    // en el valor permite wrappear labels largos (ej "TAG-XXX — Nombre largo").
+    <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-gray-800 mt-0.5">{value}</dd>
+      <dd className="font-medium text-gray-800 mt-0.5 wrap-break-word">{value}</dd>
     </div>
   )
 }

@@ -110,13 +110,17 @@ export function Combobox({
   }
 
   return (
-    <div ref={wrapperRef} className="relative">
+    // `min-w-0` + `w-full` fuerzan al wrapper a colapsar al ancho del padre
+    // aunque sus hijos (labels de opciones largas) tengan contenido intrínseco
+    // más grande. Sin esto, en un flex/grid parent, el wrapper se ensancha con
+    // el contenido y empuja el layout hacia la derecha del viewport.
+    <div ref={wrapperRef} className="relative w-full min-w-0">
       <button
         type="button"
         onClick={() => !disabled && setOpen((o) => !o)}
         disabled={disabled}
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           className
         )}
       >
@@ -127,7 +131,11 @@ export function Combobox({
       </button>
 
       {open && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1 rounded-md bg-popover shadow-md ring-1 ring-foreground/10 max-h-72 flex flex-col">
+        // Popup: `w-full` copia el ancho del wrapper (que ya está clamped al
+        // parent con min-w-0). `overflow-hidden` en el panel + wrap-break-word
+        // en los items garantiza que ningún contenido interno pueda empujar
+        // el ancho del panel hacia afuera del viewport.
+        <div className="absolute z-50 left-0 top-full mt-1 w-full max-w-[calc(100vw-1rem)] rounded-md bg-popover shadow-md ring-1 ring-foreground/10 max-h-72 flex flex-col overflow-hidden">
           <div className="p-1.5 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -165,7 +173,13 @@ export function Combobox({
                   onClick={() => commit(o)}
                   onMouseEnter={() => setHighlighted(i)}
                   className={cn(
-                    "w-full text-left rounded-sm px-2 py-1.5 text-sm",
+                    // `whitespace-normal break-words` permite que labels largos
+                    // (ej "TAG-1234 — Nombre muy largo del elemento") wrappean
+                    // a varias líneas en vez de forzar overflow horizontal.
+                    // `min-w-0` refuerza el shrink del contenido dentro del
+                    // botón flexbox — sin él, en algunos browsers el texto
+                    // "empuja" al contenedor y desborda.
+                    "w-full text-left rounded-sm px-2 py-1.5 text-sm whitespace-normal wrap-break-word min-w-0",
                     i === highlighted && "bg-accent text-accent-foreground",
                     value === o.value && "font-medium"
                   )}

@@ -51,14 +51,17 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm whitespace-nowrap transition-colors outline-none select-none",
+        // `min-w-0` fuerza al trigger a colapsar al ancho del parent aunque
+        // el value seleccionado sea largo — sin esto, en flex/grid parents
+        // el trigger empuja el layout hacia afuera del viewport en mobile.
+        "flex w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm whitespace-nowrap transition-colors outline-none select-none",
         "hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "aria-invalid:border-destructive",
         "data-placeholder:text-muted-foreground",
         "data-[size=default]:h-9",
         "data-[size=sm]:h-8 data-[size=sm]:text-xs",
-        "*:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 *:data-[slot=select-value]:truncate *:data-[slot=select-value]:flex-1",
+        "*:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 *:data-[slot=select-value]:truncate *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:min-w-0",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
@@ -149,7 +152,11 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none",
+        // `whitespace-normal wrap-break-word min-w-0` permite que labels largos
+        // (ej "SIS-1 — Sistema con nombre muy largo") wrappean en varias líneas
+        // en vez de forzar overflow horizontal del popup. `items-start` para
+        // que el ícono de check quede alineado con la primera línea del texto.
+        "relative flex w-full min-w-0 cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none whitespace-normal wrap-break-word",
         "focus:bg-accent focus:text-accent-foreground",
         "data-disabled:pointer-events-none data-disabled:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

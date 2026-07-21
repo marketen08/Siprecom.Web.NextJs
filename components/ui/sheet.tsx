@@ -73,7 +73,9 @@ function SheetContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-3 right-3"
+                // z-20 para quedar arriba de headers sticky (z-10) que usan
+                // algunos sheets para mantener el título visible al scrollear.
+                className="absolute top-3 right-3 z-20"
                 size="icon-sm"
               />
             }
