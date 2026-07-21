@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Plus, Search } from "lucide-react"
+import Link from "next/link"
+import { MapPin, Plus, Search } from "lucide-react"
 
 import { useSearchPendientes } from "@/features/pendientes/api/use-search-pendientes"
 import {
@@ -16,7 +17,7 @@ import {
   ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD, PRIORIDAD_COLOR,
 } from "@/features/pendientes/types"
 import { useNewPendiente } from "@/features/pendientes/hooks/use-new-pendiente"
-import { useCanWrite } from "@/lib/use-roles"
+import { useCanWrite, useMeetsRole } from "@/lib/use-roles"
 import { useOpenPendiente } from "@/features/pendientes/hooks/use-open-pendiente"
 import { NewPendienteSheet } from "@/features/pendientes/components/new-pendiente-sheet"
 import { PendienteDetalleSheet } from "@/features/pendientes/components/pendiente-detalle-sheet"
@@ -34,32 +35,62 @@ import {
 } from "@/components/ui/table"
 
 const ALL = "__all__"
+// Estado especial "todos los abiertos" — se traduce a `soloAbiertos: true` en el
+// filtro del backend. Es el valor default del select de Estado.
+const OPEN = "__open__"
 
 export default function PendientesPage() {
-  const [search, setSearch] = useState("")
-  const [sistemaId, setSistemaId] = useState("")
-  const [subSistemaId, setSubSistemaId] = useState("")
-  const [estadoId, setEstadoId] = useState("")
-  const [responsableId, setResponsableId] = useState("")
-  const [categoriaId, setCategoriaId] = useState("")
-  const [tipoId, setTipoId] = useState("")
-  const [prioridad, setPrioridad] = useState("")
-  const [soloAbiertos, setSoloAbiertos] = useState(true)
-  const [page, setPage] = useState(1)
+  const searchParams = useSearchParams()
+
+  // Estado inicial se lee de la URL para que un link compartido reabra la
+  // misma vista. Sin `?estado=` en la URL, arranca en "Todos los abiertos".
+  const [search, setSearch] = useState(searchParams.get("search") ?? "")
+  const [sistemaId, setSistemaId] = useState(searchParams.get("sistemaId") ?? "")
+  const [subSistemaId, setSubSistemaId] = useState(searchParams.get("subSistemaId") ?? "")
+  const [estadoSel, setEstadoSel] = useState<string>(searchParams.get("estado") ?? OPEN)
+  const [responsableId, setResponsableId] = useState(searchParams.get("responsableId") ?? "")
+  const [categoriaId, setCategoriaId] = useState(searchParams.get("categoriaId") ?? "")
+  const [tipoId, setTipoId] = useState(searchParams.get("tipoId") ?? "")
+  const [prioridad, setPrioridad] = useState(searchParams.get("prioridad") ?? "")
+  const [page, setPage] = useState(Number(searchParams.get("page") ?? "1") || 1)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const pageSize = 20
 
   const { open: openNew } = useNewPendiente()
   const canWrite = useCanWrite()
+  const isSupervisorOrAbove = useMeetsRole("Supervisor")
   const openDetalle = useOpenPendiente((s) => s.open)
   const openIdEnStore = useOpenPendiente((s) => (s.isOpen ? s.id : null))
 
   // Sincronización con la URL: `?id=<pendienteId>` refleja qué pendiente está
   // abierto en el sheet. Sirve para compartir el link y volver al mismo estado.
+  // `?scope=mine|all` refleja el tab activo (Míos / Todos).
+  // El resto de los filtros también se serializan en la URL para que un link
+  // compartido reabra la misma vista.
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const idEnUrl = searchParams.get("id")
+  const scopeEnUrl = searchParams.get("scope") // "mine" | "all" | null
+
+  // Tab de scope. Default por rol: User/Consultor/Auditor arrancan en "mine";
+  // Supervisor y superior arrancan en "all". Los defaults corren SOLO cuando la
+  // URL no trae `?scope=` explícito — así un link compartido "?scope=all"
+  // funciona para cualquier rol.
+  const [scope, setScope] = useState<"mine" | "all">(() =>
+    scopeEnUrl === "mine" || scopeEnUrl === "all" ? scopeEnUrl : (isSupervisorOrAbove ? "all" : "mine"),
+  )
+
+  // Si al montar todavía no sabíamos el rol (roles llegan del store con
+  // hydration guard) y ahora sí, re-aplicamos el default cuando no hay `?scope=`
+  // en la URL. Evita el flash "Todos" en User mientras carga los roles.
+  const scopeInitFromRoleRef = useRef(false)
+  useEffect(() => {
+    if (scopeInitFromRoleRef.current) return
+    if (scopeEnUrl === "mine" || scopeEnUrl === "all") { scopeInitFromRoleRef.current = true; return }
+    const defaultScope: "mine" | "all" = isSupervisorOrAbove ? "all" : "mine"
+    setScope(defaultScope)
+    scopeInitFromRoleRef.current = true
+  }, [isSupervisorOrAbove, scopeEnUrl])
 
   // (1) Al montar / cambiar el `?id=`, si el store no tiene ese pendiente abierto
   //     lo abrimos. Guard con ref para evitar re-abrir cuando el user cerró el
@@ -85,6 +116,43 @@ export default function PendientesPage() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }, [openIdEnStore, idEnUrl, pathname, router, searchParams])
 
+  // (3) Sync scope → URL.
+  useEffect(() => {
+    if (scope === scopeEnUrl) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("scope", scope)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }, [scope, scopeEnUrl, pathname, router, searchParams])
+
+  // (4) Sync todos los filtros de listado → URL. Los defaults se OMITEN de la
+  // querystring para que un URL "/ejecucion/pendientes" quede limpio. Solo se
+  // escriben los params que difieren del default (search vacío, estado=OPEN,
+  // page=1, otros vacíos).
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    // Búsqueda + filtros de select
+    setOrDelete(params, "search", search)
+    setOrDelete(params, "sistemaId", sistemaId)
+    setOrDelete(params, "subSistemaId", subSistemaId)
+    setOrDelete(params, "responsableId", responsableId)
+    setOrDelete(params, "categoriaId", categoriaId)
+    setOrDelete(params, "tipoId", tipoId)
+    setOrDelete(params, "prioridad", prioridad)
+    // Estado: OPEN es default → no lo serializamos.
+    if (estadoSel === OPEN) params.delete("estado")
+    else params.set("estado", estadoSel)
+    // Page: 1 es default → no lo serializamos.
+    if (page === 1) params.delete("page")
+    else params.set("page", String(page))
+
+    const qs = params.toString()
+    const target = qs ? `${pathname}?${qs}` : pathname
+    // Solo replace si realmente cambia — evita loops en el effect de scope/id.
+    const current = searchParams.toString()
+    if (current !== qs) router.replace(target, { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, sistemaId, subSistemaId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
+
   const { data: perfil } = useGetPerfil()
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
@@ -105,6 +173,13 @@ export default function PendientesPage() {
     [subSistemas, sistemaId],
   )
 
+  // Traducción del estado seleccionado a los filtros del backend:
+  //  - OPEN  → soloAbiertos: true, estadoId: undefined
+  //  - ALL   → ambos undefined (todos los estados)
+  //  - <id>  → estadoId: <id>, soloAbiertos: undefined
+  const estadoIdFilter = estadoSel !== OPEN && estadoSel !== ALL ? estadoSel : undefined
+  const soloAbiertosFilter = estadoSel === OPEN ? true : undefined
+
   const { data, isLoading } = useSearchPendientes({
     page,
     pageSize,
@@ -112,12 +187,13 @@ export default function PendientesPage() {
       search: search || undefined,
       sistemaId: sistemaId || undefined,
       subSistemaId: subSistemaId || undefined,
-      estadoId: estadoId || undefined,
+      estadoId: estadoIdFilter,
       responsableId: responsableId || undefined,
       categoriaId: categoriaId || undefined,
       tipoId: tipoId || undefined,
       prioridad: prioridad ? Number(prioridad) : undefined,
-      soloAbiertos: soloAbiertos || undefined,
+      soloAbiertos: soloAbiertosFilter,
+      soloMios: scope === "mine" ? true : undefined,
     },
   })
 
@@ -126,8 +202,8 @@ export default function PendientesPage() {
   const items = data?.data ?? []
 
   function clearFiltros() {
-    setSistemaId(""); setSubSistemaId(""); setEstadoId(""); setResponsableId("")
-    setCategoriaId(""); setTipoId(""); setPrioridad(""); setSoloAbiertos(true)
+    setSistemaId(""); setSubSistemaId(""); setEstadoSel(OPEN); setResponsableId("")
+    setCategoriaId(""); setTipoId(""); setPrioridad("")
     setPage(1)
   }
 
@@ -151,9 +227,21 @@ export default function PendientesPage() {
     const ss = subSistemas.find((x) => x.id === subSistemaId)
     activeFilters.push({ id: "subsistema", label: `Subsistema: ${ss?.nombre ?? "—"}`, onRemove: () => { setSubSistemaId(""); setPage(1) } })
   }
-  if (estadoId) {
-    const e = estados.find((x) => x.id === estadoId)
-    activeFilters.push({ id: "estado", label: `Estado: ${ESTADO_LABEL[e?.estado ?? ""] ?? e?.estado}`, onRemove: () => { setEstadoId(""); setPage(1) } })
+  // Chip para el Estado: solo aparece si el user eligió algo distinto al default
+  // "Todos los abiertos" (OPEN). Muestra label distinto según el caso.
+  if (estadoSel === ALL) {
+    activeFilters.push({
+      id: "estado",
+      label: "Estado: Todos (incluye cerrados)",
+      onRemove: () => { setEstadoSel(OPEN); setPage(1) },
+    })
+  } else if (estadoSel !== OPEN) {
+    const e = estados.find((x) => x.id === estadoSel)
+    activeFilters.push({
+      id: "estado",
+      label: `Estado: ${ESTADO_LABEL[e?.estado ?? ""] ?? e?.estado}`,
+      onRemove: () => { setEstadoSel(OPEN); setPage(1) },
+    })
   }
   if (responsableId) {
     const u = usuarios.find((x) => x.usuarioId === responsableId)
@@ -170,9 +258,6 @@ export default function PendientesPage() {
   if (prioridad) {
     activeFilters.push({ id: "prioridad", label: `Prioridad: ${PRIORIDAD[Number(prioridad)] ?? "—"}`, onRemove: () => { setPrioridad(""); setPage(1) } })
   }
-  if (!soloAbiertos) {
-    activeFilters.push({ id: "incluye-terminales", label: "Incluye cerrados/cancelados", onRemove: () => { setSoloAbiertos(true); setPage(1) } })
-  }
 
   return (
     <>
@@ -180,6 +265,36 @@ export default function PendientesPage() {
       <PendienteDetalleSheet wide />
 
       <div className="space-y-4">
+        {/* Tabs de scope (Míos / Todos). Default por rol: User/Consultor/Auditor
+            arrancan en "Míos" (creador o responsable); Supervisor+ arranca en
+            "Todos". El link `?scope=` en la URL sobrescribe el default. */}
+        <div className="inline-flex items-center rounded-md border bg-muted p-0.5">
+          <button
+            type="button"
+            onClick={() => { setScope("mine"); setPage(1) }}
+            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
+              scope === "mine"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            aria-pressed={scope === "mine"}
+          >
+            Míos
+          </button>
+          <button
+            type="button"
+            onClick={() => { setScope("all"); setPage(1) }}
+            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
+              scope === "all"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            aria-pressed={scope === "all"}
+          >
+            Todos
+          </button>
+        </div>
+
         {/* Buscador + acciones */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-full sm:w-80">
@@ -192,6 +307,12 @@ export default function PendientesPage() {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/ejecucion/pids" title="Abrir visor de PIDs">
+                <MapPin className="h-4 w-4 text-blue-700" />
+                <span className="hidden sm:inline">Ver PIDs</span>
+              </Link>
+            </Button>
             <FiltersTrigger
               open={filtersOpen}
               onOpenChange={setFiltersOpen}
@@ -216,14 +337,23 @@ export default function PendientesPage() {
           hasActiveFilters={activeFilters.length > 0}
         >
           <FilterField label="Estado">
-            <Select value={estadoId || ALL} onValueChange={(v) => { const value = v ?? ALL; setEstadoId(value === ALL ? "" : value); setPage(1) }}>
+            <Select
+              value={estadoSel}
+              onValueChange={(v) => { setEstadoSel(v ?? OPEN); setPage(1) }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue>
-                  {estadoId ? ESTADO_LABEL[estados.find((e) => e.id === estadoId)?.estado ?? ""] ?? "Estado" : "Todos los estados"}
+                  {(() => {
+                    if (estadoSel === OPEN) return "Todos los abiertos"
+                    if (estadoSel === ALL) return "Todos (incluye cerrados)"
+                    const e = estados.find((x) => x.id === estadoSel)
+                    return ESTADO_LABEL[e?.estado ?? ""] ?? e?.estado ?? "Estado"
+                  })()}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>Todos los estados</SelectItem>
+                <SelectItem value={OPEN}>Todos los abiertos</SelectItem>
+                <SelectItem value={ALL}>Todos (incluye cerrados)</SelectItem>
                 {estados.map((e) => (
                   <SelectItem key={e.id} value={e.id}>{ESTADO_LABEL[e.estado] ?? e.estado}</SelectItem>
                 ))}
@@ -334,17 +464,6 @@ export default function PendientesPage() {
             </Select>
           </FilterField>
 
-          <FilterField label="Mostrar">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={soloAbiertos}
-                onChange={(e) => { setSoloAbiertos(e.target.checked); setPage(1) }}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              Solo abiertos (excluye CERRADO/CANCELADO)
-            </label>
-          </FilterField>
         </FiltersSheet>
 
         {/* Cards (solo mobile) */}
@@ -496,4 +615,11 @@ export default function PendientesPage() {
       </div>
     </>
   )
+}
+
+// Helper: setea el param si el valor está seteado, lo borra si es vacío.
+// Evita `?foo=` (query string con clave sin valor) que se ve feo.
+function setOrDelete(params: URLSearchParams, key: string, value: string) {
+  if (value) params.set(key, value)
+  else params.delete(key)
 }
