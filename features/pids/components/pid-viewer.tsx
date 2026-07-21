@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { fetchPidDownloadUrl } from "../api/use-mutate-pids"
-import { loadPdfjs, renderPage, pointerToNormalized, dist } from "../lib/pid-viewer-lib"
+import {
+  loadPdfjs,
+  renderPage,
+  pointerToNormalized,
+  dist,
+  isRenderCancelledError,
+  type RenderHandle,
+} from "../lib/pid-viewer-lib"
 import type { PidPendientePin } from "../types"
 
 interface PidViewerProps {
@@ -137,6 +144,11 @@ export function PidViewer({
   }, [pidArchivoId])
 
   // ─── 2) Render de la página actual ───────────────────────────────────────
+  // pdfjs no permite dos `page.render()` simultáneos sobre el mismo canvas.
+  // Guardamos el handle del render en curso y lo cancelamos antes de iniciar
+  // uno nuevo — sino al hacer resize/rotar aparece "Cannot use the same canvas
+  // during multiple render() operations".
+  const currentRenderRef = useRef<RenderHandle | null>(null)
   const renderCurrentPage = useCallback(async () => {
     const doc = docRef.current
     const wrap = wrapRef.current
@@ -144,8 +156,16 @@ export function PidViewer({
     if (!doc || !wrap || !canvas) return
     const rect = wrap.getBoundingClientRect()
     if (rect.width < 10 || rect.height < 10) return
+
+    // Cancelar el render anterior si sigue en curso.
+    currentRenderRef.current?.cancel()
+
+    const handle = renderPage(doc, page, canvas, rect.width, rect.height)
+    currentRenderRef.current = handle
     try {
-      const { widthPx, heightPx } = await renderPage(doc, page, canvas, rect.width, rect.height)
+      const { widthPx, heightPx } = await handle.promise
+      if (currentRenderRef.current !== handle) return // reemplazado por otro render
+      currentRenderRef.current = null
       if (overlayRef.current) {
         overlayRef.current.style.width = `${widthPx}px`
         overlayRef.current.style.height = `${heightPx}px`
@@ -153,7 +173,13 @@ export function PidViewer({
       // Reset de transform al cambiar de página / reload — evita quedar
       // desencuadrado si la página anterior tenía otra proporción.
       setScale(1); setTx(0); setTy(0)
+      // Limpiamos error previo si el render actual salió bien.
+      setDocError(null)
     } catch (e) {
+      // Cancelaciones son parte del flujo normal (resize rápido) — no las
+      // reportamos como error al usuario.
+      if (isRenderCancelledError(e)) return
+      if (currentRenderRef.current === handle) currentRenderRef.current = null
       setDocError((e as Error).message)
     }
   }, [page])
@@ -161,15 +187,26 @@ export function PidViewer({
   useEffect(() => {
     if (docLoading) return
     void renderCurrentPage()
+    // Cancelar el render en curso al desmontar / cambiar deps.
+    return () => currentRenderRef.current?.cancel()
   }, [docLoading, renderCurrentPage])
 
   // Re-render en resize del contenedor (cambio de orientación / abrir panels).
+  // Debounce ~120ms para no disparar N renders durante un drag del sidebar o
+  // durante la animación de rotación del device.
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
-    const ro = new ResizeObserver(() => { void renderCurrentPage() })
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const ro = new ResizeObserver(() => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => { void renderCurrentPage() }, 120)
+    })
     ro.observe(wrap)
-    return () => ro.disconnect()
+    return () => {
+      if (timer) clearTimeout(timer)
+      ro.disconnect()
+    }
   }, [renderCurrentPage])
 
   // ─── 3) Gestos (pointer events) ──────────────────────────────────────────
