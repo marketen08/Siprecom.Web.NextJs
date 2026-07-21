@@ -66,7 +66,9 @@ export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProp
             <SheetTitle className="text-gray-400">Cargando…</SheetTitle>
           ) : p ? (
             <>
-              <SheetTitle className="text-lg font-bold flex items-center gap-2 flex-wrap">
+              {/* pr-10 en el título para que los badges no se metan debajo de
+                  la X de cerrar del sheet (top-3 right-3). */}
+              <SheetTitle className="text-lg font-bold flex items-center gap-2 flex-wrap pr-10">
                 <span className="font-mono text-blue-700">{p.codigoFormateado}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
                   {ESTADO_LABEL[p.estadoNombre ?? ""] ?? p.estadoNombre}
@@ -74,25 +76,16 @@ export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProp
                 <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
-                {!isEditing && (
-                  <div className="ml-auto flex items-center gap-1.5">
-                    <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
-                      <a href={`/api/pendientes/${p.id}/pdf`} target="_blank" rel="noreferrer">
-                        <FileDown className="h-3 w-3" /> PDF
-                      </a>
-                    </Button>
-                    {p.tienePdfFisico && (
-                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
-                        <a
-                          href={`/api/pendientes/${p.id}/pdf-fisico`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Descargar el PDF firmado en papel que cerró el pendiente"
-                        >
-                          <FileDown className="h-3 w-3 text-emerald-700" /> PDF firmado
-                        </a>
-                      </Button>
-                    )}
+              </SheetTitle>
+              {!isEditing && (
+                <>
+                  <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {p.descripcion}
+                  </SheetDescription>
+                  {/* Barra de acciones — separada del header para no chocar con
+                      la X de cerrar. Aparecen solo las que aplican al estado
+                      actual y al rol del usuario. */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2">
                     {canWrite
                       && p.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
                       && p.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
@@ -102,7 +95,28 @@ export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProp
                         className="gap-1.5 h-7 text-xs"
                         onClick={() => setCargaFisicaOpen(true)}
                       >
-                        <FileUp className="h-3 w-3" /> Cargar físico
+                        <FileUp className="h-3 w-3" /> Cargar PDF Firmado
+                      </Button>
+                    )}
+                    {/* Una vez cargado el PDF firmado, ese reemplaza al PDF
+                        genérico — el usuario ya no necesita el "en blanco". */}
+                    {!p.tienePdfFisico && (
+                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                        <a href={`/api/pendientes/${p.id}/pdf`} target="_blank" rel="noreferrer">
+                          <FileDown className="h-3 w-3" /> Descargar PDF
+                        </a>
+                      </Button>
+                    )}
+                    {p.tienePdfFisico && (
+                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                        <a
+                          href={`/api/pendientes/${p.id}/pdf-fisico`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Descargar el PDF firmado en papel que cerró el pendiente"
+                        >
+                          <FileDown className="h-3 w-3 text-emerald-700" /> Descargar PDF Firmado
+                        </a>
                       </Button>
                     )}
                     {puedeEditar && (
@@ -116,12 +130,7 @@ export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProp
                       </Button>
                     )}
                   </div>
-                )}
-              </SheetTitle>
-              {!isEditing && (
-                <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
-                  {p.descripcion}
-                </SheetDescription>
+                </>
               )}
             </>
           ) : (

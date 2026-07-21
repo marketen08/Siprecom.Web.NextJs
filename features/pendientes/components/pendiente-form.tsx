@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Combobox } from "@/components/ui/combobox"
+import { DescripcionAutocomplete } from "./descripcion-autocomplete"
 import {
   Form,
   FormControl,
@@ -135,11 +136,12 @@ export function PendienteForm({
               <FormItem>
                 <FormLabel>Descripción</FormLabel>
                 <FormControl>
-                  <Textarea
-                    placeholder="Describí el pendiente con detalle..."
-                    rows={4}
+                  <DescripcionAutocomplete
+                    name={field.name}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
                     disabled={isPending}
-                    {...field}
                   />
                 </FormControl>
                 <FormMessage />
