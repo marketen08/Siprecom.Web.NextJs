@@ -234,12 +234,18 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
       </SheetContent>
 
       {/* Dialog de carga física. Se abre desde el botón "Cargar físico" del header
-          del sheet. Reusa el mismo uploader que la ruta /pendiente-carga/{id}. */}
+          del sheet. Reusa el mismo uploader que la ruta /pendiente-carga/{id}.
+          El content es más ancho, tiene ring más marcado y sombra fuerte para
+          separarse del PID de fondo. El overlay usa bg-black/40 + blur más
+          intenso porque el sheet debajo (en el visor de PID) no monta backdrop. */}
       <AlertDialog
         open={cargaFisicaOpen}
         onOpenChange={(v) => setCargaFisicaOpen(v)}
       >
-        <AlertDialogContent className="max-w-lg">
+        <AlertDialogContent
+          className="max-w-[min(92vw,720px)] sm:max-w-2xl! ring-2 ring-black/20 shadow-2xl"
+          overlayClassName="bg-black/40 supports-backdrop-filter:backdrop-blur-sm"
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Cargar PDF firmado del pendiente</AlertDialogTitle>
             <AlertDialogDescription>

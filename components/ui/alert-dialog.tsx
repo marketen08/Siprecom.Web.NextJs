@@ -41,13 +41,20 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  overlayClassName,
   ...props
 }: AlertDialogPrimitive.Popup.Props & {
   size?: "default" | "sm"
+  /**
+   * Clase extra para el overlay (backdrop). Útil cuando el dialog se abre
+   * sobre contenido que necesita más contraste — por ejemplo un visor de
+   * PDF, donde el bg-black/10 default no separa lo suficiente del modal.
+   */
+  overlayClassName?: string
 }) {
   return (
     <AlertDialogPortal>
-      <AlertDialogOverlay />
+      <AlertDialogOverlay className={overlayClassName} />
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         data-size={size}
