@@ -11,6 +11,7 @@ export function useUpdatePendiente(id: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pendientes"] })
       qc.invalidateQueries({ queryKey: ["pendientes", id] })
+      qc.invalidateQueries({ queryKey: ["pid-archivos"] })
     },
   })
 }

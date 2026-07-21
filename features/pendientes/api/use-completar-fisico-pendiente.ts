@@ -36,6 +36,7 @@ export function useCompletarFisicoPendiente(pendienteId: string) {
       // Refrescamos todas las vistas que consumen el pendiente + listado.
       qc.invalidateQueries({ queryKey: ["pendiente", pendienteId] })
       qc.invalidateQueries({ queryKey: ["pendientes"] })
+      qc.invalidateQueries({ queryKey: ["pid-archivos"] })
     },
   })
 }

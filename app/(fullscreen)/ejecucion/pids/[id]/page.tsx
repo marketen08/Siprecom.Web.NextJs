@@ -34,6 +34,9 @@ export default function PidVisorPage({ params }: PageProps) {
 
   const openNewPendiente = useNewPendiente((s) => s.open)
   const openPendienteDetalle = useOpenPendiente((s) => s.open)
+  // Id del pendiente actualmente abierto en el sheet — el visor lo destaca con
+  // flecha + halo pulsante para que el usuario ubique el pin de un vistazo.
+  const focusedPendienteId = useOpenPendiente((s) => (s.isOpen ? s.id : null))
 
   const movePinMutation = useMovePinPendiente()
   const onPinMove = (pin: PidPendientePin, coord: { x: number; y: number }) => {
@@ -72,8 +75,8 @@ export default function PidVisorPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col" style={{ height: "calc(100dvh - 4rem)" }}>
-      <NewPendienteSheet />
-      <PendienteDetalleSheet />
+      <NewPendienteSheet hideOverlay />
+      <PendienteDetalleSheet hideOverlay />
 
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 shadow-sm">
@@ -162,6 +165,7 @@ export default function PidVisorPage({ params }: PageProps) {
           onPinClick={(pin) => openPendienteDetalle(pin.id)}
           onPinMove={onPinMove}
           puedeMoverPin={puedeMoverPin}
+          focusedPinId={focusedPendienteId}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">

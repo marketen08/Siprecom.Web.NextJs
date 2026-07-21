@@ -34,7 +34,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-export function PendienteDetalleSheet() {
+interface PendienteDetalleSheetProps {
+  /** Oculta el backdrop — usado desde el visor de PID para no tapar el plano. */
+  hideOverlay?: boolean
+}
+
+export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProps = {}) {
   const { id, isOpen, close } = useOpenPendiente()
   const { data, isLoading } = useGetPendiente(id)
   const p = data?.data
@@ -55,7 +60,7 @@ export function PendienteDetalleSheet() {
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto" hideOverlay={hideOverlay}>
         <SheetHeader>
           {isLoading ? (
             <SheetTitle className="text-gray-400">Cargando…</SheetTitle>

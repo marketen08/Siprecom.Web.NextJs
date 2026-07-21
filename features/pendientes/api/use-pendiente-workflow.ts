@@ -27,6 +27,9 @@ export function usePendienteTransicion() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["pendientes"] })
       qc.invalidateQueries({ queryKey: ["pendientes", vars.id] })
+      // Los pines del visor de PID cachean el estado del pendiente para
+      // pintar su color — refrescamos para que cambie en el acto.
+      qc.invalidateQueries({ queryKey: ["pid-archivos"] })
     },
   })
 }
@@ -46,6 +49,9 @@ export function useAsignarResponsable() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["pendientes"] })
       qc.invalidateQueries({ queryKey: ["pendientes", vars.id] })
+      // Los pines del visor de PID cachean el estado del pendiente para
+      // pintar su color — refrescamos para que cambie en el acto.
+      qc.invalidateQueries({ queryKey: ["pid-archivos"] })
     },
   })
 }

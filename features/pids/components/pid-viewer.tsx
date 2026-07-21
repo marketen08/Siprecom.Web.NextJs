@@ -28,6 +28,11 @@ interface PidViewerProps {
    * Default: true para todos.
    */
   puedeMoverPin?: (pin: PidPendientePin) => boolean
+  /**
+   * Id del pendiente que está actualmente abierto en el sheet. Ese pin se pinta
+   * con un halo pulsante + flecha para ubicar visualmente cuál es.
+   */
+  focusedPinId?: string | null
 }
 
 interface PointerState {
@@ -56,6 +61,7 @@ export function PidViewer({
   onPinClick,
   onPinMove,
   puedeMoverPin,
+  focusedPinId,
 }: PidViewerProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -289,13 +295,18 @@ export function PidViewer({
 
   const onPinPointerDown = useCallback((ev: React.PointerEvent, pin: PidPendientePin) => {
     ev.stopPropagation() // no propagar al viewer (sino se mete en el pan)
-    if (!onPinMove) return // sin handler = solo click, no drag
-    if (puedeMoverPin && !puedeMoverPin(pin)) return
+    // Siempre capturamos y trackeamos el pointer, aunque el pin no sea drageable —
+    // sino el pointerup nunca sabe que es "el mismo" pointer y no dispara el
+    // click (bug de "no se abre el detalle en pines cerrados").
     ;(ev.target as HTMLElement).setPointerCapture(ev.pointerId)
     draggingPointerIdRef.current = ev.pointerId
     draggingPinRef.current = pin
     pinPressStartRef.current = { x: ev.clientX, y: ev.clientY }
     cancelLongPress()
+
+    // Long-press / Shift-drag solo si el caller habilitó mover y el gate lo permite.
+    const canDrag = !!onPinMove && (!puedeMoverPin || puedeMoverPin(pin))
+    if (!canDrag) return
 
     // Atajo desktop: Shift+drag entra en modo drag inmediato, sin esperar el
     // long-press. Rápido para mouse; touch usa siempre long-press (no hay Shift).
@@ -391,38 +402,84 @@ export function PidViewer({
             .filter((p) => p.pagina === page)
             .map((pin) => {
               const isDragging = draggingPinId === pin.id
+              const isFocused = focusedPinId === pin.id
               const coordX = isDragging && draggedCoord ? draggedCoord.x : pin.coordX
               const coordY = isDragging && draggedCoord ? draggedCoord.y : pin.coordY
               return (
-                <button
+                <div
                   key={pin.id}
-                  type="button"
-                  className={`absolute pointer-events-auto -translate-x-1/2 -translate-y-full rounded-full border-2 border-white shadow-md cursor-pointer transition-transform ${
-                    isDragging ? "scale-150 ring-4 ring-white/70 z-10" : "active:scale-110"
-                  }`}
+                  className="absolute pointer-events-none"
                   style={{
                     left: `${coordX * 100}%`,
                     top: `${coordY * 100}%`,
-                    width: 24,
-                    height: 24,
-                    backgroundColor: colorPorEstado(pin.estadoId),
-                    touchAction: "none",
+                    // z-index alto en el pin focused para que la flecha/halo
+                    // no queden tapados por otros pines cercanos.
+                    zIndex: isFocused ? 20 : isDragging ? 10 : 1,
                   }}
-                  title={`${pin.codigoFormateado} · ${pin.estadoNombre} — ${pin.categoriaNombre}${
-                    onPinMove ? " (mantené presionado, o Shift+arrastrar en PC, para mover)" : ""
-                  }`}
-                  onPointerDown={(e) => onPinPointerDown(e, pin)}
-                  onPointerMove={onPinPointerMove}
-                  onPointerUp={(e) => onPinPointerUp(e, pin)}
-                  onPointerCancel={onPinPointerCancel}
-                  // El click nativo lo suprimimos: la lógica está en onPointerUp
-                  // (distingue tap corto vs drag).
-                  onClick={(e) => e.stopPropagation()}
                 >
-                  <span className="text-[10px] font-bold text-white block leading-none">
-                    {pin.codigo}
-                  </span>
-                </button>
+                  {/* Flecha apuntando al pin (visible sólo si es el focused). Se
+                      posiciona arriba de la punta del pin y "cae" con animación. */}
+                  {isFocused && (
+                    <div
+                      className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce"
+                      style={{ bottom: 8, filter: "drop-shadow(0 2px 4px rgba(0,0,0,.4))" }}
+                    >
+                      <div className="rounded-md bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 whitespace-nowrap">
+                        {pin.codigoFormateado}
+                      </div>
+                      <ChevronDownIcon />
+                    </div>
+                  )}
+
+                  {/* Halo pulsante (ping) — sólo si es el focused. Es un círculo
+                      absolute que se expande y desvanece en loop. */}
+                  {isFocused && (
+                    <span
+                      className="absolute -translate-x-1/2 -translate-y-full rounded-full animate-ping"
+                      style={{
+                        left: 0,
+                        top: 0,
+                        width: 24,
+                        height: 24,
+                        backgroundColor: colorPorEstado(pin.estadoId),
+                        opacity: 0.6,
+                      }}
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-full rounded-full border-2 shadow-md cursor-pointer transition-transform ${
+                      isDragging
+                        ? "scale-150 ring-4 ring-white/70"
+                        : isFocused
+                          ? "scale-125 border-blue-600 ring-2 ring-blue-400"
+                          : "border-white active:scale-110"
+                    }`}
+                    style={{
+                      left: 0,
+                      top: 0,
+                      width: 24,
+                      height: 24,
+                      backgroundColor: colorPorEstado(pin.estadoId),
+                      touchAction: "none",
+                    }}
+                    title={`${pin.codigoFormateado} · ${pin.estadoNombre} — ${pin.categoriaNombre}${
+                      onPinMove ? " (mantené presionado, o Shift+arrastrar en PC, para mover)" : ""
+                    }`}
+                    onPointerDown={(e) => onPinPointerDown(e, pin)}
+                    onPointerMove={onPinPointerMove}
+                    onPointerUp={(e) => onPinPointerUp(e, pin)}
+                    onPointerCancel={onPinPointerCancel}
+                    // El click nativo lo suprimimos: la lógica está en onPointerUp
+                    // (distingue tap corto vs drag).
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="text-[10px] font-bold text-white block leading-none">
+                      {pin.codigo}
+                    </span>
+                  </button>
+                </div>
               )
             })}
         </div>
@@ -479,6 +536,23 @@ export function PidViewer({
 
 function pt(p: PointerState): { x: number; y: number } {
   return { x: p.clientX, y: p.clientY }
+}
+
+// Chevron SVG inline — pequeño, sin dep de lucide para mantener el visor
+// autocontenido. Apunta hacia abajo, hacia la punta del pin.
+function ChevronDownIcon() {
+  return (
+    <svg
+      width="20"
+      height="12"
+      viewBox="0 0 20 12"
+      fill="currentColor"
+      className="text-blue-600"
+      aria-hidden
+    >
+      <path d="M10 12 L0 0 L20 0 Z" />
+    </svg>
+  )
 }
 
 function colorPorEstado(estadoId: string): string {
