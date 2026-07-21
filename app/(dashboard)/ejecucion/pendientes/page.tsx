@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { MapPin, Plus, Search } from "lucide-react"
@@ -39,7 +39,18 @@ const ALL = "__all__"
 // filtro del backend. Es el valor default del select de Estado.
 const OPEN = "__open__"
 
+// El default export envuelve en <Suspense> — obligatorio en Next 16 cuando el
+// componente usa useSearchParams (que hace client-side bailout durante el
+// pre-render estático).
 export default function PendientesPage() {
+  return (
+    <Suspense>
+      <PendientesPageContent />
+    </Suspense>
+  )
+}
+
+function PendientesPageContent() {
   const searchParams = useSearchParams()
 
   // Estado inicial se lee de la URL para que un link compartido reabra la
