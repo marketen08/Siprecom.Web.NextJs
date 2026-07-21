@@ -9,6 +9,8 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetElementosTiposUsados } from "@/features/elementostipos/api/use-get-elementostipos-usados"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { useGetTareasSelect } from "@/features/tareas/api/use-get-tareas-select"
+import { useGetAreasSelect } from "@/features/areas/api/use-get-areas-select"
+import { useGetModulosSelect } from "@/features/modulos/api/use-get-modulos-select"
 import { PRIORIDAD } from "@/features/elementos/types"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
@@ -61,6 +63,15 @@ function AvanceElementosContent() {
   const sistemaIdParam = searchParams.get("sistemaId") ?? undefined
   const subSistemaIdParam = searchParams.get("subSistemaId") ?? undefined
   const elementoIdParam = searchParams.get("elementoId") ?? undefined
+  // Filtros nuevos que se leen de la URL para deep-link.
+  const especialidadIdParam = searchParams.get("especialidadId") ?? ""
+  const elementoTipoIdParam = searchParams.get("elementoTipoId") ?? ""
+  const prioridadParam = searchParams.get("prioridad") ?? ""
+  const tareaIdParam = searchParams.get("tareaId") ?? ""
+  const estadoTareaParam = searchParams.get("estadoTarea") ?? ""
+  const moduloIdParam = searchParams.get("moduloId") ?? ""
+  const areaIdParam = searchParams.get("areaId") ?? ""
+  const searchParam = searchParams.get("search") ?? ""
   // `?preservacion=1` en la URL indica que se debe mostrar el sheet secundario de
   // preservación del elemento. Deep-linkable desde /ejecucion/preservacion y desde
   // el banner del sheet principal.
@@ -68,12 +79,14 @@ function AvanceElementosContent() {
 
   const [sistemaId, setSistemaId] = useState<string>(sistemaIdParam ?? "")
   const [subSistemaId, setSubSistemaId] = useState<string>(subSistemaIdParam ?? "")
-  const [especialidadId, setEspecialidadId] = useState<string>("")
-  const [elementoTipoId, setElementoTipoId] = useState<string>("")
-  const [prioridad, setPrioridad] = useState<string>("")
-  const [tareaId, setTareaId] = useState<string>("")
-  const [estadoTarea, setEstadoTarea] = useState<string>("")
-  const [search, setSearch] = useState("")
+  const [especialidadId, setEspecialidadId] = useState<string>(especialidadIdParam)
+  const [elementoTipoId, setElementoTipoId] = useState<string>(elementoTipoIdParam)
+  const [prioridad, setPrioridad] = useState<string>(prioridadParam)
+  const [tareaId, setTareaId] = useState<string>(tareaIdParam)
+  const [estadoTarea, setEstadoTarea] = useState<string>(estadoTareaParam)
+  const [moduloId, setModuloId] = useState<string>(moduloIdParam)
+  const [areaId, setAreaId] = useState<string>(areaIdParam)
+  const [search, setSearch] = useState(searchParam)
   const [page, setPage] = useState(1)
   const pageSize = 20
   const [selectedElemento, setSelectedElemento] = useState<{ id: string; avance: AvanceElementoDTO | null } | null>(null)
@@ -89,7 +102,7 @@ function AvanceElementosContent() {
   // Cuando cambia algún filtro o la búsqueda, volvemos a la página 1.
   useEffect(() => {
     setPage(1)
-  }, [search, sistemaId, subSistemaId, especialidadId, elementoTipoId, prioridad, tareaId, estadoTarea])
+  }, [search, sistemaId, subSistemaId, especialidadId, elementoTipoId, prioridad, tareaId, estadoTarea, moduloId, areaId])
 
   useEffect(() => {
     if (sistemaIdParam && sistemaId !== sistemaIdParam) {
@@ -97,15 +110,39 @@ function AvanceElementosContent() {
     }
   }, [sistemaIdParam])
 
-  // Mantiene la URL sincronizada con los filtros de sistema/subsistema. Los otros filtros
-  // viven solo en estado local (no van a la URL para no contaminarla).
+  // Mantiene la URL sincronizada con los filtros de sistema/subsistema, pero
+  // también preserva el resto de los params (search, elementoId, preservacion,
+  // etc.) que se manejan en otros efectos.
   function syncUrl(nextSistemaId: string, nextSubSistemaId: string) {
-    const qs = new URLSearchParams()
+    const qs = new URLSearchParams(searchParams.toString())
     if (nextSistemaId) qs.set("sistemaId", nextSistemaId)
+    else qs.delete("sistemaId")
     if (nextSubSistemaId) qs.set("subSistemaId", nextSubSistemaId)
+    else qs.delete("subSistemaId")
     const s = qs.toString()
     router.replace(s ? `/ejecucion/elementos?${s}` : "/ejecucion/elementos")
   }
+
+  // Sync automático de los filtros que viven solo en estado local (fuera de
+  // syncUrl que se llama a mano para sistema/subsistema). Reemplaza en URL sin
+  // agregar entrada al history. Los valores por default se omiten para dejar
+  // la URL limpia.
+  useEffect(() => {
+    const qs = new URLSearchParams(searchParams.toString())
+    setOrDelete(qs, "search", search)
+    setOrDelete(qs, "especialidadId", especialidadId)
+    setOrDelete(qs, "elementoTipoId", elementoTipoId)
+    setOrDelete(qs, "prioridad", prioridad)
+    setOrDelete(qs, "tareaId", tareaId)
+    setOrDelete(qs, "estadoTarea", estadoTarea)
+    setOrDelete(qs, "moduloId", moduloId)
+    setOrDelete(qs, "areaId", areaId)
+    const target = qs.toString()
+    if (target !== searchParams.toString()) {
+      router.replace(target ? `/ejecucion/elementos?${target}` : "/ejecucion/elementos")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, especialidadId, elementoTipoId, prioridad, tareaId, estadoTarea, moduloId, areaId])
 
   function handleOpenElemento(e: AvanceElementoDTO) {
     setSelectedElemento({ id: e.id, avance: e })
@@ -148,12 +185,16 @@ function AvanceElementosContent() {
   const { data: tiposRaw } = useGetElementosTiposUsados()
   const { data: tareasRaw } = useGetTareasSelect()
   const { data: especialidadesRaw } = useGetEspecialidadesUsadas()
+  const { data: modulosRaw } = useGetModulosSelect()
+  const { data: areasRaw } = useGetAreasSelect()
 
   const sistemas = sistemasRaw?.data ?? []
   const todosSubSistemas = subSistemasRaw?.data ?? []
   const tipos: Array<{ id: string; nombre: string; especialidadId?: string }> = (tiposRaw as any)?.data ?? []
   const tareas: Array<{ id: string; codigo: number; nombre: string }> = (tareasRaw as any)?.data ?? []
   const especialidades = especialidadesRaw?.data ?? []
+  const modulos = modulosRaw?.data ?? []
+  const areas = areasRaw?.data ?? []
 
   const subSistemasFiltrados = sistemaId
     ? todosSubSistemas.filter((ss) => ss.sistemaId === sistemaId)
@@ -188,6 +229,8 @@ function AvanceElementosContent() {
     tareaId: tareaId || undefined,
     estadoTarea: estadoTarea ? Number(estadoTarea) : undefined,
     search: search.trim() || undefined,
+    moduloId: moduloId || undefined,
+    areaId: areaId || undefined,
     page,
     pageSize,
   })
@@ -253,6 +296,8 @@ function AvanceElementosContent() {
     setPrioridad("")
     setTareaId("")
     setEstadoTarea("")
+    setModuloId("")
+    setAreaId("")
     setSearch("")
     syncUrl("", "")
   }
@@ -316,6 +361,22 @@ function AvanceElementosContent() {
       id: "estadoTarea",
       label: `Estado tarea: ${ESTADO_TAREA_LABEL[Number(estadoTarea)] ?? "—"}`,
       onRemove: () => setEstadoTarea(""),
+    })
+  }
+  if (moduloId) {
+    const m = modulos.find((x) => x.id === moduloId)
+    activeFilters.push({
+      id: "modulo",
+      label: `Módulo: ${m?.nombre ?? "—"}`,
+      onRemove: () => setModuloId(""),
+    })
+  }
+  if (areaId) {
+    const a = areas.find((x) => x.id === areaId)
+    activeFilters.push({
+      id: "area",
+      label: `Área: ${a?.nombre ?? "—"}`,
+      onRemove: () => setAreaId(""),
     })
   }
 
@@ -488,6 +549,48 @@ function AvanceElementosContent() {
               <SelectItem value={ALL}>Todos los estados</SelectItem>
               {Object.entries(ESTADO_TAREA_LABEL).map(([id, label]) => (
                 <SelectItem key={id} value={id}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Módulo">
+          <Select
+            value={moduloId || ALL}
+            onValueChange={(v) => setModuloId(!v || v === ALL ? "" : v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {moduloId
+                  ? modulos.find((m) => m.id === moduloId)?.nombre ?? "Módulo"
+                  : "Todos los módulos"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos los módulos</SelectItem>
+              {modulos.map((m) => (
+                <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Área">
+          <Select
+            value={areaId || ALL}
+            onValueChange={(v) => setAreaId(!v || v === ALL ? "" : v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {areaId
+                  ? areas.find((a) => a.id === areaId)?.nombre ?? "Área"
+                  : "Todas las áreas"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas las áreas</SelectItem>
+              {areas.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -675,6 +778,13 @@ export default function AvanceElementosPage() {
       <AvanceElementosContent />
     </Suspense>
   )
+}
+
+// Helper: setea el param si el valor está seteado, lo borra si es vacío.
+// Evita `?foo=` (query string con clave sin valor) que se ve feo.
+function setOrDelete(params: URLSearchParams, key: string, value: string) {
+  if (value) params.set(key, value)
+  else params.delete(key)
 }
 
 // ── PrioridadBadge ─────────────────────────────────────────────────────────────

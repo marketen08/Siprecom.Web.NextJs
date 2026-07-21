@@ -10,6 +10,8 @@ const PARAMS = [
   "tareaId",
   "estadoTarea",
   "search",
+  "moduloId",
+  "areaId",
   "page",
   "pageSize",
 ] as const
