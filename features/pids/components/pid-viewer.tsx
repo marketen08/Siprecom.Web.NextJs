@@ -534,22 +534,49 @@ export function PidViewer({
         )}
       </div>
 
-      {/* Toolbar flotante */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/70 text-white text-sm px-3 py-1.5 shadow-lg backdrop-blur">
-        <button type="button" onClick={zoomOut} className="w-8 h-8 rounded hover:bg-white/10 cursor-pointer text-lg leading-none">−</button>
-        <button type="button" onClick={zoomReset} className="px-2 rounded hover:bg-white/10 cursor-pointer text-xs">
+      {/* Toolbar flotante — tap targets 44px en touch (Apple HIG), 32px en
+          desktop. Respeta safe-area-inset-bottom del device (iPhone con home
+          indicator). */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/75 text-white shadow-lg backdrop-blur px-2 py-1.5"
+        style={{
+          bottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px))`,
+        }}
+      >
+        <button
+          type="button"
+          onClick={zoomOut}
+          className="w-11 h-11 sm:w-9 sm:h-9 rounded-full hover:bg-white/10 active:bg-white/20 cursor-pointer text-xl sm:text-lg leading-none flex items-center justify-center"
+          aria-label="Alejar"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          onClick={zoomReset}
+          className="min-w-12 px-2 py-1 rounded-full hover:bg-white/10 active:bg-white/20 cursor-pointer text-xs tabular-nums"
+          title="Ajustar al viewport"
+        >
           {Math.round(scale * 100)}%
         </button>
-        <button type="button" onClick={zoomIn} className="w-8 h-8 rounded hover:bg-white/10 cursor-pointer text-lg leading-none">+</button>
+        <button
+          type="button"
+          onClick={zoomIn}
+          className="w-11 h-11 sm:w-9 sm:h-9 rounded-full hover:bg-white/10 active:bg-white/20 cursor-pointer text-xl sm:text-lg leading-none flex items-center justify-center"
+          aria-label="Acercar"
+        >
+          +
+        </button>
 
         {totalPaginas > 1 && (
           <>
-            <span className="w-px h-4 bg-white/20 mx-1" />
+            <span className="w-px h-5 bg-white/20 mx-0.5" />
             <button
               type="button"
               onClick={() => onPageChange(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="w-8 h-8 rounded hover:bg-white/10 disabled:opacity-40 cursor-pointer text-lg leading-none"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-full hover:bg-white/10 active:bg-white/20 disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-xl sm:text-lg leading-none flex items-center justify-center"
+              aria-label="Página anterior"
             >
               ‹
             </button>
@@ -560,7 +587,8 @@ export function PidViewer({
               type="button"
               onClick={() => onPageChange(Math.min(totalPaginas, page + 1))}
               disabled={page === totalPaginas}
-              className="w-8 h-8 rounded hover:bg-white/10 disabled:opacity-40 cursor-pointer text-lg leading-none"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-full hover:bg-white/10 active:bg-white/20 disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-xl sm:text-lg leading-none flex items-center justify-center"
+              aria-label="Página siguiente"
             >
               ›
             </button>

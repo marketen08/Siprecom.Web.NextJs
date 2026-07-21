@@ -108,64 +108,86 @@ export default function PidVisorPage({ params }: PageProps) {
       <NewPendienteSheet hideOverlay />
       <PendienteDetalleSheet hideOverlay />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 shadow-sm">
+      {/* Header — tap targets 40px alto en mobile para pulgar; los toggles
+          colapsan a solo ícono en <sm y muestran texto desde sm. El banner
+          "Tocá el plano para marcar" sale como banda debajo del header cuando
+          el modo pin está activo, así los botones quedan compactos. */}
+      <div className="flex items-center gap-1 sm:gap-2 border-b border-gray-200 bg-white px-2 sm:px-3 py-1.5 shadow-sm">
         <button
           type="button"
           onClick={toggleNav}
-          className="-ml-1 shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+          className="shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 cursor-pointer"
           aria-label="Abrir menú"
           title="Menú"
         >
-          <Menu className="h-4 w-4" />
+          <Menu className="h-5 w-5" />
         </button>
         <Link
           href="/ejecucion/pids"
-          className="shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 cursor-pointer"
+          className="shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 cursor-pointer"
           title="Volver al listado"
+          aria-label="Volver al listado"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2 min-w-0">
-            <p className="font-mono text-xs text-blue-700 font-semibold shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2 min-w-0 leading-tight">
+            <p className="font-mono text-xs text-blue-700 font-semibold shrink-0 truncate">
               {pid?.codigo ?? "…"}
             </p>
-            <p className="text-sm text-gray-800 truncate">{pid?.nombre ?? ""}</p>
+            <p className="text-xs sm:text-sm text-gray-800 truncate">{pid?.nombre ?? ""}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={() => setSoloAbiertos((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 sm:py-1 text-xs font-medium transition-colors cursor-pointer ${
               soloAbiertos
                 ? "text-blue-700 bg-blue-50 border-blue-200"
                 : "text-gray-600 bg-white border-input hover:bg-gray-50"
             }`}
             title={soloAbiertos ? "Mostrando pendientes activos" : "Mostrando todos"}
+            aria-label={soloAbiertos ? "Mostrando activos" : "Mostrando todos"}
           >
-            <Filter className="h-3.5 w-3.5" />
-            {soloAbiertos ? "Activos" : "Todos"}
-            <span className="ml-1 rounded-full bg-black/70 text-white px-1.5 text-[10px] font-bold tabular-nums">
+            <Filter className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="hidden sm:inline">{soloAbiertos ? "Activos" : "Todos"}</span>
+            <span className="rounded-full bg-black/70 text-white px-1.5 text-[10px] font-bold tabular-nums">
               {conteo}
             </span>
           </button>
           <button
             type="button"
             onClick={() => setModoCrearPin((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1.5 sm:py-1 text-xs font-medium transition-colors cursor-pointer ${
               modoCrearPin
                 ? "text-white bg-blue-600 border-blue-600 hover:bg-blue-700"
                 : "text-gray-700 bg-white border-input hover:bg-gray-50"
             }`}
+            aria-label="Nuevo pendiente"
           >
-            <MapPin className="h-3.5 w-3.5" />
-            {modoCrearPin ? "Tocá el plano para marcar" : "Nuevo pendiente"}
+            <MapPin className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="hidden sm:inline">
+              {modoCrearPin ? "Tocá para marcar" : "Nuevo pendiente"}
+            </span>
           </button>
         </div>
       </div>
+
+      {/* Banda instructiva del modo pin — reemplaza al texto largo del botón en
+          mobile, y sirve como recordatorio visible mientras el usuario ubica el
+          punto. Tapeable para cancelar. */}
+      {modoCrearPin && (
+        <button
+          type="button"
+          onClick={() => setModoCrearPin(false)}
+          className="w-full border-b border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-800 flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          Tocá el plano para marcar el pendiente — tocá acá para cancelar
+        </button>
+      )}
 
       {/* Feedback del mutation de mover pin */}
       {movePinMutation.isError && (
