@@ -36,10 +36,8 @@ export interface AvanceSubSistemaNivelDTO {
 }
 
 export interface AvanceSubSistemaDTO extends AvanceDTO {
-  /** True si el subsistema tiene un PDF de plano cargado. */
-  tienePlano: boolean
-  /** Nombre del archivo (para tooltip). Null si no hay plano. */
-  planoNombreArchivo: string | null
+  /** Cantidad de PIDs vinculados al subsistema. */
+  cantidadPids: number
   /** Desglose por nivel: fechas planificadas + avance parcial. Ordenado por posicion. */
   niveles?: AvanceSubSistemaNivelDTO[]
   /** Sistema padre (poblado en el endpoint de detalle). */

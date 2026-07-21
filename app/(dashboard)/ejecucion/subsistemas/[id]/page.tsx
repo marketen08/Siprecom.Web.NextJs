@@ -2,14 +2,13 @@
 
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useState } from "react"
-import { AlertCircle, ArrowRight, CalendarClock, FileText, Layers, ListChecks, Loader2 } from "lucide-react"
+import { AlertCircle, ArrowRight, CalendarClock, Layers, ListChecks, Loader2, MapPin } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetAvanceSubsistema } from "@/features/avance/api/use-get-avance-subsistema"
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
 import { ESTADO_TEST_GROUP, type TestGroup } from "@/features/testgroups/types"
-import { fetchPlanoUrl } from "@/features/subsistemas/api/use-subsistema-plano"
+import { useGetPidsVinculados } from "@/features/subsistemas/api/use-get-pids-vinculados"
 import { NivelesDetalle, ProximaMetaCelda } from "@/features/avance/components/niveles-cells"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
@@ -33,22 +32,9 @@ export default function DetalleSubsistemaPage() {
   const testGroups: TestGroup[] = (testGroupsRaw?.data ?? [])
     .filter((tg) => tg.estado !== ESTADO_TEST_GROUP.BORRADOR)
 
-  const [planoAbriendo, setPlanoAbriendo] = useState(false)
-  const [planoError, setPlanoError] = useState<string | null>(null)
-
-  async function abrirPlano() {
-    if (!ss?.id) return
-    setPlanoError(null)
-    setPlanoAbriendo(true)
-    try {
-      const { url } = await fetchPlanoUrl(ss.id)
-      window.open(url, "_blank", "noopener,noreferrer")
-    } catch (e) {
-      setPlanoError((e as Error).message)
-    } finally {
-      setPlanoAbriendo(false)
-    }
-  }
+  // PIDs vinculados al subsistema (nueva feature — reemplaza el "plano" legacy).
+  const { data: pidsResp, isLoading: loadingPids } = useGetPidsVinculados(id)
+  const pidsVinculados = pidsResp?.data ?? []
 
   useBreadcrumb(
     ss
@@ -95,12 +81,6 @@ export default function DetalleSubsistemaPage() {
         </div>
       </div>
 
-      {planoError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {planoError}
-        </div>
-      )}
-
       {/* Métricas principales */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-lg border bg-white p-4 space-y-2 md:col-span-2">
@@ -135,15 +115,6 @@ export default function DetalleSubsistemaPage() {
         </Button>
         <Button
           variant="outline"
-          onClick={abrirPlano}
-          disabled={!ss.tienePlano || planoAbriendo}
-          className="gap-2"
-        >
-          {planoAbriendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-          {ss.tienePlano ? "Ver plano" : "Sin plano"}
-        </Button>
-        <Button
-          variant="outline"
           onClick={() => router.push(`/reporte/listado-indice?subSistemaId=${ss.id}`)}
           className="gap-2"
         >
@@ -156,6 +127,58 @@ export default function DetalleSubsistemaPage() {
         >
           <AlertCircle className="h-4 w-4" /> Listado de pendientes
         </Button>
+      </div>
+
+      {/* PIDs vinculados — reemplaza el "plano" legacy. Los PIDs son PDFs que
+          pueden estar asignados a varios subsistemas (relación N:N). */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5 text-blue-700" />
+          PIDs vinculados
+          {!loadingPids && (
+            <span className="text-xs font-normal text-muted-foreground">
+              ({pidsVinculados.length})
+            </span>
+          )}
+        </h2>
+        {loadingPids ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+            <Loader2 className="h-4 w-4 animate-spin" /> Cargando PIDs…
+          </div>
+        ) : pidsVinculados.length === 0 ? (
+          <div className="rounded-md border border-dashed bg-gray-50 p-6 text-sm text-muted-foreground text-center">
+            No hay PIDs vinculados a este subsistema. Podés cargar PIDs desde{" "}
+            <Link href="/alcance/pids" className="text-blue-700 hover:underline">
+              Alcance → PIDs
+            </Link>
+            .
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {pidsVinculados.map((pid) => (
+              <Link
+                key={pid.id}
+                href={`/ejecucion/pids/${pid.id}`}
+                className="rounded-lg border bg-white p-3 hover:border-blue-300 hover:shadow-sm transition-colors block"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-blue-700 font-semibold">{pid.codigo}</p>
+                    <p className="text-sm font-medium text-gray-900 mt-0.5 truncate">{pid.nombre}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {pid.pageCount} {pid.pageCount === 1 ? "página" : "páginas"}
+                    </p>
+                  </div>
+                  {pid.cantidadPendientes > 0 && (
+                    <span className="shrink-0 rounded-full bg-red-100 text-red-700 text-xs px-2 py-0.5 font-medium">
+                      {pid.cantidadPendientes} pend.
+                    </span>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Niveles planificados */}

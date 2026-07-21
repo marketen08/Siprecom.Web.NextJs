@@ -2,14 +2,13 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Fragment, Suspense, useMemo, useState } from "react"
-import { AlertCircle, ChevronDown, ChevronRight, FileText, Layers, ListChecks, MoreHorizontal } from "lucide-react"
+import { AlertCircle, ChevronDown, ChevronRight, Layers, ListChecks, MapPin, MoreHorizontal } from "lucide-react"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
 import { useGetAvanceSistema } from "@/features/avance/api/use-get-avance-sistema"
 import type { AvanceSubSistemaDTO } from "@/features/avance/types"
 import { NivelesDetalle, ProximaMetaCelda } from "@/features/avance/components/niveles-cells"
 import { diasHasta, proximaMeta } from "@/features/avance/lib/niveles"
-import { fetchPlanoUrl } from "@/features/subsistemas/api/use-subsistema-plano"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -103,11 +102,6 @@ function AvanceSubsistemasContent() {
     return filtrados
   }, [subsistemas, filtroUrgencia])
 
-  // Estado para abrir el plano: se setea con el id en curso para deshabilitar el item
-  // mientras se pide la SAS URL. No bloqueamos la página entera porque el click sigue
-  // siendo cheap (un GET a /plano/download).
-  const [planoOpeningId, setPlanoOpeningId] = useState<string | null>(null)
-  const [planoError, setPlanoError] = useState<string | null>(null)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
 
   function toggleExpandido(id: string) {
@@ -116,19 +110,6 @@ function AvanceSubsistemasContent() {
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
-  }
-
-  async function abrirPlano(subSistemaId: string) {
-    setPlanoError(null)
-    setPlanoOpeningId(subSistemaId)
-    try {
-      const { url } = await fetchPlanoUrl(subSistemaId)
-      window.open(url, "_blank", "noopener,noreferrer")
-    } catch (e) {
-      setPlanoError((e as Error).message)
-    } finally {
-      setPlanoOpeningId(null)
-    }
   }
 
   // Breadcrumb dinámico cuando estamos drilldown desde un sistema específico.
@@ -152,12 +133,6 @@ function AvanceSubsistemasContent() {
           nombre={avanceSistema.nombre}
           porcentaje={avanceSistema.porcentajeAvance}
         />
-      )}
-
-      {planoError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {planoError}
-        </div>
       )}
 
       {/* Filtro por urgencia — chips clickeables. Muestra el conteo para que el usuario
@@ -242,14 +217,15 @@ function AvanceSubsistemasContent() {
                         <Layers className="h-4 w-4" />
                         <span>Ver elementos</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={!ss.tienePlano || planoOpeningId === ss.id}
-                        onClick={() => { if (ss.tienePlano) abrirPlano(ss.id) }}
-                        className="cursor-pointer"
-                      >
-                        <FileText className="h-4 w-4" />
-                        <span>{planoOpeningId === ss.id ? "Abriendo..." : "Ver plano"}</span>
-                      </DropdownMenuItem>
+                      {ss.cantidadPids > 0 && (
+                        <DropdownMenuItem
+                          onClick={() => router.push(`/ejecucion/subsistemas/${ss.id}`)}
+                          className="cursor-pointer"
+                        >
+                          <MapPin className="h-4 w-4 text-blue-700" />
+                          <span>Ver PIDs ({ss.cantidadPids})</span>
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() => router.push(`/reporte/listado-indice?subSistemaId=${ss.id}`)}
                         className="cursor-pointer"
@@ -352,14 +328,15 @@ function AvanceSubsistemasContent() {
                             <MoreHorizontal className="h-4 w-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuItem
-                              disabled={!ss.tienePlano || planoOpeningId === ss.id}
-                              onClick={() => { if (ss.tienePlano) abrirPlano(ss.id) }}
-                              className="cursor-pointer"
-                            >
-                              <FileText className="h-4 w-4" />
-                              <span>{planoOpeningId === ss.id ? "Abriendo..." : "Ver plano"}</span>
-                            </DropdownMenuItem>
+                            {ss.cantidadPids > 0 && (
+                              <DropdownMenuItem
+                                onClick={() => router.push(`/ejecucion/subsistemas/${ss.id}`)}
+                                className="cursor-pointer"
+                              >
+                                <MapPin className="h-4 w-4 text-blue-700" />
+                                <span>Ver PIDs ({ss.cantidadPids})</span>
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => router.push(`/reporte/listado-indice?subSistemaId=${ss.id}`)}
                               className="cursor-pointer"

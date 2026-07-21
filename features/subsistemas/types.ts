@@ -9,10 +9,6 @@ export interface SubSistema {
   updatedAt: string
   updatedByNombre: string
   isActive: boolean
-  /** PDF adjunto (plano del subsistema). Null si no hay archivo cargado. */
-  planoNombreArchivo?: string | null
-  planoContentType?: string | null
-  planoTamanioBytes?: number | null
 }
 
 export interface SubSistemaCreateInput {
