@@ -16,9 +16,11 @@ import {
 interface NewPendienteSheetProps {
   /** Oculta el backdrop — usado desde el visor de PID para que se siga viendo el plano. */
   hideOverlay?: boolean
+  /** Sheet ancho (4xl en vez del default 2xl). */
+  wide?: boolean
 }
 
-export function NewPendienteSheet({ hideOverlay }: NewPendienteSheetProps = {}) {
+export function NewPendienteSheet({ hideOverlay, wide }: NewPendienteSheetProps = {}) {
   const { isOpen, close, prefill } = useNewPendiente()
   const mutation = useCreatePendiente()
 
@@ -41,7 +43,10 @@ export function NewPendienteSheet({ hideOverlay }: NewPendienteSheetProps = {}) 
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto" hideOverlay={hideOverlay}>
+      <SheetContent
+        className={`w-full overflow-y-auto ${wide ? "sm:max-w-4xl!" : "sm:max-w-2xl!"}`}
+        hideOverlay={hideOverlay}
+      >
         <SheetHeader>
           <SheetTitle>Nuevo pendiente</SheetTitle>
           <SheetDescription>

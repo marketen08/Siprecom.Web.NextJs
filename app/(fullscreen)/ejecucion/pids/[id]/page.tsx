@@ -1,7 +1,8 @@
 "use client"
 
-import { use, useMemo, useState } from "react"
+import { use, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { ArrowLeft, Filter, MapPin, Menu } from "lucide-react"
 
 import { useSidebar } from "@/components/sidebar-context"
@@ -21,11 +22,17 @@ interface PageProps {
 export default function PidVisorPage({ params }: PageProps) {
   const { id } = use(params)
   const { toggle: toggleNav } = useSidebar()
+  // Deep-link opcional: `?p=3&pin=<pendienteId>` — usado por el botón
+  // "Ver en PID" del sheet de detalle de pendiente. Nos posiciona en la
+  // página correcta y abre el detalle con el pin resaltado.
+  const searchParams = useSearchParams()
+  const initialPage = Number(searchParams.get("p") ?? "1") || 1
+  const initialPinId = searchParams.get("pin")
 
   const { data: pidResp } = useGetPid(id)
   const pid = pidResp?.data
 
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(initialPage)
   const [soloAbiertos, setSoloAbiertos] = useState(true)
   const [modoCrearPin, setModoCrearPin] = useState(false)
 
@@ -34,6 +41,29 @@ export default function PidVisorPage({ params }: PageProps) {
 
   const openNewPendiente = useNewPendiente((s) => s.open)
   const openPendienteDetalle = useOpenPendiente((s) => s.open)
+
+  // Auto-abrir el detalle del pendiente que vino en `?pin=` — una sola vez
+  // por deep-link. Si el user cierra el sheet, no lo reabrimos.
+  const initialPinOpenedRef = useRef(false)
+  useEffect(() => {
+    if (initialPinOpenedRef.current) return
+    if (!initialPinId) return
+    initialPinOpenedRef.current = true
+    openPendienteDetalle(initialPinId)
+  }, [initialPinId, openPendienteDetalle])
+
+  // Si el pendiente que vino por deep-link tiene una página distinta a la
+  // actual (por ejemplo el user cambió `?p=` a mano), lo respetamos: el
+  // efecto de arriba ya abrió el sheet; acá aseguramos la página también
+  // solo si el pin está en la lista.
+  useEffect(() => {
+    if (!initialPinId || !pines.length) return
+    const pin = pines.find((x) => x.id === initialPinId)
+    if (pin && pin.pagina !== page && !initialPinOpenedRef.current) {
+      setPage(pin.pagina)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pines, initialPinId])
   // Id del pendiente actualmente abierto en el sheet — el visor lo destaca con
   // flecha + halo pulsante para que el usuario ubique el pin de un vistazo.
   const focusedPendienteId = useOpenPendiente((s) => (s.isOpen ? s.id : null))

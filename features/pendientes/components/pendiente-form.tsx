@@ -95,14 +95,42 @@ export function PendienteForm({
     },
   })
 
-  // Watch subsistema para filtrar elementos.
+  // Watch subsistema + especialidad para filtrar elementos.
   const subSistemaIdActual = form.watch("subSistemaId")
+  const especialidadIdActual = form.watch("especialidadId")
+  const elementoIdActual = form.watch("elementoId")
   const { data: elementosRaw } = useGetElementos({
     page: 1,
     pageSize: 500,
     subSistemaId: subSistemaIdActual ?? undefined,
+    especialidadId: especialidadIdActual ?? undefined,
   })
   const elementos = elementosRaw?.data ?? []
+
+  // Si el usuario cambia la especialidad y el elemento actual ya no pertenece
+  // a la nueva lista filtrada, lo limpiamos para no dejar un elemento "colgado"
+  // que no matchea el criterio.
+  useEffect(() => {
+    if (!elementoIdActual) return
+    if (elementos.length === 0) return
+    if (!elementos.some((e) => e.id === elementoIdActual)) {
+      form.setValue("elementoId", null, { shouldDirty: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [especialidadIdActual, subSistemaIdActual, elementos])
+
+  // Al seleccionar un elemento con especialidad definida a nivel de ElementoTipo,
+  // auto-populamos el campo de especialidad — evita al operador tener que
+  // volver arriba y elegirla a mano. Si ya matchea, no hace nada.
+  const onElementoChange = (nuevoElementoId: string | null) => {
+    form.setValue("elementoId", nuevoElementoId, { shouldDirty: true })
+    if (!nuevoElementoId) return
+    const el = elementos.find((e) => e.id === nuevoElementoId)
+    const espDelElemento = el?.elementoTipoEspecialidadId
+    if (espDelElemento && espDelElemento !== especialidadIdActual) {
+      form.setValue("especialidadId", espDelElemento, { shouldDirty: true })
+    }
+  }
 
   // Filtramos subsistemas por sistema (UI extra: select de sistema para acotar lista).
   const [sistemaId, setSistemaId] = useStateLike(defaultValues?.subSistemaId, subSistemas)
@@ -289,8 +317,11 @@ export function PendienteForm({
             Localización (opcional)
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="grid gap-2 content-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            {/* Sistema: no es un campo del form (solo filtra la lista de
+                subsistemas). Usamos FormItem + Label sueltos para que las
+                alturas y gaps queden idénticas a los FormField de al lado. */}
+            <FormItem>
               <Label>Sistema</Label>
               <Select value={sistemaId || NONE} onValueChange={(v) => { const value = v ?? NONE; setSistemaId(value === NONE ? "" : value) }}>
                 <SelectTrigger>
@@ -307,7 +338,7 @@ export function PendienteForm({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormItem>
 
             <FormField
               control={form.control}
@@ -342,27 +373,9 @@ export function PendienteForm({
             />
           </div>
 
-          <FormField
-            control={form.control}
-            name="elementoId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Elemento</FormLabel>
-                <FormControl>
-                  <Combobox
-                    options={elementoOptions}
-                    value={field.value ?? ""}
-                    onChange={(v) => field.onChange(v || null)}
-                    placeholder="Sin elemento asignado"
-                    searchPlaceholder="Buscar elemento..."
-                    emptyMessage="Sin resultados"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
+          {/* Especialidad primero: al elegirla se filtra la lista de elementos.
+              Si el operador la deja vacía, la selección de un elemento con
+              especialidad definida la auto-completa (ver onElementoChange). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField
               control={form.control}
@@ -407,6 +420,34 @@ export function PendienteForm({
               )}
             />
           </div>
+
+          <FormField
+            control={form.control}
+            name="elementoId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Elemento
+                  {especialidadIdActual && (
+                    <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                      (filtrado por especialidad)
+                    </span>
+                  )}
+                </FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={elementoOptions}
+                    value={field.value ?? ""}
+                    onChange={(v) => onElementoChange(v || null)}
+                    placeholder="Sin elemento asignado"
+                    searchPlaceholder="Buscar elemento..."
+                    emptyMessage="Sin resultados"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}

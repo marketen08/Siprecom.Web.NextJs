@@ -143,8 +143,8 @@ export default function PendientesPage() {
 
   return (
     <>
-      <NewPendienteSheet />
-      <PendienteDetalleSheet />
+      <NewPendienteSheet wide />
+      <PendienteDetalleSheet wide />
 
       <div className="space-y-4">
         {/* Buscador + acciones */}

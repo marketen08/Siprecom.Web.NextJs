@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
-  FileDown, FileUp,
+  FileDown, FileUp, MapPin,
 } from "lucide-react"
 
 import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
@@ -37,9 +37,11 @@ import {
 interface PendienteDetalleSheetProps {
   /** Oculta el backdrop — usado desde el visor de PID para no tapar el plano. */
   hideOverlay?: boolean
+  /** Sheet ancho (4xl en vez del default 2xl). Útil en el listado global. */
+  wide?: boolean
 }
 
-export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProps = {}) {
+export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleSheetProps = {}) {
   const { id, isOpen, close } = useOpenPendiente()
   const { data, isLoading } = useGetPendiente(id)
   const p = data?.data
@@ -60,7 +62,10 @@ export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProp
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto" hideOverlay={hideOverlay}>
+      <SheetContent
+        className={`w-full overflow-y-auto ${wide ? "sm:max-w-4xl!" : "sm:max-w-2xl!"}`}
+        hideOverlay={hideOverlay}
+      >
         <SheetHeader>
           {isLoading ? (
             <SheetTitle className="text-gray-400">Cargando…</SheetTitle>
@@ -116,6 +121,20 @@ export function PendienteDetalleSheet({ hideOverlay }: PendienteDetalleSheetProp
                           title="Descargar el PDF firmado en papel que cerró el pendiente"
                         >
                           <FileDown className="h-3 w-3 text-emerald-700" /> Descargar PDF Firmado
+                        </a>
+                      </Button>
+                    )}
+                    {/* Acceso directo al pin en el visor de PID. El link
+                        lleva la página + id del pendiente para que el visor
+                        cambie a la página correcta y abra el detalle con la
+                        flecha apuntando al pin. */}
+                    {p.pidArchivoId && p.pidPagina && (
+                      <Button asChild size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                        <a
+                          href={`/ejecucion/pids/${p.pidArchivoId}?p=${p.pidPagina}&pin=${p.id}`}
+                          title={p.pidArchivoCodigo ? `Ver en ${p.pidArchivoCodigo}` : "Ver en el PID"}
+                        >
+                          <MapPin className="h-3 w-3 text-blue-700" /> Ver en PID
                         </a>
                       </Button>
                     )}

@@ -91,6 +91,13 @@ export interface Pendiente {
   motivoRechazoCierre: string | null
   /** True cuando el pendiente fue cerrado con carga de PDF físico y ese archivo está disponible para descarga. */
   tienePdfFisico?: boolean
+  // Vínculo opcional a un pin sobre un PID (visor tablet). Todos van juntos:
+  // si `pidArchivoId` no es null, los otros 3 tampoco.
+  pidArchivoId?: string | null
+  pidArchivoCodigo?: string | null
+  pidPagina?: number | null
+  pidCoordX?: number | null
+  pidCoordY?: number | null
   createdAt: string
   updatedAt: string
   isActive: boolean
