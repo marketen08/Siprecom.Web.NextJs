@@ -35,29 +35,32 @@ export const menu: MenuItem[] = [
   // Dashboard como top-level (sin grupo). Antes era único hijo de "Gestión
   // de proyecto" — se elimina ese grupo vacío.
   { label: "Dashboard", href: "/dashboard", minRole: "Consultor" },
+  // Avances como top-level propio — se usa tan o más seguido que los items
+  // de Ejecución y son otra actividad (consulta del estado del proyecto, vs
+  // "hacer cosas" que vive en Ejecución).
+  {
+    label: "Avances",
+    minRole: "Consultor",
+    children: [
+      { label: "Por sistemas",     href: "/ejecucion/sistemas" },
+      { label: "Por subsistemas",  href: "/ejecucion/subsistemas" },
+      { label: "Por elementos",    href: "/ejecucion/elementos" },
+      { label: "Por tareas",       href: "/ejecucion/tareas" },
+      { label: "Por áreas",        href: "/ejecucion/areas" },
+      { label: "Por módulos",      href: "/ejecucion/modulos" },
+    ],
+  },
   {
     label: "Ejecución",
     minRole: "Consultor",
     children: [
-      // Módulos operativos primero — Pendientes es lo más usado día a día.
+      // Módulos operativos — Pendientes es lo más usado día a día.
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Visor de PIDs",           href: "/ejecucion/pids" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
       { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true, minRole: "User" },
       { label: "Paquetes de prueba",      href: "/ejecucion/test-groups" },
       { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
-      // Los 7 "Avance por X" colapsan en un submenu para no saturar Ejecución.
-      {
-        label: "Avances",
-        children: [
-          { label: "Por sistemas",     href: "/ejecucion/sistemas" },
-          { label: "Por subsistemas",  href: "/ejecucion/subsistemas" },
-          { label: "Por elementos",    href: "/ejecucion/elementos" },
-          { label: "Por tareas",       href: "/ejecucion/tareas" },
-          { label: "Por áreas",        href: "/ejecucion/areas" },
-          { label: "Por módulos",      href: "/ejecucion/modulos" },
-        ],
-      },
       // Herramientas — carga masiva por QR / app de escritorio offline. Vivían
       // en un top-level "Herramientas"; ahora quedan como submenu de Ejecución
       // porque son herramientas de ejecución.
