@@ -32,30 +32,43 @@ export type MenuItem = {
 }
 
 export const menu: MenuItem[] = [
-  {
-    label: "Gestión de proyecto",
-    minRole: "Consultor",
-    children: [
-      { label: "Dashboard", href: "/dashboard" },
-    ],
-  },
+  // Dashboard como top-level (sin grupo). Antes era único hijo de "Gestión
+  // de proyecto" — se elimina ese grupo vacío.
+  { label: "Dashboard", href: "/dashboard", minRole: "Consultor" },
   {
     label: "Ejecución",
     minRole: "Consultor",
     children: [
-      { label: "Avance por sistemas",     href: "/ejecucion/sistemas" },
-      { label: "Avance por subsistemas",  href: "/ejecucion/subsistemas" },
-      { label: "Avance por elementos",    href: "/ejecucion/elementos" },
-      { label: "Avance por tareas",       href: "/ejecucion/tareas" },
-      { label: "Avance por áreas",        href: "/ejecucion/areas" },
-      { label: "Avance por módulos",      href: "/ejecucion/modulos" },
-      { label: "Paquetes de prueba",       href: "/ejecucion/test-groups" },
+      // Módulos operativos primero — Pendientes es lo más usado día a día.
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
-      { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
+      { label: "Visor de PIDs",           href: "/ejecucion/pids" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
-      { label: "PIDs (visor)",            href: "/ejecucion/pids" },
-      // Mis firmas es solo para roles que firman: Consultor/Auditor no firman.
       { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true, minRole: "User" },
+      { label: "Paquetes de prueba",      href: "/ejecucion/test-groups" },
+      { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
+      // Los 7 "Avance por X" colapsan en un submenu para no saturar Ejecución.
+      {
+        label: "Avances",
+        children: [
+          { label: "Por sistemas",     href: "/ejecucion/sistemas" },
+          { label: "Por subsistemas",  href: "/ejecucion/subsistemas" },
+          { label: "Por elementos",    href: "/ejecucion/elementos" },
+          { label: "Por tareas",       href: "/ejecucion/tareas" },
+          { label: "Por áreas",        href: "/ejecucion/areas" },
+          { label: "Por módulos",      href: "/ejecucion/modulos" },
+        ],
+      },
+      // Herramientas — carga masiva por QR / app de escritorio offline. Vivían
+      // en un top-level "Herramientas"; ahora quedan como submenu de Ejecución
+      // porque son herramientas de ejecución.
+      {
+        label: "Herramientas",
+        minRole: "Supervisor",
+        children: [
+          { label: "Carga rápida por QR", href: "/ejecucion/carga-rapida-qr" },
+          { label: "App de escritorio",   href: "/ejecucion/app-escritorio" },
+        ],
+      },
     ],
   },
   {
@@ -63,7 +76,7 @@ export const menu: MenuItem[] = [
     minRole: "Consultor",
     children: [
       {
-        label: "Reporte",
+        label: "Reportes",
         children: [
           { label: "Avance del proyecto",   href: "/reporte/avance" },
           { label: "Listado índice",         href: "/reporte/listado-indice" },
@@ -87,17 +100,19 @@ export const menu: MenuItem[] = [
           { label: "Estado de pendientes",         href: "/estadisticas/estado-pendientes" },
         ],
       },
-      {
-        label: "Planificación",
-        minRole: "Supervisor",
-        children: [
-          { label: "Estimador",     href: "/planificacion/estimador" },
-          { label: "Generador",     href: "/planificacion/generador" },
-          { label: "Manual",        href: "/planificacion/manual" },
-          { label: "Versiones",     href: "/planificacion/versiones" },
-          { label: "Configuración", href: "/planificacion/configuracion" },
-        ],
-      },
+    ],
+  },
+  // Planificación pasa a ser su propio top-level (antes vivía dentro de
+  // "Análisis"). Es un dominio con 5 páginas propias, se merece la sección.
+  {
+    label: "Planificación",
+    minRole: "Supervisor",
+    children: [
+      { label: "Estimador",     href: "/planificacion/estimador" },
+      { label: "Generador",     href: "/planificacion/generador" },
+      { label: "Manual",        href: "/planificacion/manual" },
+      { label: "Versiones",     href: "/planificacion/versiones" },
+      { label: "Configuración", href: "/planificacion/configuracion" },
     ],
   },
   {
@@ -129,32 +144,37 @@ export const menu: MenuItem[] = [
     ],
   },
   {
-    // Herramientas de carga masiva — pensadas para uso supervisado por
-    // Supervisor+ (batch de escaneos, app de escritorio para offline).
-    // Las URLs originales se mantienen bajo /ejecucion/ para no romper
-    // bookmarks; el rearranged es solo del sidebar.
-    label: "Herramientas",
-    minRole: "Supervisor",
-    children: [
-      { label: "Carga rápida por QR", href: "/ejecucion/carga-rapida-qr" },
-      { label: "App de escritorio",   href: "/ejecucion/app-escritorio" },
-    ],
-  },
-  {
     label: "Configuración",
     minRole: "Admin",
     children: [
-      { label: "Proyectos",         href: "/configuracion/proyectos" },
-      { label: "Especialidades",    href: "/configuracion/especialidades" },
-      { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
-      { label: "Niveles",           href: "/configuracion/niveles" },
-      { label: "Campos",            href: "/configuracion/campos" },
-      { label: "Planillas",         href: "/configuracion/planillas" },
-      { label: "Procedimientos",    href: "/configuracion/procedimientos" },
-      { label: "Categorías de pendientes", href: "/configuracion/pendientes-categorias" },
-      { label: "Tipos de pendientes",      href: "/configuracion/pendientes-tipos" },
-      { label: "Clientes",          href: "/configuracion/clientes" },
-      { label: "Contratistas",      href: "/configuracion/contratistas" },
+      // Sub-agrupada en tres bloques temáticos: catálogos del dominio,
+      // planillas/campos, y datos de organización.
+      {
+        label: "Catálogos",
+        children: [
+          { label: "Especialidades",           href: "/configuracion/especialidades" },
+          { label: "Tipos de elemento",        href: "/configuracion/elementos-tipos" },
+          { label: "Niveles",                  href: "/configuracion/niveles" },
+          { label: "Categorías de pendientes", href: "/configuracion/pendientes-categorias" },
+          { label: "Tipos de pendientes",      href: "/configuracion/pendientes-tipos" },
+        ],
+      },
+      {
+        label: "Planillas y campos",
+        children: [
+          { label: "Campos",         href: "/configuracion/campos" },
+          { label: "Planillas",      href: "/configuracion/planillas" },
+          { label: "Procedimientos", href: "/configuracion/procedimientos" },
+        ],
+      },
+      {
+        label: "Organización",
+        children: [
+          { label: "Proyectos",    href: "/configuracion/proyectos" },
+          { label: "Clientes",     href: "/configuracion/clientes" },
+          { label: "Contratistas", href: "/configuracion/contratistas" },
+        ],
+      },
     ],
   },
   {
