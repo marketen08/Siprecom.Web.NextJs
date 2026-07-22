@@ -289,17 +289,30 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
   const partes = contenido.split(/[\\/?#\s]+/).filter(Boolean)
   const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-  // Formato tareas — dos variantes soportadas (Fase 2 de la migración):
-  //   1) Nuevo:  /ejecucion/registros/{planillaId}/{elementoTareaId}
-  //   2) Legacy: /checklist/{planillaId}/{elementoTareaId}
-  // Ambas devuelven el mismo shape para no romper los callers.
+  // Formato tareas — tres variantes soportadas (migración por fases):
+  //   1) Path corto (actual): /qr/{planillaId}/{elementoTareaId}          ← QRs generados hoy
+  //   2) Intermedio (Fase 2): /ejecucion/registros/{planillaId}/{etId}    ← QRs impresos entre Fase 2 y ahora
+  //   3) Legacy (pre-Fase 2): /checklist/{planillaId}/{elementoTareaId}   ← QRs impresos antes de la migración
   //
-  // Los QRs generados desde Fase 2 usan el nuevo path; los QRs impresos antes
-  // usan el legacy. Todos deben seguir funcionando.
+  // Los tres devuelven el mismo shape para no romper los callers.
   for (let i = 0; i < partes.length - 2; i++) {
     const seg = partes[i].toLowerCase()
 
-    // Legacy: buscamos el segmento "checklist" seguido de 2 GUIDs.
+    // Path corto actual: "qr" seguido de 2 GUIDs.
+    if (seg === "qr"
+        && guidRe.test(partes[i + 1])
+        && guidRe.test(partes[i + 2])) {
+      return emptyResult({
+        qrEncontrado: true,
+        esChecklist: true,
+        planillaId: partes[i + 1].toLowerCase(),
+        elementoTareaId: partes[i + 2].toLowerCase(),
+        contenidoQr: contenido,
+        rotacionDetectada,
+      })
+    }
+
+    // Legacy: "checklist" seguido de 2 GUIDs.
     if (seg === "checklist"
         && guidRe.test(partes[i + 1])
         && guidRe.test(partes[i + 2])) {
@@ -313,7 +326,7 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
       })
     }
 
-    // Nuevo: buscamos "ejecucion/registros" seguido de 2 GUIDs.
+    // Intermedio: "ejecucion/registros" seguido de 2 GUIDs.
     if (seg === "ejecucion"
         && i + 3 < partes.length
         && partes[i + 1].toLowerCase() === "registros"
@@ -347,7 +360,7 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
   return emptyResult({
     qrEncontrado: true,
     contenidoQr: contenido,
-    error: "El QR no es de carga (se esperaba /ejecucion/registros/{...}/{...}, /checklist/{...}/{...} o /pendiente-carga/{...}).",
+    error: "El QR no es de carga (se esperaba /qr/{...}/{...}, /ejecucion/registros/{...}/{...}, /checklist/{...}/{...} o /pendiente-carga/{...}).",
     rotacionDetectada,
   })
 }
