@@ -193,6 +193,7 @@ export interface PendienteFilterInput {
   detectadoPorId?: string
   prioridad?: number
   especialidadId?: string
+  pidArchivoId?: string
   soloAbiertos?: boolean
   /** Solo pendientes donde el usuario es creador (DetectadoPor) o responsable. Default UI para roles < Supervisor. */
   soloMios?: boolean

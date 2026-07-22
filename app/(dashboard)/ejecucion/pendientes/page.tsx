@@ -14,6 +14,7 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetPids } from "@/features/pids/api/use-get-pids"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import {
@@ -64,6 +65,7 @@ function PendientesPageContent() {
   const [subSistemaId, setSubSistemaId] = useState(searchParams.get("subSistemaId") ?? "")
   const [elementoId, setElementoId] = useState(searchParams.get("elementoId") ?? "")
   const [especialidadId, setEspecialidadId] = useState(searchParams.get("especialidadId") ?? "")
+  const [pidArchivoId, setPidArchivoId] = useState(searchParams.get("pidArchivoId") ?? "")
   const [estadoSel, setEstadoSel] = useState<string>(searchParams.get("estado") ?? OPEN)
   const [responsableId, setResponsableId] = useState(searchParams.get("responsableId") ?? "")
   const [categoriaId, setCategoriaId] = useState(searchParams.get("categoriaId") ?? "")
@@ -153,6 +155,7 @@ function PendientesPageContent() {
     setOrDelete(params, "subSistemaId", subSistemaId)
     setOrDelete(params, "elementoId", elementoId)
     setOrDelete(params, "especialidadId", especialidadId)
+    setOrDelete(params, "pidArchivoId", pidArchivoId)
     setOrDelete(params, "responsableId", responsableId)
     setOrDelete(params, "categoriaId", categoriaId)
     setOrDelete(params, "tipoId", tipoId)
@@ -170,7 +173,7 @@ function PendientesPageContent() {
     const current = searchParams.toString()
     if (current !== qs) router.replace(target, { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sistemaId, subSistemaId, elementoId, especialidadId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
+  }, [search, sistemaId, subSistemaId, elementoId, especialidadId, pidArchivoId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
 
   const { data: perfil } = useGetPerfil()
   const { data: sistemasRaw } = useGetSistemasSelect()
@@ -208,6 +211,7 @@ function PendientesPageContent() {
       subSistemaId: subSistemaId || undefined,
       elementoId: elementoId || undefined,
       especialidadId: especialidadId || undefined,
+      pidArchivoId: pidArchivoId || undefined,
       estadoId: estadoIdFilter,
       responsableId: responsableId || undefined,
       categoriaId: categoriaId || undefined,
@@ -224,6 +228,7 @@ function PendientesPageContent() {
 
   function clearFiltros() {
     setSistemaId(""); setSubSistemaId(""); setElementoId(""); setEspecialidadId("")
+    setPidArchivoId("")
     setEstadoSel(OPEN); setResponsableId("")
     setCategoriaId(""); setTipoId(""); setPrioridad("")
     setPage(1)
@@ -238,6 +243,9 @@ function PendientesPageContent() {
   // Catálogos para los selects nuevos.
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
+
+  const { data: pidsRaw } = useGetPids()
+  const pids = pidsRaw?.data ?? []
 
   // Lista de elementos para el Combobox — respeta subsistema y especialidad
   // ya seleccionados. pageSize=500 como en el form del pendiente.
@@ -290,6 +298,14 @@ function PendientesPageContent() {
       id: "especialidad",
       label: `Especialidad: ${e?.nombre ?? "—"}`,
       onRemove: () => { setEspecialidadId(""); setPage(1) },
+    })
+  }
+  if (pidArchivoId) {
+    const pid = pids.find((x) => x.id === pidArchivoId)
+    activeFilters.push({
+      id: "pidArchivo",
+      label: `PID: ${pid?.codigo ?? "…"}`,
+      onRemove: () => { setPidArchivoId(""); setPage(1) },
     })
   }
   // Chip para el Estado: solo aparece si el user eligió algo distinto al default
@@ -508,6 +524,27 @@ function PendientesPageContent() {
                 <SelectItem value={ALL}>Todas</SelectItem>
                 {especialidades.map((e) => (
                   <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="PID">
+            <Select
+              value={pidArchivoId || ALL}
+              onValueChange={(v) => { const value = v ?? ALL; setPidArchivoId(value === ALL ? "" : value); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {pidArchivoId
+                    ? pids.find((x) => x.id === pidArchivoId)?.codigo ?? "PID"
+                    : "Todos"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos</SelectItem>
+                {pids.map((pid) => (
+                  <SelectItem key={pid.id} value={pid.id}>{pid.codigo} — {pid.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

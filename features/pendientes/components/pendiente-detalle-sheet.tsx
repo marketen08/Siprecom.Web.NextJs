@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
-  FileDown, FileUp, MapPin,
+  FileDown, FileUp, MapPin, ListChecks,
 } from "lucide-react"
 
 import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
@@ -47,6 +48,11 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
   const p = data?.data
   const [isEditing, setIsEditing] = useState(false)
   const [cargaFisicaOpen, setCargaFisicaOpen] = useState(false)
+  // Estamos dentro del visor de PID cuando la URL activa arranca con /ejecucion/pids/.
+  // En ese contexto ocultamos "Ver en PID" (redundante) y mostramos en su lugar
+  // "Ver pendientes de este PID" que lleva al listado filtrado.
+  const pathname = usePathname()
+  const enPidViewer = pathname?.startsWith("/ejecucion/pids/") ?? false
   // Consultor/Auditor: solo lectura del pendiente (ni editar ni workflow ni comentarios).
   const canWrite = useCanWrite()
 
@@ -153,8 +159,9 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                           <span className="hidden sm:inline">Cargar</span>
                         </Button>
                       )}
-                      {/* Acceso directo al pin en el visor de PID. */}
-                      {p.pidArchivoId && p.pidPagina && (
+                      {/* Acceso directo al pin en el visor de PID. Se oculta si
+                          ya estamos en /ejecucion/pids/* — sería redundante. */}
+                      {!enPidViewer && p.pidArchivoId && p.pidPagina && (
                         <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
                           <a
                             href={`/ejecucion/pids/${p.pidArchivoId}?p=${p.pidPagina}&pin=${p.id}`}
@@ -162,6 +169,21 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                           >
                             <MapPin className="h-3.5 w-3.5 text-blue-700" />
                             <span className="hidden sm:inline">Ver en PID</span>
+                          </a>
+                        </Button>
+                      )}
+                      {/* Contexto inverso: dentro del visor de PID, dar salida al
+                          listado global filtrado por este PID. */}
+                      {enPidViewer && p.pidArchivoId && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a
+                            href={`/ejecucion/pendientes?pidArchivoId=${p.pidArchivoId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={p.pidArchivoCodigo ? `Ver pendientes de ${p.pidArchivoCodigo}` : "Ver pendientes de este PID"}
+                          >
+                            <ListChecks className="h-3.5 w-3.5 text-blue-700" />
+                            <span className="hidden sm:inline">Pendientes del PID</span>
                           </a>
                         </Button>
                       )}
