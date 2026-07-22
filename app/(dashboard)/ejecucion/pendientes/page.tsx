@@ -12,6 +12,8 @@ import {
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
+import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import {
@@ -28,6 +30,7 @@ import { Input } from "@/components/ui/input"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import {
   FiltersTrigger, FiltersChips, FiltersSheet, FilterField, type FilterChip,
 } from "@/components/ui/filters-bar"
@@ -60,6 +63,7 @@ function PendientesPageContent() {
   const [sistemaId, setSistemaId] = useState(searchParams.get("sistemaId") ?? "")
   const [subSistemaId, setSubSistemaId] = useState(searchParams.get("subSistemaId") ?? "")
   const [elementoId, setElementoId] = useState(searchParams.get("elementoId") ?? "")
+  const [especialidadId, setEspecialidadId] = useState(searchParams.get("especialidadId") ?? "")
   const [estadoSel, setEstadoSel] = useState<string>(searchParams.get("estado") ?? OPEN)
   const [responsableId, setResponsableId] = useState(searchParams.get("responsableId") ?? "")
   const [categoriaId, setCategoriaId] = useState(searchParams.get("categoriaId") ?? "")
@@ -148,6 +152,7 @@ function PendientesPageContent() {
     setOrDelete(params, "sistemaId", sistemaId)
     setOrDelete(params, "subSistemaId", subSistemaId)
     setOrDelete(params, "elementoId", elementoId)
+    setOrDelete(params, "especialidadId", especialidadId)
     setOrDelete(params, "responsableId", responsableId)
     setOrDelete(params, "categoriaId", categoriaId)
     setOrDelete(params, "tipoId", tipoId)
@@ -165,7 +170,7 @@ function PendientesPageContent() {
     const current = searchParams.toString()
     if (current !== qs) router.replace(target, { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sistemaId, subSistemaId, elementoId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
+  }, [search, sistemaId, subSistemaId, elementoId, especialidadId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
 
   const { data: perfil } = useGetPerfil()
   const { data: sistemasRaw } = useGetSistemasSelect()
@@ -202,6 +207,7 @@ function PendientesPageContent() {
       sistemaId: sistemaId || undefined,
       subSistemaId: subSistemaId || undefined,
       elementoId: elementoId || undefined,
+      especialidadId: especialidadId || undefined,
       estadoId: estadoIdFilter,
       responsableId: responsableId || undefined,
       categoriaId: categoriaId || undefined,
@@ -217,7 +223,8 @@ function PendientesPageContent() {
   const items = data?.data ?? []
 
   function clearFiltros() {
-    setSistemaId(""); setSubSistemaId(""); setElementoId(""); setEstadoSel(OPEN); setResponsableId("")
+    setSistemaId(""); setSubSistemaId(""); setElementoId(""); setEspecialidadId("")
+    setEstadoSel(OPEN); setResponsableId("")
     setCategoriaId(""); setTipoId(""); setPrioridad("")
     setPage(1)
   }
@@ -227,6 +234,28 @@ function PendientesPageContent() {
   // hay elementoId.
   const { data: elementoFiltroRaw } = useGetElemento(elementoId || null)
   const elementoFiltro = elementoFiltroRaw?.data
+
+  // Catálogos para los selects nuevos.
+  const { data: especialidadesRaw } = useGetEspecialidades()
+  const especialidades = especialidadesRaw?.data ?? []
+
+  // Lista de elementos para el Combobox — respeta subsistema y especialidad
+  // ya seleccionados. pageSize=500 como en el form del pendiente.
+  const { data: elementosRaw } = useGetElementos({
+    page: 1,
+    pageSize: 500,
+    subSistemaId: subSistemaId || undefined,
+    especialidadId: especialidadId || undefined,
+  })
+  const elementos = elementosRaw?.data ?? []
+
+  const elementoOptions = useMemo(
+    () => [
+      { value: "", label: "Cualquier elemento" },
+      ...elementos.map((e) => ({ value: e.id, label: `${e.tag} — ${e.nombre}` })),
+    ],
+    [elementos],
+  )
 
   function handleSistemaChange(v: string | null) {
     const id = !v || v === ALL ? "" : v
@@ -253,6 +282,14 @@ function PendientesPageContent() {
       id: "elemento",
       label: `Elemento: ${elementoFiltro?.tag ?? "…"}`,
       onRemove: () => { setElementoId(""); setPage(1) },
+    })
+  }
+  if (especialidadId) {
+    const e = especialidades.find((x) => x.id === especialidadId)
+    activeFilters.push({
+      id: "especialidad",
+      label: `Especialidad: ${e?.nombre ?? "—"}`,
+      onRemove: () => { setEspecialidadId(""); setPage(1) },
     })
   }
   // Chip para el Estado: solo aparece si el user eligió algo distinto al default
@@ -439,6 +476,38 @@ function PendientesPageContent() {
                 <SelectItem value={ALL}>Todos</SelectItem>
                 {subSistemasFiltrados.map((ss) => (
                   <SelectItem key={ss.id} value={ss.id}>{ss.codigo} — {ss.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Elemento">
+            <Combobox
+              options={elementoOptions}
+              value={elementoId}
+              onChange={(v) => { setElementoId(v ?? ""); setPage(1) }}
+              placeholder="Cualquier elemento"
+              searchPlaceholder="Buscar por TAG o nombre..."
+              emptyMessage="Sin resultados"
+            />
+          </FilterField>
+
+          <FilterField label="Especialidad">
+            <Select
+              value={especialidadId || ALL}
+              onValueChange={(v) => { const value = v ?? ALL; setEspecialidadId(value === ALL ? "" : value); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {especialidadId
+                    ? especialidades.find((x) => x.id === especialidadId)?.nombre ?? "Especialidad"
+                    : "Todas"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas</SelectItem>
+                {especialidades.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
