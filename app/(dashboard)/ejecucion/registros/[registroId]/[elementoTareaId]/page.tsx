@@ -37,7 +37,11 @@ function CargarPdfContent() {
   const params  = useParams()
   const router  = useRouter()
   const elementoTareaId = params.elementoTareaId as string
-  const planillaIdEsperada = (params.planillaId as string).toLowerCase()
+  // El slug del primer segmento se llama [registroId] por restricción de Next.js
+  // (colisión con la ruta hermana /ejecucion/registros/[registroId] que ya
+  // existía). Semánticamente sigue siendo un planillaId — lo leemos y lo
+  // tratamos como tal.
+  const planillaIdEsperada = (params.registroId as string).toLowerCase()
   const elementoTareaIdEsperada = elementoTareaId.toLowerCase()
 
   const queryClient = useQueryClient()
