@@ -783,7 +783,7 @@ function TareaRow({
                   {puedeCargarFisico && (
                     <DropdownMenuItem
                       render={
-                        <a href={`/checklist/testgroup/${tarea.tareaPlanillaId}/${testGroupId}/${tarea.id}`} />
+                        <a href={`/ejecucion/registros/testgroup/${tarea.tareaPlanillaId}/${testGroupId}/${tarea.id}`} />
                       }
                     >
                       <FileUp className="h-4 w-4" />
