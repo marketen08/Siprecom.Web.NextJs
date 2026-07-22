@@ -59,12 +59,34 @@ function CargarPdfContent() {
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
   const cantidadFirmasFisicas = firmasConfigRaw?.data?.cantidadSlotsFisica ?? 0
 
-  // Breadcrumb: Ejecución → Registros → Cargar planilla física
-  useBreadcrumb([
-    { label: "Ejecución" },
-    { label: "Registros" },
-    { label: preFirmado ? "Cargar registro firmado" : "Cargar planilla física" },
-  ])
+  // Breadcrumb navegable — mismo patrón que /ejecucion/registros/[id]:
+  // Ejecución → Registros → {Elemento (link)} → {Tarea} → Cargar planilla física.
+  // El nombre del elemento linkea al listado con el elemento pre-seleccionado
+  // así el operador puede volver a la vista del elemento y sus tareas.
+  const elementoIdReg = tarea?.elementoId ?? elemento?.id ?? null
+  const elementoNombreReg = tarea?.elementoNombre ?? elemento?.nombre ?? null
+  const tareaNombreReg = tarea?.tareaNombre ?? null
+  const cargaLabel = preFirmado ? "Cargar registro firmado" : "Cargar planilla física"
+  useBreadcrumb(
+    elementoNombreReg || tareaNombreReg
+      ? [
+          { label: "Ejecución" },
+          { label: "Registros" },
+          ...(elementoNombreReg
+            ? [{
+                label: elementoNombreReg,
+                href: elementoIdReg ? `/ejecucion/elementos?elementoId=${elementoIdReg}` : undefined,
+              }]
+            : []),
+          ...(tareaNombreReg ? [{ label: tareaNombreReg }] : []),
+          { label: cargaLabel },
+        ]
+      : [
+          { label: "Ejecución" },
+          { label: "Registros" },
+          { label: cargaLabel },
+        ]
+  )
 
   const [observaciones, setObs]     = useState("")
   const [subiendo, setSubiendo]     = useState<"idle" | "iniciando" | "subiendo" | "ok" | "error">("idle")
