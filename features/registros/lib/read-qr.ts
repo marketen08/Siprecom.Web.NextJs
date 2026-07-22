@@ -9,7 +9,11 @@ import jsQR from "jsqr"
 export interface QrLeidoResult {
   /** true si se decodificó algún QR, aunque no sea del formato esperado. */
   qrEncontrado: boolean
-  /** true sólo si es del tipo `/checklist/{planillaId}/{elementoTareaId}`. */
+  /**
+   * true sólo si es del tipo `/ejecucion/registros/{planillaId}/{elementoTareaId}`
+   * (nuevo) o del legacy `/checklist/{planillaId}/{elementoTareaId}`. El campo
+   * conserva su nombre por compat con los callers — el shape es equivalente.
+   */
   esChecklist: boolean
   /** GUID de la planilla (lowercased) cuando `esChecklist=true`. */
   planillaId: string | null
@@ -285,15 +289,41 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
   const partes = contenido.split(/[\\/?#\s]+/).filter(Boolean)
   const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-  // Formato tareas: `/checklist/{planillaId}/{elementoTareaId}` (2 GUIDs).
+  // Formato tareas — dos variantes soportadas (Fase 2 de la migración):
+  //   1) Nuevo:  /ejecucion/registros/{planillaId}/{elementoTareaId}
+  //   2) Legacy: /checklist/{planillaId}/{elementoTareaId}
+  // Ambas devuelven el mismo shape para no romper los callers.
+  //
+  // Los QRs generados desde Fase 2 usan el nuevo path; los QRs impresos antes
+  // usan el legacy. Todos deben seguir funcionando.
   for (let i = 0; i < partes.length - 2; i++) {
-    if (partes[i].toLowerCase() !== "checklist") continue
-    if (guidRe.test(partes[i + 1]) && guidRe.test(partes[i + 2])) {
+    const seg = partes[i].toLowerCase()
+
+    // Legacy: buscamos el segmento "checklist" seguido de 2 GUIDs.
+    if (seg === "checklist"
+        && guidRe.test(partes[i + 1])
+        && guidRe.test(partes[i + 2])) {
       return emptyResult({
         qrEncontrado: true,
         esChecklist: true,
         planillaId: partes[i + 1].toLowerCase(),
         elementoTareaId: partes[i + 2].toLowerCase(),
+        contenidoQr: contenido,
+        rotacionDetectada,
+      })
+    }
+
+    // Nuevo: buscamos "ejecucion/registros" seguido de 2 GUIDs.
+    if (seg === "ejecucion"
+        && i + 3 < partes.length
+        && partes[i + 1].toLowerCase() === "registros"
+        && guidRe.test(partes[i + 2])
+        && guidRe.test(partes[i + 3])) {
+      return emptyResult({
+        qrEncontrado: true,
+        esChecklist: true,
+        planillaId: partes[i + 2].toLowerCase(),
+        elementoTareaId: partes[i + 3].toLowerCase(),
         contenidoQr: contenido,
         rotacionDetectada,
       })
@@ -317,7 +347,7 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
   return emptyResult({
     qrEncontrado: true,
     contenidoQr: contenido,
-    error: "El QR no es de carga (se esperaba /checklist/{...} o /pendiente-carga/{...}).",
+    error: "El QR no es de carga (se esperaba /ejecucion/registros/{...}/{...}, /checklist/{...}/{...} o /pendiente-carga/{...}).",
     rotacionDetectada,
   })
 }
