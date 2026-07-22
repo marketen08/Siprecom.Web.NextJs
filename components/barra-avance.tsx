@@ -11,13 +11,15 @@ export function BarraAvance({ porcentaje, showLabel = true, size = "sm" }: Barra
     pct >= 100 ? "bg-green-500" :
     pct >= 75  ? "bg-blue-500"  :
     pct >= 40  ? "bg-yellow-400" :
-                 "bg-orange-400"
+    pct > 0    ? "bg-orange-400" :
+                 "bg-gray-300"
 
   const labelBg =
     pct >= 100 ? "bg-green-700" :
     pct >= 75  ? "bg-blue-700"  :
     pct >= 40  ? "bg-yellow-600" :
-                 "bg-orange-600"
+    pct > 0    ? "bg-orange-600" :
+                 "bg-gray-500"
 
   const sizing = size === "lg"
     ? { bar: "h-7", pill: "px-2 py-0.5 text-xs", left: "left-1", decimals: 2 }
