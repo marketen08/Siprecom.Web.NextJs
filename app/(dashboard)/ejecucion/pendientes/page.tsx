@@ -11,6 +11,7 @@ import {
 } from "@/features/pendientes/api/use-catalogos"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import {
@@ -58,6 +59,7 @@ function PendientesPageContent() {
   const [search, setSearch] = useState(searchParams.get("search") ?? "")
   const [sistemaId, setSistemaId] = useState(searchParams.get("sistemaId") ?? "")
   const [subSistemaId, setSubSistemaId] = useState(searchParams.get("subSistemaId") ?? "")
+  const [elementoId, setElementoId] = useState(searchParams.get("elementoId") ?? "")
   const [estadoSel, setEstadoSel] = useState<string>(searchParams.get("estado") ?? OPEN)
   const [responsableId, setResponsableId] = useState(searchParams.get("responsableId") ?? "")
   const [categoriaId, setCategoriaId] = useState(searchParams.get("categoriaId") ?? "")
@@ -145,6 +147,7 @@ function PendientesPageContent() {
     setOrDelete(params, "search", search)
     setOrDelete(params, "sistemaId", sistemaId)
     setOrDelete(params, "subSistemaId", subSistemaId)
+    setOrDelete(params, "elementoId", elementoId)
     setOrDelete(params, "responsableId", responsableId)
     setOrDelete(params, "categoriaId", categoriaId)
     setOrDelete(params, "tipoId", tipoId)
@@ -162,7 +165,7 @@ function PendientesPageContent() {
     const current = searchParams.toString()
     if (current !== qs) router.replace(target, { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sistemaId, subSistemaId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
+  }, [search, sistemaId, subSistemaId, elementoId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
 
   const { data: perfil } = useGetPerfil()
   const { data: sistemasRaw } = useGetSistemasSelect()
@@ -198,6 +201,7 @@ function PendientesPageContent() {
       search: search || undefined,
       sistemaId: sistemaId || undefined,
       subSistemaId: subSistemaId || undefined,
+      elementoId: elementoId || undefined,
       estadoId: estadoIdFilter,
       responsableId: responsableId || undefined,
       categoriaId: categoriaId || undefined,
@@ -213,10 +217,16 @@ function PendientesPageContent() {
   const items = data?.data ?? []
 
   function clearFiltros() {
-    setSistemaId(""); setSubSistemaId(""); setEstadoSel(OPEN); setResponsableId("")
+    setSistemaId(""); setSubSistemaId(""); setElementoId(""); setEstadoSel(OPEN); setResponsableId("")
     setCategoriaId(""); setTipoId(""); setPrioridad("")
     setPage(1)
   }
+
+  // Chip del filtro por elemento (viene por URL desde la maqueta 3D u otros
+  // enlaces). Necesitamos el TAG para mostrarlo — lo pedimos con el hook cuando
+  // hay elementoId.
+  const { data: elementoFiltroRaw } = useGetElemento(elementoId || null)
+  const elementoFiltro = elementoFiltroRaw?.data
 
   function handleSistemaChange(v: string | null) {
     const id = !v || v === ALL ? "" : v
@@ -237,6 +247,13 @@ function PendientesPageContent() {
   if (subSistemaId) {
     const ss = subSistemas.find((x) => x.id === subSistemaId)
     activeFilters.push({ id: "subsistema", label: `Subsistema: ${ss?.nombre ?? "—"}`, onRemove: () => { setSubSistemaId(""); setPage(1) } })
+  }
+  if (elementoId) {
+    activeFilters.push({
+      id: "elemento",
+      label: `Elemento: ${elementoFiltro?.tag ?? "…"}`,
+      onRemove: () => { setElementoId(""); setPage(1) },
+    })
   }
   // Chip para el Estado: solo aparece si el user eligió algo distinto al default
   // "Todos los abiertos" (OPEN). Muestra label distinto según el caso.
