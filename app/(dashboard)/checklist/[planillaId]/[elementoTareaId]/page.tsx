@@ -14,5 +14,5 @@ export default async function Page({
   params: Promise<{ planillaId: string; elementoTareaId: string }>
 }) {
   const { planillaId, elementoTareaId } = await params
-  redirect(`/ejecucion/registros/${planillaId}/${elementoTareaId}`)
+  redirect(`/ejecucion/registros/et/${planillaId}/${elementoTareaId}`)
 }

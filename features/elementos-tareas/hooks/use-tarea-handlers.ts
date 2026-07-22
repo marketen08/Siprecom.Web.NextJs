@@ -61,7 +61,7 @@ export function useTareaHandlers() {
     if (!tarea.planillaId) return
     const bloqueo = await verificarGate(tarea.id)
     if (bloqueo) { setErrorGate(bloqueo); return }
-    router.push(`/ejecucion/registros/${tarea.planillaId}/${tarea.id}`)
+    router.push(`/ejecucion/registros/et/${tarea.planillaId}/${tarea.id}`)
   }, [router])
 
   const handleReiniciar = useCallback(async (tarea: ElementoTarea) => {
