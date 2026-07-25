@@ -113,6 +113,13 @@ export function CargaFisicaUploader({
     | null
     | { kind: "detectando" }
     | { kind: "detectada"; slotsDetectados: number; slotsTotal: number }
+    // Detección parcial: al menos una firma detectada pero no todas. El backend
+    // auto-firmará las detectadas y las no detectadas quedarán pendientes de
+    // firma digital (cuando el flag FIRMA_DIGITAL_SI_VISUAL_FALLA está ON).
+    // Se sube sin diálogo — es un flujo esperado, no una falla.
+    | { kind: "parcial"; slotsDetectados: number; slotsTotal: number }
+    // Detección cero: 0 firmas encontradas de N esperadas. Se mantiene el
+    // diálogo de confirmación porque suele ser un error de escaneo / rotación.
     | { kind: "no-detectada"; slotsDetectados: number; slotsTotal: number }
     // Planilla no tiene fiduciales impresos (generada antes del cambio) —
     // no podemos verificar visualmente, mostramos el estado y dejamos al
@@ -180,11 +187,15 @@ export function CargaFisicaUploader({
       if (deteccion.sinFiduciales) {
         setFirmaState({ kind: "sin-fiduciales" })
       } else {
-        setFirmaState({
-          kind: deteccion.detected ? "detectada" : "no-detectada",
-          slotsDetectados: deteccion.slotsDetectados,
-          slotsTotal: deteccion.slotsTotal,
-        })
+        const det = deteccion.slotsDetectados
+        const tot = deteccion.slotsTotal
+        // Tri-estado: todas / algunas / ninguna. Solo "ninguna" (0) sigue con
+        // diálogo — el resto es un flujo esperado.
+        let kind: "detectada" | "parcial" | "no-detectada"
+        if (det === tot && tot > 0) kind = "detectada"
+        else if (det > 0) kind = "parcial"
+        else kind = "no-detectada"
+        setFirmaState({ kind, slotsDetectados: det, slotsTotal: tot })
       }
     } catch (err) {
       console.error("[CargaFisicaUploader] detectSignatureRemote threw:", err)
@@ -223,6 +234,12 @@ export function CargaFisicaUploader({
     }
     if (firmaState?.kind === "no-detectada" && forzarOverride) {
       const detalle = `firmas detectadas ${firmaState.slotsDetectados}/${firmaState.slotsTotal} en la zona de firmas`
+      params.firmaOverrideDetalle = detalle.slice(0, 500)
+    }
+    if (firmaState?.kind === "parcial") {
+      // Solo trazabilidad — no bloquea el submit. El backend re-ejecuta la
+      // detección server-side y auto-firma solo los slots que él detectó.
+      const detalle = `deteccion parcial ${firmaState.slotsDetectados}/${firmaState.slotsTotal}`
       params.firmaOverrideDetalle = detalle.slice(0, 500)
     }
     if (firmaState?.kind === "sin-fiduciales") {
@@ -357,13 +374,27 @@ export function CargaFisicaUploader({
             : "Firma detectada en el escaneo."}
         </div>
       )}
+      {firmaState?.kind === "parcial" && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">
+              Firmas detectadas: {firmaState.slotsDetectados}/{firmaState.slotsTotal}.
+            </p>
+            <p className="text-xs mt-1">
+              Los slots detectados quedarán firmados con la firma en papel. Los slots
+              sin firma detectada quedarán pendientes de firma digital.
+            </p>
+          </div>
+        </div>
+      )}
       {firmaState?.kind === "no-detectada" && (
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-medium">
               {firmaState.slotsTotal > 1
-                ? `Faltan firmas: ${firmaState.slotsDetectados}/${firmaState.slotsTotal} detectadas en el escaneo.`
+                ? "No se detectaron firmas en el escaneo."
                 : "No se detectó firma manuscrita en el escaneo."}
             </p>
             <p className="text-xs mt-1">
