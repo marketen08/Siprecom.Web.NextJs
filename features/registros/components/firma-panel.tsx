@@ -20,23 +20,28 @@ interface Props {
 export function FirmaPanel({ registroId, soloLectura = false }: Props) {
   const { data, isLoading, isError } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
-  const miFirmaQuery = useGetMiFirma(!soloLectura)
+
+  const status = data?.data
+  // Flag global — decide si se pide/muestra garabato al firmar. Cuando OFF, no
+  // consultamos la firma guardada del perfil ni ofrecemos el pad para dibujar.
+  const renderizarGarabato = status?.renderizarGarabatoFirma ?? false
+  const miFirmaQuery = useGetMiFirma(!soloLectura && renderizarGarabato)
   const uploadMiFirma = useUploadMiFirma()
 
   const [slotSeleccionado, setSlotSeleccionado] = useState<RegistroFirmaSlot | null>(null)
   const [observaciones, setObs] = useState("")
   const [firmado, setFirmado] = useState(false)
-  // Modo de captura: "guardada" = usar la firma del perfil; "dibujar" = pad en pantalla.
-  const [modoFirma, setModoFirma] = useState<"guardada" | "dibujar">("guardada")
-  const [guardarPerfil, setGuardarPerfil] = useState(false)
   const [padIsEmpty, setPadIsEmpty] = useState(true)
   const padRef = useRef<SignaturePadHandle | null>(null)
 
-  const firmaGuardadaUrl = miFirmaQuery.data?.data?.url ?? null
-  // Si no tiene firma guardada, forzamos modo "dibujar".
-  const modoEfectivo = firmaGuardadaUrl ? modoFirma : "dibujar"
+  const firmaGuardadaUrl = renderizarGarabato ? (miFirmaQuery.data?.data?.url ?? null) : null
+  // Modo efectivo simplificado:
+  //  - flag OFF          → "sin-garabato" (no se pide firma visual).
+  //  - flag ON + perfil  → "guardada" (usar siempre la del perfil, sin opción de cambiar).
+  //  - flag ON + sin perfil → "dibujar" (pad + checkbox para guardar en perfil, una vez).
+  const modoEfectivo: "sin-garabato" | "guardada" | "dibujar" =
+    !renderizarGarabato ? "sin-garabato" : firmaGuardadaUrl ? "guardada" : "dibujar"
 
-  const status = data?.data
   const slots = status?.slots ?? []
   const pendientes = slots.filter((s) => !s.firmaId)
   // Solo los slots que el usuario actual puede firmar
@@ -61,8 +66,10 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
   async function handleFirmar() {
     if (!slotSeleccionado) return
 
-    // Resolver firma según el modo: el "guardada" lo resuelve el backend desde el perfil
-    // (evita CORS browser→Azure). El "dibujar" sí manda dataURL.
+    // Resolver firma según el modo:
+    //  - "sin-garabato" → firma sin dato visual (flag global OFF).
+    //  - "guardada"     → backend usa la firma del perfil (evita CORS browser→Azure).
+    //  - "dibujar"      → mandamos el dataURL del pad + guardamos en perfil para reuso.
     let datosFirma: string | null = null
     let usarFirmaGuardada = false
     if (modoEfectivo === "guardada" && firmaGuardadaUrl) {
@@ -70,10 +77,11 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
     } else if (modoEfectivo === "dibujar") {
       datosFirma = padRef.current?.getDataUrl() ?? null
       if (!datosFirma) return
-      if (guardarPerfil) {
-        try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
-      }
+      // Con el flag ON y sin firma en perfil, siempre guardamos la primera dibujada
+      // en el perfil para próximas firmas — de ahora en más se usa esa (sin pad).
+      try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
     }
+    // "sin-garabato" → ambos quedan null/false: el backend firma sin datos visuales.
 
     await firmar.mutateAsync({
       rolFirmante: slotSeleccionado.rolNombre,
@@ -84,7 +92,6 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
     setFirmado(true)
     setSlotSeleccionado(null)
     setObs("")
-    setGuardarPerfil(false)
   }
 
   return (
@@ -155,31 +162,8 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
             {/* Captura de firma — visible cuando seleccionó un slot */}
             {slotSeleccionado && (
               <>
-                {/* Toggle entre firma guardada y dibujar (sólo si tiene firma guardada) */}
-                {firmaGuardadaUrl && (
-                  <div className="flex gap-1 p-0.5 bg-white border rounded-md w-fit">
-                    <button
-                      type="button"
-                      onClick={() => setModoFirma("guardada")}
-                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                        modoEfectivo === "guardada" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      Mi firma guardada
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setModoFirma("dibujar")}
-                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                        modoEfectivo === "dibujar" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      Dibujar nueva
-                    </button>
-                  </div>
-                )}
-
-                {/* Preview de firma guardada */}
+                {/* Modo "guardada": mostramos el preview de la firma del perfil.
+                    No hay opción de cambiar — siempre se usa la del perfil. */}
                 {modoEfectivo === "guardada" && firmaGuardadaUrl && (
                   <div className="rounded-md border bg-white p-2 max-w-xs">
                     <img
@@ -187,10 +171,14 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
                       alt="Tu firma"
                       className="max-h-24 max-w-full object-contain mx-auto"
                     />
+                    <p className="mt-1 text-[11px] text-center text-muted-foreground">
+                      Se usará tu firma guardada en el perfil.
+                    </p>
                   </div>
                 )}
 
-                {/* Pad para dibujar */}
+                {/* Modo "dibujar": pad para la primera carga. Se guarda automáticamente
+                    en el perfil, así en próximas firmas queda en modo "guardada". */}
                 {modoEfectivo === "dibujar" && (
                   <div className="space-y-1.5">
                     <SignaturePad
@@ -198,19 +186,14 @@ export function FirmaPanel({ registroId, soloLectura = false }: Props) {
                       height={140}
                       onChange={(empty) => setPadIsEmpty(empty)}
                     />
-                    {!firmaGuardadaUrl && (
-                      <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-gray-300"
-                          checked={guardarPerfil}
-                          onChange={(e) => setGuardarPerfil(e.target.checked)}
-                        />
-                        Guardar esta firma en mi perfil para próximas veces
-                      </label>
-                    )}
+                    <p className="text-[11px] text-muted-foreground">
+                      Esta firma se guardará en tu perfil para próximas veces.
+                    </p>
                   </div>
                 )}
+
+                {/* Modo "sin-garabato" (flag global OFF): no mostramos captura.
+                    El registro se firma solo con los datos del usuario (sin trazo). */}
 
                 <textarea
                   value={observaciones}

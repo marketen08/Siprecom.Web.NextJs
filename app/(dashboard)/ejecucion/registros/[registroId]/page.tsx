@@ -584,15 +584,18 @@ function FirmasSection({
 }) {
   const { data: raw, isLoading } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
-  const miFirmaQuery = useGetMiFirma()
-  const uploadMiFirma = useUploadMiFirma()
   const status = (raw as any)?.data ?? raw
+
+  // Flag global — decide si se pide/muestra garabato al firmar. Cuando OFF, no
+  // consultamos la firma guardada del perfil ni ofrecemos el pad para dibujar.
+  const renderizarGarabato: boolean = status?.renderizarGarabatoFirma ?? false
+  const firmaVisualFallo: boolean = status?.firmaVisualFallo ?? false
+  const miFirmaQuery = useGetMiFirma(renderizarGarabato)
+  const uploadMiFirma = useUploadMiFirma()
 
   const [slotFirmando, setSlotFirmando] = useState<string | null>(null)
   const [rolLibre, setRolLibre] = useState("")
   const [observacionFirma, setObservacionFirma] = useState("")
-  const [modoFirma, setModoFirma] = useState<"guardada" | "dibujar">("guardada")
-  const [guardarPerfil, setGuardarPerfil] = useState(false)
   const [padIsEmpty, setPadIsEmpty] = useState(true)
   const padRef = useRef<SignaturePadHandle | null>(null)
 
@@ -601,11 +604,16 @@ function FirmasSection({
   // usuario ya está en la pantalla del registro y no hace falta navegar.
   const [proximoCicloFecha, setProximoCicloFecha] = useState<string | null>(null)
 
-  const firmaGuardadaUrl = miFirmaQuery.data?.data?.url ?? null
-  const modoEfectivo = firmaGuardadaUrl ? modoFirma : "dibujar"
+  const firmaGuardadaUrl = renderizarGarabato ? (miFirmaQuery.data?.data?.url ?? null) : null
+  // 3 modos: sin-garabato (flag OFF), guardada (flag ON + perfil), dibujar (flag ON + sin perfil).
+  const modoEfectivo: "sin-garabato" | "guardada" | "dibujar" =
+    !renderizarGarabato ? "sin-garabato" : firmaGuardadaUrl ? "guardada" : "dibujar"
 
   async function handleFirmar(rolNombre: string) {
-    // Resolver firma según el modo: el "guardada" lo resuelve el backend (evita CORS browser→Azure).
+    // Resolver firma según el modo:
+    //  - "sin-garabato" → sin dato visual (flag global OFF).
+    //  - "guardada"     → backend usa la firma del perfil (evita CORS browser→Azure).
+    //  - "dibujar"      → mandamos el dataURL del pad y lo guardamos en perfil.
     let datosFirma: string | null = null
     let usarFirmaGuardada = false
     if (modoEfectivo === "guardada" && firmaGuardadaUrl) {
@@ -613,9 +621,9 @@ function FirmasSection({
     } else if (modoEfectivo === "dibujar") {
       datosFirma = padRef.current?.getDataUrl() ?? null
       if (!datosFirma) return
-      if (guardarPerfil) {
-        try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
-      }
+      // Auto-guardado en perfil: la primera firma dibujada queda en el perfil
+      // y las próximas caen automáticamente en modo "guardada".
+      try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
     }
 
     const res = await firmar.mutateAsync({
@@ -627,7 +635,6 @@ function FirmasSection({
     setSlotFirmando(null)
     setObservacionFirma("")
     setRolLibre("")
-    setGuardarPerfil(false)
 
     const info = (res as { data?: RegistroDetalle } | undefined)?.data?.preservacionCicloGenerado
     if (info?.generado && info.fechaPlanificadaProximo) {
@@ -676,9 +683,6 @@ function FirmasSection({
               <FirmaCapturaInline
                 firmaGuardadaUrl={firmaGuardadaUrl}
                 modoEfectivo={modoEfectivo}
-                setModoFirma={setModoFirma}
-                guardarPerfil={guardarPerfil}
-                setGuardarPerfil={setGuardarPerfil}
                 padRef={padRef}
                 setPadIsEmpty={setPadIsEmpty}
               />
@@ -787,10 +791,13 @@ function FirmasSection({
                     <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
                     <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
-                ) : slot.tipoFirma === 2 && esRegistroFisico ? (
+                ) : slot.tipoFirma === 2 && esRegistroFisico && !firmaVisualFallo ? (
                   // Slot configurado como Fisica + registro físico → se auto-firma al subir
-                  // el PDF escaneado. Si el registro es digital, no bloqueamos: el user firma
-                  // electrónicamente como cualquier slot Digital (el backend ya lo permite).
+                  // el PDF escaneado. Excepción: cuando FirmaVisualFallo=true (detección
+                  // visual falló + flag FIRMA_DIGITAL_SI_VISUAL_FALLA ON), el slot debe
+                  // firmarse digitalmente — cae al botón "Firmar" de abajo.
+                  // Si el registro es digital, no bloqueamos: el user firma electrónicamente
+                  // como cualquier slot Digital (el backend ya lo permite).
                   <span className="inline-flex items-center gap-1 text-xs text-amber-700 shrink-0">
                     <Clock className="h-3 w-3" />
                     Se marca al subir el PDF físico
@@ -820,9 +827,6 @@ function FirmasSection({
                   <FirmaCapturaInline
                     firmaGuardadaUrl={firmaGuardadaUrl}
                     modoEfectivo={modoEfectivo}
-                    setModoFirma={setModoFirma}
-                    guardarPerfil={guardarPerfil}
-                    setGuardarPerfil={setGuardarPerfil}
                     padRef={padRef}
                     setPadIsEmpty={setPadIsEmpty}
                   />
@@ -880,65 +884,34 @@ function FirmasSection({
 function FirmaCapturaInline({
   firmaGuardadaUrl,
   modoEfectivo,
-  setModoFirma,
-  guardarPerfil,
-  setGuardarPerfil,
   padRef,
   setPadIsEmpty,
 }: {
   firmaGuardadaUrl: string | null
-  modoEfectivo: "guardada" | "dibujar"
-  setModoFirma: (m: "guardada" | "dibujar") => void
-  guardarPerfil: boolean
-  setGuardarPerfil: (v: boolean) => void
+  modoEfectivo: "sin-garabato" | "guardada" | "dibujar"
   padRef: React.RefObject<SignaturePadHandle | null>
   setPadIsEmpty: (v: boolean) => void
 }) {
+  // "sin-garabato" → flag global OFF; no mostramos ninguna UI de captura.
+  if (modoEfectivo === "sin-garabato") return null
+
   return (
     <div className="space-y-2">
-      {firmaGuardadaUrl && (
-        <div className="flex gap-1 p-0.5 bg-gray-100 border rounded-md w-fit">
-          <button
-            type="button"
-            onClick={() => setModoFirma("guardada")}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              modoEfectivo === "guardada" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Mi firma guardada
-          </button>
-          <button
-            type="button"
-            onClick={() => setModoFirma("dibujar")}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              modoEfectivo === "dibujar" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Dibujar nueva
-          </button>
-        </div>
-      )}
-
       {modoEfectivo === "guardada" && firmaGuardadaUrl && (
         <div className="rounded-md border bg-white p-2 max-w-sm">
           <img src={firmaGuardadaUrl} alt="Tu firma" className="max-h-28 max-w-full object-contain mx-auto" />
+          <p className="mt-1 text-[11px] text-center text-muted-foreground">
+            Se usará tu firma guardada en el perfil.
+          </p>
         </div>
       )}
 
       {modoEfectivo === "dibujar" && (
         <div className="space-y-1.5">
           <SignaturePad ref={padRef} height={140} onChange={(empty) => setPadIsEmpty(empty)} />
-          {!firmaGuardadaUrl && (
-            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 rounded border-gray-300"
-                checked={guardarPerfil}
-                onChange={(e) => setGuardarPerfil(e.target.checked)}
-              />
-              Guardar esta firma en mi perfil para próximas veces
-            </label>
-          )}
+          <p className="text-[11px] text-muted-foreground">
+            Esta firma se guardará en tu perfil para próximas veces.
+          </p>
         </div>
       )}
     </div>

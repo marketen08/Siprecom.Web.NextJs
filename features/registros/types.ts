@@ -136,6 +136,11 @@ export interface RegistroFirmasStatus {
   totalFirmas: number
   firmasCompletadas: number
   firmasPendientes: number
+  /** Flag global RENDERIZAR_GARABATO_FIRMA. Si false, no mostrar UI de captura del garabato. */
+  renderizarGarabatoFirma: boolean
+  /** True si la detección visual falló + flag FIRMA_DIGITAL_SI_VISUAL_FALLA ON. En ese caso
+   *  los slots Fisica requieren firma digital manual (no auto-firma al subir el PDF). */
+  firmaVisualFallo: boolean
   slots: RegistroFirmaSlot[]
 }
 
