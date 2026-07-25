@@ -21,7 +21,7 @@ import {
 
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
 import { rotateFile } from "@/features/registros/lib/rotate-file"
-import { detectSignatureInFooter } from "@/features/registros/lib/detect-signature"
+import { detectSignatureRemote } from "@/features/registros/lib/detect-signature-remote"
 import {
   useResolverRegistroPorEt,
   type RegistroResolverResult,
@@ -66,6 +66,11 @@ type FilaEstado =
   // casos: (a) archivos sin QR posteriores a un carrier en el orden, y (b) QR
   // duplicado de un carrier previo del mismo destino.
   | "adjunto"
+  // Imagen rechazada preventivamente por baja resolución: flag global
+  // RECHAZAR_IMAGEN_BAJA_RESOLUCION ON + hay firmas físicas + ancho <
+  // anchoMinimoImagen. Se marca antes de subir para no gastar upload que el
+  // backend rechazaría con 400.
+  | "baja-resolucion"
 
 /** Resultado de la detección visual de firma. `null` = no corrió todavía.
  *  Los kinds "detectada" y "no-detectada" ahora traen el conteo per-slot para
@@ -265,11 +270,12 @@ export default function CargaRapidaQrPage() {
   const resolverPendiente = useResolverPendientePorQr()
   const queryClient = useQueryClient()
 
-  // Cache local del batch: `cantidadFirmasFisicas` es una propiedad del proyecto/tarea,
-  // no del archivo, así que la primera fila del proyecto la consulta y las demás
-  // reusan el valor. Si el batch tiene 30 archivos de un solo proyecto, hacemos
-  // 1 llamada en vez de 30. Persiste con useRef entre renders. 0 = sin firmas físicas.
-  const cacheFirmasFisicas = useRef<Map<string, number>>(new Map())
+  // Cache local del batch: `firmasConfigEfectiva` es una propiedad del proyecto/tarea,
+  // no del archivo, así que la primera fila la consulta y las demás reusan el valor.
+  // Si el batch tiene 30 archivos del mismo proyecto/tarea, hacemos 1 llamada en vez
+  // de 30. Persiste con useRef entre renders. Guarda el objeto completo — necesitamos
+  // el flag rechazarBajaResolucion + anchoMinimoImagen, no solo la cantidad de slots.
+  const cacheFirmasConfig = useRef<Map<string, FirmasConfigEfectiva>>(new Map())
 
   // Estado agregado para el header.
   const total = filas.length
@@ -280,7 +286,8 @@ export default function CargaRapidaQrPage() {
   const sincronizados = filas.filter((f) => f.estado === "sincronizado").length
   const conError = filas.filter(
     (f) =>
-      f.estado === "sin-qr" || f.estado === "qr-invalido" || f.estado === "error",
+      f.estado === "sin-qr" || f.estado === "qr-invalido" || f.estado === "error"
+      || f.estado === "baja-resolucion",
   ).length
   const otroProyecto = filas.filter((f) => f.estado === "otro-proyecto").length
   // Warning secundario: filas listas pero sin firma detectada. No bloquean —
@@ -373,12 +380,33 @@ export default function CargaRapidaQrPage() {
     actualizar(id, { estado: "resolviendo", qr, tipo: "tarea" })
     try {
       const res = await resolver.mutateAsync(qr.elementoTareaId!)
+      const cfg = await obtenerFirmasConfig(res.data)
+
+      // Gate preventivo de baja resolución: si el flag global está ON y hay
+      // firmas físicas + imagen chica, bloqueamos ANTES de detectar firmas y
+      // ANTES de subir — el backend rechazaría con 400 igual, pero mejor cortar
+      // acá y evitar el upload.
+      if (cfg.hayFirmasFisicas && cfg.rechazarBajaResolucion && archivo.type.startsWith("image/")) {
+        const ancho = await leerAnchoImagen(archivo)
+        if (ancho > 0 && ancho < cfg.anchoMinimoImagen) {
+          actualizar(id, {
+            estado: "baja-resolucion",
+            resuelto: res.data,
+            mensaje:
+              `Imagen de baja resolución (${ancho} px de ancho). ` +
+              `Se requiere mínimo ${cfg.anchoMinimoImagen} px para la detección de firmas. ` +
+              `Volvé a exportar el escaneo en mayor resolución o subí el PDF.`,
+          })
+          return
+        }
+      }
+
       const estadoBase: FilaEstado = res.data.registroYaExistia ? "ya-cargado" : "listo"
       const mensajeBase = res.data.registroYaExistia
         ? "Ya había un borrador — al subir se sobrescribe."
         : null
 
-      const firmaDeteccion = await detectarFirmaSiCorresponde(res.data, archivo, qr)
+      const firmaDeteccion = await detectarFirmaSiCorresponde(cfg, archivo, qr)
       const mensajeFirma =
         firmaDeteccion?.kind === "no-detectada"
           ? firmaDeteccion.slotsTotal > 1
@@ -488,39 +516,76 @@ export default function CargaRapidaQrPage() {
   }
 
   /**
-   * Corre la detección visual de firma sobre el archivo si el proyecto/tarea
-   * tiene al menos un slot `Fisica`. El chequeo de `hayFirmasFisicas` se cachea
-   * por proyecto para el batch entero. Silencioso ante error — devuelve `null`.
+   * Trae (con caché por proyecto) la config efectiva de firmas del registro:
+   * cantidad de slots, flag global de rechazo por baja resolución, ancho mínimo.
+   * Silencioso ante error — devuelve un stub inocuo.
+   */
+  async function obtenerFirmasConfig(resuelto: RegistroResolverResult): Promise<FirmasConfigEfectiva> {
+    const proyectoId = resuelto.proyectoId
+    const cached = cacheFirmasConfig.current.get(proyectoId)
+    if (cached !== undefined) return cached
+    try {
+      const res = await apiClient.get<{ data: FirmasConfigEfectiva }>(
+        `/api/elementos-tareas/${resuelto.elementoTareaId}/firmas-config-efectiva`,
+      )
+      cacheFirmasConfig.current.set(proyectoId, res.data)
+      return res.data
+    } catch (err) {
+      console.error("[carga-rapida-qr] firmas-config-efectiva threw:", err)
+      // Stub: sin firmas, sin rechazo. No rompe el flujo.
+      const stub: FirmasConfigEfectiva = {
+        cantidadSlotsFisica: 0,
+        cantidadSlotsDigital: 0,
+        hayFirmasFisicas: false,
+        rechazarBajaResolucion: false,
+        anchoMinimoImagen: 1500,
+      }
+      cacheFirmasConfig.current.set(proyectoId, stub)
+      return stub
+    }
+  }
+
+  /**
+   * Lee el ancho (px) de una imagen. Devuelve 0 si no puede — nunca rechaza.
+   */
+  async function leerAnchoImagen(archivo: File): Promise<number> {
+    if (!archivo.type.startsWith("image/")) return 0
+    try {
+      const url = URL.createObjectURL(archivo)
+      const img = new Image()
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error("no image"))
+        img.src = url
+      })
+      URL.revokeObjectURL(url)
+      return img.naturalWidth || 0
+    } catch {
+      return 0
+    }
+  }
+
+  /**
+   * Corre la detección visual de firma sobre el archivo si hay slots Fisica.
+   * Camino unificado con el uploader interactivo: rota el archivo si hace falta
+   * y llama al endpoint server-side (rasteriza PDFs con Docnet, procesa imágenes).
+   * Silencioso ante error — devuelve `null` variantes.
    */
   async function detectarFirmaSiCorresponde(
-    resuelto: RegistroResolverResult,
+    cfg: FirmasConfigEfectiva,
     archivo: File,
     qr: QrLeidoResult,
   ): Promise<FirmaDeteccion> {
-    const proyectoId = resuelto.proyectoId
-    let cantidadFirmas = cacheFirmasFisicas.current.get(proyectoId)
-    if (cantidadFirmas === undefined) {
-      try {
-        const res = await apiClient.get<{ data: FirmasConfigEfectiva }>(
-          `/api/elementos-tareas/${resuelto.elementoTareaId}/firmas-config-efectiva`,
-        )
-        cantidadFirmas = res.data.cantidadSlotsFisica ?? 0
-        cacheFirmasFisicas.current.set(proyectoId, cantidadFirmas)
-      } catch (err) {
-        console.error("[carga-rapida-qr] firmas-config-efectiva threw:", err)
-        // No romper el flujo — asumimos que no aplica y seguimos.
-        cacheFirmasFisicas.current.set(proyectoId, 0)
-        return { kind: "no-aplica" }
-      }
-    }
-    if (cantidadFirmas === 0) return { kind: "no-aplica" }
+    if (cfg.cantidadSlotsFisica === 0) return { kind: "no-aplica" }
     try {
-      const deteccion = await detectSignatureInFooter(archivo, {
-        rotacion: qr.rotacionDetectada,
-        cantidadSlots: cantidadFirmas,
-      })
+      // Rotación: el backend espera el archivo con orientación correcta. Si el
+      // QR indica rotación, la aplicamos antes de mandar. rotateFile es no-op
+      // cuando rotación=0.
+      const rotacion = qr.rotacionDetectada ?? 0
+      const archivoDetectar = rotacion === 0 ? archivo : await rotateFile(archivo, rotacion)
+      const deteccion = await detectSignatureRemote(archivoDetectar, cfg.cantidadSlotsFisica)
       if (deteccion.sinFiduciales) {
-        return { kind: "sin-fiduciales", slotsTotal: cantidadFirmas }
+        return { kind: "sin-fiduciales", slotsTotal: cfg.cantidadSlotsFisica }
       }
       return deteccion.detected
         ? {
@@ -534,8 +599,8 @@ export default function CargaRapidaQrPage() {
             slotsTotal: deteccion.slotsTotal,
           }
     } catch (err) {
-      console.error("[carga-rapida-qr] detectSignatureInFooter threw:", err)
-      return { kind: "no-detectada", slotsDetectados: 0, slotsTotal: cantidadFirmas }
+      console.error("[carga-rapida-qr] detectSignatureRemote threw:", err)
+      return { kind: "no-detectada", slotsDetectados: 0, slotsTotal: cfg.cantidadSlotsFisica }
     }
   }
 
@@ -1036,6 +1101,11 @@ function EstadoBadge({
       label: "Adjunto",
       cls: "bg-blue-100 text-blue-800",
       icon: <Paperclip className="h-3 w-3" />,
+    },
+    "baja-resolucion": {
+      label: "Baja resolución",
+      cls: "bg-red-100 text-red-800",
+      icon: <AlertTriangle className="h-3 w-3" />,
     },
   }
   const it = map[estado]
