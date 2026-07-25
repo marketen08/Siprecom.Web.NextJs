@@ -562,25 +562,42 @@ function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
       {data.map((f) => {
         // Si el SuperAdmin la apagó globalmente, no se puede activar por proyecto.
         const bloqueadaGlobal = !f.habilitadaGlobal
-        const disabled = saving !== null || bloqueadaGlobal
+        // Funcionalidades "solo global": el proyecto no puede overridear. El toggle
+        // se muestra igual (para que el Admin vea el estado efectivo) pero deshabilitado.
+        const soloGlobal = !f.permiteOverrideProyecto
+        const disabled = saving !== null || bloqueadaGlobal || soloGlobal
+        // Cuando es solo-global, el toggle refleja el estado global (no el "proyecto").
+        const checked = soloGlobal ? f.habilitadaGlobal : f.habilitadaProyecto
         return (
           <div
             key={f.clave}
             className={`flex items-center justify-between gap-4 rounded-lg border bg-white p-4 ${bloqueadaGlobal ? "opacity-60" : ""}`}
           >
             <div className="space-y-0.5 min-w-0">
-              <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
+                {soloGlobal && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                    Global
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">{f.descripcion}</p>
               {bloqueadaGlobal && (
                 <p className="text-xs text-amber-600">
                   Deshabilitada globalmente por el administrador del sistema.
                 </p>
               )}
+              {soloGlobal && !bloqueadaGlobal && (
+                <p className="text-xs text-muted-foreground">
+                  Esta funcionalidad se controla únicamente a nivel global. Los proyectos no pueden overridearla.
+                </p>
+              )}
             </div>
             <div className="shrink-0 flex items-center gap-2">
               {saving === f.clave && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
               <Toggle
-                checked={f.habilitadaProyecto}
+                checked={checked}
                 onChange={(v) => handleToggle(f.clave, v)}
                 disabled={disabled}
               />
