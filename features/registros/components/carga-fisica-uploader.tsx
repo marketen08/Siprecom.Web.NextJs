@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
-import { detectSignatureInFooter } from "@/features/registros/lib/detect-signature"
+import { detectSignatureRemote } from "@/features/registros/lib/detect-signature-remote"
 import { rotateFile } from "@/features/registros/lib/rotate-file"
 
 import { Button } from "@/components/ui/button"
@@ -170,12 +170,13 @@ export function CargaFisicaUploader({
       return
     }
     setFirmaState({ kind: "detectando" })
+    // La rotación derivada del QR se aplica antes de mandar al backend: el
+    // detector server-side espera el archivo con orientación correcta. Si no
+    // hace falta rotar, `rotateFile` devuelve el archivo tal cual.
     const rotacion = result.esChecklist ? result.rotacionDetectada : 0
     try {
-      const deteccion = await detectSignatureInFooter(f, {
-        rotacion,
-        cantidadSlots: cantidadFirmasFisicas,
-      })
+      const archivoParaDetectar = rotacion === 0 ? f : await rotateFile(f, rotacion)
+      const deteccion = await detectSignatureRemote(archivoParaDetectar, cantidadFirmasFisicas)
       if (deteccion.sinFiduciales) {
         setFirmaState({ kind: "sin-fiduciales" })
       } else {
@@ -186,7 +187,7 @@ export function CargaFisicaUploader({
         })
       }
     } catch (err) {
-      console.error("[CargaFisicaUploader] detectSignatureInFooter threw:", err)
+      console.error("[CargaFisicaUploader] detectSignatureRemote threw:", err)
       setFirmaState({
         kind: "no-detectada",
         slotsDetectados: 0,
