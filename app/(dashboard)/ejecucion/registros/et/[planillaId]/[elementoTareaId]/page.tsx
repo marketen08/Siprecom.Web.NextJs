@@ -271,6 +271,11 @@ function CargarPdfContent() {
         hayFirmasFisicas={hayFirmasFisicas}
         cantidadFirmasFisicas={cantidadFirmasFisicas}
         onSubmit={handleSubmit}
+        onArchivoElegido={() => {
+          // Al elegir un archivo nuevo, limpiamos el error del intento anterior.
+          if (mensajeError) setError("")
+          if (subiendo === "error") setSubiendo("idle")
+        }}
         isSubmitting={ocupado}
         submitLabel="Subir planilla"
         submittingLabel={submittingLabel}

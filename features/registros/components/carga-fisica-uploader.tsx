@@ -71,6 +71,12 @@ interface Props {
   titulo?: string
   /** Descripción bajo el título. */
   descripcion?: string
+  /**
+   * Se dispara cada vez que el user elige un archivo nuevo (o lo quita). Sirve al
+   * padre para limpiar mensajes de error de intentos previos — el uploader no
+   * tiene visibilidad sobre el estado del padre.
+   */
+  onArchivoElegido?: (f: File | null) => void
 }
 
 /**
@@ -100,6 +106,7 @@ export function CargaFisicaUploader({
   children,
   titulo = "Cargar planilla física",
   descripcion,
+  onArchivoElegido,
 }: Props) {
   const [archivo, setArchivo] = useState<File | null>(null)
   const [qrState, setQrState] = useState<
@@ -143,6 +150,9 @@ export function CargaFisicaUploader({
     setQrState(f ? { kind: "reading" } : null)
     setFirmaState(null)
     setAvisoBajaRes(null)
+    // Aviso al padre para que limpie su estado de error/éxito. Corre siempre —
+    // tanto al elegir nuevo como al quitar el archivo (f=null).
+    onArchivoElegido?.(f)
     if (!f) return
 
     // Aviso preventivo de baja resolución (solo imágenes). Umbral ~800 px de
