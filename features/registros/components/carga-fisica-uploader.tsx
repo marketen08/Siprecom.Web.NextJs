@@ -130,6 +130,10 @@ export function CargaFisicaUploader({
   >(null)
   const [confirmarMismatch, setConfirmarMismatch] = useState(false)
   const [confirmarFirmaNoDetectada, setConfirmarFirmaNoDetectada] = useState(false)
+  // Aviso leve cuando la imagen tiene poca resolución — el detector server-side
+  // igual hace upscale bicúbico, pero por debajo de ~800 px la firma ya está tan
+  // comprimida que ni el upscale la puede recuperar. Solo informativo.
+  const [avisoBajaRes, setAvisoBajaRes] = useState<{ ancho: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const bloqueado = disabled || isSubmitting
@@ -138,7 +142,29 @@ export function CargaFisicaUploader({
     setArchivo(f)
     setQrState(f ? { kind: "reading" } : null)
     setFirmaState(null)
+    setAvisoBajaRes(null)
     if (!f) return
+
+    // Aviso preventivo de baja resolución (solo imágenes). Umbral ~800 px de
+    // ancho — por debajo, el upscale server-side no siempre alcanza para
+    // recuperar los trazos finos de firma comprimidos.
+    if (hayFirmasFisicas && f.type.startsWith("image/")) {
+      try {
+        const url = URL.createObjectURL(f)
+        const img = new Image()
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve()
+          img.onerror = () => reject(new Error("no image"))
+          img.src = url
+        })
+        URL.revokeObjectURL(url)
+        if (img.naturalWidth > 0 && img.naturalWidth < 800) {
+          setAvisoBajaRes({ ancho: img.naturalWidth })
+        }
+      } catch {
+        // No pudimos leer dimensiones — no bloqueamos ni avisamos.
+      }
+    }
 
     // QR: defensivo — si readQrFromFile tira (worker pdfjs, PDF cifrado, etc.),
     // caemos a "missing" con el mensaje. Sin esto el estado se quedaría en "reading".
@@ -301,6 +327,7 @@ export function CargaFisicaUploader({
                 setArchivo(null)
                 setQrState(null)
                 setFirmaState(null)
+                setAvisoBajaRes(null)
               }}
               className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
               aria-label="Quitar archivo"
@@ -372,6 +399,19 @@ export function CargaFisicaUploader({
           {firmaState.slotsTotal > 1
             ? `Todas las firmas detectadas (${firmaState.slotsDetectados}/${firmaState.slotsTotal}) en el escaneo.`
             : "Firma detectada en el escaneo."}
+        </div>
+      )}
+      {avisoBajaRes && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">
+              Imagen de baja resolución ({avisoBajaRes.ancho} px de ancho).
+            </p>
+            <p className="text-xs mt-1">
+              Para mejor detección de firmas conviene exportar a mínimo 150 DPI o subir el PDF directo.
+            </p>
+          </div>
         </div>
       )}
       {firmaState?.kind === "parcial" && (
