@@ -207,6 +207,7 @@ export const menu: MenuItem[] = [
       { label: "Reporte de concurrencia", href: "/licenciamiento/concurrencia" },
       { label: "Licencias", href: "/licenciamiento/licencias" },
       { label: "Funciones de IA", href: "/licenciamiento/ia" },
+      { label: "Detector de firmas", href: "/licenciamiento/detector-firmas" },
       { label: "Funcionalidades", href: "/licenciamiento/funcionalidades" },
       { label: "Migraciones", href: "/licenciamiento/migraciones" },
       { label: "Datos de muestra", href: "/licenciamiento/datos-muestra" },
