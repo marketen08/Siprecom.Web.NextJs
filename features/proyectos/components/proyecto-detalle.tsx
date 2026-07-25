@@ -266,12 +266,11 @@ const FLAGS: {
     label: "Registro físico",
     descripcion: "Permite subir planillas escaneadas en PDF en lugar de completar el formulario digital.",
   },
-  {
-    campo: "RegistrosFisicosPreFirmados",
-    label: "PDF físico pre-firmado",
-    descripcion: "Si está activo, los PDFs físicos cargados se asumen firmados en papel: la tarea pasa directo a 'Firmado físico' sin generar slots de firma digital. Requiere 'Registro físico'.",
-    dependeDe: "PermitirRegistroFisico",
-  },
+  // "RegistrosFisicosPreFirmados" deprecado (2026-07): el mismo efecto se logra
+  // marcando todos los slots como TipoFirma=Fisica en la configuración de firmas
+  // del proyecto. El flag se mantiene en la entidad/DB por retrocompat (proyectos
+  // viejos que lo tienen ON siguen funcionando) pero no se ofrece en la UI para
+  // nuevos proyectos — evita duplicar el mecanismo con TipoFirmaConfig granular.
   {
     campo: "RenderizarFirmasDigitalesEnRecuadro",
     label: "Firma digital en el recuadro del PDF físico",
