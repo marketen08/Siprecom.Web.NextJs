@@ -409,7 +409,7 @@ export function CargaFisicaUploader({
               Imagen de baja resolución ({avisoBajaRes.ancho} px de ancho).
             </p>
             <p className="text-xs mt-1">
-              Para mejor detección de firmas conviene exportar a mínimo 150 DPI o subir el PDF directo.
+              Para una mejor detección de firmas la resolución debe ser mínimo 150 DPI.
             </p>
           </div>
         </div>
