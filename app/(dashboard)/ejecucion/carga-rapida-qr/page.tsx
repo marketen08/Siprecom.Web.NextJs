@@ -395,7 +395,7 @@ export default function CargaRapidaQrPage() {
             mensaje:
               `Imagen de baja resolución (${ancho} px de ancho). ` +
               `Se requiere mínimo ${cfg.anchoMinimoImagen} px para la detección de firmas. ` +
-              `Volvé a exportar el escaneo en mayor resolución o subí el PDF.`,
+              `Volvé a subir el escaneo en mayor resolución.`,
           })
           return
         }
