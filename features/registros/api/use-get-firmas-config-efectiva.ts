@@ -5,6 +5,11 @@ export interface FirmasConfigEfectiva {
   cantidadSlotsFisica: number
   cantidadSlotsDigital: number
   hayFirmasFisicas: boolean
+  /** Flag global RECHAZAR_IMAGEN_BAJA_RESOLUCION. Si true + hayFirmasFisicas, el
+   *  uploader bloquea la subida cuando el ancho de la imagen es menor a `anchoMinimoImagen`. */
+  rechazarBajaResolucion: boolean
+  /** Ancho mínimo (px) para imágenes cuando el rechazo está activo. Default 1500. */
+  anchoMinimoImagen: number
 }
 
 interface Response {

@@ -58,6 +58,8 @@ function CargarPdfContent() {
   const { data: firmasConfigRaw } = useGetFirmasConfigEfectivaPorEt(elementoTareaId)
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
   const cantidadFirmasFisicas = firmasConfigRaw?.data?.cantidadSlotsFisica ?? 0
+  const rechazarBajaResolucion = firmasConfigRaw?.data?.rechazarBajaResolucion ?? false
+  const anchoMinimoImagen = firmasConfigRaw?.data?.anchoMinimoImagen ?? 1500
 
   // Breadcrumb navegable — mismo patrón que /ejecucion/registros/[id]:
   // Ejecución → Registros → {Elemento (link)} → {Tarea} → Cargar planilla física.
@@ -270,6 +272,8 @@ function CargarPdfContent() {
         esperadoElementoTareaId={elementoTareaIdEsperada}
         hayFirmasFisicas={hayFirmasFisicas}
         cantidadFirmasFisicas={cantidadFirmasFisicas}
+        rechazarBajaResolucion={rechazarBajaResolucion}
+        anchoMinimoImagen={anchoMinimoImagen}
         onSubmit={handleSubmit}
         onArchivoElegido={() => {
           // Al elegir un archivo nuevo, limpiamos el error del intento anterior.

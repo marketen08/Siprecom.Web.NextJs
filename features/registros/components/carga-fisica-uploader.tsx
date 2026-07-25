@@ -48,6 +48,12 @@ interface Props {
    *  slot horizontalmente (los slots se renderizan lado a lado en el footer).
    *  Default 1 → comportamiento clásico. Ignorado si hayFirmasFisicas=false. */
   cantidadFirmasFisicas?: number
+  /** Flag global: si true + hayFirmasFisicas + imagen con ancho < anchoMinimoImagen,
+   *  el uploader bloquea el submit y muestra un banner rojo. Default false. */
+  rechazarBajaResolucion?: boolean
+  /** Ancho mínimo (px) para imágenes cuando rechazarBajaResolucion está activo.
+   *  Coincide con la config global del detector de firmas. Default 1500. */
+  anchoMinimoImagen?: number
   /**
    * Callback al confirmar el submit. Recibe el archivo rotado + los detalles de
    * override que correspondan. El padre decide qué hacer (subir directo, iniciar
@@ -98,6 +104,8 @@ export function CargaFisicaUploader({
   esperadoElementoTareaId,
   hayFirmasFisicas,
   cantidadFirmasFisicas = 1,
+  rechazarBajaResolucion = false,
+  anchoMinimoImagen = 1500,
   onSubmit,
   isSubmitting = false,
   submitLabel = "Subir planilla",
@@ -137,10 +145,17 @@ export function CargaFisicaUploader({
   >(null)
   const [confirmarMismatch, setConfirmarMismatch] = useState(false)
   const [confirmarFirmaNoDetectada, setConfirmarFirmaNoDetectada] = useState(false)
-  // Aviso leve cuando la imagen tiene poca resolución — el detector server-side
-  // igual hace upscale bicúbico, pero por debajo de ~800 px la firma ya está tan
-  // comprimida que ni el upscale la puede recuperar. Solo informativo.
-  const [avisoBajaRes, setAvisoBajaRes] = useState<{ ancho: number } | null>(null)
+  // Aviso de baja resolución en 2 modos:
+  //  - "aviso" (amber, informativo): imagen con ancho < 800 px, detector server-side
+  //    va a intentar upscale pero puede no recuperar los trazos finos.
+  //  - "bloqueante" (rojo, bloquea submit): flag RECHAZAR_IMAGEN_BAJA_RESOLUCION ON
+  //    + imagen con ancho < anchoMinimoImagen (default 1500). El backend rechazaría
+  //    igual con 400 — mejor cortarlo antes en la UI.
+  const [avisoBajaRes, setAvisoBajaRes] = useState<
+    | null
+    | { kind: "aviso"; ancho: number }
+    | { kind: "bloqueante"; ancho: number }
+  >(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const bloqueado = disabled || isSubmitting
@@ -155,9 +170,11 @@ export function CargaFisicaUploader({
     onArchivoElegido?.(f)
     if (!f) return
 
-    // Aviso preventivo de baja resolución (solo imágenes). Umbral ~800 px de
-    // ancho — por debajo, el upscale server-side no siempre alcanza para
-    // recuperar los trazos finos de firma comprimidos.
+    // Aviso preventivo de baja resolución (solo imágenes).
+    //  - Si flag global RECHAZAR_IMAGEN_BAJA_RESOLUCION ON: bloquea si ancho <
+    //    anchoMinimoImagen (mismo umbral que el gate del backend).
+    //  - Si no: aviso amber informativo cuando ancho < 800 (upscale puede no
+    //    recuperar los trazos).
     if (hayFirmasFisicas && f.type.startsWith("image/")) {
       try {
         const url = URL.createObjectURL(f)
@@ -168,8 +185,13 @@ export function CargaFisicaUploader({
           img.src = url
         })
         URL.revokeObjectURL(url)
-        if (img.naturalWidth > 0 && img.naturalWidth < 800) {
-          setAvisoBajaRes({ ancho: img.naturalWidth })
+        const ancho = img.naturalWidth
+        if (ancho > 0) {
+          if (rechazarBajaResolucion && ancho < anchoMinimoImagen) {
+            setAvisoBajaRes({ kind: "bloqueante", ancho })
+          } else if (ancho < 800) {
+            setAvisoBajaRes({ kind: "aviso", ancho })
+          }
         }
       } catch {
         // No pudimos leer dimensiones — no bloqueamos ni avisamos.
@@ -289,6 +311,7 @@ export function CargaFisicaUploader({
     !archivo || bloqueado
     || qrState?.kind === "reading"
     || firmaState?.kind === "detectando"
+    || avisoBajaRes?.kind === "bloqueante"
 
   return (
     <div className="rounded-xl border bg-white p-6 space-y-4">
@@ -411,7 +434,21 @@ export function CargaFisicaUploader({
             : "Firma detectada en el escaneo."}
         </div>
       )}
-      {avisoBajaRes && (
+      {avisoBajaRes && avisoBajaRes.kind === "bloqueante" && (
+        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">
+              Imagen de baja resolución ({avisoBajaRes.ancho} px de ancho).
+            </p>
+            <p className="text-xs mt-1">
+              Para una mejor detección de firmas la resolución debe ser mínimo 150 DPI.
+              Volvé a subir el escaneo en mayor resolución.
+            </p>
+          </div>
+        </div>
+      )}
+      {avisoBajaRes && avisoBajaRes.kind === "aviso" && (
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <div className="flex-1">
