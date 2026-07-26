@@ -29,6 +29,8 @@ import { useGetFirmasPendientes } from "@/features/proyectos/api/use-get-firmas-
 import { useSincronizarFirmasProyecto } from "@/features/proyectos/api/use-sincronizar-firmas-proyecto"
 import { useGetUsuariosRoles } from "@/features/proyectos/api/use-get-usuarios-roles"
 import { useAsignarUsuarioRol } from "@/features/proyectos/api/use-asignar-usuario-rol"
+import { useAsignarRolDesdeGrupo } from "@/features/proyectos/api/use-asignar-rol-desde-grupo"
+import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario-rol"
 import { useGetFechaEstimadaFin } from "@/features/proyectos/api/use-fecha-estimada-fin"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
@@ -626,6 +628,7 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
   const sincronizar = useSincronizarFirmasProyecto(proyectoId)
   const { data: asignacionesRaw } = useGetUsuariosRoles(proyectoId)
   const asignar = useAsignarUsuarioRol(proyectoId)
+  const asignarDesdeGrupo = useAsignarRolDesdeGrupo(proyectoId)
   const eliminarRol = useDeleteUsuarioRol(proyectoId)
   // isLocked: false → excluye usuarios dados de baja: no deben poder asignarse a un rol de firma.
   const { data: usuariosRaw } = useGetUsuarios({ pageSize: 200, isLocked: false })
@@ -890,8 +893,10 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
             asignaciones={asignaciones}
             usuarios={usuarios}
             onAsignar={(userId, rolNombre) => asignar.mutate({ userId, rolNombre })}
+            onAsignarDesdeGrupo={(grupoId, rolNombre) => asignarDesdeGrupo.mutateAsync({ grupoId, rolNombre })}
             onEliminar={(id) => eliminarRol.mutate(id)}
             isAsignando={asignar.isPending}
+            isAsignandoGrupo={asignarDesdeGrupo.isPending}
           />
         </>
       )}
@@ -910,18 +915,27 @@ function UsuariosRolesSection({
   asignaciones,
   usuarios,
   onAsignar,
+  onAsignarDesdeGrupo,
   onEliminar,
   isAsignando,
+  isAsignandoGrupo,
 }: {
   slots: SlotItem[]
   asignaciones: ProyectoUsuarioRol[]
   usuarios: Usuario[]
   onAsignar: (userId: string, rolNombre: string) => void
+  onAsignarDesdeGrupo: (grupoId: string, rolNombre: string) => Promise<{ agregados: number; reactivados: number; existentes: number } | unknown>
   onEliminar: (id: string) => void
   isAsignando: boolean
+  isAsignandoGrupo: boolean
 }) {
   const [rolSeleccionado, setRolSeleccionado] = useState<string>("")
   const [userSeleccionado, setUserSeleccionado] = useState<string>("")
+  const [grupoSeleccionado, setGrupoSeleccionado] = useState<string>("")
+  const [resultadoGrupo, setResultadoGrupo] = useState<{ agregados: number; reactivados: number; existentes: number } | null>(null)
+
+  const { data: gruposRaw } = useGetUsuariosGrupos()
+  const grupos = gruposRaw?.data ?? []
 
   const roles = slots.map((s) => s.rolNombre).filter(Boolean)
 
@@ -929,6 +943,19 @@ function UsuariosRolesSection({
     if (!rolSeleccionado || !userSeleccionado) return
     onAsignar(userSeleccionado, rolSeleccionado)
     setUserSeleccionado("")
+  }
+
+  async function handleAsignarDesdeGrupo() {
+    if (!rolSeleccionado || !grupoSeleccionado) return
+    setResultadoGrupo(null)
+    const res = (await onAsignarDesdeGrupo(grupoSeleccionado, rolSeleccionado)) as
+      | { agregados: number; reactivados: number; existentes: number }
+      | undefined
+    if (res && typeof res.agregados === "number") {
+      setResultadoGrupo({ agregados: res.agregados, reactivados: res.reactivados, existentes: res.existentes })
+      setTimeout(() => setResultadoGrupo(null), 4000)
+    }
+    setGrupoSeleccionado("")
   }
 
   return (
@@ -1015,6 +1042,55 @@ function UsuariosRolesSection({
           {isAsignando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           Asignar
         </Button>
+      </div>
+
+      {/* Bulk-add desde grupo: asigna el rol seleccionado arriba a TODOS los
+          miembros activos del grupo elegido. Idempotente. */}
+      <div className="rounded-md border border-dashed bg-gray-50 p-3 space-y-2">
+        <div>
+          <p className="text-xs font-semibold text-gray-700">Asignar desde grupo</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Asigna el rol seleccionado a todos los miembros activos del grupo.
+            Los ya asignados se saltean.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+          <div className="space-y-2 w-full sm:w-auto">
+            <label className="block text-xs font-medium text-gray-600">Grupo</label>
+            <select
+              value={grupoSeleccionado}
+              onChange={(e) => setGrupoSeleccionado(e.target.value)}
+              className="h-8 w-full sm:w-52 min-w-0 rounded-md border border-input bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar grupo...</option>
+              {grupos.map((g) => (
+                <option key={g.id} value={g.id}>{g.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1.5 w-full sm:w-auto sm:self-end"
+            onClick={handleAsignarDesdeGrupo}
+            disabled={!rolSeleccionado || !grupoSeleccionado || isAsignandoGrupo}
+          >
+            {isAsignandoGrupo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            Asignar grupo al rol
+          </Button>
+        </div>
+        {!rolSeleccionado && grupoSeleccionado && (
+          <p className="text-[11px] text-amber-700">Elegí un rol arriba para asignar el grupo.</p>
+        )}
+        {resultadoGrupo && (
+          <p className="text-[11px] text-green-700">
+            {resultadoGrupo.agregados} agregado(s)
+            {resultadoGrupo.reactivados > 0 && `, ${resultadoGrupo.reactivados} reactivado(s)`}
+            {resultadoGrupo.existentes > 0 && `, ${resultadoGrupo.existentes} ya asignado(s)`}.
+          </p>
+        )}
       </div>
     </div>
   )
