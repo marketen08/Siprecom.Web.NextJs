@@ -45,11 +45,24 @@ export interface PendienteCategoria {
 export interface PendienteTipo {
   id: string
   tipo: string
+  /** Categoría que se pre-selecciona al elegir este Tipo en el wizard (opcional). */
+  categoriaSugeridaId?: string | null
+  categoriaSugeridaNombre?: string | null
 }
 
 export interface PendienteEstado {
   id: string
   estado: string
+}
+
+export interface PendienteAccion {
+  id: string
+  nombre: string
+}
+
+export interface PendienteMotivo {
+  id: string
+  nombre: string
 }
 
 export interface Pendiente {
@@ -80,6 +93,13 @@ export interface Pendiente {
   especialidadId: string | null
   especialidadNombre: string | null
   circuito: string | null
+  // Wizard de descripción (5 dimensiones — opcional).
+  nivelId?: string | null
+  nivelNombre?: string | null
+  accionId?: string | null
+  accionNombre?: string | null
+  motivoId?: string | null
+  motivoNombre?: string | null
   fechaDeteccion: string
   fechaCierreEstimado: string
   fechaCierre: string | null

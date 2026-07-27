@@ -160,6 +160,8 @@ export const menu: MenuItem[] = [
           { label: "Niveles",                  href: "/configuracion/niveles" },
           { label: "Categorías de pendientes", href: "/configuracion/pendientes-categorias" },
           { label: "Tipos de pendientes",      href: "/configuracion/pendientes-tipos" },
+          { label: "Acciones de pendientes",   href: "/configuracion/pendientes-acciones" },
+          { label: "Motivos de pendientes",    href: "/configuracion/pendientes-motivos" },
         ],
       },
       {
@@ -350,6 +352,8 @@ export const segmentLabels: Record<string, string> = {
   pendientes:    "Pendientes",
   "pendientes-categorias": "Categorías de pendientes",
   "pendientes-tipos":      "Tipos de pendientes",
+  "pendientes-acciones":   "Acciones de pendientes",
+  "pendientes-motivos":    "Motivos de pendientes",
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",
   licencias:               "Licencias",

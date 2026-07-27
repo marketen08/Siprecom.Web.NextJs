@@ -5,14 +5,21 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { pendienteCreateSchema, type PendienteFormValues } from "../schema"
-import { useGetPendienteCategorias, useGetPendienteTipos } from "../api/use-catalogos"
+import {
+  useGetPendienteAcciones,
+  useGetPendienteCategorias,
+  useGetPendienteMotivos,
+  useGetPendienteTipos,
+} from "../api/use-catalogos"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
+import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { PRIORIDAD } from "../types"
+import { Wand2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -62,6 +69,9 @@ export function PendienteForm({
   const { data: perfil } = useGetPerfil()
   const { data: categoriasRaw } = useGetPendienteCategorias()
   const { data: tiposRaw } = useGetPendienteTipos()
+  const { data: accionesRaw } = useGetPendienteAcciones()
+  const { data: motivosRaw } = useGetPendienteMotivos()
+  const { data: nivelesRaw } = useGetNivelesSelect()
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
@@ -69,6 +79,9 @@ export function PendienteForm({
 
   const categorias = categoriasRaw?.data ?? []
   const tipos = tiposRaw?.data ?? []
+  const acciones = accionesRaw?.data ?? []
+  const motivos = motivosRaw?.data ?? []
+  const niveles = nivelesRaw?.data ?? []
   const sistemas = sistemasRaw?.data ?? []
   const subSistemas = subSistemasRaw?.data ?? []
   const usuarios = usuariosRaw ?? []
@@ -92,8 +105,50 @@ export function PendienteForm({
       especialidadId: defaultValues?.especialidadId ?? null,
       pid: defaultValues?.pid ?? null,
       circuito: defaultValues?.circuito ?? null,
+      nivelId: defaultValues?.nivelId ?? null,
+      accionId: defaultValues?.accionId ?? null,
+      motivoId: defaultValues?.motivoId ?? null,
     },
   })
+
+  // Wizard de descripción: cuando el user cambia Tipo, si el tipo tiene una
+  // Categoría sugerida y el form todavía no tiene una categoría cargada, la
+  // pre-seleccionamos. No sobreescribimos una elección manual — el user manda.
+  const onTipoChange = (nuevoTipoId: string) => {
+    form.setValue("tipoId", nuevoTipoId, { shouldDirty: true, shouldValidate: true })
+    if (!nuevoTipoId) return
+    const t = tipos.find((x) => x.id === nuevoTipoId)
+    const catSug = t?.categoriaSugeridaId
+    const catActual = form.getValues("categoriaId")
+    if (catSug && !catActual) {
+      form.setValue("categoriaId", catSug, { shouldDirty: true, shouldValidate: true })
+    }
+  }
+
+  // Compone una descripción sugerida a partir de las 5 dimensiones del wizard.
+  // Template: "[Acción] por [Motivo] — [Especialidad] · [Nivel] (Tipo: [Tipo])".
+  // Los campos vacíos se omiten graciosamente. Se dispara con el botón de la
+  // varita mágica y sobreescribe el textarea — el user puede seguir editando.
+  const componerDescripcion = () => {
+    const v = form.getValues()
+    const accion = acciones.find((a) => a.id === v.accionId)?.nombre
+    const motivo = motivos.find((m) => m.id === v.motivoId)?.nombre
+    const especialidad = especialidades.find((e) => e.id === v.especialidadId)?.nombre
+    const nivel = niveles.find((n) => n.id === v.nivelId)?.nombre
+    const tipo = tipos.find((t) => t.id === v.tipoId)?.tipo
+    const partes: string[] = []
+    if (accion) partes.push(accion)
+    if (motivo) partes.push(`por ${motivo}`)
+    const izq = partes.join(" ")
+    const contexto: string[] = []
+    if (especialidad) contexto.push(especialidad)
+    if (nivel) contexto.push(nivel)
+    const der = contexto.join(" · ")
+    let texto = [izq, der].filter(Boolean).join(" — ")
+    if (tipo) texto = texto ? `${texto} (Tipo: ${tipo})` : `Tipo: ${tipo}`
+    if (!texto.trim()) return
+    form.setValue("descripcion", texto, { shouldDirty: true, shouldValidate: true })
+  }
 
   // Watch subsistema + especialidad para filtrar elementos.
   const subSistemaIdActual = form.watch("subSistemaId")
@@ -164,7 +219,21 @@ export function PendienteForm({
             name="descripcion"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Descripción</FormLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FormLabel>Descripción</FormLabel>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-blue-700 hover:text-blue-800"
+                    onClick={componerDescripcion}
+                    disabled={isPending}
+                    title="Componer descripción a partir del wizard (Acción, Motivo, Especialidad, Nivel, Tipo)"
+                  >
+                    <Wand2 className="mr-1 h-3.5 w-3.5" />
+                    Componer desde wizard
+                  </Button>
+                </div>
                 <FormControl>
                   <DescripcionAutocomplete
                     name={field.name}
@@ -211,7 +280,7 @@ export function PendienteForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo</FormLabel>
-                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
+                  <Select value={field.value} onValueChange={(v) => v && onTipoChange(v)} disabled={isPending}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Elegí tipo">
@@ -468,6 +537,137 @@ export function PendienteForm({
               </FormItem>
             )}
           />
+        </div>
+
+        <Separator />
+
+        {/* Wizard de descripción — dimensiones catalogadas que ayudan a
+            componer la descripción del pendiente. Cargar Nivel, Acción y
+            Motivo, sumado a Especialidad + Tipo de arriba, alimenta al botón
+            "Componer desde wizard" que autopobla el textarea. */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Wizard de descripción (opcional)
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <FormField
+              control={form.control}
+              name="nivelId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nivel</FormLabel>
+                  <Select
+                    value={field.value || NONE}
+                    onValueChange={(v) => field.onChange(v === NONE ? null : v)}
+                    disabled={isPending}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin nivel">
+                          {field.value
+                            ? niveles.find((n) => n.id === field.value)?.nombre ?? "Nivel"
+                            : "Sin nivel"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Sin nivel</SelectItem>
+                      {niveles.map((n) => (
+                        <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="accionId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Acción</FormLabel>
+                  <Select
+                    value={field.value || NONE}
+                    onValueChange={(v) => field.onChange(v === NONE ? null : v)}
+                    disabled={isPending}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin acción">
+                          {field.value
+                            ? acciones.find((a) => a.id === field.value)?.nombre ?? "Acción"
+                            : "Sin acción"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Sin acción</SelectItem>
+                      {acciones.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="motivoId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Motivo</FormLabel>
+                  <Select
+                    value={field.value || NONE}
+                    onValueChange={(v) => field.onChange(v === NONE ? null : v)}
+                    disabled={isPending}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin motivo">
+                          {field.value
+                            ? motivos.find((m) => m.id === field.value)?.nombre ?? "Motivo"
+                            : "Sin motivo"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Sin motivo</SelectItem>
+                      {motivos.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-blue-100 bg-blue-50/60 px-3 py-2">
+            <Wand2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+            <div className="flex-1">
+              <p className="text-xs text-blue-900">
+                Cuando cargues estas dimensiones, usá <strong>&quot;Componer desde wizard&quot;</strong> arriba
+                para autopoblar la descripción. Si elegís un <strong>Tipo</strong> con categoría sugerida,
+                también se pre-selecciona la Categoría automáticamente.
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-6 p-0 mt-1 text-xs text-blue-800"
+                onClick={componerDescripcion}
+                disabled={isPending}
+              >
+                Componer ahora
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Botones — sticky al bottom del viewport en mobile para que el user
