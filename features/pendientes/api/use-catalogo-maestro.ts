@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
+  PendienteCatalogoImportResult,
   PendienteCatalogoMaestro,
   PendienteCatalogoMaestroCreate,
   PendienteCatalogoMaestroUpdate,
@@ -85,6 +86,38 @@ export function useDeletePendienteCatalogo() {
   return useMutation({
     mutationFn: (id: string) =>
       apiClient.delete<ApiResponse<boolean>>(`/api/pendientes-catalogo/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pendientes-catalogo"] }),
+  })
+}
+
+// ─── Import Excel ────────────────────────────────────────────────────
+
+async function postFormData<T>(url: string, file: File): Promise<T> {
+  const fd = new FormData()
+  fd.append("archivo", file)
+  const res = await fetch(url, { method: "POST", body: fd })
+  const body = await res.json().catch(() => null)
+  if (!res.ok) {
+    const msg = body?.message ?? `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  return (body?.data ?? body) as T
+}
+
+/** Sube el .xlsx y devuelve preview por fila SIN persistir. */
+export function usePreviewImportCatalogo() {
+  return useMutation({
+    mutationFn: (file: File) =>
+      postFormData<PendienteCatalogoImportResult>("/api/pendientes-catalogo/import/preview", file),
+  })
+}
+
+/** Aplica el import (persiste filas OK y Warning-actualización). */
+export function useApplyImportCatalogo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) =>
+      postFormData<PendienteCatalogoImportResult>("/api/pendientes-catalogo/import/apply", file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pendientes-catalogo"] }),
   })
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Pencil, Plus, Trash2, Search } from "lucide-react"
+import { FileSpreadsheet, Pencil, Plus, Trash2, Search } from "lucide-react"
 
 import {
   useCreatePendienteCatalogo,
@@ -9,6 +9,7 @@ import {
   useGetPendienteCatalogo,
   useUpdatePendienteCatalogo,
 } from "@/features/pendientes/api/use-catalogo-maestro"
+import { ImportCatalogoDialog } from "@/features/pendientes/components/import-catalogo-dialog"
 import {
   useGetPendienteAcciones,
   useGetPendienteCategorias,
@@ -74,6 +75,7 @@ export default function PendientesCatalogoPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  const [importOpen, setImportOpen] = useState(false)
 
   const filtrados = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -134,13 +136,23 @@ export default function PendientesCatalogoPage() {
             automáticamente la Descripción y Categoría del pendiente.
           </p>
         </div>
-        <Button
-          onClick={() => setSheet({ mode: "new", ...EMPTY_SHEET })}
-          className="gap-2 whitespace-nowrap"
-        >
-          <Plus className="h-4 w-4" />
-          Nueva entrada
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setImportOpen(true)}
+            className="gap-2 whitespace-nowrap"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Importar Excel
+          </Button>
+          <Button
+            onClick={() => setSheet({ mode: "new", ...EMPTY_SHEET })}
+            className="gap-2 whitespace-nowrap"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva entrada
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 max-w-md">
@@ -310,6 +322,8 @@ export default function PendientesCatalogoPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ImportCatalogoDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   )
 }
