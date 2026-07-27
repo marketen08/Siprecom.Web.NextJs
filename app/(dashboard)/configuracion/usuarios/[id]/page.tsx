@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Combobox } from "@/components/ui/combobox"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
   FiltersTrigger, FiltersChips, FiltersSheet, FilterField, type FilterChip,
 } from "@/components/ui/filters-bar"
@@ -185,247 +186,265 @@ function TabDatos({ usuario }: { usuario: any }) {
   }
 
   return (
-    <div className="space-y-6 max-w-sm">
-      {/* Datos básicos */}
-      <div className="space-y-4">
-        {saved && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-            <CheckCircle2 className="h-4 w-4" /> Cambios guardados
-          </div>
-        )}
+    <div className="max-w-5xl grid gap-4 lg:grid-cols-2 items-start">
+      {/* ── Columna izquierda: Perfil ─────────────────────────────────────── */}
 
-        <div className="grid grid-cols-2 gap-3">
+      {/* Datos personales */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground" />
+            Datos personales
+          </CardTitle>
+          <CardDescription>Nombre visible del usuario en el sistema y en los PDFs firmados.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {saved && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-4 w-4" /> Cambios guardados
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Nombre</label>
+              <Input
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Juan"
+                disabled={update.isPending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Apellido</label>
+              <Input
+                value={apellido}
+                onChange={(e) => setApellido(e.target.value)}
+                placeholder="Pérez"
+                disabled={update.isPending}
+              />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Nombre</label>
-            <Input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Juan"
-              disabled={update.isPending}
+            <label className="text-sm font-medium text-gray-700">Empresa</label>
+            <Combobox
+              options={empresaOptions}
+              value={clienteId}
+              onChange={setClienteId}
+              placeholder={empresasLoading ? "Cargando empresas..." : "Seleccionar empresa..."}
+              searchPlaceholder="Buscar empresa..."
+              emptyMessage="Sin empresas"
+              disabled={update.isPending || empresasLoading}
             />
+            <p className="text-xs text-muted-foreground">
+              Se muestra en el PDF de los registros que firme el usuario.
+            </p>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Apellido</label>
-            <Input
-              value={apellido}
-              onChange={(e) => setApellido(e.target.value)}
-              placeholder="Pérez"
-              disabled={update.isPending}
-            />
-          </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Empresa</label>
-          <Combobox
-            options={empresaOptions}
-            value={clienteId}
-            onChange={setClienteId}
-            placeholder={empresasLoading ? "Cargando empresas..." : "Seleccionar empresa..."}
-            searchPlaceholder="Buscar empresa..."
-            emptyMessage="Sin empresas"
-            disabled={update.isPending || empresasLoading}
-          />
-          <p className="text-xs text-muted-foreground">
-            Se muestra en el PDF de los registros que firme el usuario.
-          </p>
-        </div>
+          <Button
+            onClick={handleSave}
+            disabled={update.isPending}
+            size="sm"
+            className="gap-1.5"
+          >
+            {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {update.isPending ? "Guardando..." : "Guardar"}
+          </Button>
 
-        <Button
-          onClick={handleSave}
-          disabled={update.isPending}
-          size="sm"
-          className="gap-1.5"
-        >
-          {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {update.isPending ? "Guardando..." : "Guardar"}
-        </Button>
-
-        {update.isError && (
-          <p className="text-sm text-red-600">{(update.error as Error)?.message ?? "Error al guardar"}</p>
-        )}
-      </div>
+          {update.isError && (
+            <p className="text-sm text-red-600">{(update.error as Error)?.message ?? "Error al guardar"}</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Método de ingreso (Microsoft ↔ mail+contraseña) */}
       <MetodoIngresoSection usuario={usuario} />
 
-      {/* Restablecer contraseña */}
-      <div className="space-y-3">
-        <Separator />
-        <div className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-gray-700">Restablecer contraseña</h3>
-        </div>
+      {/* ── Columna derecha: Acceso ────────────────────────────────────────── */}
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Usuario</label>
-          <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border font-mono">
-            {usuario.userName}
-          </p>
-        </div>
-
-        {passwordSaved && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-            <CheckCircle2 className="h-4 w-4" /> Contraseña restablecida
+      {/* Restablecer contraseña + link para definir (misma card, mismo tema) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
+            Contraseña
+          </CardTitle>
+          <CardDescription>Restablecé la contraseña del usuario o generá un link para que la defina.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Usuario</label>
+            <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border font-mono">
+              {usuario.userName}
+            </p>
           </div>
-        )}
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
-          {/* Honeypot: Chrome/Firefox hacen un "reverse scan" desde cada <input
-              type="password"> para adivinar el campo de usuario y autofillearlo.
-              Al no encontrar un input marcado como username, elegían el Combobox
-              de Empresa (que tiene un input de texto interno). Estos dos inputs
-              ocultos son el señuelo: los toman como par username/password del
-              autofill y dejan tranquilos a los reales. `tabIndex={-1}` +
-              `aria-hidden` los sacan del foco y de screen readers. */}
-          <input
-            type="text"
-            name="username"
-            autoComplete="username"
-            value=""
-            readOnly
-            tabIndex={-1}
-            aria-hidden="true"
-            style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
-          />
-          <input
-            type="password"
-            name="password"
-            autoComplete="new-password"
-            value=""
-            readOnly
-            tabIndex={-1}
-            aria-hidden="true"
-            style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
-          />
-          <div className="relative">
-            <Input
-              type={showPassword ? "text" : "password"}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
-              className="pr-10"
-              disabled={resetPassword.isPending}
-              autoComplete="new-password"
-              name={`nueva-password-${usuario.id}`}
+          {passwordSaved && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-4 w-4" /> Contraseña restablecida
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
+            {/* Honeypot: Chrome/Firefox hacen un "reverse scan" desde cada <input
+                type="password"> para adivinar el campo de usuario y autofillearlo.
+                Al no encontrar un input marcado como username, elegían el Combobox
+                de Empresa (que tiene un input de texto interno). Estos dos inputs
+                ocultos son el señuelo: los toman como par username/password del
+                autofill y dejan tranquilos a los reales. `tabIndex={-1}` +
+                `aria-hidden` los sacan del foco y de screen readers. */}
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              value=""
+              readOnly
+              tabIndex={-1}
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
             />
-            <button
-              type="button"
-              className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-              onClick={() => setShowPassword(v => !v)}
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+            <input
+              type="password"
+              name="password"
+              autoComplete="new-password"
+              value=""
+              readOnly
+              tabIndex={-1}
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
+            />
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="pr-10"
+                disabled={resetPassword.isPending}
+                autoComplete="new-password"
+                name={`nueva-password-${usuario.id}`}
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                onClick={() => setShowPassword(v => !v)}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
-        </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={handleResetPassword}
-          disabled={resetPassword.isPending || newPassword.length < 6}
-        >
-          {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-          {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={handleResetPassword}
+            disabled={resetPassword.isPending || newPassword.length < 6}
+          >
+            {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
+          </Button>
 
-        {resetPassword.isError && (
-          <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
-        )}
-      </div>
+          {resetPassword.isError && (
+            <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
+          )}
 
-      {/* Link para definir contraseña (compartir manual, útil si el email no llega) */}
-      <div className="space-y-3">
-        <Separator />
-        <div className="flex items-center gap-2">
-          <LinkIcon className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-gray-700">Link para definir contraseña</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Generá un link y compartíselo al usuario (por WhatsApp, chat, etc.) para que defina su
-          contraseña. Sirve cuando el email de invitación no llega.
-        </p>
+          <Separator />
 
-        {esMicrosoft ? (
-          <p className="text-xs text-amber-600">
-            El usuario ingresa con Microsoft. Cambialo a mail + contraseña (más arriba) para poder generar el link.
-          </p>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => passwordLink.mutate()}
-              disabled={passwordLink.isPending}
-            >
-              {passwordLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
-              {passwordLink.isPending ? "Generando..." : "Generar link"}
-            </Button>
+          {/* Link para definir contraseña (compartir manual, útil si el email no llega) */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <LinkIcon className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-gray-700">Link para definir contraseña</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Generá un link y compartíselo al usuario (por WhatsApp, chat, etc.) para que defina su
+              contraseña. Sirve cuando el email de invitación no llega.
+            </p>
 
-            {linkUrl && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={linkUrl}
-                    className="text-xs font-mono"
-                    onFocus={(e) => e.currentTarget.select()}
-                  />
-                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={handleCopyLink}>
-                    {linkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                    {linkCopied ? "Copiado" : "Copiar"}
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  El link vence en ~1 día. Si expira, generá uno nuevo.
-                </p>
-              </div>
+            {esMicrosoft ? (
+              <p className="text-xs text-amber-600">
+                El usuario ingresa con Microsoft. Cambialo a mail + contraseña para poder generar el link.
+              </p>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => passwordLink.mutate()}
+                  disabled={passwordLink.isPending}
+                >
+                  {passwordLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+                  {passwordLink.isPending ? "Generando..." : "Generar link"}
+                </Button>
+
+                {linkUrl && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        readOnly
+                        value={linkUrl}
+                        className="text-xs font-mono"
+                        onFocus={(e) => e.currentTarget.select()}
+                      />
+                      <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={handleCopyLink}>
+                        {linkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                        {linkCopied ? "Copiado" : "Copiar"}
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      El link vence en ~1 día. Si expira, generá uno nuevo.
+                    </p>
+                  </div>
+                )}
+
+                {passwordLink.isError && (
+                  <p className="text-sm text-red-600">{(passwordLink.error as Error)?.message ?? "No se pudo generar el link"}</p>
+                )}
+              </>
             )}
-
-            {passwordLink.isError && (
-              <p className="text-sm text-red-600">{(passwordLink.error as Error)?.message ?? "No se pudo generar el link"}</p>
-            )}
-          </>
-        )}
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Reenviar email de alta (invitación / bienvenida Microsoft) */}
-      <div className="space-y-3">
-        <Separator />
-        <div className="flex items-center gap-2">
-          <Mail className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-gray-700">Email de alta</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Reenvía el email de activación (invitación para definir contraseña, o bienvenida de Microsoft).
-        </p>
-        {resendInvite.isSuccess && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-            <CheckCircle2 className="h-4 w-4" /> Email reenviado
-          </div>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => resendInvite.mutate()}
-          disabled={resendInvite.isPending}
-        >
-          {resendInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-          {resendInvite.isPending ? "Enviando..." : "Reenviar email de alta"}
-        </Button>
-        {resendInvite.isError && (
-          <p className="text-sm text-red-600">{(resendInvite.error as Error)?.message ?? "Error al reenviar"}</p>
-        )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            Email de alta
+          </CardTitle>
+          <CardDescription>Reenvía el email de activación (invitación o bienvenida Microsoft).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {resendInvite.isSuccess && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-4 w-4" /> Email reenviado
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => resendInvite.mutate()}
+            disabled={resendInvite.isPending}
+          >
+            {resendInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            {resendInvite.isPending ? "Enviando..." : "Reenviar email de alta"}
+          </Button>
+          {resendInvite.isError && (
+            <p className="text-sm text-red-600">{(resendInvite.error as Error)?.message ?? "Error al reenviar"}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Estado del usuario — baja / reactivación (acción sensible, ancho completo) */}
+      <div className="lg:col-span-2">
+        <EstadoUsuarioSection usuario={usuario} />
       </div>
-
-      <Separator />
-
-      {/* Estado del usuario — baja / reactivación */}
-      <EstadoUsuarioSection usuario={usuario} />
     </div>
   )
 }
@@ -449,63 +468,68 @@ function MetodoIngresoSection({ usuario }: { usuario: any }) {
   }
 
   return (
-    <div className="space-y-3">
-      <Separator />
-      <div className="flex items-center gap-2">
-        {esMicrosoft ? <Mail className="h-4 w-4 text-muted-foreground" /> : <KeyRound className="h-4 w-4 text-muted-foreground" />}
-        <h3 className="text-sm font-semibold text-gray-700">Método de ingreso</h3>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${esMicrosoft ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-          {esMicrosoft ? "Microsoft (SSO)" : "Mail + contraseña"}
-        </span>
-        <span className="text-xs text-muted-foreground">método actual</span>
-      </div>
-
-      {mensaje && (
-        <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" /> <span>{mensaje}</span>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {esMicrosoft
+            ? <Mail className="h-4 w-4 text-muted-foreground" />
+            : <KeyRound className="h-4 w-4 text-muted-foreground" />}
+          Método de ingreso
+        </CardTitle>
+        <CardDescription>Elegí cómo el usuario accede al sistema: SSO de Microsoft o mail + contraseña.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${esMicrosoft ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
+            {esMicrosoft ? "Microsoft (SSO)" : "Mail + contraseña"}
+          </span>
+          <span className="text-xs text-muted-foreground">método actual</span>
         </div>
-      )}
 
-      {!confirming ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => { setConfirming(true); setMensaje(null) }}
-          disabled={cambiar.isPending}
-        >
-          {esMicrosoft ? <KeyRound className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
-          {esMicrosoft ? "Cambiar a mail + contraseña" : "Cambiar a Microsoft"}
-        </Button>
-      ) : (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
-            <p className="text-sm">
-              {esMicrosoft
-                ? "El usuario pasará a ingresar con mail y contraseña. Le vamos a enviar un email para que defina su contraseña, y dejará de poder entrar con Microsoft."
-                : "El usuario pasará a ingresar con su cuenta de Microsoft (SSO). Se le quitará la contraseña local: ya no podrá entrar con mail y contraseña."}
-            </p>
+        {mensaje && (
+          <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" /> <span>{mensaje}</span>
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" className="gap-1.5" onClick={handleConfirm} disabled={cambiar.isPending}>
-              {cambiar.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {cambiar.isPending ? "Cambiando..." : "Sí, cambiar"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={cambiar.isPending}>
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      )}
+        )}
 
-      {cambiar.isError && (
-        <p className="text-sm text-red-600">{(cambiar.error as Error)?.message ?? "Error al cambiar el método"}</p>
-      )}
-    </div>
+        {!confirming ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => { setConfirming(true); setMensaje(null) }}
+            disabled={cambiar.isPending}
+          >
+            {esMicrosoft ? <KeyRound className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+            {esMicrosoft ? "Cambiar a mail + contraseña" : "Cambiar a Microsoft"}
+          </Button>
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+              <p className="text-sm">
+                {esMicrosoft
+                  ? "El usuario pasará a ingresar con mail y contraseña. Le vamos a enviar un email para que defina su contraseña, y dejará de poder entrar con Microsoft."
+                  : "El usuario pasará a ingresar con su cuenta de Microsoft (SSO). Se le quitará la contraseña local: ya no podrá entrar con mail y contraseña."}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="gap-1.5" onClick={handleConfirm} disabled={cambiar.isPending}>
+                {cambiar.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {cambiar.isPending ? "Cambiando..." : "Sí, cambiar"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={cambiar.isPending}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {cambiar.isError && (
+          <p className="text-sm text-red-600">{(cambiar.error as Error)?.message ?? "Error al cambiar el método"}</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -543,36 +567,40 @@ function EstadoUsuarioSection({ usuario }: { usuario: any }) {
   // Si está anonimizado, ya no hay nada que hacer — el user es permanente histórico.
   if (isPermanentlyDeactivated) {
     return (
-      <div className="space-y-2 rounded-lg border bg-gray-50 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <UserX className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-gray-700">Baja definitiva</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Este usuario fue dado de baja definitivamente — su email original fue liberado.
-          Permanece solo para preservar trazabilidad histórica (firmas, registros).
-          Si la persona vuelve, hay que crear un usuario nuevo.
-        </p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserX className="h-4 w-4 text-muted-foreground" />
+            Baja definitiva
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground">
+            Este usuario fue dado de baja definitivamente — su email original fue liberado.
+            Permanece solo para preservar trazabilidad histórica (firmas, registros).
+            Si la persona vuelve, hay que crear un usuario nuevo.
+          </p>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        {isLocked
-          ? <UserCheck className="h-4 w-4 text-muted-foreground" />
-          : <UserX     className="h-4 w-4 text-muted-foreground" />}
-        <h3 className="text-sm font-semibold text-gray-700">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {isLocked
+            ? <UserCheck className="h-4 w-4 text-muted-foreground" />
+            : <UserX className="h-4 w-4 text-muted-foreground" />}
           {isLocked ? "Reactivar o liberar email" : "Dar de baja"}
-        </h3>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        {isLocked
-          ? "El usuario está dado de baja. Reactivalo si vuelve a la organización, o liberá el email (baja definitiva) si el puesto va a re-asignarse a otra persona."
-          : "Da de baja al usuario impidiéndole iniciar sesión. El email se mantiene reservado y podés reactivarlo más adelante si vuelve."}
-      </p>
+        </CardTitle>
+        <CardDescription>
+          {isLocked
+            ? "El usuario está dado de baja. Reactivalo si vuelve a la organización, o liberá el email (baja definitiva) si el puesto va a re-asignarse a otra persona."
+            : "Da de baja al usuario impidiéndole iniciar sesión. El email se mantiene reservado y podés reactivarlo más adelante si vuelve."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
 
       {!confirming && !isLocked && (
         <Button
@@ -657,7 +685,8 @@ function EstadoUsuarioSection({ usuario }: { usuario: any }) {
           {(activeMutation.error as Error)?.message ?? "Error al cambiar el estado"}
         </p>
       )}
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
