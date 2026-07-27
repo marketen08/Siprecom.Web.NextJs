@@ -65,6 +65,46 @@ export interface PendienteMotivo {
   nombre: string
 }
 
+/**
+ * Fila del catálogo maestro (5 dimensiones → descripción + categoría).
+ * Alimenta el wizard del pendiente: cuando el operador completa las 5,
+ * el resolver busca match exacto acá y autopobla desc + categoría.
+ */
+export interface PendienteCatalogoMaestro {
+  id: string
+  nivelId: string
+  nivelNombre: string
+  especialidadId: string
+  especialidadNombre: string
+  tipoId: string
+  tipoNombre: string
+  accionId: string
+  accionNombre: string
+  motivoId: string
+  motivoNombre: string
+  categoriaId: string
+  categoriaNombre: string
+  descripcion: string
+}
+
+export interface PendienteCatalogoMaestroCreate {
+  nivelId: string
+  especialidadId: string
+  tipoId: string
+  accionId: string
+  motivoId: string
+  categoriaId: string
+  descripcion: string
+}
+
+export type PendienteCatalogoMaestroUpdate = PendienteCatalogoMaestroCreate
+
+export interface PendienteCatalogoResolverResult {
+  descripcion: string
+  categoriaId: string
+  categoriaNombre: string
+}
+
 export interface Pendiente {
   id: string
   codigo: number
@@ -199,6 +239,10 @@ export interface PendienteUpdateInput {
   especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
+  // Dimensiones del wizard — opcionales para no romper flujos antiguos.
+  nivelId?: string | null
+  accionId?: string | null
+  motivoId?: string | null
 }
 
 export interface PendienteFilterInput {

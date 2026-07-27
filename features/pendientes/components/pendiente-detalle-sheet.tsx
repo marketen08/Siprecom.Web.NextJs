@@ -682,6 +682,9 @@ function EditarPendiente({
     especialidadId: string | null
     pid: string | null
     circuito: string | null
+    nivelId?: string | null
+    accionId?: string | null
+    motivoId?: string | null
   }
   onDone: () => void
 }) {
@@ -689,6 +692,8 @@ function EditarPendiente({
 
   const onSubmit = async (values: PendienteFormValues) => {
     // El endpoint PUT /pendientes/{id} no toca responsable — se ignora.
+    // Circuito quedó deprecado del form pero mantenemos la columna en BD;
+    // enviamos null para no borrar valores viejos indirectamente.
     await update.mutateAsync({
       categoriaId: values.categoriaId,
       tipoId: values.tipoId,
@@ -697,9 +702,12 @@ function EditarPendiente({
       fechaCierreEstimado: values.fechaCierreEstimado,
       subSistemaId: values.subSistemaId ?? null,
       elementoId: values.elementoId ?? null,
-      especialidadId: values.especialidadId ?? null,
+      especialidadId: values.especialidadId,
       pid: values.pid ?? null,
-      circuito: values.circuito ?? null,
+      circuito: null,
+      nivelId: values.nivelId,
+      accionId: values.accionId,
+      motivoId: values.motivoId,
     })
     onDone()
   }
@@ -708,6 +716,9 @@ function EditarPendiente({
     <div className="mt-4 px-3 sm:px-4 pb-8">
       <PendienteForm
         defaultValues={{
+          nivelId: pendiente.nivelId ?? undefined,
+          accionId: pendiente.accionId ?? undefined,
+          motivoId: pendiente.motivoId ?? undefined,
           categoriaId: pendiente.categoriaId,
           tipoId: pendiente.tipoId,
           responsableId: pendiente.responsableId,
@@ -716,9 +727,8 @@ function EditarPendiente({
           fechaCierreEstimado: pendiente.fechaCierreEstimado.substring(0, 10),
           subSistemaId: pendiente.subSistemaId,
           elementoId: pendiente.elementoId,
-          especialidadId: pendiente.especialidadId,
+          especialidadId: pendiente.especialidadId ?? undefined,
           pid: pendiente.pid,
-          circuito: pendiente.circuito,
         }}
         onSubmit={onSubmit}
         isPending={update.isPending}

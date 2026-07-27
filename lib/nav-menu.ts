@@ -162,6 +162,7 @@ export const menu: MenuItem[] = [
           { label: "Tipos de pendientes",      href: "/configuracion/pendientes-tipos" },
           { label: "Acciones de pendientes",   href: "/configuracion/pendientes-acciones" },
           { label: "Motivos de pendientes",    href: "/configuracion/pendientes-motivos" },
+          { label: "Catálogo maestro de pendientes", href: "/configuracion/pendientes-catalogo" },
         ],
       },
       {
@@ -354,6 +355,7 @@ export const segmentLabels: Record<string, string> = {
   "pendientes-tipos":      "Tipos de pendientes",
   "pendientes-acciones":   "Acciones de pendientes",
   "pendientes-motivos":    "Motivos de pendientes",
+  "pendientes-catalogo":   "Catálogo maestro de pendientes",
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",
   licencias:               "Licencias",

@@ -62,7 +62,9 @@ export function NewPendienteSheet({ hideOverlay, wide }: NewPendienteSheetProps 
             defaultValues={{
               elementoId: prefill?.elementoId ?? null,
               subSistemaId: prefill?.subSistemaId ?? null,
-              especialidadId: prefill?.especialidadId ?? null,
+              // Especialidad ahora es requerida (parte del wizard); si viene
+              // del prefill (ej. desde un elemento) la seteamos, sino undefined.
+              especialidadId: prefill?.especialidadId ?? undefined,
               pid: prefill?.pid ?? null,
             }}
             onSubmit={onSubmit}
