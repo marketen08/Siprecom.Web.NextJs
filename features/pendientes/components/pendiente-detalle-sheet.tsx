@@ -728,7 +728,7 @@ function EditarPendiente({
           descripcion: pendiente.descripcion,
           prioridad: pendiente.prioridad,
           fechaCierreEstimado: pendiente.fechaCierreEstimado.substring(0, 10),
-          subSistemaId: pendiente.subSistemaId,
+          subSistemaId: pendiente.subSistemaId ?? undefined,
           elementoId: pendiente.elementoId,
           especialidadId: pendiente.especialidadId ?? undefined,
           pid: pendiente.pid,

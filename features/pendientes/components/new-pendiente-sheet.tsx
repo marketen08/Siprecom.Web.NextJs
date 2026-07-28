@@ -60,8 +60,8 @@ export function NewPendienteSheet({ hideOverlay, wide }: NewPendienteSheetProps 
         <div className="mt-4 sm:mt-6 px-3 sm:px-4 pb-2 sm:pb-6">
           <PendienteForm
             defaultValues={{
-              elementoId: prefill?.elementoId ?? null,
-              subSistemaId: prefill?.subSistemaId ?? null,
+              elementoId: prefill?.elementoId ?? undefined,
+              subSistemaId: prefill?.subSistemaId ?? undefined,
               // Especialidad ahora es requerida (parte del wizard); si viene
               // del prefill (ej. desde un elemento) la seteamos, sino undefined.
               especialidadId: prefill?.especialidadId ?? undefined,

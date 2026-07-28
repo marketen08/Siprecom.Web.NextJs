@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ChevronDown, Wand2 } from "lucide-react"
 
-import { pendienteCreateSchema, type PendienteFormValues } from "../schema"
+import { makePendienteCreateSchema, type PendienteFormValues } from "../schema"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import {
   useGetPendienteAcciones,
   useGetPendienteCategorias,
@@ -67,6 +68,8 @@ export function PendienteForm({
   readonlyResponsable = false,
 }: PendienteFormProps) {
   const { data: perfil } = useGetPerfil()
+  const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
+  const elementoRequerido = proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTE_ELEMENTO_REQUERIDO === true
   const { data: categoriasRaw } = useGetPendienteCategorias()
   const { data: tiposRaw } = useGetPendienteTipos()
   const { data: accionesRaw } = useGetPendienteAcciones()
@@ -91,8 +94,13 @@ export function PendienteForm({
   const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000)
   const fechaDefault = en30dias.toISOString().substring(0, 10)
 
+  // Schema condicional: Elemento pasa a requerido si el proyecto tiene el
+  // feature flag PENDIENTE_ELEMENTO_REQUERIDO activo. `useMemo` para no
+  // recrear el resolver en cada render.
+  const schema = useMemo(() => makePendienteCreateSchema(elementoRequerido), [elementoRequerido])
+
   const form = useForm<PendienteFormValues>({
-    resolver: zodResolver(pendienteCreateSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       nivelId: defaultValues?.nivelId ?? "",
       especialidadId: defaultValues?.especialidadId ?? "",
@@ -104,8 +112,8 @@ export function PendienteForm({
       responsableId: defaultValues?.responsableId ?? "",
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
-      subSistemaId: defaultValues?.subSistemaId ?? null,
-      elementoId: defaultValues?.elementoId ?? null,
+      subSistemaId: defaultValues?.subSistemaId ?? "",
+      elementoId: defaultValues?.elementoId ?? (elementoRequerido ? "" : null),
       pid: defaultValues?.pid ?? null,
     },
   })
@@ -520,23 +528,32 @@ export function PendienteForm({
 
         <Separator />
 
-        {/* ── Localización (opcional) ── */}
+        {/* ── Localización ── */}
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Localización (opcional)
+            Localización
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
             <FormItem>
-              <Label>Sistema</Label>
-              <Select value={sistemaId || NONE} onValueChange={(v) => { const value = v ?? NONE; setSistemaId(value === NONE ? "" : value) }}>
+              <Label>Sistema *</Label>
+              <Select
+                value={sistemaId || NONE}
+                onValueChange={(v) => {
+                  const value = v ?? NONE
+                  setSistemaId(value === NONE ? "" : value)
+                  // Al cambiar el sistema limpiamos el subsistema — así se fuerza
+                  // que el user vuelva a elegir uno dentro del nuevo sistema.
+                  form.setValue("subSistemaId", "", { shouldDirty: true, shouldValidate: true })
+                }}
+                disabled={isPending}
+              >
                 <SelectTrigger>
-                  <SelectValue>
-                    {sistemaId ? sistemas.find((s) => s.id === sistemaId)?.nombre ?? "Sistema" : "Todos"}
+                  <SelectValue placeholder="Elegí sistema">
+                    {sistemaId ? sistemas.find((s) => s.id === sistemaId)?.nombre ?? "Sistema" : "Elegí sistema"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE}>Todos</SelectItem>
                   {sistemas.map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
                   ))}
@@ -549,23 +566,22 @@ export function PendienteForm({
               name="subSistemaId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Subsistema</FormLabel>
+                  <FormLabel>Subsistema *</FormLabel>
                   <Select
-                    value={field.value || NONE}
-                    onValueChange={(v) => field.onChange(v === NONE ? null : v)}
-                    disabled={isPending}
+                    value={field.value || ""}
+                    onValueChange={(v) => v && field.onChange(v)}
+                    disabled={isPending || !sistemaId}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Sin subsistema">
+                        <SelectValue placeholder={sistemaId ? "Elegí subsistema" : "Elegí sistema primero"}>
                           {field.value
                             ? subSistemas.find((ss) => ss.id === field.value)?.nombre ?? "Subsistema"
-                            : "Sin subsistema"}
+                            : (sistemaId ? "Elegí subsistema" : "Elegí sistema primero")}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={NONE}>Sin subsistema</SelectItem>
                       {subSistemasFiltrados.map((ss) => (
                         <SelectItem key={ss.id} value={ss.id}>{ss.codigo} — {ss.nombre}</SelectItem>
                       ))}
@@ -583,7 +599,7 @@ export function PendienteForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Elemento
+                  Elemento{elementoRequerido ? " *" : ""}
                   {especialidadId && (
                     <span className="ml-2 text-[10px] font-normal text-muted-foreground">
                       (filtrado por especialidad)
@@ -595,7 +611,7 @@ export function PendienteForm({
                     options={elementoOptions}
                     value={field.value ?? ""}
                     onChange={(v) => onElementoChange(v || null)}
-                    placeholder="Sin elemento asignado"
+                    placeholder={elementoRequerido ? "Elegí elemento" : "Sin elemento asignado"}
                     searchPlaceholder="Buscar elemento..."
                     emptyMessage="Sin resultados"
                   />

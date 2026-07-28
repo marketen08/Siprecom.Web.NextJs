@@ -16,6 +16,10 @@ export interface ImportPreview {
   sistemas: ImportEntidadResumen
   subsistemas: ImportEntidadResumen
   elementos: ImportEntidadResumen
+  /** Paquetes de prueba (TestGroups) creados/actualizados/eliminados desde la hoja TestGroups. */
+  testGroups: ImportEntidadResumen
+  /** Membresías Elemento↔TG a crear (columna TestGroupCodigo de la hoja Elementos). */
+  testGroupMembresias: ImportEntidadResumen
   /** Errores mostrados (cap 100). Si totalErrores > errores.length, la UI debe indicarlo. */
   errores: ImportError[]
   /** Total real de errores del import (puede ser mayor a errores.length por el cap del server). */

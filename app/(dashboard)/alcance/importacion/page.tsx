@@ -97,8 +97,10 @@ export default function ImportacionPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Importar datos del proyecto</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Importá sistemas, subsistemas y elementos desde un archivo Excel. Soporta crear,
-          modificar y eliminar en una sola operación.
+          Importá sistemas, subsistemas, elementos y paquetes de prueba desde un archivo Excel.
+          Soporta crear, modificar y eliminar en una sola operación. Los paquetes crean su elemento
+          sintético automáticamente y la columna <code className="text-xs">TestGroupCodigo</code> de
+          Elementos define la membresía en el pack.
         </p>
       </div>
 
@@ -378,10 +380,12 @@ function formatDuracion(ms: number): string {
 
 function ResumenGrid({ preview }: { preview: ImportPreview }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
       <ResumenCard titulo="Sistemas" resumen={preview.sistemas} />
       <ResumenCard titulo="Subsistemas" resumen={preview.subsistemas} />
       <ResumenCard titulo="Elementos" resumen={preview.elementos} />
+      <ResumenCard titulo="Paquetes de prueba" resumen={preview.testGroups} />
+      <ResumenCard titulo="Membresías en pack" resumen={preview.testGroupMembresias} />
     </div>
   )
 }
