@@ -22,7 +22,7 @@ function NavLink({ href, label, depth, onNavigate }: { href: string; label: stri
       onClick={onNavigate}
       style={{ paddingLeft: 16 + depth * 12 }}
       className={cn(
-        "block py-1.5 pr-4 text-sm rounded-md transition-colors duration-150",
+        "block py-1.5 pr-4 text-sm rounded-md transition-colors duration-150 cursor-pointer",
         isActive
           ? "bg-white/20 text-white font-medium"
           : "text-blue-100 hover:bg-white/10 hover:text-white"
@@ -82,7 +82,7 @@ function SidebarItem({
         onClick={() => setOpen((o) => !o)}
         style={{ paddingLeft: 16 + depth * 12 }}
         className={cn(
-          "w-full flex items-center justify-between pr-4 py-2 text-sm font-semibold rounded-md",
+          "w-full flex items-center justify-between pr-4 py-2 text-sm font-semibold rounded-md cursor-pointer",
           "transition-colors duration-150",
           depth === 0
             ? "text-white hover:bg-white/10"

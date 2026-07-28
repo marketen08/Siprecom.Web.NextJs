@@ -243,13 +243,16 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                 largos como TAG-1234 — Nombre), 2 columnas en sm+. `sm:col-span-2`
                 para el warning de rechazo se aplica solo cuando hay 2 columnas. */}
             <section className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 text-sm">
-              <DataItem label="Categoría"   value={p.categoriaNombre} />
+              <DataItem label="Nivel"       value={p.nivelNombre} />
+              <DataItem label="Especialidad" value={p.especialidadNombre} />
               <DataItem label="Tipo"        value={p.tipoNombre} />
+              <DataItem label="Acción"      value={p.accionNombre} />
+              <DataItem label="Motivo"      value={p.motivoNombre} />
+              <DataItem label="Categoría"   value={p.categoriaNombre} />
               <DataItem label="Detectado por" value={p.detectadoPorNombre} />
               <DataItem label="Responsable" value={p.responsableNombre} />
               <DataItem label="Subsistema"  value={p.subSistemaNombre} />
               <DataItem label="Elemento"    value={p.elementoTag ? `${p.elementoTag} — ${p.elementoNombre}` : null} />
-              <DataItem label="Especialidad" value={p.especialidadNombre} />
               <DataItem label="PID"         value={p.pid} />
               <DataItem label="Circuito"    value={p.circuito} />
               <DataItem label="Detección"   value={p.fechaDeteccion} />

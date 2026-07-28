@@ -474,26 +474,25 @@ export function PendienteForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Responsable *</FormLabel>
-                <Select
-                  value={field.value}
-                  onValueChange={(v) => v && field.onChange(v)}
-                  disabled={isPending || readonlyResponsable}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Asignar a un usuario">
-                        {usuarios.find((u) => u.usuarioId === field.value)?.userName ?? "Asignar"}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {usuarios.map((u) => (
-                      <SelectItem key={u.usuarioId} value={u.usuarioId}>
-                        {u.userName} — {u.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    options={usuarios.map((u) => {
+                      const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
+                      // En SIPRECOM el userName suele ser el email — evitamos duplicarlo.
+                      const identificador = u.userName && u.userName !== u.email ? u.userName : u.email
+                      const label = nombreCompleto
+                        ? `${nombreCompleto} — ${identificador}`
+                        : identificador
+                      return { value: u.usuarioId, label }
+                    })}
+                    value={field.value ?? ""}
+                    onChange={(v) => field.onChange(v || "")}
+                    placeholder="Asignar a un usuario"
+                    searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
+                    emptyMessage="Sin usuarios en el proyecto"
+                    disabled={isPending || readonlyResponsable}
+                  />
+                </FormControl>
                 {readonlyResponsable && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Para reasignar, usá la acción de workflow en el detalle del pendiente.
