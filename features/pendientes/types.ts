@@ -105,31 +105,30 @@ export interface PendienteCatalogoResolverResult {
   categoriaNombre: string
 }
 
-// ── Import Excel del catálogo maestro ─────────────────────────────────
+// ── Import Excel del catálogo maestro (multi-hoja) ─────────────────────
 
-export type PendienteCatalogoImportEstado = "OK" | "Warning" | "Error"
+export interface PendienteCatalogoImportResumen {
+  creates: number
+  updates: number
+  deletes: number
+  total: number
+}
 
-export interface PendienteCatalogoImportRow {
+export interface PendienteCatalogoImportError {
+  hoja: string
   filaExcel: number
-  nivel: string | null
-  especialidad: string | null
-  tipo: string | null
-  accion: string | null
-  motivo: string | null
-  categoria: string | null
-  descripcion: string | null
-  estado: PendienteCatalogoImportEstado
-  mensaje: string | null
+  columna: string | null
+  mensaje: string
 }
 
 export interface PendienteCatalogoImportResult {
-  totalFilas: number
-  insertadas: number
-  actualizadas: number
-  ignoradasDuplicadas: number
-  rechazadas: number
-  filas: PendienteCatalogoImportRow[]
-  erroresGenerales: string[]
+  aplicado: boolean
+  mensaje: string
+  tipos: PendienteCatalogoImportResumen
+  acciones: PendienteCatalogoImportResumen
+  motivos: PendienteCatalogoImportResumen
+  catalogo: PendienteCatalogoImportResumen
+  errores: PendienteCatalogoImportError[]
 }
 
 export interface Pendiente {

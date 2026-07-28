@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import { FileSpreadsheet, Pencil, Plus, Trash2, Search } from "lucide-react"
 
 import {
@@ -9,7 +10,6 @@ import {
   useGetPendienteCatalogo,
   useUpdatePendienteCatalogo,
 } from "@/features/pendientes/api/use-catalogo-maestro"
-import { ImportCatalogoDialog } from "@/features/pendientes/components/import-catalogo-dialog"
 import {
   useGetPendienteAcciones,
   useGetPendienteCategorias,
@@ -75,7 +75,6 @@ export default function PendientesCatalogoPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
-  const [importOpen, setImportOpen] = useState(false)
 
   const filtrados = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -137,14 +136,12 @@ export default function PendientesCatalogoPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setImportOpen(true)}
-            className="gap-2 whitespace-nowrap"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Importar Excel
-          </Button>
+          <Link href="/configuracion/importacion-maestro-pendientes">
+            <Button variant="outline" className="gap-2 whitespace-nowrap">
+              <FileSpreadsheet className="h-4 w-4" />
+              Importar / Exportar Excel
+            </Button>
+          </Link>
           <Button
             onClick={() => setSheet({ mode: "new", ...EMPTY_SHEET })}
             className="gap-2 whitespace-nowrap"
@@ -323,7 +320,6 @@ export default function PendientesCatalogoPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <ImportCatalogoDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   )
 }

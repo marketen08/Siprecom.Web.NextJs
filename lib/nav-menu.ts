@@ -155,14 +155,20 @@ export const menu: MenuItem[] = [
       {
         label: "Catálogos",
         children: [
-          { label: "Especialidades",           href: "/configuracion/especialidades" },
-          { label: "Tipos de elemento",        href: "/configuracion/elementos-tipos" },
-          { label: "Niveles",                  href: "/configuracion/niveles" },
-          { label: "Categorías de pendientes", href: "/configuracion/pendientes-categorias" },
-          { label: "Tipos de pendientes",      href: "/configuracion/pendientes-tipos" },
-          { label: "Acciones de pendientes",   href: "/configuracion/pendientes-acciones" },
-          { label: "Motivos de pendientes",    href: "/configuracion/pendientes-motivos" },
-          { label: "Catálogo maestro de pendientes", href: "/configuracion/pendientes-catalogo" },
+          { label: "Especialidades",    href: "/configuracion/especialidades" },
+          { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
+          { label: "Niveles",           href: "/configuracion/niveles" },
+          {
+            label: "Pendientes",
+            children: [
+              { label: "Categorías",       href: "/configuracion/pendientes-categorias" },
+              { label: "Tipos",            href: "/configuracion/pendientes-tipos" },
+              { label: "Acciones",         href: "/configuracion/pendientes-acciones" },
+              { label: "Motivos",          href: "/configuracion/pendientes-motivos" },
+              { label: "Catálogo maestro", href: "/configuracion/pendientes-catalogo" },
+              { label: "Importar / Exportar", href: "/configuracion/importacion-maestro-pendientes" },
+            ],
+          },
         ],
       },
       {
@@ -356,6 +362,7 @@ export const segmentLabels: Record<string, string> = {
   "pendientes-acciones":   "Acciones de pendientes",
   "pendientes-motivos":    "Motivos de pendientes",
   "pendientes-catalogo":   "Catálogo maestro de pendientes",
+  "importacion-maestro-pendientes": "Importar / Exportar catálogo maestro",
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",
   licencias:               "Licencias",
