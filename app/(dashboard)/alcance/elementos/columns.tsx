@@ -49,12 +49,13 @@ export function RowActions({ elemento }: { elemento: Elemento }) {
                   Las tareas <strong>pendientes</strong> se cancelan automáticamente.
                 </li>
                 <li>
-                  Las tareas <strong>en curso, completadas o firmadas</strong> se conservan
-                  como estaban.
+                  Si el elemento tiene tareas <strong>iniciadas</strong> (en curso, completadas,
+                  aprobadas, rechazadas o firmadas), el borrado se <strong>bloquea</strong>. Revertí
+                  o cancelá esas tareas primero desde la vista de tareas.
                 </li>
                 <li>
                   Si el elemento tiene <strong>registros cargados</strong> (aunque estén en
-                  borrador), el borrado se bloquea — desestimalos o eliminalos antes.
+                  borrador), el borrado también se bloquea — desestimalos o eliminalos antes.
                 </li>
               </ul>
             </div>
