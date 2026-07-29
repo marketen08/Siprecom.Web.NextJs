@@ -55,7 +55,7 @@ export function RowActions({ elemento }: { elemento: Elemento }) {
                 </li>
                 <li>
                   Si el elemento tiene <strong>registros cargados</strong> (aunque estén en
-                  borrador), el borrado también se bloquea — desestimalos o eliminalos antes.
+                  borrador), el borrado se bloquea  — desestimalos o eliminalos antes.
                 </li>
               </ul>
             </div>
