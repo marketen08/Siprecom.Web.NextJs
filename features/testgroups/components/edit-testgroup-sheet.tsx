@@ -21,8 +21,13 @@ export function EditTestGroupSheet() {
     mutation.mutate(values as any, { onSuccess: close })
   }
 
+  const handleClose = () => {
+    mutation.reset()
+    close()
+  }
+
   return (
-    <Sheet open={isOpen} onOpenChange={close}>
+    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) handleClose() }}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Editar paquete de prueba</SheetTitle>
@@ -37,10 +42,15 @@ export function EditTestGroupSheet() {
               defaultValues={tg}
               onSubmit={onSubmit as any}
               isPending={mutation.isPending}
-              onCancel={close}
+              onCancel={handleClose}
             />
           ) : (
             <p className="text-sm text-destructive">No se pudo cargar el paquete.</p>
+          )}
+          {mutation.error && (
+            <p className="text-sm text-destructive mt-3 whitespace-pre-line">
+              {(mutation.error as Error).message}
+            </p>
           )}
         </div>
       </SheetContent>

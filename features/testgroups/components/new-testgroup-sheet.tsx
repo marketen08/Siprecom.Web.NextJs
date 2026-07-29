@@ -17,8 +17,15 @@ export function NewTestGroupSheet() {
     mutation.mutate(values as any, { onSuccess: close })
   }
 
+  // Al cerrar el sheet limpiamos el error anterior — evita que reaparezca
+  // al abrirlo de nuevo para crear otro pack.
+  const handleClose = () => {
+    mutation.reset()
+    close()
+  }
+
   return (
-    <Sheet open={isOpen} onOpenChange={close}>
+    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) handleClose() }}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Nuevo Test Pack</SheetTitle>
@@ -32,8 +39,13 @@ export function NewTestGroupSheet() {
               mode="create"
               onSubmit={onSubmit as any}
               isPending={mutation.isPending}
-              onCancel={close}
+              onCancel={handleClose}
             />
+          )}
+          {mutation.error && (
+            <p className="text-sm text-destructive mt-3 whitespace-pre-line">
+              {(mutation.error as Error).message}
+            </p>
           )}
         </div>
       </SheetContent>
