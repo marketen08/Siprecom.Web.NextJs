@@ -134,6 +134,20 @@ export function useCancelarElementoTarea() {
   })
 }
 
+export function useReactivarElementoTarea() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.post<ApiResponse<ElementoTareaRow>>(
+        `/api/elementostareas/${id}/reactivar`,
+        {},
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["elementostareas"] })
+    },
+  })
+}
+
 export function useAsignarResponsableET() {
   const qc = useQueryClient()
   return useMutation({

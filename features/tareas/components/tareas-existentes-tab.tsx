@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Loader2, Trash2, XCircle } from "lucide-react"
+import { Loader2, RotateCcw, Trash2, XCircle } from "lucide-react"
 
 import {
   ESTADO_ET,
@@ -9,6 +9,7 @@ import {
   useAsignarResponsableET,
   useCancelarElementoTarea,
   useDeleteElementoTarea,
+  useReactivarElementoTarea,
   useSearchElementosTareas,
   type CoordinacionFiltros,
   type ElementoTareaRow,
@@ -156,6 +157,7 @@ export function TareasExistentesTab() {
   const eliminarMut = useDeleteElementoTarea()
   const cancelarMut = useCancelarElementoTarea()
   const asignarMut = useAsignarResponsableET()
+  const reactivarMut = useReactivarElementoTarea()
 
   // Dialog de cancelación (requiere motivo).
   const [cancelarTarget, setCancelarTarget] = useState<ElementoTareaRow | null>(null)
@@ -254,6 +256,7 @@ export function TareasExistentesTab() {
               rows.map((row) => {
                 const puedeEliminar = row.estado === ESTADO_ET.PENDIENTE || row.estado === ESTADO_ET.CANCELADO
                 const puedeCancelar = row.estado === ESTADO_ET.PENDIENTE || row.estado === ESTADO_ET.EN_PROCESO
+                const puedeReactivar = row.estado === ESTADO_ET.CANCELADO
                 return (
                   <TableRow key={row.id} className="hover:bg-gray-50">
                     <TableCell className="text-sm font-medium">{row.elementoTag ?? "—"}</TableCell>
@@ -279,6 +282,24 @@ export function TareasExistentesTab() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        {puedeReactivar && (
+                          <ConfirmActionDialog
+                            trigger={<RotateCcw className="h-4 w-4" />}
+                            triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-emerald-700 hover:bg-accent cursor-pointer"
+                            title="¿Reactivar tarea?"
+                            description={
+                              <>
+                                La tarea <strong>{row.tareaNombre}</strong> del elemento{" "}
+                                <strong>{row.elementoTag}</strong> volverá al estado{" "}
+                                <strong>PENDIENTE</strong> y se limpiará el motivo de cancelación.
+                                Requiere que el Elemento y la Tarea sigan activos.
+                              </>
+                            }
+                            confirmText="Reactivar"
+                            pendingText="Reactivando..."
+                            onConfirm={() => reactivarMut.mutateAsync(row.id)}
+                          />
+                        )}
                         {puedeCancelar && (
                           <Button
                             size="icon" variant="ghost" className="h-8 w-8 text-amber-700"
@@ -321,6 +342,9 @@ export function TareasExistentesTab() {
       )}
       {eliminarMut.error && (
         <p className="text-xs text-destructive">{(eliminarMut.error as Error).message}</p>
+      )}
+      {reactivarMut.error && (
+        <p className="text-xs text-destructive">{(reactivarMut.error as Error).message}</p>
       )}
 
       {/* Dialog de cancelación con motivo obligatorio */}
