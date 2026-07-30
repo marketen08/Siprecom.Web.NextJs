@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
-import type { TareasListadoFiltros, TareasListadoPaged } from "../types"
+import type { TareasListadoCounts, TareasListadoFiltros, TareasListadoPaged } from "../types"
 
 /** Serializa los filtros a un query string. Deja fuera las claves vacías. */
 export function buildQuery(filtros: TareasListadoFiltros, extras?: Record<string, string | number>): string {
@@ -31,6 +31,23 @@ export function useTareasListado(filtros: TareasListadoFiltros, page: number, pa
       apiClient.get<ApiResponse<TareasListadoPaged>>(
         `/api/reportes/tareas${buildQuery(filtros, { page, pageSize })}`,
       ),
+  })
+}
+
+/**
+ * Contadores para los chips de bucket (Pendientes/Completadas/Firmadas/Rechazadas/Total).
+ * Ignora `filtros.estados` (el backend arma su propio conteo por estado) pero
+ * respeta el resto — incluido `asignadoA` — así que los números cambian con el tab.
+ */
+export function useTareasListadoCounts(filtros: TareasListadoFiltros) {
+  const { estados: _estados, ...rest } = filtros
+  return useQuery<ApiResponse<TareasListadoCounts>, Error, TareasListadoCounts>({
+    queryKey: ["tareas-listado", "counts", rest],
+    queryFn: () =>
+      apiClient.get<ApiResponse<TareasListadoCounts>>(
+        `/api/reportes/tareas/counts${buildQuery(rest as TareasListadoFiltros)}`,
+      ),
+    select: (resp) => resp.data,
   })
 }
 

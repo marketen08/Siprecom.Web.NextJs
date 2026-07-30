@@ -77,3 +77,17 @@ export interface TareasListadoPaged {
   pageSize: number
   items: TareaListadoRow[]
 }
+
+/** Contadores por bucket (chips) — devueltos por `/reportes/tareas/counts`. */
+export interface TareasListadoCounts {
+  /** PENDIENTE + EN_PROCESO. */
+  pendientes: number
+  /** COMPLETADO — no incluye FIRMADO/APROBADO. */
+  completadas: number
+  /** FIRMADO + APROBADO (firmado físico). */
+  firmadas: number
+  /** RECHAZADO. */
+  rechazadas: number
+  /** Total sin filtrar por Estado (respeta el resto de filtros y AsignadoA). */
+  total: number
+}

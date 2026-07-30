@@ -15,6 +15,7 @@ import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-nivele
 import {
   descargarTareasExcel,
   useTareasListado,
+  useTareasListadoCounts,
 } from "@/features/tareas-listado/api/use-tareas-listado"
 import { ESTADO_ET, ESTADO_ET_LABEL, type EstadoET, type TareasListadoFiltros } from "@/features/tareas-listado/types"
 
@@ -39,6 +40,28 @@ const ESTADOS_OPCIONES: Array<{ value: EstadoET; label: string }> = [
   { value: ESTADO_ET.RECHAZADO,  label: "Rechazado" },
   { value: ESTADO_ET.FIRMADO,    label: "Firmado" },
 ]
+
+// Chips de bucket arriba de la tabla. Cada uno mapea a un set fijo de estados;
+// el sheet permite además elegir un estado puntual (single-select) que puede
+// "salirse" de estos presets.
+type ChipBucketId = "pendientes" | "completadas" | "firmadas" | "rechazadas" | "todas"
+
+const BUCKETS: Record<ChipBucketId, EstadoET[]> = {
+  pendientes:  [ESTADO_ET.PENDIENTE, ESTADO_ET.EN_PROCESO],
+  completadas: [ESTADO_ET.COMPLETADO],
+  firmadas:    [ESTADO_ET.FIRMADO, ESTADO_ET.APROBADO],
+  rechazadas:  [ESTADO_ET.RECHAZADO],
+  todas:       [],
+}
+
+function chipDeEstados(estados: Set<EstadoET>): ChipBucketId | null {
+  for (const [id, preset] of Object.entries(BUCKETS) as Array<[ChipBucketId, EstadoET[]]>) {
+    if (preset.length === estados.size && preset.every((v) => estados.has(v))) {
+      return id
+    }
+  }
+  return null
+}
 
 const ESTADO_BADGE: Record<number, string> = {
   1: "bg-gray-100 text-gray-700",
@@ -84,7 +107,8 @@ export default function TareasListadoPage() {
   const [especialidadId, setEspecialidadId] = useState<string>("")
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
   const [nivelId, setNivelId] = useState<string>("")
-  const [estados, setEstados] = useState<Set<EstadoET>>(new Set())
+  // Default = bucket "Pendientes" (equivalente al chip por defecto de coordinación).
+  const [estados, setEstados] = useState<Set<EstadoET>>(new Set(BUCKETS.pendientes))
   const [search, setSearch] = useState<string>("")
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -143,6 +167,20 @@ export default function TareasListadoPage() {
     return opts
   }, [niveles])
 
+  // Opciones del Combobox de Estado (single) dentro del sheet.
+  const estadoSelectOptions = useMemo<ComboboxOption[]>(() => {
+    const opts: ComboboxOption[] = [{ value: ALL, label: "Todos" }]
+    for (const o of ESTADOS_OPCIONES) opts.push({ value: String(o.value), label: o.label })
+    return opts
+  }, [])
+
+  // Valor a mostrar en el Combobox: si hay exactamente 1 estado seleccionado, lo mostramos;
+  // si son 0 → "Todos"; si son 2+ (chip activo con más de un estado) → dejamos "Todos" para
+  // no falsear el select (el chip arriba ya indica el bucket real).
+  const estadoSingle = estados.size === 1
+    ? String(Array.from(estados)[0])
+    : ALL
+
   const filtros: TareasListadoFiltros = {
     sistemaId: sistemaId || undefined,
     subSistemaId: subSistemaId || undefined,
@@ -156,10 +194,17 @@ export default function TareasListadoPage() {
   }
 
   const { data, isLoading, isFetching } = useTareasListado(filtros, page, pageSize)
+  const { data: counts } = useTareasListadoCounts(filtros)
   const paged = data?.data
   const items = paged?.items ?? []
   const total = paged?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  const chipActivo = chipDeEstados(estados)
+  const setChip = (id: ChipBucketId) => {
+    setEstados(new Set(BUCKETS[id]))
+    resetFiltrado()
+  }
 
   // Al cambiar filtros vamos a la página 1 y limpiamos selección.
   function resetFiltrado() {
@@ -191,12 +236,6 @@ export default function TareasListadoPage() {
   if (nivelId) {
     chip("niv", "Nivel", nivelOptions.find((o) => o.value === nivelId)?.label ?? nivelId,
       () => { setNivelId(""); resetFiltrado() })
-  }
-  if (estados.size > 0) {
-    const labels = Array.from(estados)
-      .map((e) => ESTADOS_OPCIONES.find((o) => o.value === e)?.label ?? String(e))
-      .join(", ")
-    chip("est", "Estado", labels, () => { setEstados(new Set()); resetFiltrado() })
   }
 
   const limpiarFiltros = () => {
@@ -323,6 +362,47 @@ export default function TareasListadoPage() {
             <FileSpreadsheet className="h-4 w-4" /> Excel
           </Button>
         </div>
+      </div>
+
+      {/* Chips de bucket — visibles arriba de la lista. Cuentan sobre el scope actual
+          (Mías/Todas) y el resto de filtros del sheet. Un preset "custom" desde el
+          sheet deja los 5 chips desactivados (el estado igual aplica). */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ChipBucket
+          active={chipActivo === "pendientes"}
+          label="Pendientes"
+          count={counts?.pendientes}
+          tone="amber"
+          onClick={() => setChip("pendientes")}
+        />
+        <ChipBucket
+          active={chipActivo === "completadas"}
+          label="Completadas"
+          count={counts?.completadas}
+          tone="blue"
+          onClick={() => setChip("completadas")}
+        />
+        <ChipBucket
+          active={chipActivo === "firmadas"}
+          label="Firmadas"
+          count={counts?.firmadas}
+          tone="green"
+          onClick={() => setChip("firmadas")}
+        />
+        <ChipBucket
+          active={chipActivo === "rechazadas"}
+          label="Rechazadas"
+          count={counts?.rechazadas}
+          tone="red"
+          onClick={() => setChip("rechazadas")}
+        />
+        <ChipBucket
+          active={chipActivo === "todas"}
+          label="Todas"
+          count={counts?.total}
+          tone="gray"
+          onClick={() => setChip("todas")}
+        />
       </div>
 
       <FiltersChips activeFilters={activeFilters} onClearAll={limpiarFiltros} />
@@ -604,33 +684,20 @@ export default function TareasListadoPage() {
             placeholder="Todos" searchPlaceholder="Buscar nivel..."
           />
         </FilterField>
-        <FilterField label="Estado">
-          <div className="flex flex-wrap gap-1">
-            {ESTADOS_OPCIONES.map((o) => {
-              const activo = estados.has(o.value)
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => {
-                    setEstados((prev) => {
-                      const next = new Set(prev)
-                      if (next.has(o.value)) next.delete(o.value); else next.add(o.value)
-                      return next
-                    })
-                    resetFiltrado()
-                  }}
-                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
-                    activo
-                      ? "bg-blue-900 text-white border-blue-900"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {o.label}
-                </button>
-              )
-            })}
-          </div>
+        <FilterField label="Estado (fino)">
+          <Combobox
+            options={estadoSelectOptions}
+            value={estadoSingle}
+            onChange={(v) => {
+              // ALL = no filtrar por estado (equivale al chip Todas)
+              // Cualquier otro valor: setea estados = [v] — puede o no coincidir con
+              // un bucket; si no coincide, ningún chip queda activo.
+              if (v === ALL) setEstados(new Set())
+              else setEstados(new Set([Number(v) as EstadoET]))
+              resetFiltrado()
+            }}
+            placeholder="Todos" searchPlaceholder="Buscar estado..."
+          />
         </FilterField>
       </FiltersSheet>
     </div>
@@ -706,6 +773,52 @@ function fmtFecha(f: string | null): string {
   return isNaN(d.getTime())
     ? "—"
     : d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+// ── Chip visual del bucket (mismo look & feel que en /coordinacion/tareas) ──
+interface ChipBucketProps {
+  active: boolean
+  label: string
+  count: number | undefined
+  tone: "gray" | "amber" | "blue" | "green" | "red"
+  onClick: () => void
+}
+function ChipBucket({ active, label, count, tone, onClick }: ChipBucketProps) {
+  const inactive: Record<string, string> = {
+    gray:  "bg-white text-gray-700 border-gray-300 hover:bg-gray-50",
+    amber: "bg-white text-amber-900 border-amber-300 hover:bg-amber-50",
+    blue:  "bg-white text-blue-900 border-blue-300 hover:bg-blue-50",
+    green: "bg-white text-emerald-900 border-emerald-300 hover:bg-emerald-50",
+    red:   "bg-white text-red-900 border-red-300 hover:bg-red-50",
+  }
+  const activeCls: Record<string, string> = {
+    gray:  "bg-gray-800 text-white border-gray-800",
+    amber: "bg-amber-600 text-white border-amber-600",
+    blue:  "bg-blue-700 text-white border-blue-700",
+    green: "bg-emerald-700 text-white border-emerald-700",
+    red:   "bg-red-600 text-white border-red-600",
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors cursor-pointer " +
+        (active ? activeCls[tone] : inactive[tone])
+      }
+      aria-pressed={active}
+    >
+      {label}
+      {typeof count === "number" && (
+        <span className={
+          "inline-flex min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none py-0.5 " +
+          (active ? "bg-white/25 text-white" : "bg-gray-100 text-gray-700")
+        }>
+          {count}
+        </span>
+      )}
+    </button>
+  )
 }
 
 /** Formato corto para celdas apretadas: "dd/MM/yy". */
