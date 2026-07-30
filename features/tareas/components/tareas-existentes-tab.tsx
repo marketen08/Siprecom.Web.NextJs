@@ -53,12 +53,23 @@ const ALL = "__all__"
 const SIN_ASIGNAR = "__none__"
 const PAGE_SIZE = 50
 
+// Chips de bucket disponibles arriba de la tabla. Incluye "canceladas" que
+// NO está en el enum backend EstadoCoord — se traduce a estados=[CANCELADO]
+// + incluirCanceladasRechazadas=true (para que el backend no las excluya).
+type ChipBucketId = "pendiente" | "asignada" | "completada" | "canceladas" | "todas"
+
 export function TareasExistentesTab() {
   // ── Filtros ────────────────────────────────────────────────────────
-  // Chip principal (bucket de coordinación). null = "Todas".
-  // Default: Pendiente — es la vista natural del coordinador al entrar
-  // (tareas que necesitan asignarse o iniciar).
-  const [estadoCoord, setEstadoCoord] = useState<EstadoCoord | null>(ESTADO_COORD.PENDIENTE)
+  // Chip principal. Default: Pendiente — es la vista natural del coordinador
+  // al entrar (tareas que necesitan asignarse o iniciar).
+  const [chipActivo, setChipActivo] = useState<ChipBucketId>("pendiente")
+
+  // Deriva el bucket de coordinación backend (undefined para "canceladas" y "todas").
+  const estadoCoord: EstadoCoord | null =
+    chipActivo === "pendiente" ? ESTADO_COORD.PENDIENTE
+    : chipActivo === "asignada" ? ESTADO_COORD.ASIGNADA
+    : chipActivo === "completada" ? ESTADO_COORD.COMPLETADA_FIRMADA
+    : null
 
   // Filtros detallados (dentro del sheet).
   const [subSistemaId, setSubSistemaId] = useState<string>(ALL)
@@ -73,21 +84,28 @@ export function TareasExistentesTab() {
 
   const [page, setPage] = useState(1)
 
-  const filtros: CoordinacionFiltros = useMemo(() => ({
-    subSistemaId: subSistemaId === ALL ? undefined : subSistemaId,
-    nivelId: nivelId === ALL ? undefined : nivelId,
-    especialidadId: especialidadId === ALL ? undefined : especialidadId,
-    elementoTipoId: elementoTipoId === ALL ? undefined : elementoTipoId,
-    tareaId: tareaId === ALL ? undefined : tareaId,
-    estados: estadoDetalle === ALL ? undefined : [Number(estadoDetalle) as EstadoET],
-    asignadoA: asignadoA === ALL ? undefined : asignadoA,
-    estadoCoord: estadoCoord ?? undefined,
-    incluirCanceladasRechazadas: incluirCanceladas,
-  }), [subSistemaId, nivelId, especialidadId, elementoTipoId, tareaId, estadoDetalle, asignadoA, estadoCoord, incluirCanceladas])
+  const filtros: CoordinacionFiltros = useMemo(() => {
+    // Chip Canceladas: forzamos estados=[CANCELADO] + incluir=true (para saltar la
+    // exclusión default del backend). Prevalece sobre el filtro de estado detallado.
+    const esChipCanceladas = chipActivo === "canceladas"
+    return {
+      subSistemaId: subSistemaId === ALL ? undefined : subSistemaId,
+      nivelId: nivelId === ALL ? undefined : nivelId,
+      especialidadId: especialidadId === ALL ? undefined : especialidadId,
+      elementoTipoId: elementoTipoId === ALL ? undefined : elementoTipoId,
+      tareaId: tareaId === ALL ? undefined : tareaId,
+      estados: esChipCanceladas
+        ? [ESTADO_ET.CANCELADO]
+        : estadoDetalle === ALL ? undefined : [Number(estadoDetalle) as EstadoET],
+      asignadoA: asignadoA === ALL ? undefined : asignadoA,
+      estadoCoord: estadoCoord ?? undefined,
+      incluirCanceladasRechazadas: esChipCanceladas || incluirCanceladas,
+    }
+  }, [chipActivo, subSistemaId, nivelId, especialidadId, elementoTipoId, tareaId, estadoDetalle, asignadoA, estadoCoord, incluirCanceladas])
 
   const { data, isLoading, isFetching } = useSearchElementosTareas(filtros, page, PAGE_SIZE)
   const rows: ElementoTareaRow[] = data?.data ?? []
-  const total = data?.totalRecords ?? 0
+  const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // Conteos para los chips — ignoran el filtro estadoCoord para reflejar
@@ -334,16 +352,34 @@ export function TareasExistentesTab() {
   const [cancelarTarget, setCancelarTarget] = useState<ElementoTareaRow | null>(null)
   const [motivoCancelar, setMotivoCancelar] = useState("")
 
+  /**
+   * Al aplicar una acción individual que "saca" la fila de la vista actual
+   * (cancelar / eliminar / reactivar) — típicamente porque el chip activo la
+   * filtra afuera — hay que sacar el ID de la selección para no dejar "IDs
+   * zombies" que aparezcan en la toolbar contextual sin fila visible.
+   */
+  const removerDeSeleccion = (id: string) => {
+    if (selectAllMatching) return // el modo cross-página no se ve afectado por acciones single
+    setSelectedIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
   const confirmarCancelacion = async () => {
     if (!cancelarTarget || !motivoCancelar.trim()) return
     try {
-      await cancelarMut.mutateAsync({ id: cancelarTarget.id, motivo: motivoCancelar.trim() })
+      const id = cancelarTarget.id
+      await cancelarMut.mutateAsync({ id, motivo: motivoCancelar.trim() })
+      removerDeSeleccion(id)
       setCancelarTarget(null); setMotivoCancelar("")
     } catch { /* mensaje visible abajo */ }
   }
 
-  const setChip = (nuevo: EstadoCoord | null) => {
-    setEstadoCoord(nuevo)
+  const setChip = (nuevo: ChipBucketId) => {
+    setChipActivo(nuevo)
     setPage(1)
   }
 
@@ -355,32 +391,39 @@ export function TareasExistentesTab() {
           "Todas" al final porque es la opción "quitar filtro", no la primaria. */}
       <div className="flex flex-wrap items-center gap-2">
         <ChipBucket
-          active={estadoCoord === ESTADO_COORD.PENDIENTE}
+          active={chipActivo === "pendiente"}
           label="Pendiente"
           count={counts?.pendiente}
           tone="amber"
-          onClick={() => setChip(ESTADO_COORD.PENDIENTE)}
+          onClick={() => setChip("pendiente")}
         />
         <ChipBucket
-          active={estadoCoord === ESTADO_COORD.ASIGNADA}
+          active={chipActivo === "asignada"}
           label="Asignada"
           count={counts?.asignada}
           tone="blue"
-          onClick={() => setChip(ESTADO_COORD.ASIGNADA)}
+          onClick={() => setChip("asignada")}
         />
         <ChipBucket
-          active={estadoCoord === ESTADO_COORD.COMPLETADA_FIRMADA}
+          active={chipActivo === "completada"}
           label="Completada / Firmada"
           count={counts?.completadaFirmada}
           tone="green"
-          onClick={() => setChip(ESTADO_COORD.COMPLETADA_FIRMADA)}
+          onClick={() => setChip("completada")}
         />
         <ChipBucket
-          active={estadoCoord === null}
+          active={chipActivo === "canceladas"}
+          label="Canceladas"
+          count={counts?.canceladas}
+          tone="red"
+          onClick={() => setChip("canceladas")}
+        />
+        <ChipBucket
+          active={chipActivo === "todas"}
           label="Todas"
           count={counts?.total}
           tone="gray"
-          onClick={() => setChip(null)}
+          onClick={() => setChip("todas")}
         />
 
         <div className="ml-auto">
@@ -441,9 +484,9 @@ export function TareasExistentesTab() {
             : "border-emerald-200 bg-emerald-50 text-emerald-900")
         }>
           <span>
-            <strong>{bulkResumen.accion}</strong>: {bulkResumen.result.ok} aplicada(s)
+            <strong>{bulkResumen.accion}</strong>: {bulkResumen.result.ok} procesada(s)
             {bulkResumen.result.rechazadas.length > 0 && (
-              <> · <strong>{bulkResumen.result.rechazadas.length}</strong> rechazada(s)</>
+              <> · <strong>{bulkResumen.result.rechazadas.length}</strong> no procesada(s)</>
             )}
             <> de {bulkResumen.result.total}.</>
           </span>
@@ -465,15 +508,6 @@ export function TareasExistentesTab() {
           </button>
         </div>
       )}
-
-      {/* Paginación / conteo */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>{total} tarea(s) — página {page} de {totalPages}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
-          <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Siguiente</Button>
-        </div>
-      </div>
 
       <DataTableWrapper isFetching={isFetching && !isLoading}>
         <Table>
@@ -587,7 +621,10 @@ export function TareasExistentesTab() {
                             }
                             confirmText="Reactivar"
                             pendingText="Reactivando..."
-                            onConfirm={() => reactivarMut.mutateAsync(row.id)}
+                            onConfirm={async () => {
+                              await reactivarMut.mutateAsync(row.id)
+                              removerDeSeleccion(row.id)
+                            }}
                           />
                         )}
                         {puedeCancelar && (
@@ -614,7 +651,10 @@ export function TareasExistentesTab() {
                             confirmText="Eliminar"
                             pendingText="Eliminando..."
                             variant="destructive"
-                            onConfirm={() => eliminarMut.mutateAsync(row.id)}
+                            onConfirm={async () => {
+                              await eliminarMut.mutateAsync(row.id)
+                              removerDeSeleccion(row.id)
+                            }}
                           />
                         )}
                       </div>
@@ -626,6 +666,34 @@ export function TareasExistentesTab() {
           </TableBody>
         </Table>
       </DataTableWrapper>
+
+      {/* Total + Paginación — mismo patrón que /alcance/elementos y el resto. */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>{total} tarea(s) en total</span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-3">
+            <span>Página {page} de {totalPages}</span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || isFetching}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || isFetching}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {asignarMut.error && (
         <p className="text-xs text-destructive">{(asignarMut.error as Error).message}</p>
@@ -738,8 +806,8 @@ export function TareasExistentesTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar {selectionCount} tarea(s)</AlertDialogTitle>
             <AlertDialogDescription>
-              Se marcarán como <strong>CANCELADO</strong>. Las que ya estén COMPLETADA/APROBADA/FIRMADA
-              se rechazan automáticamente (verás el detalle en el resumen).
+              Se marcarán como <strong>CANCELADO</strong>. Las tareas que ya estén COMPLETADAS / FIRMADAS
+              no pueden ser canceladas (verás el detalle en el resumen).
               {selectAllMatching && <> Aplica a todas las tareas que matchean el filtro actual.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -877,7 +945,7 @@ interface ChipBucketProps {
   active: boolean
   label: string
   count: number | undefined
-  tone: "gray" | "amber" | "blue" | "green"
+  tone: "gray" | "amber" | "blue" | "green" | "red"
   onClick: () => void
 }
 function ChipBucket({ active, label, count, tone, onClick }: ChipBucketProps) {
@@ -886,12 +954,14 @@ function ChipBucket({ active, label, count, tone, onClick }: ChipBucketProps) {
     amber: "bg-white text-amber-900 border-amber-300 hover:bg-amber-50",
     blue:  "bg-white text-blue-900 border-blue-300 hover:bg-blue-50",
     green: "bg-white text-emerald-900 border-emerald-300 hover:bg-emerald-50",
+    red:   "bg-white text-red-900 border-red-300 hover:bg-red-50",
   }
   const activeCls: Record<string, string> = {
     gray:  "bg-gray-800 text-white border-gray-800",
     amber: "bg-amber-600 text-white border-amber-600",
     blue:  "bg-blue-700 text-white border-blue-700",
     green: "bg-emerald-700 text-white border-emerald-700",
+    red:   "bg-red-600 text-white border-red-600",
   }
   return (
     <button

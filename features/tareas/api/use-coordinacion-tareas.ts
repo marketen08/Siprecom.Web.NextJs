@@ -89,11 +89,17 @@ function toBackendFilter(f: CoordinacionFiltros) {
 
 // ─── Listado paginado ────────────────────────────────────────────────
 
+/**
+ * Shape del PagedResult del backend (Siprecom.Server.Core.Helpers.PagedResult).
+ * Serializa como { data, total, page, pageSize, hasNextPage } — usá `total` para
+ * el count real de filas.
+ */
 interface PagedResult<T> {
   data: T[]
-  totalRecords: number
+  total: number
   page: number
   pageSize: number
+  hasNextPage?: boolean
 }
 
 // ─── Contadores por bucket (chips) ────────────────────────────────────
@@ -102,6 +108,8 @@ export interface CoordinacionCounts {
   pendiente: number
   asignada: number
   completadaFirmada: number
+  canceladas: number
+  rechazadas: number
   canceladasRechazadas: number
   total: number
 }
