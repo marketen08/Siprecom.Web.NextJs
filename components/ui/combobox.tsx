@@ -162,7 +162,7 @@ export function Combobox({
               />
             </div>
           </div>
-          <div ref={listRef} className="overflow-y-auto p-1">
+          <div ref={listRef} className="overflow-y-auto p-1 flex flex-col">
             {filtered.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-3">{emptyMessage}</p>
             ) : (

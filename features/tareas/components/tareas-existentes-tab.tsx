@@ -7,6 +7,7 @@ import {
   ESTADO_COORD,
   ESTADO_ET,
   ESTADO_ET_LABEL,
+  useActualizarFechaPlanificadaET,
   useAsignarResponsableET,
   useCancelarElementoTarea,
   useCoordinacionCounts,
@@ -28,6 +29,7 @@ import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyect
 
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { Input } from "@/components/ui/input"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 import {
@@ -49,7 +51,9 @@ const PAGE_SIZE = 50
 export function TareasExistentesTab() {
   // ── Filtros ────────────────────────────────────────────────────────
   // Chip principal (bucket de coordinación). null = "Todas".
-  const [estadoCoord, setEstadoCoord] = useState<EstadoCoord | null>(null)
+  // Default: Pendiente — es la vista natural del coordinador al entrar
+  // (tareas que necesitan asignarse o iniciar).
+  const [estadoCoord, setEstadoCoord] = useState<EstadoCoord | null>(ESTADO_COORD.PENDIENTE)
 
   // Filtros detallados (dentro del sheet).
   const [subSistemaId, setSubSistemaId] = useState<string>(ALL)
@@ -213,6 +217,7 @@ export function TareasExistentesTab() {
   const cancelarMut = useCancelarElementoTarea()
   const asignarMut = useAsignarResponsableET()
   const reactivarMut = useReactivarElementoTarea()
+  const fechaMut = useActualizarFechaPlanificadaET()
 
   const [cancelarTarget, setCancelarTarget] = useState<ElementoTareaRow | null>(null)
   const [motivoCancelar, setMotivoCancelar] = useState("")
@@ -233,15 +238,10 @@ export function TareasExistentesTab() {
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-3">
-      {/* Barra superior: chips + botón Filtros */}
+      {/* Barra superior: chips + botón Filtros.
+          Orden: Pendiente (default) → Asignada → Completada/Firmada → Todas.
+          "Todas" al final porque es la opción "quitar filtro", no la primaria. */}
       <div className="flex flex-wrap items-center gap-2">
-        <ChipBucket
-          active={estadoCoord === null}
-          label="Todas"
-          count={counts?.total}
-          tone="gray"
-          onClick={() => setChip(null)}
-        />
         <ChipBucket
           active={estadoCoord === ESTADO_COORD.PENDIENTE}
           label="Pendiente"
@@ -262,6 +262,13 @@ export function TareasExistentesTab() {
           count={counts?.completadaFirmada}
           tone="green"
           onClick={() => setChip(ESTADO_COORD.COMPLETADA_FIRMADA)}
+        />
+        <ChipBucket
+          active={estadoCoord === null}
+          label="Todas"
+          count={counts?.total}
+          tone="gray"
+          onClick={() => setChip(null)}
         />
 
         <div className="ml-auto">
@@ -323,20 +330,39 @@ export function TareasExistentesTab() {
                     <TableCell className="text-sm">
                       <EstadoBadge estado={row.estado} />
                     </TableCell>
-                    <TableCell className="text-sm w-64">
-                      <Combobox
-                        options={usuarioSelectOptions}
-                        value={row.asignadoA ?? SIN_ASIGNAR}
-                        onChange={(v) => {
-                          const nuevo = v === SIN_ASIGNAR ? null : v
-                          asignarMut.mutate({ id: row.id, asignadoA: nuevo })
-                        }}
-                        placeholder="Sin asignar"
-                        searchPlaceholder="Buscar usuario..."
-                      />
+                    <TableCell className="text-sm">
+                      {/* Ancho fijo + whitespace-normal para evitar que el TableCell
+                          (con whitespace-nowrap default) se ensanche con el contenido
+                          largo del popup del Combobox y termine mostrando las opciones
+                          en fila en vez de columna. */}
+                      <div className="w-48 max-w-full whitespace-normal">
+                        <Combobox
+                          options={usuarioSelectOptions}
+                          value={row.asignadoA ?? SIN_ASIGNAR}
+                          onChange={(v) => {
+                            const nuevo = v === SIN_ASIGNAR ? null : v
+                            asignarMut.mutate({ id: row.id, asignadoA: nuevo })
+                          }}
+                          placeholder="Sin asignar"
+                          searchPlaceholder="Buscar usuario..."
+                          className="h-8 text-xs"
+                        />
+                      </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {row.fechaPlanificada ? new Date(row.fechaPlanificada).toLocaleDateString("es-AR") : "—"}
+                    <TableCell className="text-sm">
+                      <Input
+                        type="date"
+                        // El backend acepta ISO YYYY-MM-DD y devuelve datetime; recortamos
+                        // los primeros 10 chars para el value del input.
+                        value={row.fechaPlanificada ? row.fechaPlanificada.substring(0, 10) : ""}
+                        onChange={(e) => {
+                          const nueva = e.target.value
+                          if (!nueva) return // no soportamos limpiar desde inline (el backend requiere HasValue)
+                          if (nueva === row.fechaPlanificada?.substring(0, 10)) return
+                          fechaMut.mutate({ id: row.id, fecha: nueva })
+                        }}
+                        className="h-8 w-36 text-xs"
+                      />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -403,6 +429,9 @@ export function TareasExistentesTab() {
       )}
       {reactivarMut.error && (
         <p className="text-xs text-destructive">{(reactivarMut.error as Error).message}</p>
+      )}
+      {fechaMut.error && (
+        <p className="text-xs text-destructive">{(fechaMut.error as Error).message}</p>
       )}
 
       {/* Sheet de filtros detallados */}

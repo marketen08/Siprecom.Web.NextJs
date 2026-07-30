@@ -184,6 +184,24 @@ export function useReactivarElementoTarea() {
   })
 }
 
+export function useActualizarFechaPlanificadaET() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fecha }: { id: string; fecha: string }) =>
+      // El backend solo aplica FechaPlanificada si HasValue → mandar null borra
+      // no funciona por este endpoint (usar la vista detallada para eso).
+      // La UI inline solo permite setear una fecha (input date no puede quedar vacío
+      // sin permitir explícitamente clear).
+      apiClient.put<ApiResponse<ElementoTareaRow>>(`/api/elementostareas/${id}`, {
+        id,
+        fechaPlanificada: fecha,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["elementostareas"] })
+    },
+  })
+}
+
 export function useAsignarResponsableET() {
   const qc = useQueryClient()
   return useMutation({
