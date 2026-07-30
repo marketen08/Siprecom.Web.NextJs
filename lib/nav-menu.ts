@@ -118,6 +118,16 @@ export const menu: MenuItem[] = [
       { label: "Configuración", href: "/planificacion/configuracion" },
     ],
   },
+  // Coordinación — acciones sobre las ETs existentes (eliminar, cancelar,
+  // asignar responsable) + generación de faltantes. Reemplaza el link legacy
+  // /alcance/tareas/generacion (que ahora es redirect).
+  {
+    label: "Coordinación",
+    minRole: "Supervisor",
+    children: [
+      { label: "Tareas", href: "/coordinacion/tareas" },
+    ],
+  },
   {
     label: "Alcance",
     minRole: "Supervisor",
@@ -316,6 +326,7 @@ export const segmentLabels: Record<string, string> = {
   registros:     "Registros",
   checklist:     "Checklist",
   alcance:       "Alcance",
+  coordinacion:  "Coordinación",
   configuracion: "Configuración",
   sistemas:      "Sistemas",
   subsistemas:   "Subsistemas",
