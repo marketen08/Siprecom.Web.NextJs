@@ -9,6 +9,7 @@ import {
   ESTADO_ET_LABEL,
   useActualizarFechaPlanificadaET,
   useAsignarResponsableET,
+  useBulkActualizarFechaPlanificada,
   useBulkAsignar,
   useBulkCancelar,
   useBulkReactivar,
@@ -245,6 +246,7 @@ export function TareasExistentesTab() {
   const bulkAsignarMut = useBulkAsignar()
   const bulkCancelarMut = useBulkCancelar()
   const bulkReactivarMut = useBulkReactivar()
+  const bulkFechaMut = useBulkActualizarFechaPlanificada()
 
   // ── Selección multi-fila ───────────────────────────────────────────
   // Modo IDs: acumula IDs entre páginas. Modo "matching filter": booleano —
@@ -310,6 +312,8 @@ export function TareasExistentesTab() {
   const [bulkCancelarOpen, setBulkCancelarOpen] = useState(false)
   const [bulkCancelarMotivo, setBulkCancelarMotivo] = useState("")
   const [bulkReactivarOpen, setBulkReactivarOpen] = useState(false)
+  const [bulkFechaOpen, setBulkFechaOpen] = useState(false)
+  const [bulkFecha, setBulkFecha] = useState("")
 
   // ── Resumen post-acción ─────────────────────────────────────────────
   const [bulkResumen, setBulkResumen] = useState<{ accion: string; result: BulkResult } | null>(null)
@@ -345,6 +349,16 @@ export function TareasExistentesTab() {
       const result = await bulkReactivarMut.mutateAsync(buildBulkTargets())
       setBulkResumen({ accion: "Reactivación", result })
       setBulkReactivarOpen(false)
+      limpiarSeleccion()
+    } catch { /* error visible abajo */ }
+  }
+  const ejecutarBulkFecha = async () => {
+    if (!bulkFecha) return
+    try {
+      const result = await bulkFechaMut.mutateAsync({ ...buildBulkTargets(), fechaPlanificada: bulkFecha })
+      setBulkResumen({ accion: "Cambio de fecha planificada", result })
+      setBulkFechaOpen(false)
+      setBulkFecha("")
       limpiarSeleccion()
     } catch { /* error visible abajo */ }
   }
@@ -447,6 +461,9 @@ export function TareasExistentesTab() {
           <div className="ml-auto flex gap-2">
             <Button size="sm" variant="outline" onClick={() => { setBulkAsignarUser(SIN_ASIGNAR); setBulkAsignarOpen(true) }}>
               Asignar responsable
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setBulkFecha(""); setBulkFechaOpen(true) }}>
+              Cambiar fecha planif.
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setBulkCancelarMotivo(""); setBulkCancelarOpen(true) }}>
               Cancelar
@@ -831,6 +848,41 @@ export function TareasExistentesTab() {
               onClick={(e) => { e.preventDefault(); ejecutarBulkCancelar() }}
             >
               {bulkCancelarMut.isPending ? "Cancelando..." : "Confirmar cancelación"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cambiar fecha planificada bulk */}
+      <AlertDialog open={bulkFechaOpen} onOpenChange={setBulkFechaOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cambiar fecha planificada a {selectionCount} tarea(s)</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se pisa la fecha planificada de todas las seleccionadas y se marca origen{" "}
+              <strong>Manual</strong> (el generador no la vuelve a mover).
+              {selectAllMatching && <> Aplica a todas las tareas que matchean el filtro actual.</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nueva fecha *</label>
+            <Input
+              type="date"
+              value={bulkFecha}
+              onChange={(e) => setBulkFecha(e.target.value)}
+              className="h-9"
+            />
+            {bulkFechaMut.error && (
+              <p className="text-xs text-destructive">{(bulkFechaMut.error as Error).message}</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkFechaMut.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!bulkFecha || bulkFechaMut.isPending}
+              onClick={(e) => { e.preventDefault(); ejecutarBulkFecha() }}
+            >
+              {bulkFechaMut.isPending ? "Actualizando..." : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -254,6 +254,22 @@ export function useBulkReactivar() {
   })
 }
 
+export function useBulkActualizarFechaPlanificada() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BulkTargets & { fechaPlanificada: string }) => {
+      const { fechaPlanificada, ...targets } = input
+      return apiClient
+        .post<ApiResponse<BulkResult>>(
+          "/api/elementostareas/bulk/fecha-planificada",
+          toBulkBody(targets as BulkTargets, { fechaPlanificada }),
+        )
+        .then((r) => r.data)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+  })
+}
+
 export function useReactivarElementoTarea() {
   const qc = useQueryClient()
   return useMutation({
