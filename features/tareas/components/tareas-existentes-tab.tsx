@@ -80,7 +80,6 @@ export function TareasExistentesTab() {
   const [tareaId, setTareaId] = useState<string>(ALL)
   const [estadoDetalle, setEstadoDetalle] = useState<string>(ALL)
   const [asignadoA, setAsignadoA] = useState<string>(ALL)
-  const [incluirCanceladas, setIncluirCanceladas] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const [page, setPage] = useState(1)
@@ -100,9 +99,11 @@ export function TareasExistentesTab() {
         : estadoDetalle === ALL ? undefined : [Number(estadoDetalle) as EstadoET],
       asignadoA: asignadoA === ALL ? undefined : asignadoA,
       estadoCoord: estadoCoord ?? undefined,
-      incluirCanceladasRechazadas: esChipCanceladas || incluirCanceladas,
+      // Solo el chip Canceladas fuerza incluir=true — para las Rechazadas, el user
+      // usa el filtro Estado detallado del sheet (que ya levanta la exclusión).
+      incluirCanceladasRechazadas: esChipCanceladas,
     }
-  }, [chipActivo, subSistemaId, nivelId, especialidadId, elementoTipoId, tareaId, estadoDetalle, asignadoA, estadoCoord, incluirCanceladas])
+  }, [chipActivo, subSistemaId, nivelId, especialidadId, elementoTipoId, tareaId, estadoDetalle, asignadoA, estadoCoord])
 
   const { data, isLoading, isFetching } = useSearchElementosTareas(filtros, page, PAGE_SIZE)
   const rows: ElementoTareaRow[] = data?.data ?? []
@@ -225,14 +226,10 @@ export function TareasExistentesTab() {
   if (asignadoA !== ALL) {
     chip("resp", "Responsable", usuarioOptions.find((o) => o.value === asignadoA)?.label ?? asignadoA, () => setAsignadoA(ALL))
   }
-  if (incluirCanceladas) {
-    chip("canc", "Incluye", "canceladas/rechazadas", () => setIncluirCanceladas(false))
-  }
 
   const limpiarFiltros = () => {
     setSubSistemaId(ALL); setNivelId(ALL); setEspecialidadId(ALL)
     setElementoTipoId(ALL); setTareaId(ALL); setEstadoDetalle(ALL); setAsignadoA(ALL)
-    setIncluirCanceladas(false)
     setPage(1)
   }
 
@@ -766,17 +763,6 @@ export function TareasExistentesTab() {
           <Combobox options={usuarioOptions} value={asignadoA}
             onChange={(v) => { setAsignadoA(v); setPage(1) }}
             placeholder="Cualquiera" searchPlaceholder="Buscar..." />
-        </FilterField>
-        <FilterField label="Otros">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={incluirCanceladas}
-              onChange={(e) => { setIncluirCanceladas(e.target.checked); setPage(1) }}
-              className="h-4 w-4 rounded border-input"
-            />
-            Incluir tareas canceladas y rechazadas
-          </label>
         </FilterField>
       </FiltersSheet>
 
