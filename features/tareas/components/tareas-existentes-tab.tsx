@@ -4,15 +4,18 @@ import { useMemo, useState } from "react"
 import { Loader2, RotateCcw, Trash2, XCircle } from "lucide-react"
 
 import {
+  ESTADO_COORD,
   ESTADO_ET,
   ESTADO_ET_LABEL,
   useAsignarResponsableET,
   useCancelarElementoTarea,
+  useCoordinacionCounts,
   useDeleteElementoTarea,
   useReactivarElementoTarea,
   useSearchElementosTareas,
   type CoordinacionFiltros,
   type ElementoTareaRow,
+  type EstadoCoord,
   type EstadoET,
 } from "@/features/tareas/api/use-coordinacion-tareas"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
@@ -28,6 +31,9 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 import {
+  FiltersChips, FiltersSheet, FiltersTrigger, FilterField, type FilterChip,
+} from "@/components/ui/filters-bar"
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
@@ -41,14 +47,21 @@ const SIN_ASIGNAR = "__none__"
 const PAGE_SIZE = 50
 
 export function TareasExistentesTab() {
-  // ── Filtros locales ────────────────────────────────────────────────
+  // ── Filtros ────────────────────────────────────────────────────────
+  // Chip principal (bucket de coordinación). null = "Todas".
+  const [estadoCoord, setEstadoCoord] = useState<EstadoCoord | null>(null)
+
+  // Filtros detallados (dentro del sheet).
   const [subSistemaId, setSubSistemaId] = useState<string>(ALL)
   const [nivelId, setNivelId] = useState<string>(ALL)
   const [especialidadId, setEspecialidadId] = useState<string>(ALL)
   const [elementoTipoId, setElementoTipoId] = useState<string>(ALL)
   const [tareaId, setTareaId] = useState<string>(ALL)
-  const [estado, setEstado] = useState<string>(ALL)
+  const [estadoDetalle, setEstadoDetalle] = useState<string>(ALL)
   const [asignadoA, setAsignadoA] = useState<string>(ALL)
+  const [incluirCanceladas, setIncluirCanceladas] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
   const [page, setPage] = useState(1)
 
   const filtros: CoordinacionFiltros = useMemo(() => ({
@@ -57,16 +70,22 @@ export function TareasExistentesTab() {
     especialidadId: especialidadId === ALL ? undefined : especialidadId,
     elementoTipoId: elementoTipoId === ALL ? undefined : elementoTipoId,
     tareaId: tareaId === ALL ? undefined : tareaId,
-    estados: estado === ALL ? undefined : [Number(estado) as EstadoET],
+    estados: estadoDetalle === ALL ? undefined : [Number(estadoDetalle) as EstadoET],
     asignadoA: asignadoA === ALL ? undefined : asignadoA,
-  }), [subSistemaId, nivelId, especialidadId, elementoTipoId, tareaId, estado, asignadoA])
+    estadoCoord: estadoCoord ?? undefined,
+    incluirCanceladasRechazadas: incluirCanceladas,
+  }), [subSistemaId, nivelId, especialidadId, elementoTipoId, tareaId, estadoDetalle, asignadoA, estadoCoord, incluirCanceladas])
 
   const { data, isLoading, isFetching } = useSearchElementosTareas(filtros, page, PAGE_SIZE)
   const rows: ElementoTareaRow[] = data?.data ?? []
   const total = data?.totalRecords ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  // Fuentes para filtros/selects.
+  // Conteos para los chips — ignoran el filtro estadoCoord para reflejar
+  // cuánto entra en cada bucket dado el resto del contexto.
+  const { data: counts } = useCoordinacionCounts(filtros)
+
+  // ── Fuentes selects ────────────────────────────────────────────────
   const { data: perfil } = useGetPerfil()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
   const { data: subsistemasRaw } = useGetSubSistemasSelect()
@@ -130,7 +149,6 @@ export function TareasExistentesTab() {
   }, [usuarios])
 
   const usuarioSelectOptions = useMemo<ComboboxOption[]>(() => {
-    // Igual que arriba, pero con "Sin asignar" en vez de "Cualquiera" (para editar por fila).
     const opts: ComboboxOption[] = [{ value: SIN_ASIGNAR, label: "Sin asignar" }]
     for (const u of usuarios) {
       const nom = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
@@ -142,7 +160,7 @@ export function TareasExistentesTab() {
     return opts
   }, [usuarios])
 
-  const estadoOptions: ComboboxOption[] = [
+  const estadoDetalleOptions: ComboboxOption[] = [
     { value: ALL, label: "Todos los estados" },
     { value: String(ESTADO_ET.PENDIENTE), label: "Pendiente" },
     { value: String(ESTADO_ET.EN_PROCESO), label: "En proceso" },
@@ -153,13 +171,49 @@ export function TareasExistentesTab() {
     { value: String(ESTADO_ET.CANCELADO), label: "Cancelado" },
   ]
 
+  // ── Chips de filtros activos (los del sheet) ───────────────────────
+  const activeFilters: FilterChip[] = []
+  const chip = (id: string, key: string, value: string, onRemove: () => void) =>
+    activeFilters.push({ id, label: `${key}: ${value}`, onRemove })
+
+  if (subSistemaId !== ALL) {
+    chip("sub", "Subsistema", subsistemaOptions.find((o) => o.value === subSistemaId)?.label ?? subSistemaId, () => setSubSistemaId(ALL))
+  }
+  if (nivelId !== ALL) {
+    chip("niv", "Nivel", nivelOptions.find((o) => o.value === nivelId)?.label ?? nivelId, () => setNivelId(ALL))
+  }
+  if (especialidadId !== ALL) {
+    chip("esp", "Especialidad", especialidadOptions.find((o) => o.value === especialidadId)?.label ?? especialidadId, () => setEspecialidadId(ALL))
+  }
+  if (elementoTipoId !== ALL) {
+    chip("tipo", "Tipo", tipoOptions.find((o) => o.value === elementoTipoId)?.label ?? elementoTipoId, () => setElementoTipoId(ALL))
+  }
+  if (tareaId !== ALL) {
+    chip("tar", "Tarea", tareaOptions.find((o) => o.value === tareaId)?.label ?? tareaId, () => setTareaId(ALL))
+  }
+  if (estadoDetalle !== ALL) {
+    chip("est", "Estado", estadoDetalleOptions.find((o) => o.value === estadoDetalle)?.label ?? estadoDetalle, () => setEstadoDetalle(ALL))
+  }
+  if (asignadoA !== ALL) {
+    chip("resp", "Responsable", usuarioOptions.find((o) => o.value === asignadoA)?.label ?? asignadoA, () => setAsignadoA(ALL))
+  }
+  if (incluirCanceladas) {
+    chip("canc", "Incluye", "canceladas/rechazadas", () => setIncluirCanceladas(false))
+  }
+
+  const limpiarFiltros = () => {
+    setSubSistemaId(ALL); setNivelId(ALL); setEspecialidadId(ALL)
+    setElementoTipoId(ALL); setTareaId(ALL); setEstadoDetalle(ALL); setAsignadoA(ALL)
+    setIncluirCanceladas(false)
+    setPage(1)
+  }
+
   // ── Mutations ──────────────────────────────────────────────────────
   const eliminarMut = useDeleteElementoTarea()
   const cancelarMut = useCancelarElementoTarea()
   const asignarMut = useAsignarResponsableET()
   const reactivarMut = useReactivarElementoTarea()
 
-  // Dialog de cancelación (requiere motivo).
   const [cancelarTarget, setCancelarTarget] = useState<ElementoTareaRow | null>(null)
   const [motivoCancelar, setMotivoCancelar] = useState("")
 
@@ -167,59 +221,63 @@ export function TareasExistentesTab() {
     if (!cancelarTarget || !motivoCancelar.trim()) return
     try {
       await cancelarMut.mutateAsync({ id: cancelarTarget.id, motivo: motivoCancelar.trim() })
-      setCancelarTarget(null)
-      setMotivoCancelar("")
-    } catch (e) {
-      // el error queda visible al no cerrar el dialog; el mensaje del server se ve abajo.
-    }
+      setCancelarTarget(null); setMotivoCancelar("")
+    } catch { /* mensaje visible abajo */ }
   }
 
-  const resetFiltros = () => {
-    setSubSistemaId(ALL); setNivelId(ALL); setEspecialidadId(ALL)
-    setElementoTipoId(ALL); setTareaId(ALL); setEstado(ALL); setAsignadoA(ALL)
+  const setChip = (nuevo: EstadoCoord | null) => {
+    setEstadoCoord(nuevo)
     setPage(1)
   }
 
+  // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Todas las ElementoTareas del proyecto con acciones de <strong>eliminar</strong> (solo PENDIENTES
-        o CANCELADAS), <strong>cancelar</strong> (con motivo, para PENDIENTE o EN_PROCESO) y{" "}
-        <strong>asignar responsable</strong>.
-      </p>
+    <div className="space-y-3">
+      {/* Barra superior: chips + botón Filtros */}
+      <div className="flex flex-wrap items-center gap-2">
+        <ChipBucket
+          active={estadoCoord === null}
+          label="Todas"
+          count={counts?.total}
+          tone="gray"
+          onClick={() => setChip(null)}
+        />
+        <ChipBucket
+          active={estadoCoord === ESTADO_COORD.PENDIENTE}
+          label="Pendiente"
+          count={counts?.pendiente}
+          tone="amber"
+          onClick={() => setChip(ESTADO_COORD.PENDIENTE)}
+        />
+        <ChipBucket
+          active={estadoCoord === ESTADO_COORD.ASIGNADA}
+          label="Asignada"
+          count={counts?.asignada}
+          tone="blue"
+          onClick={() => setChip(ESTADO_COORD.ASIGNADA)}
+        />
+        <ChipBucket
+          active={estadoCoord === ESTADO_COORD.COMPLETADA_FIRMADA}
+          label="Completada / Firmada"
+          count={counts?.completadaFirmada}
+          tone="green"
+          onClick={() => setChip(ESTADO_COORD.COMPLETADA_FIRMADA)}
+        />
 
-      {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <FiltroLabel label="Subsistema">
-          <Combobox options={subsistemaOptions} value={subSistemaId} onChange={(v) => { setSubSistemaId(v); setPage(1) }} placeholder="Todos" searchPlaceholder="Buscar..." />
-        </FiltroLabel>
-        <FiltroLabel label="Nivel">
-          <Combobox options={nivelOptions} value={nivelId} onChange={(v) => { setNivelId(v); setPage(1) }} placeholder="Todos" searchPlaceholder="Buscar..." />
-        </FiltroLabel>
-        <FiltroLabel label="Especialidad">
-          <Combobox options={especialidadOptions} value={especialidadId} onChange={(v) => { setEspecialidadId(v); setPage(1) }} placeholder="Todas" searchPlaceholder="Buscar..." />
-        </FiltroLabel>
-        <FiltroLabel label="Tipo de elemento">
-          <Combobox options={tipoOptions} value={elementoTipoId} onChange={(v) => { setElementoTipoId(v); setPage(1) }} placeholder="Todos" searchPlaceholder="Buscar..." />
-        </FiltroLabel>
-        <FiltroLabel label="Tarea">
-          <Combobox options={tareaOptions} value={tareaId} onChange={(v) => { setTareaId(v); setPage(1) }} placeholder="Todas" searchPlaceholder="Buscar..." />
-        </FiltroLabel>
-        <FiltroLabel label="Estado">
-          <Combobox options={estadoOptions} value={estado} onChange={(v) => { setEstado(v); setPage(1) }} placeholder="Todos" searchPlaceholder="Buscar..." />
-        </FiltroLabel>
-        <FiltroLabel label="Responsable">
-          <Combobox options={usuarioOptions} value={asignadoA} onChange={(v) => { setAsignadoA(v); setPage(1) }} placeholder="Cualquiera" searchPlaceholder="Buscar..." />
-        </FiltroLabel>
-        <div className="flex items-end">
-          <Button variant="outline" onClick={resetFiltros} className="w-full">Limpiar filtros</Button>
+        <div className="ml-auto">
+          <FiltersTrigger
+            open={filtersOpen}
+            onOpenChange={setFiltersOpen}
+            activeCount={activeFilters.length}
+          />
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">
-          {total} tarea(s) — página {page} de {totalPages}
-        </span>
+      <FiltersChips activeFilters={activeFilters} onClearAll={limpiarFiltros} />
+
+      {/* Paginación / conteo */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span>{total} tarea(s) — página {page} de {totalPages}</span>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
           <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Siguiente</Button>
@@ -347,6 +405,61 @@ export function TareasExistentesTab() {
         <p className="text-xs text-destructive">{(reactivarMut.error as Error).message}</p>
       )}
 
+      {/* Sheet de filtros detallados */}
+      <FiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        onClearAll={limpiarFiltros}
+        hasActiveFilters={activeFilters.length > 0}
+      >
+        <FilterField label="Subsistema">
+          <Combobox options={subsistemaOptions} value={subSistemaId}
+            onChange={(v) => { setSubSistemaId(v); setPage(1) }}
+            placeholder="Todos" searchPlaceholder="Buscar..." />
+        </FilterField>
+        <FilterField label="Nivel">
+          <Combobox options={nivelOptions} value={nivelId}
+            onChange={(v) => { setNivelId(v); setPage(1) }}
+            placeholder="Todos" searchPlaceholder="Buscar..." />
+        </FilterField>
+        <FilterField label="Especialidad">
+          <Combobox options={especialidadOptions} value={especialidadId}
+            onChange={(v) => { setEspecialidadId(v); setPage(1) }}
+            placeholder="Todas" searchPlaceholder="Buscar..." />
+        </FilterField>
+        <FilterField label="Tipo de elemento">
+          <Combobox options={tipoOptions} value={elementoTipoId}
+            onChange={(v) => { setElementoTipoId(v); setPage(1) }}
+            placeholder="Todos" searchPlaceholder="Buscar..." />
+        </FilterField>
+        <FilterField label="Tarea">
+          <Combobox options={tareaOptions} value={tareaId}
+            onChange={(v) => { setTareaId(v); setPage(1) }}
+            placeholder="Todas" searchPlaceholder="Buscar..." />
+        </FilterField>
+        <FilterField label="Estado detallado">
+          <Combobox options={estadoDetalleOptions} value={estadoDetalle}
+            onChange={(v) => { setEstadoDetalle(v); setPage(1) }}
+            placeholder="Todos" searchPlaceholder="Buscar..." />
+        </FilterField>
+        <FilterField label="Responsable">
+          <Combobox options={usuarioOptions} value={asignadoA}
+            onChange={(v) => { setAsignadoA(v); setPage(1) }}
+            placeholder="Cualquiera" searchPlaceholder="Buscar..." />
+        </FilterField>
+        <FilterField label="Otros">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={incluirCanceladas}
+              onChange={(e) => { setIncluirCanceladas(e.target.checked); setPage(1) }}
+              className="h-4 w-4 rounded border-input"
+            />
+            Incluir tareas canceladas y rechazadas
+          </label>
+        </FilterField>
+      </FiltersSheet>
+
       {/* Dialog de cancelación con motivo obligatorio */}
       <AlertDialog open={cancelarTarget !== null} onOpenChange={(v) => { if (!v) setCancelarTarget(null) }}>
         <AlertDialogContent>
@@ -389,12 +502,46 @@ export function TareasExistentesTab() {
   )
 }
 
-function FiltroLabel({ label, children }: { label: string; children: React.ReactNode }) {
+// ── Chip visual del bucket ───────────────────────────────────────────
+interface ChipBucketProps {
+  active: boolean
+  label: string
+  count: number | undefined
+  tone: "gray" | "amber" | "blue" | "green"
+  onClick: () => void
+}
+function ChipBucket({ active, label, count, tone, onClick }: ChipBucketProps) {
+  const inactive: Record<string, string> = {
+    gray:  "bg-white text-gray-700 border-gray-300 hover:bg-gray-50",
+    amber: "bg-white text-amber-900 border-amber-300 hover:bg-amber-50",
+    blue:  "bg-white text-blue-900 border-blue-300 hover:bg-blue-50",
+    green: "bg-white text-emerald-900 border-emerald-300 hover:bg-emerald-50",
+  }
+  const activeCls: Record<string, string> = {
+    gray:  "bg-gray-800 text-white border-gray-800",
+    amber: "bg-amber-600 text-white border-amber-600",
+    blue:  "bg-blue-700 text-white border-blue-700",
+    green: "bg-emerald-700 text-white border-emerald-700",
+  }
   return (
-    <div>
-      <label className="text-xs text-muted-foreground">{label}</label>
-      {children}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors cursor-pointer " +
+        (active ? activeCls[tone] : inactive[tone])
+      }
+    >
+      {label}
+      {typeof count === "number" && (
+        <span className={
+          "inline-flex min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold " +
+          (active ? "bg-white/25 text-white" : "bg-gray-100 text-gray-700")
+        }>
+          {count}
+        </span>
+      )}
+    </button>
   )
 }
 

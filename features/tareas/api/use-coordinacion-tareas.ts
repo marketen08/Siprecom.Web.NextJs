@@ -47,6 +47,14 @@ export interface ElementoTareaRow {
   registroId: string | null
 }
 
+/** Buckets simplificados para los chips de coordinación. Mapea al enum backend EstadoCoordinacion. */
+export const ESTADO_COORD = {
+  PENDIENTE: 1,
+  ASIGNADA: 2,
+  COMPLETADA_FIRMADA: 3,
+} as const
+export type EstadoCoord = (typeof ESTADO_COORD)[keyof typeof ESTADO_COORD]
+
 export interface CoordinacionFiltros {
   sistemaId?: string
   subSistemaId?: string
@@ -54,10 +62,13 @@ export interface CoordinacionFiltros {
   especialidadId?: string
   elementoTipoId?: string
   tareaId?: string
+  /** Filtro Estado detallado (dentro del sheet). Cualquiera de los 7 estados backend. */
   estados?: EstadoET[]
   asignadoA?: string
-  /** Se traduce a estados = [PENDIENTE] en el body. */
-  soloPendientes?: boolean
+  /** Bucket coordinación (chip principal). */
+  estadoCoord?: EstadoCoord
+  /** Default false: excluye CANCELADAS/RECHAZADAS. Toggle dentro del sheet. */
+  incluirCanceladasRechazadas?: boolean
 }
 
 // Backend usa `List<EstadoElementoTarea>` en el filter. Traducimos.
@@ -70,11 +81,9 @@ function toBackendFilter(f: CoordinacionFiltros) {
     elementoTipoId: f.elementoTipoId ?? null,
     tareaId: f.tareaId ?? null,
     asignadoA: f.asignadoA ?? null,
-    estados: f.soloPendientes
-      ? [ESTADO_ET.PENDIENTE]
-      : f.estados && f.estados.length > 0
-      ? f.estados
-      : null,
+    estados: f.estados && f.estados.length > 0 ? f.estados : null,
+    estadoCoord: f.estadoCoord ?? null,
+    incluirCanceladasRechazadas: f.incluirCanceladasRechazadas ?? false,
   }
 }
 
@@ -85,6 +94,33 @@ interface PagedResult<T> {
   totalRecords: number
   page: number
   pageSize: number
+}
+
+// ─── Contadores por bucket (chips) ────────────────────────────────────
+
+export interface CoordinacionCounts {
+  pendiente: number
+  asignada: number
+  completadaFirmada: number
+  canceladasRechazadas: number
+  total: number
+}
+
+/** Los conteos ignoran EstadoCoord (así cada chip cuenta lo suyo) pero respetan el resto de filtros. */
+export function useCoordinacionCounts(filtros: CoordinacionFiltros) {
+  // Excluimos el filtro de estado para que los conteos reflejen "cuánto entra en cada bucket
+  // dado el resto del contexto" (subsistema, especialidad, responsable, etc).
+  const { estadoCoord: _e, estados: _es, ...rest } = filtros
+  return useQuery<ApiResponse<CoordinacionCounts>, Error, CoordinacionCounts>({
+    queryKey: ["elementostareas", "coordinacion", "counts", rest],
+    queryFn: () =>
+      apiClient.post<ApiResponse<CoordinacionCounts>>(
+        "/api/elementostareas/coordinacion/counts",
+        toBackendFilter(rest as CoordinacionFiltros),
+      ),
+    select: (resp) => resp.data,
+    staleTime: 1000 * 30,
+  })
 }
 
 export function useSearchElementosTareas(
