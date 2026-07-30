@@ -54,22 +54,23 @@ const ALL = "__all__"
 const SIN_ASIGNAR = "__none__"
 const PAGE_SIZE = 50
 
-// Chips de bucket disponibles arriba de la tabla. Incluye "canceladas" que
-// NO está en el enum backend EstadoCoord — se traduce a estados=[CANCELADO]
-// + incluirCanceladasRechazadas=true (para que el backend no las excluya).
-type ChipBucketId = "pendiente" | "asignada" | "completada" | "canceladas" | "todas"
+// Chips de bucket disponibles arriba de la tabla. "canceladas" NO está en el
+// enum backend EstadoCoord — se traduce a estados=[CANCELADO] +
+// incluirCanceladasRechazadas=true (para saltar la exclusión default).
+type ChipBucketId = "pendientes" | "no-asignadas" | "asignadas" | "completadas" | "canceladas" | "todas"
 
 export function TareasExistentesTab() {
   // ── Filtros ────────────────────────────────────────────────────────
-  // Chip principal. Default: Pendiente — es la vista natural del coordinador
-  // al entrar (tareas que necesitan asignarse o iniciar).
-  const [chipActivo, setChipActivo] = useState<ChipBucketId>("pendiente")
+  // Chip principal. Default: Pendientes — la vista natural del coordinador
+  // al entrar (todo lo no terminal, asignado o no).
+  const [chipActivo, setChipActivo] = useState<ChipBucketId>("pendientes")
 
   // Deriva el bucket de coordinación backend (undefined para "canceladas" y "todas").
   const estadoCoord: EstadoCoord | null =
-    chipActivo === "pendiente" ? ESTADO_COORD.PENDIENTE
-    : chipActivo === "asignada" ? ESTADO_COORD.ASIGNADA
-    : chipActivo === "completada" ? ESTADO_COORD.COMPLETADA_FIRMADA
+    chipActivo === "pendientes" ? ESTADO_COORD.PENDIENTES
+    : chipActivo === "no-asignadas" ? ESTADO_COORD.PENDIENTE
+    : chipActivo === "asignadas" ? ESTADO_COORD.ASIGNADA
+    : chipActivo === "completadas" ? ESTADO_COORD.COMPLETADA_FIRMADA
     : null
 
   // Filtros detallados (dentro del sheet).
@@ -435,27 +436,34 @@ export function TareasExistentesTab() {
       {/* Barra superior: chips + botón Filtros.
           Orden: Pendiente (default) → Asignada → Completada/Firmada → Todas.
           "Todas" al final porque es la opción "quitar filtro", no la primaria. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <ChipBucket
-          active={chipActivo === "pendiente"}
-          label="Pendiente"
+          active={chipActivo === "pendientes"}
+          label="Pendientes"
+          count={counts?.pendientes}
+          tone="amber"
+          onClick={() => setChip("pendientes")}
+        />
+        <ChipBucket
+          active={chipActivo === "no-asignadas"}
+          label="No asignadas"
           count={counts?.pendiente}
           tone="amber"
-          onClick={() => setChip("pendiente")}
+          onClick={() => setChip("no-asignadas")}
         />
         <ChipBucket
-          active={chipActivo === "asignada"}
-          label="Asignada"
+          active={chipActivo === "asignadas"}
+          label="Asignadas"
           count={counts?.asignada}
           tone="blue"
-          onClick={() => setChip("asignada")}
+          onClick={() => setChip("asignadas")}
         />
         <ChipBucket
-          active={chipActivo === "completada"}
-          label="Completada / Firmada"
+          active={chipActivo === "completadas"}
+          label="Completadas / Firmadas"
           count={counts?.completadaFirmada}
           tone="green"
-          onClick={() => setChip("completada")}
+          onClick={() => setChip("completadas")}
         />
         <ChipBucket
           active={chipActivo === "canceladas"}
@@ -1053,14 +1061,14 @@ function ChipBucket({ active, label, count, tone, onClick }: ChipBucketProps) {
       type="button"
       onClick={onClick}
       className={
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors cursor-pointer " +
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors cursor-pointer " +
         (active ? activeCls[tone] : inactive[tone])
       }
     >
       {label}
       {typeof count === "number" && (
         <span className={
-          "inline-flex min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold " +
+          "inline-flex min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none py-0.5 " +
           (active ? "bg-white/25 text-white" : "bg-gray-100 text-gray-700")
         }>
           {count}

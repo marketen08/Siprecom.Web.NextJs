@@ -49,9 +49,10 @@ export interface ElementoTareaRow {
 
 /** Buckets simplificados para los chips de coordinación. Mapea al enum backend EstadoCoordinacion. */
 export const ESTADO_COORD = {
-  PENDIENTE: 1,
-  ASIGNADA: 2,
+  PENDIENTE: 1,        // no asignadas + no terminales
+  ASIGNADA: 2,         // con responsable + no terminales
   COMPLETADA_FIRMADA: 3,
+  PENDIENTES: 4,       // unión de PENDIENTE + ASIGNADA
 } as const
 export type EstadoCoord = (typeof ESTADO_COORD)[keyof typeof ESTADO_COORD]
 
@@ -116,6 +117,8 @@ export interface CoordinacionCounts {
   canceladas: number
   rechazadas: number
   canceladasRechazadas: number
+  /** Unión de pendiente + asignada — chip "Pendientes". */
+  pendientes: number
   total: number
 }
 
