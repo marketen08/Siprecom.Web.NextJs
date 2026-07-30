@@ -133,17 +133,30 @@ export function TareasExistentesTab() {
     return opts
   }, [subsistemasRaw])
 
+  // Tipos filtrados por Especialidad (si hay una elegida). Cascada Esp → Tipo.
   const tipoOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todos" }]
     for (const t of (tiposRaw as any)?.data ?? []) {
+      if (especialidadId !== ALL && t.especialidadId !== especialidadId) continue
       opts.push({ value: t.id, label: t.nombre })
     }
     return opts
-  }, [tiposRaw])
+  }, [tiposRaw, especialidadId])
 
-  // Deduplicamos por Nombre: varias tareas con el mismo nombre pero distinto
-  // código quedan como una sola opción. El filtro backend usa TareaNombre
-  // (case-insensitive) para agarrar a todas las que matcheen.
+  // Tareas dedup por Nombre + cascada Esp/Tipo. El filtro backend usa TareaNombre
+  // (case-insensitive) para agarrar a todas las que matcheen ese nombre. Cuando hay
+  // Especialidad/Tipo activos, acotamos las opciones para no ofrecer nombres que
+  // no van a devolver nada. Chequeamos contra `especialidadId` directa de la
+  // Tarea O contra `elementoTipoId` si la Tarea no tiene especialidad propia.
+  const tiposIdsDeEspecialidad = useMemo(() => {
+    if (especialidadId === ALL) return null
+    const set = new Set<string>()
+    for (const t of (tiposRaw as any)?.data ?? []) {
+      if (t.especialidadId === especialidadId) set.add(t.id)
+    }
+    return set
+  }, [tiposRaw, especialidadId])
+
   const tareaOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todas" }]
     const nombresVistos = new Set<string>()
@@ -151,6 +164,16 @@ export function TareasExistentesTab() {
     for (const t of (tareasRaw as any)?.data ?? []) {
       const nom = (t.nombre ?? "").trim()
       if (!nom) continue
+      // Cascada Tipo: si hay tipo elegido, la tarea debe ser de ese tipo.
+      if (elementoTipoId !== ALL && t.elementoTipoId !== elementoTipoId) continue
+      // Cascada Especialidad: matchea contra .especialidadId directa o vía el tipo.
+      if (tiposIdsDeEspecialidad) {
+        const esp = t.especialidadId
+        const tipo = t.elementoTipoId
+        const matchDirecto = esp && esp === especialidadId
+        const matchViaTipo = tipo && tiposIdsDeEspecialidad.has(tipo)
+        if (!matchDirecto && !matchViaTipo) continue
+      }
       const key = nom.toLowerCase()
       if (nombresVistos.has(key)) continue
       nombresVistos.add(key)
@@ -159,7 +182,7 @@ export function TareasExistentesTab() {
     lista.sort((a, b) => a.localeCompare(b, "es"))
     for (const nom of lista) opts.push({ value: nom, label: nom })
     return opts
-  }, [tareasRaw])
+  }, [tareasRaw, elementoTipoId, tiposIdsDeEspecialidad, especialidadId])
 
   const nivelOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todos" }]
@@ -753,12 +776,24 @@ export function TareasExistentesTab() {
         </FilterField>
         <FilterField label="Especialidad">
           <Combobox options={especialidadOptions} value={especialidadId}
-            onChange={(v) => { setEspecialidadId(v); setPage(1) }}
+            onChange={(v) => {
+              setEspecialidadId(v)
+              // Cascada: al cambiar Especialidad, limpiar Tipo y Tarea para no
+              // dejar filtros huérfanos que devuelvan 0 filas silenciosamente.
+              setElementoTipoId(ALL)
+              setTareaNombre(ALL)
+              setPage(1)
+            }}
             placeholder="Todas" searchPlaceholder="Buscar..." />
         </FilterField>
         <FilterField label="Tipo de elemento">
           <Combobox options={tipoOptions} value={elementoTipoId}
-            onChange={(v) => { setElementoTipoId(v); setPage(1) }}
+            onChange={(v) => {
+              setElementoTipoId(v)
+              // Cascada: si el Tipo cambia, la Tarea puede ya no aplicar.
+              setTareaNombre(ALL)
+              setPage(1)
+            }}
             placeholder="Todos" searchPlaceholder="Buscar..." />
         </FilterField>
         <FilterField label="Tarea">
