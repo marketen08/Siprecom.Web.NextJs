@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Download, FileDown, FileSpreadsheet, FileText, Loader2, Package } from "lucide-react"
 
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
@@ -56,9 +56,27 @@ interface EspecialidadLike { id: string; codigo?: string | null; nombre: string 
 
 export default function TareasListadoPage() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { data: perfil } = useGetPerfil()
   const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
   const permitirFisico = proyectoRaw?.data?.permitirRegistroFisico ?? false
+
+  // Tab de scope (Mías / Todas). Default: Mías (tareas asignadas al user).
+  // `?scope=mine|all` en URL habilita deep-link.
+  const scopeEnUrl = searchParams.get("scope")
+  const [scope, setScope] = useState<"mine" | "all">(
+    scopeEnUrl === "all" ? "all" : "mine",
+  )
+  // Sync scope → URL (replace para no ensuciar el back button).
+  const scopeSyncedRef = useRef(false)
+  useEffect(() => {
+    if (!scopeSyncedRef.current) { scopeSyncedRef.current = true; return }
+    const params = new URLSearchParams(searchParams.toString())
+    if (params.get("scope") === scope) return
+    params.set("scope", scope)
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [scope, pathname, router, searchParams])
 
   // Filtros
   const [sistemaId, setSistemaId] = useState<string>("")
@@ -133,6 +151,8 @@ export default function TareasListadoPage() {
     nivelId: nivelId || undefined,
     estados: estados.size > 0 ? Array.from(estados) : undefined,
     search: search || undefined,
+    // Tab "Mías": filtra ETs asignadas al user actual. En "Todas" no aplica.
+    asignadoA: scope === "mine" ? perfil?.id : undefined,
   }
 
   const { data, isLoading, isFetching } = useTareasListado(filtros, page, pageSize)
@@ -253,16 +273,37 @@ export default function TareasListadoPage() {
 
   return (
     <div className="space-y-3">
-      {/* Header — título + búsqueda + filtros + descarga excel */}
-      <div className="flex flex-col lg:flex-row lg:items-end gap-3">
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold">Listado de tareas</h1>
-          <p className="text-sm text-muted-foreground max-w-3xl">
-            Todas las tareas del proyecto con filtros y descarga a Excel. Podés seleccionar
-            varias filas y bajar las planillas en blanco como un ZIP.
-          </p>
+      <h1 className="text-lg font-semibold">Listado de tareas</h1>
+
+      {/* Header — tabs (Mías/Todas) + búsqueda + filtros + descarga excel */}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="inline-flex items-center rounded-md border bg-muted p-0.5 self-start">
+          <button
+            type="button"
+            onClick={() => { setScope("mine"); resetFiltrado() }}
+            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
+              scope === "mine"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            aria-pressed={scope === "mine"}
+          >
+            Mías
+          </button>
+          <button
+            type="button"
+            onClick={() => { setScope("all"); resetFiltrado() }}
+            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
+              scope === "all"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            aria-pressed={scope === "all"}
+          >
+            Todas
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
           <Input
             value={search}
             placeholder="Buscar por TAG, nombre o código…"

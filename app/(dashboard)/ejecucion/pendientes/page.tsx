@@ -345,49 +345,50 @@ function PendientesPageContent() {
       <NewPendienteSheet wide />
       <PendienteDetalleSheet wide />
 
-      <div className="space-y-4">
-        {/* Tabs de scope (Míos / Todos). Default por rol: User/Consultor/Auditor
-            arrancan en "Míos" (creador o responsable); Supervisor+ arranca en
-            "Todos". El link `?scope=` en la URL sobrescribe el default. */}
-        <div className="inline-flex items-center rounded-md border bg-muted p-0.5">
-          <button
-            type="button"
-            onClick={() => { setScope("mine"); setPage(1) }}
-            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
-              scope === "mine"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            aria-pressed={scope === "mine"}
-          >
-            Míos
-          </button>
-          <button
-            type="button"
-            onClick={() => { setScope("all"); setPage(1) }}
-            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
-              scope === "all"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            aria-pressed={scope === "all"}
-          >
-            Todos
-          </button>
-        </div>
+      <div className="space-y-3">
+        <h1 className="text-lg font-semibold">Listado de pendientes</h1>
 
-        {/* Buscador + acciones */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por código (P-001), descripción o TAG..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="pl-9"
-            />
+        {/* Fila: tabs (Míos/Todos) a la izquierda + buscador y acciones a la derecha.
+            Default por rol: User/Consultor/Auditor arrancan en "Míos" (creador o
+            responsable); Supervisor+ arranca en "Todos". El link `?scope=` en la URL
+            sobrescribe el default. */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="inline-flex items-center rounded-md border bg-muted p-0.5 self-start">
+            <button
+              type="button"
+              onClick={() => { setScope("mine"); setPage(1) }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
+                scope === "mine"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              aria-pressed={scope === "mine"}
+            >
+              Míos
+            </button>
+            <button
+              type="button"
+              onClick={() => { setScope("all"); setPage(1) }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors cursor-pointer ${
+                scope === "all"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              aria-pressed={scope === "all"}
+            >
+              Todos
+            </button>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por código, descripción o TAG..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                className="pl-9 h-9"
+              />
+            </div>
             <Button asChild variant="outline" className="gap-2">
               <Link href="/ejecucion/pids" title="Abrir visor de PIDs">
                 <MapPin className="h-4 w-4 text-blue-700" />
@@ -634,9 +635,6 @@ function PendientesPageContent() {
                     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
                       {ESTADO_LABEL[p.estadoNombre ?? ""] ?? p.estadoNombre}
                     </span>
-                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
-                      {PRIORIDAD[p.prioridad]}
-                    </span>
                   </div>
                 </div>
                 {(p.responsableNombre || p.fechaCierreEstimado) && (
@@ -661,7 +659,6 @@ function PendientesPageContent() {
                 <TableHead className="font-semibold text-gray-700">Descripción</TableHead>
                 <TableHead className="w-40 font-semibold text-gray-700">Subsistema</TableHead>
                 <TableHead className="w-32 font-semibold text-gray-700">Categoría</TableHead>
-                <TableHead className="w-28 font-semibold text-gray-700">Prioridad</TableHead>
                 <TableHead className="w-40 font-semibold text-gray-700">Estado</TableHead>
                 <TableHead className="w-40 font-semibold text-gray-700">Responsable</TableHead>
                 <TableHead className="w-28 font-semibold text-gray-700">Cierre est.</TableHead>
@@ -670,11 +667,11 @@ function PendientesPageContent() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">Cargando...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">Cargando...</TableCell>
                 </TableRow>
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     No hay pendientes que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
@@ -710,11 +707,6 @@ function PendientesPageContent() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-gray-600">{p.categoriaNombre}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
-                        {PRIORIDAD[p.prioridad]}
-                      </span>
-                    </TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
                         {ESTADO_LABEL[p.estadoNombre ?? ""] ?? p.estadoNombre}

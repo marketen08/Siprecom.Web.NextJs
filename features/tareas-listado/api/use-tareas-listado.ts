@@ -16,6 +16,7 @@ export function buildQuery(filtros: TareasListadoFiltros, extras?: Record<string
   }
   if (filtros.prioridad != null) p.set("prioridad", String(filtros.prioridad))
   if (filtros.search && filtros.search.trim()) p.set("search", filtros.search.trim())
+  if (filtros.asignadoA) p.set("asignadoA", filtros.asignadoA)
   if (extras) {
     for (const [k, v] of Object.entries(extras)) p.set(k, String(v))
   }

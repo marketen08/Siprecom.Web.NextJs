@@ -67,6 +67,8 @@ export interface TareasListadoFiltros {
   estados?: EstadoET[]
   prioridad?: number
   search?: string
+  /** UserId al que están asignadas las tareas (tab "Mías" = user actual). */
+  asignadoA?: string
 }
 
 export interface TareasListadoPaged {
