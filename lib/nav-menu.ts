@@ -45,7 +45,6 @@ export const menu: MenuItem[] = [
       { label: "Por sistemas",     href: "/ejecucion/sistemas" },
       { label: "Por subsistemas",  href: "/ejecucion/subsistemas" },
       { label: "Por elementos",    href: "/ejecucion/elementos" },
-      { label: "Por tareas",       href: "/ejecucion/tareas" },
       { label: "Por áreas",        href: "/ejecucion/areas" },
       { label: "Por módulos",      href: "/ejecucion/modulos" },
     ],
@@ -54,6 +53,8 @@ export const menu: MenuItem[] = [
     label: "Ejecución",
     minRole: "Consultor",
     children: [
+      // Tareas primero — vista operativa por tarea (movida desde "Avances").
+      { label: "Tareas",                  href: "/ejecucion/tareas" },
       // Módulos operativos — Pendientes es lo más usado día a día.
       { label: "Pendientes",              href: "/ejecucion/pendientes" },
       { label: "Visor de PIDs",           href: "/ejecucion/pids" },
