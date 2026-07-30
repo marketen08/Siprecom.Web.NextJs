@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Download, FileDown, FileSpreadsheet, FileText, Loader2, Package } from "lucide-react"
+import { FileSpreadsheet, Loader2, Package } from "lucide-react"
 
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
+import { useCanWrite } from "@/lib/use-roles"
+import { TareaAccionesMenuById } from "@/features/elementos-tareas/components/tarea-acciones-menu"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
@@ -83,7 +85,16 @@ export default function TareasListadoPage() {
   const searchParams = useSearchParams()
   const { data: perfil } = useGetPerfil()
   const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
-  const permitirFisico = proyectoRaw?.data?.permitirRegistroFisico ?? false
+  const proyecto = proyectoRaw?.data
+  const canWrite = useCanWrite()
+  // Flags del proyecto que gobiernan las acciones del menú por tarea. Mismos
+  // defaults que en el sheet del elemento — conservador antes de que cargue.
+  const permitirFisico = proyecto?.permitirRegistroFisico ?? false
+  const permitirDigital = proyecto?.permitirRegistroDigital ?? true
+  const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
+  const permiteAdjuntosProyecto = true
+  const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
+  const permitirAvanceSinRegistro = proyecto?.permitirAvanceSinRegistro ?? false
 
   // Tab de scope (Mías / Todas). Default: Mías (tareas asignadas al user).
   // `?scope=mine|all` en URL habilita deep-link.
@@ -484,11 +495,15 @@ export default function TareasListadoPage() {
                     {it.fechaEstimada && <> · Planif.: {fmtFechaCorta(it.fechaEstimada)}</>}
                     {it.fechaFinalizacion && <> · <span className="text-emerald-700">✓ {fmtFechaCorta(it.fechaFinalizacion)}</span></>}
                   </div>
-                  <AccionesFila
-                    row={it}
+                  <TareaAccionesMenuById
+                    elementoTareaId={it.elementoTareaId}
                     permitirFisico={permitirFisico}
-                    onIrARegistro={() => router.push(`/ejecucion/registros/${it.registroId}?returnTo=/ejecucion/tareas`)}
-                    onIrAElemento={() => router.push(`/ejecucion/elementos?subSistemaId=${it.subSistemaId}&elementoId=${it.elementoId}`)}
+                    permitirDigital={permitirDigital}
+                    fisicoPreFirmado={fisicoPreFirmado}
+                    permiteAdjuntosProyecto={permiteAdjuntosProyecto}
+                    permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+                    permitirAvanceSinRegistro={permitirAvanceSinRegistro}
+                    canWrite={canWrite}
                   />
                 </div>
               </div>
@@ -596,11 +611,15 @@ export default function TareasListadoPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <AccionesFila
-                          row={it}
+                        <TareaAccionesMenuById
+                          elementoTareaId={it.elementoTareaId}
                           permitirFisico={permitirFisico}
-                          onIrARegistro={() => router.push(`/ejecucion/registros/${it.registroId}?returnTo=/ejecucion/tareas`)}
-                          onIrAElemento={() => router.push(`/ejecucion/elementos?subSistemaId=${it.subSistemaId}&elementoId=${it.elementoId}`)}
+                          permitirDigital={permitirDigital}
+                          fisicoPreFirmado={fisicoPreFirmado}
+                          permiteAdjuntosProyecto={permiteAdjuntosProyecto}
+                          permitirDescargarProcedimientos={permitirDescargarProcedimientos}
+                          permitirAvanceSinRegistro={permitirAvanceSinRegistro}
+                          canWrite={canWrite}
                         />
                       </TableCell>
                     </TableRow>
@@ -702,77 +721,6 @@ export default function TareasListadoPage() {
       </FiltersSheet>
     </div>
   )
-}
-
-function AccionesFila({
-  row, permitirFisico, onIrARegistro, onIrAElemento,
-}: {
-  row: import("@/features/tareas-listado/types").TareaListadoRow
-  permitirFisico: boolean
-  onIrARegistro: () => void
-  onIrAElemento: () => void
-}) {
-  const tienePlanilla = !!row.planillaId
-  const tieneRegistro = !!row.registroId
-  const urlBlanco = tienePlanilla
-    ? `/api/planillas/${row.planillaId}/pdf/blanco/${row.elementoTareaId}`
-    : null
-
-  return (
-    <div className="flex items-center gap-1 justify-end">
-      {tieneRegistro && (
-        row.registroEsFisico ? (
-          <a
-            href={`/api/registros/${row.registroId}/pdf`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
-            title="Descargar PDF del registro físico"
-          >
-            <FileText className="h-3.5 w-3.5" />
-          </a>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1 text-xs"
-            title="Ir al registro (completar o ver)"
-            onClick={onIrARegistro}
-          >
-            <FileText className="h-3.5 w-3.5" />
-          </Button>
-        )
-      )}
-      {tienePlanilla && permitirFisico && urlBlanco && (
-        <a
-          href={urlBlanco}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
-          title="Descargar planilla en blanco"
-        >
-          <Download className="h-3.5 w-3.5" />
-        </a>
-      )}
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-7 gap-1 text-xs"
-        title="Ver elemento"
-        onClick={onIrAElemento}
-      >
-        <FileDown className="h-3.5 w-3.5 rotate-180" />
-      </Button>
-    </div>
-  )
-}
-
-function fmtFecha(f: string | null): string {
-  if (!f) return "—"
-  const d = new Date(f)
-  return isNaN(d.getTime())
-    ? "—"
-    : d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })
 }
 
 // ── Chip visual del bucket (mismo look & feel que en /coordinacion/tareas) ──
