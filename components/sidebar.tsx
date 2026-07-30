@@ -157,7 +157,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
       {/* Overlay — en mobile siempre; en drawer también en desktop */}
       {open && (
         <div
-          className={cn("fixed inset-0 z-30 bg-black/40", !drawer && "md:hidden")}
+          className={cn("fixed inset-0 z-30 bg-black/40", !drawer && "lg:hidden")}
           onClick={close}
         />
       )}
@@ -170,7 +170,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
           // Oculto por defecto, visible cuando open
           open ? "translate-x-0" : "-translate-x-full",
           // Desktop: fijo visible SOLO en modo no-drawer (dashboard)
-          !drawer && "md:translate-x-0"
+          !drawer && "lg:translate-x-0"
         )}
       >
         <nav className="py-4 space-y-1">

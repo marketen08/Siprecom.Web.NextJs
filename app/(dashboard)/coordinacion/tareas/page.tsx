@@ -39,8 +39,8 @@ export default function CoordinacionTareasPage() {
       <div>
         <h1 className="text-2xl font-semibold">Coordinación de tareas</h1>
         <p className="text-sm text-muted-foreground">
-          Gestioná las ElementoTareas del proyecto: eliminá, cancelá o reasigná responsables.
-          El tab &quot;Faltantes&quot; te permite generar las que todavía no fueron propagadas.
+          Gestioná las tareas del proyecto: eliminá, cancelá o reasigná responsables.
+          El tab &quot;Faltantes&quot; permite generar las que todavía no fueron propagadas.
         </p>
       </div>
 

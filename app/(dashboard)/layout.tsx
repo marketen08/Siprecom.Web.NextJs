@@ -20,7 +20,7 @@ export default function DashboardLayout({
             <FetchingBar />
             <Navbar />
             <Sidebar />
-            <main className="pt-16 min-h-screen md:ml-64">
+            <main className="pt-16 min-h-screen lg:ml-64">
               <div className="p-4 md:p-6">
                 <Breadcrumb />
                 <RouteGuard>{children}</RouteGuard>

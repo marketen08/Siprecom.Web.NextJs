@@ -27,7 +27,7 @@ import {
 } from "@/features/tareas/api/use-coordinacion-tareas"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
-import { useGetTareasSelect } from "@/features/tareas/api/use-get-tareas-select"
+import { useGetTareasSelect, useGetTareasUsadasSelect } from "@/features/tareas/api/use-get-tareas-select"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
@@ -121,6 +121,7 @@ export function TareasExistentesTab() {
   const { data: subsistemasRaw } = useGetSubSistemasSelect()
   const { data: tiposRaw } = useGetElementosTiposSelect()
   const { data: tareasRaw } = useGetTareasSelect()
+  const { data: tareasUsadas } = useGetTareasUsadasSelect()
   const { data: nivelesRaw } = useGetNivelesSelect()
   const { data: especialidadesRaw } = useGetEspecialidades()
 
@@ -158,6 +159,14 @@ export function TareasExistentesTab() {
     return set
   }, [tiposRaw, especialidadId])
 
+  // Set de nombres que efectivamente tienen ET en el proyecto — usados
+  // como "whitelist": solo esos nombres aparecen en el select.
+  const nombresUsadosSet = useMemo(() => {
+    const s = new Set<string>()
+    for (const n of tareasUsadas ?? []) s.add(n.toLowerCase())
+    return s
+  }, [tareasUsadas])
+
   const tareaOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todas" }]
     const nombresVistos = new Set<string>()
@@ -165,6 +174,9 @@ export function TareasExistentesTab() {
     for (const t of (tareasRaw as any)?.data ?? []) {
       const nom = (t.nombre ?? "").trim()
       if (!nom) continue
+      const key = nom.toLowerCase()
+      // Whitelist: solo tareas que tienen al menos una ET activa en el proyecto.
+      if (!nombresUsadosSet.has(key)) continue
       // Cascada Tipo: si hay tipo elegido, la tarea debe ser de ese tipo.
       if (elementoTipoId !== ALL && t.elementoTipoId !== elementoTipoId) continue
       // Cascada Especialidad: matchea contra .especialidadId directa o vía el tipo.
@@ -175,7 +187,6 @@ export function TareasExistentesTab() {
         const matchViaTipo = tipo && tiposIdsDeEspecialidad.has(tipo)
         if (!matchDirecto && !matchViaTipo) continue
       }
-      const key = nom.toLowerCase()
       if (nombresVistos.has(key)) continue
       nombresVistos.add(key)
       lista.push(nom)
@@ -183,7 +194,7 @@ export function TareasExistentesTab() {
     lista.sort((a, b) => a.localeCompare(b, "es"))
     for (const nom of lista) opts.push({ value: nom, label: nom })
     return opts
-  }, [tareasRaw, elementoTipoId, tiposIdsDeEspecialidad, especialidadId])
+  }, [tareasRaw, nombresUsadosSet, elementoTipoId, tiposIdsDeEspecialidad, especialidadId])
 
   const nivelOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todos" }]
@@ -493,17 +504,17 @@ export function TareasExistentesTab() {
 
       {/* Toolbar contextual bulk (sticky abajo del header, solo si hay selección) */}
       {hasSelection && (
-        <div className="sticky top-14 z-30 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 shadow-sm">
+        <div className="sticky top-14 z-30 flex flex-col lg:flex-row lg:items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 shadow-sm">
           <span className="text-sm text-blue-900">
             <strong>{selectionCount}</strong> tarea(s) seleccionada(s)
             {selectAllMatching && <span className="ml-1 text-xs">(todas las que matchean el filtro)</span>}
           </span>
-          <div className="ml-auto flex gap-2">
+          <div className="lg:ml-auto flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => { setBulkAsignarUser(SIN_ASIGNAR); setBulkAsignarOpen(true) }}>
-              Asignar responsable
+              Asignar
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setBulkFecha(""); setBulkFechaOpen(true) }}>
-              Cambiar fecha planif.
+              Fecha planif.
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setBulkCancelarMotivo(""); setBulkCancelarOpen(true) }}>
               Cancelar
@@ -566,6 +577,131 @@ export function TareasExistentesTab() {
         </div>
       )}
 
+      {/* Cards (mobile + tablet, < 1024px) — patrón /ejecucion/elementos */}
+      <div className="lg:hidden space-y-2">
+        {isLoading ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            Cargando...
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            Sin resultados con los filtros actuales.
+          </div>
+        ) : (
+          rows.map((row) => {
+            const puedeEliminar = row.estado === ESTADO_ET.PENDIENTE || row.estado === ESTADO_ET.CANCELADO
+            const puedeCancelar = row.estado === ESTADO_ET.PENDIENTE || row.estado === ESTADO_ET.EN_PROCESO
+            const puedeReactivar = row.estado === ESTADO_ET.CANCELADO
+            const rowSelected = selectAllMatching || selectedIds.has(row.id)
+            return (
+              <div
+                key={row.id}
+                className={
+                  "rounded-lg border bg-white p-3 space-y-2 " +
+                  (rowSelected ? "border-blue-300 bg-blue-50/40" : "")
+                }
+              >
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={rowSelected}
+                    onChange={() => toggleRow(row.id)}
+                    aria-label="Seleccionar tarea"
+                    className="h-4 w-4 mt-1 rounded border-input shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-xs text-gray-500 truncate">{row.elementoTag ?? "—"}</p>
+                    <p className="font-medium truncate">{row.tareaNombre ?? "—"}</p>
+                    {row.nivelNombre && (
+                      <p className="text-xs text-gray-500 truncate">{row.nivelNombre}</p>
+                    )}
+                  </div>
+                  <EstadoBadge estado={row.estado} />
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Responsable</label>
+                    <div className="whitespace-normal">
+                      <Combobox
+                        options={usuarioSelectOptions}
+                        value={row.asignadoA ?? SIN_ASIGNAR}
+                        onChange={(v) => {
+                          const nuevo = v === SIN_ASIGNAR ? null : v
+                          asignarMut.mutate({ id: row.id, asignadoA: nuevo })
+                        }}
+                        placeholder="Sin asignar"
+                        searchPlaceholder="Buscar..."
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Fecha planif.</label>
+                    <Input
+                      type="date"
+                      value={row.fechaPlanificada ? row.fechaPlanificada.substring(0, 10) : ""}
+                      onChange={(e) => {
+                        const nueva = e.target.value
+                        if (!nueva) return
+                        if (nueva === row.fechaPlanificada?.substring(0, 10)) return
+                        fechaMut.mutate({ id: row.id, fecha: nueva })
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {(puedeReactivar || puedeCancelar || puedeEliminar) && (
+                  <div className="flex flex-wrap gap-1 pt-1 border-t">
+                    {puedeReactivar && (
+                      <ConfirmActionDialog
+                        trigger={<><RotateCcw className="h-3.5 w-3.5" /> Reactivar</>}
+                        triggerClassName="inline-flex items-center gap-1 h-8 rounded-md border border-input px-2 text-xs font-medium text-emerald-700 hover:bg-accent cursor-pointer"
+                        title="¿Reactivar tarea?"
+                        description={<>La tarea <strong>{row.tareaNombre}</strong> del elemento <strong>{row.elementoTag}</strong> volverá al estado PENDIENTE.</>}
+                        confirmText="Reactivar"
+                        pendingText="Reactivando..."
+                        onConfirm={async () => {
+                          await reactivarMut.mutateAsync(row.id)
+                          removerDeSeleccion(row.id)
+                        }}
+                      />
+                    )}
+                    {puedeCancelar && (
+                      <Button
+                        size="sm" variant="outline" className="h-8 gap-1 text-xs text-amber-700"
+                        onClick={() => { setCancelarTarget(row); setMotivoCancelar("") }}
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Cancelar
+                      </Button>
+                    )}
+                    {puedeEliminar && (
+                      <ConfirmActionDialog
+                        trigger={<><Trash2 className="h-3.5 w-3.5" /> Eliminar</>}
+                        triggerClassName="inline-flex items-center gap-1 h-8 rounded-md border border-input px-2 text-xs font-medium text-destructive hover:bg-accent cursor-pointer"
+                        title="¿Eliminar tarea?"
+                        description={<>Se eliminará la tarea <strong>{row.tareaNombre}</strong> del elemento <strong>{row.elementoTag}</strong>. Solo se permite eliminar tareas PENDIENTE o CANCELADO.</>}
+                        confirmText="Eliminar"
+                        pendingText="Eliminando..."
+                        variant="destructive"
+                        onConfirm={async () => {
+                          await eliminarMut.mutateAsync(row.id)
+                          removerDeSeleccion(row.id)
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Tabla (solo desktop >= 1024px) */}
+      <div className="hidden lg:block">
       <DataTableWrapper isFetching={isFetching && !isLoading}>
         <Table>
           <TableHeader>
@@ -723,6 +859,7 @@ export function TareasExistentesTab() {
           </TableBody>
         </Table>
       </DataTableWrapper>
+      </div>
 
       {/* Total + Paginación — mismo patrón que /alcance/elementos y el resto. */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
