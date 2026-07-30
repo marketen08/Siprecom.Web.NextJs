@@ -61,7 +61,12 @@ export interface CoordinacionFiltros {
   nivelId?: string
   especialidadId?: string
   elementoTipoId?: string
-  tareaId?: string
+  /**
+   * Filtro por Nombre de Tarea (no por ID). Agrupa todas las Tareas con igual
+   * nombre y distinto código como un mismo filtro — típico en catálogos donde
+   * "Hidrotest" existe como TA-001 y TA-002 según el subsistema.
+   */
+  tareaNombre?: string
   /** Filtro Estado detallado (dentro del sheet). Cualquiera de los 7 estados backend. */
   estados?: EstadoET[]
   asignadoA?: string
@@ -79,7 +84,7 @@ function toBackendFilter(f: CoordinacionFiltros) {
     nivelId: f.nivelId ?? null,
     especialidadId: f.especialidadId ?? null,
     elementoTipoId: f.elementoTipoId ?? null,
-    tareaId: f.tareaId ?? null,
+    tareaNombre: f.tareaNombre ?? null,
     asignadoA: f.asignadoA ?? null,
     estados: f.estados && f.estados.length > 0 ? f.estados : null,
     estadoCoord: f.estadoCoord ?? null,

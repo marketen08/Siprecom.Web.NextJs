@@ -77,7 +77,7 @@ export function TareasExistentesTab() {
   const [nivelId, setNivelId] = useState<string>(ALL)
   const [especialidadId, setEspecialidadId] = useState<string>(ALL)
   const [elementoTipoId, setElementoTipoId] = useState<string>(ALL)
-  const [tareaId, setTareaId] = useState<string>(ALL)
+  const [tareaNombre, setTareaNombre] = useState<string>(ALL)
   const [estadoDetalle, setEstadoDetalle] = useState<string>(ALL)
   const [asignadoA, setAsignadoA] = useState<string>(ALL)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -93,7 +93,7 @@ export function TareasExistentesTab() {
       nivelId: nivelId === ALL ? undefined : nivelId,
       especialidadId: especialidadId === ALL ? undefined : especialidadId,
       elementoTipoId: elementoTipoId === ALL ? undefined : elementoTipoId,
-      tareaId: tareaId === ALL ? undefined : tareaId,
+      tareaNombre: tareaNombre === ALL ? undefined : tareaNombre,
       estados: esChipCanceladas
         ? [ESTADO_ET.CANCELADO]
         : estadoDetalle === ALL ? undefined : [Number(estadoDetalle) as EstadoET],
@@ -103,7 +103,7 @@ export function TareasExistentesTab() {
       // usa el filtro Estado detallado del sheet (que ya levanta la exclusión).
       incluirCanceladasRechazadas: esChipCanceladas,
     }
-  }, [chipActivo, subSistemaId, nivelId, especialidadId, elementoTipoId, tareaId, estadoDetalle, asignadoA, estadoCoord])
+  }, [chipActivo, subSistemaId, nivelId, especialidadId, elementoTipoId, tareaNombre, estadoDetalle, asignadoA, estadoCoord])
 
   const { data, isLoading, isFetching } = useSearchElementosTareas(filtros, page, PAGE_SIZE)
   const rows: ElementoTareaRow[] = data?.data ?? []
@@ -141,11 +141,23 @@ export function TareasExistentesTab() {
     return opts
   }, [tiposRaw])
 
+  // Deduplicamos por Nombre: varias tareas con el mismo nombre pero distinto
+  // código quedan como una sola opción. El filtro backend usa TareaNombre
+  // (case-insensitive) para agarrar a todas las que matcheen.
   const tareaOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todas" }]
+    const nombresVistos = new Set<string>()
+    const lista: string[] = []
     for (const t of (tareasRaw as any)?.data ?? []) {
-      opts.push({ value: t.id, label: t.codigo ? `${t.codigo} — ${t.nombre}` : t.nombre })
+      const nom = (t.nombre ?? "").trim()
+      if (!nom) continue
+      const key = nom.toLowerCase()
+      if (nombresVistos.has(key)) continue
+      nombresVistos.add(key)
+      lista.push(nom)
     }
+    lista.sort((a, b) => a.localeCompare(b, "es"))
+    for (const nom of lista) opts.push({ value: nom, label: nom })
     return opts
   }, [tareasRaw])
 
@@ -217,8 +229,8 @@ export function TareasExistentesTab() {
   if (elementoTipoId !== ALL) {
     chip("tipo", "Tipo", tipoOptions.find((o) => o.value === elementoTipoId)?.label ?? elementoTipoId, () => setElementoTipoId(ALL))
   }
-  if (tareaId !== ALL) {
-    chip("tar", "Tarea", tareaOptions.find((o) => o.value === tareaId)?.label ?? tareaId, () => setTareaId(ALL))
+  if (tareaNombre !== ALL) {
+    chip("tar", "Tarea", tareaNombre, () => setTareaNombre(ALL))
   }
   if (estadoDetalle !== ALL) {
     chip("est", "Estado", estadoDetalleOptions.find((o) => o.value === estadoDetalle)?.label ?? estadoDetalle, () => setEstadoDetalle(ALL))
@@ -229,7 +241,7 @@ export function TareasExistentesTab() {
 
   const limpiarFiltros = () => {
     setSubSistemaId(ALL); setNivelId(ALL); setEspecialidadId(ALL)
-    setElementoTipoId(ALL); setTareaId(ALL); setEstadoDetalle(ALL); setAsignadoA(ALL)
+    setElementoTipoId(ALL); setTareaNombre(ALL); setEstadoDetalle(ALL); setAsignadoA(ALL)
     setPage(1)
   }
 
@@ -750,8 +762,8 @@ export function TareasExistentesTab() {
             placeholder="Todos" searchPlaceholder="Buscar..." />
         </FilterField>
         <FilterField label="Tarea">
-          <Combobox options={tareaOptions} value={tareaId}
-            onChange={(v) => { setTareaId(v); setPage(1) }}
+          <Combobox options={tareaOptions} value={tareaNombre}
+            onChange={(v) => { setTareaNombre(v); setPage(1) }}
             placeholder="Todas" searchPlaceholder="Buscar..." />
         </FilterField>
         <FilterField label="Estado detallado">
