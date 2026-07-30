@@ -9,11 +9,16 @@ import {
   ESTADO_ET_LABEL,
   useActualizarFechaPlanificadaET,
   useAsignarResponsableET,
+  useBulkAsignar,
+  useBulkCancelar,
+  useBulkReactivar,
   useCancelarElementoTarea,
   useCoordinacionCounts,
   useDeleteElementoTarea,
   useReactivarElementoTarea,
   useSearchElementosTareas,
+  type BulkResult,
+  type BulkTargets,
   type CoordinacionFiltros,
   type ElementoTareaRow,
   type EstadoCoord,
@@ -219,6 +224,113 @@ export function TareasExistentesTab() {
   const reactivarMut = useReactivarElementoTarea()
   const fechaMut = useActualizarFechaPlanificadaET()
 
+  const bulkAsignarMut = useBulkAsignar()
+  const bulkCancelarMut = useBulkCancelar()
+  const bulkReactivarMut = useBulkReactivar()
+
+  // ── Selección multi-fila ───────────────────────────────────────────
+  // Modo IDs: acumula IDs entre páginas. Modo "matching filter": booleano —
+  // el user seleccionó "todas las N que matchean el filtro" (cross-página).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectAllMatching, setSelectAllMatching] = useState(false)
+
+  // Al cambiar de filtros, limpiar selección para evitar operar sobre lo que ya no ves.
+  const filtrosKey = JSON.stringify(filtros)
+  const [prevFiltrosKey, setPrevFiltrosKey] = useState(filtrosKey)
+  if (filtrosKey !== prevFiltrosKey) {
+    setPrevFiltrosKey(filtrosKey)
+    if (selectedIds.size > 0 || selectAllMatching) {
+      setSelectedIds(new Set())
+      setSelectAllMatching(false)
+    }
+  }
+
+  const pageIds = useMemo(() => rows.map((r) => r.id), [rows])
+  const pageAllSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id))
+  const pageSomeSelected = pageIds.some((id) => selectedIds.has(id))
+
+  const togglePageAll = () => {
+    if (selectAllMatching) {
+      // Salir del modo cross-página: limpia todo.
+      setSelectAllMatching(false)
+      setSelectedIds(new Set())
+      return
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (pageAllSelected) pageIds.forEach((id) => next.delete(id))
+      else pageIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  const toggleRow = (id: string) => {
+    if (selectAllMatching) {
+      // Deseleccionar UNA fila cuando está en modo cross-página: salir del modo
+      // y quedarnos con todas las de esta página menos la desmarcada. UX simple.
+      setSelectAllMatching(false)
+      setSelectedIds(new Set(pageIds.filter((x) => x !== id)))
+      return
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectionCount = selectAllMatching ? total : selectedIds.size
+  const hasSelection = selectionCount > 0
+
+  const buildBulkTargets = (): BulkTargets =>
+    selectAllMatching ? { filter: filtros } : { ids: Array.from(selectedIds) }
+
+  // ── Dialogs bulk ────────────────────────────────────────────────────
+  const [bulkAsignarOpen, setBulkAsignarOpen] = useState(false)
+  const [bulkAsignarUser, setBulkAsignarUser] = useState<string>(SIN_ASIGNAR)
+  const [bulkCancelarOpen, setBulkCancelarOpen] = useState(false)
+  const [bulkCancelarMotivo, setBulkCancelarMotivo] = useState("")
+  const [bulkReactivarOpen, setBulkReactivarOpen] = useState(false)
+
+  // ── Resumen post-acción ─────────────────────────────────────────────
+  const [bulkResumen, setBulkResumen] = useState<{ accion: string; result: BulkResult } | null>(null)
+  const [rechazosOpen, setRechazosOpen] = useState(false)
+
+  const limpiarSeleccion = () => {
+    setSelectedIds(new Set())
+    setSelectAllMatching(false)
+  }
+
+  const ejecutarBulkAsignar = async () => {
+    try {
+      const nuevo = bulkAsignarUser === SIN_ASIGNAR ? null : bulkAsignarUser
+      const result = await bulkAsignarMut.mutateAsync({ ...buildBulkTargets(), asignadoA: nuevo })
+      setBulkResumen({ accion: "Asignación", result })
+      setBulkAsignarOpen(false)
+      setBulkAsignarUser(SIN_ASIGNAR)
+      limpiarSeleccion()
+    } catch { /* error visible abajo */ }
+  }
+  const ejecutarBulkCancelar = async () => {
+    if (!bulkCancelarMotivo.trim()) return
+    try {
+      const result = await bulkCancelarMut.mutateAsync({ ...buildBulkTargets(), motivo: bulkCancelarMotivo.trim() })
+      setBulkResumen({ accion: "Cancelación", result })
+      setBulkCancelarOpen(false)
+      setBulkCancelarMotivo("")
+      limpiarSeleccion()
+    } catch { /* error visible abajo */ }
+  }
+  const ejecutarBulkReactivar = async () => {
+    try {
+      const result = await bulkReactivarMut.mutateAsync(buildBulkTargets())
+      setBulkResumen({ accion: "Reactivación", result })
+      setBulkReactivarOpen(false)
+      limpiarSeleccion()
+    } catch { /* error visible abajo */ }
+  }
+
   const [cancelarTarget, setCancelarTarget] = useState<ElementoTareaRow | null>(null)
   const [motivoCancelar, setMotivoCancelar] = useState("")
 
@@ -282,6 +394,78 @@ export function TareasExistentesTab() {
 
       <FiltersChips activeFilters={activeFilters} onClearAll={limpiarFiltros} />
 
+      {/* Toolbar contextual bulk (sticky abajo del header, solo si hay selección) */}
+      {hasSelection && (
+        <div className="sticky top-14 z-30 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 shadow-sm">
+          <span className="text-sm text-blue-900">
+            <strong>{selectionCount}</strong> tarea(s) seleccionada(s)
+            {selectAllMatching && <span className="ml-1 text-xs">(todas las que matchean el filtro)</span>}
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => { setBulkAsignarUser(SIN_ASIGNAR); setBulkAsignarOpen(true) }}>
+              Asignar responsable
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setBulkCancelarMotivo(""); setBulkCancelarOpen(true) }}>
+              Cancelar
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setBulkReactivarOpen(true)}>
+              Reactivar
+            </Button>
+            <Button size="sm" variant="ghost" onClick={limpiarSeleccion}>Limpiar</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Banner "select all matching filter" — aparece cuando el user marcó
+          toda la página y hay más filas fuera de la página actual. Un click
+          expande la selección a las N que matchean el filtro (cross-página). */}
+      {pageAllSelected && !selectAllMatching && total > pageIds.length && (
+        <div className="rounded-md border border-blue-100 bg-blue-50/50 px-3 py-2 text-sm text-blue-900 flex items-center gap-3">
+          <span>Seleccionaste las <strong>{pageIds.length}</strong> tareas de esta página.</span>
+          <button
+            type="button"
+            className="text-blue-700 underline hover:no-underline font-medium"
+            onClick={() => { setSelectAllMatching(true); setSelectedIds(new Set()) }}
+          >
+            Seleccionar las {total} que matchean el filtro
+          </button>
+        </div>
+      )}
+
+      {/* Banner de resumen de la última acción bulk */}
+      {bulkResumen && (
+        <div className={
+          "rounded-md border px-3 py-2 text-sm flex items-center gap-3 " +
+          (bulkResumen.result.rechazadas.length > 0
+            ? "border-amber-200 bg-amber-50 text-amber-900"
+            : "border-emerald-200 bg-emerald-50 text-emerald-900")
+        }>
+          <span>
+            <strong>{bulkResumen.accion}</strong>: {bulkResumen.result.ok} aplicada(s)
+            {bulkResumen.result.rechazadas.length > 0 && (
+              <> · <strong>{bulkResumen.result.rechazadas.length}</strong> rechazada(s)</>
+            )}
+            <> de {bulkResumen.result.total}.</>
+          </span>
+          {bulkResumen.result.rechazadas.length > 0 && (
+            <button
+              type="button"
+              className="ml-1 underline hover:no-underline text-amber-800 font-medium"
+              onClick={() => setRechazosOpen(true)}
+            >
+              Ver detalles
+            </button>
+          )}
+          <button
+            type="button"
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            onClick={() => setBulkResumen(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Paginación / conteo */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>{total} tarea(s) — página {page} de {totalPages}</span>
@@ -295,6 +479,18 @@ export function TareasExistentesTab() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <input
+                  type="checkbox"
+                  checked={selectAllMatching || pageAllSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = !selectAllMatching && pageSomeSelected && !pageAllSelected
+                  }}
+                  onChange={togglePageAll}
+                  aria-label="Seleccionar página"
+                  className="h-4 w-4 rounded border-input"
+                />
+              </TableHead>
               <TableHead>Elemento (TAG)</TableHead>
               <TableHead>Tarea</TableHead>
               <TableHead>Nivel</TableHead>
@@ -307,13 +503,13 @@ export function TareasExistentesTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                   <Loader2 className="inline h-4 w-4 animate-spin mr-2" /> Cargando...
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                   Sin resultados con los filtros actuales.
                 </TableCell>
               </TableRow>
@@ -322,8 +518,18 @@ export function TareasExistentesTab() {
                 const puedeEliminar = row.estado === ESTADO_ET.PENDIENTE || row.estado === ESTADO_ET.CANCELADO
                 const puedeCancelar = row.estado === ESTADO_ET.PENDIENTE || row.estado === ESTADO_ET.EN_PROCESO
                 const puedeReactivar = row.estado === ESTADO_ET.CANCELADO
+                const rowSelected = selectAllMatching || selectedIds.has(row.id)
                 return (
-                  <TableRow key={row.id} className="hover:bg-gray-50">
+                  <TableRow key={row.id} className={rowSelected ? "bg-blue-50/50" : "hover:bg-gray-50"}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={rowSelected}
+                        onChange={() => toggleRow(row.id)}
+                        aria-label="Seleccionar fila"
+                        className="h-4 w-4 rounded border-input"
+                      />
+                    </TableCell>
                     <TableCell className="text-sm font-medium">{row.elementoTag ?? "—"}</TableCell>
                     <TableCell className="text-sm">{row.tareaNombre ?? "—"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{row.nivelNombre ?? "—"}</TableCell>
@@ -488,6 +694,141 @@ export function TareasExistentesTab() {
           </label>
         </FilterField>
       </FiltersSheet>
+
+      {/* ── Dialogs bulk ── */}
+
+      {/* Asignar responsable bulk */}
+      <AlertDialog open={bulkAsignarOpen} onOpenChange={setBulkAsignarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Asignar responsable a {selectionCount} tarea(s)</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se pisa el responsable actual. Elegí un usuario o &quot;Sin asignar&quot; para desasignar.
+              {selectAllMatching && <> Aplica a todas las tareas que matchean el filtro actual.</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Responsable</label>
+            <Combobox
+              options={usuarioSelectOptions}
+              value={bulkAsignarUser}
+              onChange={setBulkAsignarUser}
+              placeholder="Elegí usuario"
+              searchPlaceholder="Buscar..."
+            />
+            {bulkAsignarMut.error && (
+              <p className="text-xs text-destructive">{(bulkAsignarMut.error as Error).message}</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkAsignarMut.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bulkAsignarMut.isPending}
+              onClick={(e) => { e.preventDefault(); ejecutarBulkAsignar() }}
+            >
+              {bulkAsignarMut.isPending ? "Asignando..." : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancelar bulk (motivo obligatorio) */}
+      <AlertDialog open={bulkCancelarOpen} onOpenChange={setBulkCancelarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar {selectionCount} tarea(s)</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se marcarán como <strong>CANCELADO</strong>. Las que ya estén COMPLETADA/APROBADA/FIRMADA
+              se rechazan automáticamente (verás el detalle en el resumen).
+              {selectAllMatching && <> Aplica a todas las tareas que matchean el filtro actual.</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Motivo *</label>
+            <Textarea
+              value={bulkCancelarMotivo}
+              onChange={(e) => setBulkCancelarMotivo(e.target.value)}
+              placeholder="Motivo común para toda la selección..."
+              rows={3}
+            />
+            {bulkCancelarMut.error && (
+              <p className="text-xs text-destructive">{(bulkCancelarMut.error as Error).message}</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkCancelarMut.isPending}>Cerrar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={!bulkCancelarMotivo.trim() || bulkCancelarMut.isPending}
+              onClick={(e) => { e.preventDefault(); ejecutarBulkCancelar() }}
+            >
+              {bulkCancelarMut.isPending ? "Cancelando..." : "Confirmar cancelación"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reactivar bulk */}
+      <AlertDialog open={bulkReactivarOpen} onOpenChange={setBulkReactivarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivar {selectionCount} tarea(s)</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sólo se reactivan las CANCELADAS cuyo Elemento y Tarea sigan activos. Las que no
+              cumplan se rechazan (verás el detalle en el resumen). Vuelven a estado PENDIENTE.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {bulkReactivarMut.error && (
+            <p className="text-xs text-destructive">{(bulkReactivarMut.error as Error).message}</p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkReactivarMut.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bulkReactivarMut.isPending}
+              onClick={(e) => { e.preventDefault(); ejecutarBulkReactivar() }}
+            >
+              {bulkReactivarMut.isPending ? "Reactivando..." : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Detalle de rechazos del último bulk */}
+      <AlertDialog open={rechazosOpen} onOpenChange={setRechazosOpen}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Rechazos de {bulkResumen?.accion.toLowerCase()} · {bulkResumen?.result.rechazadas.length}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Filas que la operación no pudo procesar. El resto se aplicó correctamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="max-h-80 overflow-y-auto rounded-md border">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50 border-b">
+                <tr>
+                  <th className="px-2 py-1.5 text-left">Elemento</th>
+                  <th className="px-2 py-1.5 text-left">Tarea</th>
+                  <th className="px-2 py-1.5 text-left">Motivo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bulkResumen?.result.rechazadas.map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="px-2 py-1.5">{r.elementoTag ?? "—"}</td>
+                    <td className="px-2 py-1.5">{r.tareaNombre ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground">{r.motivo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cerrar</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog de cancelación con motivo obligatorio */}
       <AlertDialog open={cancelarTarget !== null} onOpenChange={(v) => { if (!v) setCancelarTarget(null) }}>

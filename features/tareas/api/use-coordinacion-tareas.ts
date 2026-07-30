@@ -170,6 +170,82 @@ export function useCancelarElementoTarea() {
   })
 }
 
+// ─── Bulk actions ────────────────────────────────────────────────────
+
+export interface BulkResultRow {
+  id: string
+  elementoTag: string | null
+  tareaNombre: string | null
+  motivo: string
+}
+
+export interface BulkResult {
+  total: number
+  ok: number
+  rechazadas: BulkResultRow[]
+}
+
+/**
+ * Request base para acciones bulk. El caller elige modo IDs o modo Filter.
+ * - IDs: lista específica (checkboxes en la UI).
+ * - Filter: aplica a TODAS las ETs que matchean (banner "seleccionar todos").
+ * Si vienen los dos, gana IDs. Si ninguno, el backend no aplica nada.
+ */
+export type BulkTargets =
+  | { ids: string[] }
+  | { filter: CoordinacionFiltros }
+
+function toBulkBody(targets: BulkTargets, extra: Record<string, unknown>) {
+  if ("ids" in targets) return { ids: targets.ids, ...extra }
+  return { filter: toBackendFilter(targets.filter), ...extra }
+}
+
+export function useBulkAsignar() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BulkTargets & { asignadoA: string | null }) => {
+      const { asignadoA, ...targets } = input
+      return apiClient
+        .post<ApiResponse<BulkResult>>(
+          "/api/elementostareas/bulk/asignar",
+          toBulkBody(targets as BulkTargets, { asignadoA: asignadoA ?? "" }),
+        )
+        .then((r) => r.data)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+  })
+}
+
+export function useBulkCancelar() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BulkTargets & { motivo: string }) => {
+      const { motivo, ...targets } = input
+      return apiClient
+        .post<ApiResponse<BulkResult>>(
+          "/api/elementostareas/bulk/cancelar",
+          toBulkBody(targets as BulkTargets, { motivo }),
+        )
+        .then((r) => r.data)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+  })
+}
+
+export function useBulkReactivar() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BulkTargets) =>
+      apiClient
+        .post<ApiResponse<BulkResult>>(
+          "/api/elementostareas/bulk/reactivar",
+          toBulkBody(input, {}),
+        )
+        .then((r) => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+  })
+}
+
 export function useReactivarElementoTarea() {
   const qc = useQueryClient()
   return useMutation({
