@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { invalidarPostCargaRegistro } from "@/features/registros/api/invalidar-post-carga"
 
 export function useReiniciarTarea() {
   const queryClient = useQueryClient()
@@ -8,9 +9,9 @@ export function useReiniciarTarea() {
     mutationFn: (elementoTareaId: string) =>
       apiClient.post(`/api/elementos-tareas/${elementoTareaId}/reiniciar`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["elementos-tareas"] })
-      queryClient.invalidateQueries({ queryKey: ["avance"] })
-      queryClient.invalidateQueries({ queryKey: ["registros"] })
+      // La tarea vuelve a PENDIENTE — refrescar los mismos scopes que un
+      // completado (sheet, listados, avance, testgroups, firmas, etc.).
+      invalidarPostCargaRegistro(queryClient, null)
     },
   })
 }

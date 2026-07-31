@@ -8,6 +8,8 @@ import type { QueryClient } from "@tanstack/react-query"
  * Prefijos usados:
  * - `["registros", registroId]` — detalle del registro (si el usuario vuelve).
  * - `["elementos-tareas"]` — sheet del elemento + lista general.
+ * - `["elemento-tarea"]` — fetch puntual por id (menú lazy de acciones en listados).
+ * - `["tareas-listado"]` — pantalla `/ejecucion/tareas` (paginado + counts de chips).
  * - `["avance"]` — todas las vistas de avance (elemento/subsistema/sistema/etc.).
  * - `["testgroups"]` — lista de tareas del pack si aplica.
  * - `["mis-firmas"]` — aparecen slots pendientes tras el completado.
@@ -24,6 +26,8 @@ export function invalidarPostCargaRegistro(
     queryClient.invalidateQueries({ queryKey: ["registros"] })
   }
   queryClient.invalidateQueries({ queryKey: ["elementos-tareas"] })
+  queryClient.invalidateQueries({ queryKey: ["elemento-tarea"] })
+  queryClient.invalidateQueries({ queryKey: ["tareas-listado"] })
   queryClient.invalidateQueries({ queryKey: ["avance"] })
   queryClient.invalidateQueries({ queryKey: ["testgroups"] })
   queryClient.invalidateQueries({ queryKey: ["mis-firmas"] })

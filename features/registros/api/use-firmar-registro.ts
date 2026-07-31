@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { invalidarPostCargaRegistro } from "./invalidar-post-carga"
 import type { FirmarRegistroInput } from "../types"
 
 export function useFirmarRegistro(registroId: string) {
@@ -9,16 +10,11 @@ export function useFirmarRegistro(registroId: string) {
     mutationFn: (data: FirmarRegistroInput) =>
       apiClient.post(`/api/registros/${registroId}/firmar`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["registros", registroId] })
+      // Firmar puede cerrar el registro y cambiar el estado de la tarea
+      // (COMPLETADO → FIRMADO). Usamos el helper compartido para no dejar keys
+      // stale — cubre listado de tareas, sheet, avance, testgroups, mis-firmas, etc.
       queryClient.invalidateQueries({ queryKey: ["registros", registroId, "firmas"] })
-      queryClient.invalidateQueries({ queryKey: ["elementos-tareas"] })
-      queryClient.invalidateQueries({ queryKey: ["avance"] })
-      // Si el registro pertenece a una tarea de un TestGroup, la lista del pack
-      // queda stale al volver al detalle.
-      queryClient.invalidateQueries({ queryKey: ["testgroups"] })
-      // Tras firmar, el registro puede haberse cerrado y los slots cambian:
-      // refrescar tanto "Pendientes" como "Firmados por mí".
-      queryClient.invalidateQueries({ queryKey: ["mis-firmas"] })
+      invalidarPostCargaRegistro(queryClient, registroId)
     },
   })
 }
