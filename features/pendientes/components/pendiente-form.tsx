@@ -1,24 +1,17 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ChevronDown, Wand2 } from "lucide-react"
+import { ChevronDown, Info } from "lucide-react"
 
 import { makePendienteCreateSchema, type PendienteFormValues } from "../schema"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
-import {
-  useGetPendienteAcciones,
-  useGetPendienteCategorias,
-  useGetPendienteMotivos,
-  useGetPendienteTipos,
-} from "../api/use-catalogos"
-import { useResolverPendienteCatalogo } from "../api/use-catalogo-maestro"
-import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetPendienteCategorias } from "../api/use-catalogos"
+import { useGetPendienteCatalogoArbol } from "../api/use-catalogo-maestro"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
-import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { PRIORIDAD } from "../types"
@@ -27,8 +20,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
-import { DescripcionAutocomplete } from "./descripcion-autocomplete"
 import {
   Form,
   FormControl,
@@ -70,25 +63,21 @@ export function PendienteForm({
   const { data: perfil } = useGetPerfil()
   const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
   const elementoRequerido = proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTE_ELEMENTO_REQUERIDO === true
+  const permiteDescripcionManual =
+    proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTES_DESCRIPCION_MANUAL !== false
   const { data: categoriasRaw } = useGetPendienteCategorias()
-  const { data: tiposRaw } = useGetPendienteTipos()
-  const { data: accionesRaw } = useGetPendienteAcciones()
-  const { data: motivosRaw } = useGetPendienteMotivos()
-  const { data: nivelesRaw } = useGetNivelesSelect()
+  // Árbol del catálogo maestro — única fuente de las opciones de los 5 selects
+  // del wizard (cascada estricta) y de la descripción/categoría autopobladas.
+  const { data: arbolRaw } = useGetPendienteCatalogoArbol()
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
-  const { data: especialidadesRaw } = useGetEspecialidades()
 
   const categorias = categoriasRaw?.data ?? []
-  const tipos = tiposRaw?.data ?? []
-  const acciones = accionesRaw?.data ?? []
-  const motivos = motivosRaw?.data ?? []
-  const niveles = nivelesRaw?.data ?? []
+  const arbol = arbolRaw?.data ?? []
   const sistemas = sistemasRaw?.data ?? []
   const subSistemas = subSistemasRaw?.data ?? []
   const usuarios = usuariosRaw ?? []
-  const especialidades = especialidadesRaw?.data ?? []
 
   const hoy = new Date()
   const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000)
@@ -109,6 +98,7 @@ export function PendienteForm({
       motivoId: defaultValues?.motivoId ?? "",
       categoriaId: defaultValues?.categoriaId ?? "",
       descripcion: defaultValues?.descripcion ?? "",
+      descripcionManual: defaultValues?.descripcionManual ?? false,
       responsableId: defaultValues?.responsableId ?? "",
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
@@ -124,78 +114,95 @@ export function PendienteForm({
   const tipoId = form.watch("tipoId")
   const accionId = form.watch("accionId")
   const motivoId = form.watch("motivoId")
+  const descripcionManual = form.watch("descripcionManual") ?? false
 
-  // Consulta al catálogo maestro. Sólo dispara cuando las 5 están cargadas.
-  const dimensionesCompletas = Boolean(nivelId && especialidadId && tipoId && accionId && motivoId)
-  const resolver = useResolverPendienteCatalogo(
-    dimensionesCompletas ? { nivelId, especialidadId, tipoId, accionId, motivoId } : null,
+  // ── Cascada desde el árbol del catálogo ──────────────────────────────
+  // Cada nivel se filtra según el elegido en el anterior. Si el user cambia
+  // un select superior, los hijos se limpian (useEffect abajo).
+  const nivelNode = arbol.find((n) => n.nivelId === nivelId)
+  const especialidadNode = nivelNode?.especialidades.find((e) => e.especialidadId === especialidadId)
+  const tipoNode = especialidadNode?.tipos.find((t) => t.tipoId === tipoId)
+  const accionNode = tipoNode?.acciones.find((a) => a.accionId === accionId)
+  const motivoNode = accionNode?.motivos.find((m) => m.motivoId === motivoId)
+
+  // Opciones disponibles para cada select (siempre desde el nodo padre elegido).
+  const nivelOptions = useMemo(
+    () => arbol.map((n) => ({ id: n.nivelId, label: n.nivelNombre })),
+    [arbol],
+  )
+  const especialidadOptions = useMemo(
+    () => (nivelNode?.especialidades ?? []).map((e) => ({ id: e.especialidadId, label: e.especialidadNombre })),
+    [nivelNode],
+  )
+  const tipoOptions = useMemo(
+    () => (especialidadNode?.tipos ?? []).map((t) => ({ id: t.tipoId, label: t.tipoNombre })),
+    [especialidadNode],
+  )
+  const accionOptions = useMemo(
+    () => (tipoNode?.acciones ?? []).map((a) => ({ id: a.accionId, label: a.accionNombre })),
+    [tipoNode],
+  )
+  const motivoOptions = useMemo(
+    () => (accionNode?.motivos ?? []).map((m) => ({ id: m.motivoId, label: m.motivoNombre })),
+    [accionNode],
   )
 
-  // Componer descripción con template — se usa como fallback cuando no hay
-  // match del catálogo maestro. También queda expuesto en un botón para que
-  // el user pueda re-componer manualmente si edita alguna dimensión.
-  const componerFallback = () => {
-    const accion = acciones.find((a) => a.id === accionId)?.nombre
-    const motivo = motivos.find((m) => m.id === motivoId)?.nombre
-    const especialidad = especialidades.find((e) => e.id === especialidadId)?.nombre
-    const nivel = niveles.find((n) => n.id === nivelId)?.nombre
-    const tipo = tipos.find((t) => t.id === tipoId)?.tipo
-    const izq = [accion, motivo ? `por ${motivo}` : null].filter(Boolean).join(" ")
-    const der = [especialidad, nivel].filter(Boolean).join(" · ")
-    let texto = [izq, der].filter(Boolean).join(" — ")
-    if (tipo) texto = texto ? `${texto} (Tipo: ${tipo})` : `Tipo: ${tipo}`
-    return texto.trim()
-  }
+  // Retrocompat en edición: el pendiente puede haberse cargado antes de que el
+  // catálogo tuviera esa combinación. Mostramos aviso y dejamos los selects
+  // visibles con los valores actuales — si el user cambia alguno, la cascada
+  // los limpia y fuerza a elegir dentro del catálogo.
+  const dimensionesCompletas = Boolean(nivelId && especialidadId && tipoId && accionId && motivoId)
+  const comboFueraDeCatalogo = dimensionesCompletas && !motivoNode
 
-  // Marcadores de qué llenamos automáticamente para no pisar edición manual.
-  // Guardamos la firma "descripción auto" para saber si el textarea sigue
-  // teniendo lo que autogeneramos (podemos sobreescribir sin miedo) o si el
-  // usuario ya lo tocó (respetamos su cambio).
-  const ultimaDescripcionAuto = useRef<string>("")
-  const ultimaCategoriaAuto = useRef<string>("")
-
-  // Reacción a cambios de las 5 dimensiones:
-  //  - si hay match del catálogo → autopobla desc + categoría
-  //  - si NO hay match → compone descripción con template + deja categoría vacía
-  //    (o la sugerida del Tipo si existiera)
+  // Al cambiar un select superior, limpiamos los hijos que ya no sean válidos.
   useEffect(() => {
-    if (!dimensionesCompletas) return
-
-    const descripcionActual = form.getValues("descripcion")
-    const categoriaActual = form.getValues("categoriaId")
-
-    // Solo sobreescribimos si el textarea/categoría todavía tiene lo que
-    // pusimos nosotros (o está vacío) — respetamos edición manual.
-    const descripcionEsDelWizard = !descripcionActual || descripcionActual === ultimaDescripcionAuto.current
-    const categoriaEsDelWizard = !categoriaActual || categoriaActual === ultimaCategoriaAuto.current
-
-    if (resolver.isLoading) return
-
-    if (resolver.data) {
-      // Match encontrado → aplica lo del catálogo.
-      if (descripcionEsDelWizard) {
-        form.setValue("descripcion", resolver.data.descripcion, { shouldValidate: true, shouldDirty: true })
-        ultimaDescripcionAuto.current = resolver.data.descripcion
-      }
-      if (categoriaEsDelWizard && resolver.data.categoriaId) {
-        form.setValue("categoriaId", resolver.data.categoriaId, { shouldValidate: true, shouldDirty: true })
-        ultimaCategoriaAuto.current = resolver.data.categoriaId
-      }
-    } else {
-      // Sin match → fallback compose. Categoría: usa la CategoriaSugerida del Tipo si existe.
-      const texto = componerFallback()
-      if (texto && descripcionEsDelWizard) {
-        form.setValue("descripcion", texto, { shouldValidate: true, shouldDirty: true })
-        ultimaDescripcionAuto.current = texto
-      }
-      const t = tipos.find((x) => x.id === tipoId)
-      if (t?.categoriaSugeridaId && categoriaEsDelWizard) {
-        form.setValue("categoriaId", t.categoriaSugeridaId, { shouldValidate: true, shouldDirty: true })
-        ultimaCategoriaAuto.current = t.categoriaSugeridaId
-      }
+    if (especialidadId && !especialidadOptions.some((o) => o.id === especialidadId)) {
+      form.setValue("especialidadId", "", { shouldValidate: true, shouldDirty: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nivelId, especialidadId, tipoId, accionId, motivoId, resolver.data, resolver.isLoading])
+  }, [nivelId, especialidadOptions.length])
+  useEffect(() => {
+    if (tipoId && !tipoOptions.some((o) => o.id === tipoId)) {
+      form.setValue("tipoId", "", { shouldValidate: true, shouldDirty: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [especialidadId, tipoOptions.length])
+  useEffect(() => {
+    if (accionId && !accionOptions.some((o) => o.id === accionId)) {
+      form.setValue("accionId", "", { shouldValidate: true, shouldDirty: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoId, accionOptions.length])
+  useEffect(() => {
+    if (motivoId && !motivoOptions.some((o) => o.id === motivoId)) {
+      form.setValue("motivoId", "", { shouldValidate: true, shouldDirty: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accionId, motivoOptions.length])
+
+  // Al cerrarse las 5 dimensiones sobre una hoja del árbol, autopoblamos
+  // categoría y descripción (esta última solo si el user NO está overrideando
+  // manualmente — el checkbox lo controla).
+  useEffect(() => {
+    if (!motivoNode) return
+    if (form.getValues("categoriaId") !== motivoNode.categoriaId) {
+      form.setValue("categoriaId", motivoNode.categoriaId, { shouldValidate: true, shouldDirty: true })
+    }
+    if (!descripcionManual && form.getValues("descripcion") !== motivoNode.descripcion) {
+      form.setValue("descripcion", motivoNode.descripcion, { shouldValidate: true, shouldDirty: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [motivoNode?.motivoId, descripcionManual])
+
+  // Toggle del checkbox "Modificar descripción manualmente":
+  //  - Al desactivar → restaura la descripción del catálogo (si hay match).
+  //  - Al activar → deja el textarea editable con el valor actual (o vacío).
+  const onToggleDescripcionManual = (nuevo: boolean) => {
+    form.setValue("descripcionManual", nuevo, { shouldDirty: true })
+    if (!nuevo && motivoNode) {
+      form.setValue("descripcion", motivoNode.descripcion, { shouldValidate: true, shouldDirty: true })
+    }
+  }
 
   // ── Localización ────────────────────────────────────────────────
   const subSistemaIdActual = form.watch("subSistemaId")
@@ -248,32 +255,27 @@ export function PendienteForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6 pb-24 sm:pb-4">
-        {/* ── Wizard de descripción ── */}
+        {/* ── Wizard de descripción (cascada estricta desde catálogo) ── */}
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Wizard de descripción
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Completá las 5 dimensiones. Si hay una descripción cargada en el catálogo se autopobla;
-                sino, se arma con un template editable.
-              </p>
-            </div>
-            {dimensionesCompletas && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                  resolver.isLoading
-                    ? "bg-gray-100 text-gray-700"
-                    : resolver.data
-                    ? "bg-green-50 text-green-700 ring-1 ring-green-200"
-                    : "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
-                }`}
-              >
-                {resolver.isLoading ? "Buscando..." : resolver.data ? "Match catálogo" : "Sin match — template"}
-              </span>
-            )}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Wizard de descripción
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Elegí las 5 dimensiones en cascada — solo se muestran las combinaciones cargadas en
+              el catálogo maestro. La descripción y la categoría salen del catálogo.
+            </p>
           </div>
+
+          {comboFueraDeCatalogo && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Este pendiente tiene una combinación de dimensiones que ya no existe en el catálogo actual.
+                Al cambiar cualquiera de los 5 valores se te pedirá elegir dentro del catálogo.
+              </span>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <FormField
@@ -282,20 +284,17 @@ export function PendienteForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nivel *</FormLabel>
-                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Elegí nivel">
-                          {niveles.find((n) => n.id === field.value)?.nombre ?? "Elegí nivel"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {niveles.map((n) => (
-                        <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      options={nivelOptions.map((o) => ({ value: o.id, label: o.label }))}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || "")}
+                      placeholder="Elegí nivel"
+                      searchPlaceholder="Buscar..."
+                      emptyMessage="Sin niveles en el catálogo"
+                      disabled={isPending || arbol.length === 0}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -309,16 +308,13 @@ export function PendienteForm({
                   <FormLabel>Especialidad *</FormLabel>
                   <FormControl>
                     <Combobox
-                      options={especialidades.map((e) => ({
-                        value: e.id,
-                        label: e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre,
-                      }))}
+                      options={especialidadOptions.map((o) => ({ value: o.id, label: o.label }))}
                       value={field.value ?? ""}
                       onChange={(v) => field.onChange(v || "")}
-                      placeholder="Elegí especialidad"
+                      placeholder={nivelId ? "Elegí especialidad" : "Elegí nivel primero"}
                       searchPlaceholder="Buscar..."
-                      emptyMessage="Sin especialidades"
-                      disabled={isPending}
+                      emptyMessage="Sin opciones para este nivel"
+                      disabled={isPending || !nivelId}
                     />
                   </FormControl>
                   <FormMessage />
@@ -332,20 +328,17 @@ export function PendienteForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo *</FormLabel>
-                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Elegí tipo">
-                          {tipos.find((t) => t.id === field.value)?.tipo ?? "Elegí tipo"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {tipos.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.tipo}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      options={tipoOptions.map((o) => ({ value: o.id, label: o.label }))}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || "")}
+                      placeholder={especialidadId ? "Elegí tipo" : "Elegí especialidad primero"}
+                      searchPlaceholder="Buscar..."
+                      emptyMessage="Sin opciones para esta especialidad"
+                      disabled={isPending || !especialidadId}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -357,20 +350,17 @@ export function PendienteForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Acción *</FormLabel>
-                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Elegí acción">
-                          {acciones.find((a) => a.id === field.value)?.nombre ?? "Elegí acción"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {acciones.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      options={accionOptions.map((o) => ({ value: o.id, label: o.label }))}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || "")}
+                      placeholder={tipoId ? "Elegí acción" : "Elegí tipo primero"}
+                      searchPlaceholder="Buscar..."
+                      emptyMessage="Sin opciones para este tipo"
+                      disabled={isPending || !tipoId}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -382,20 +372,17 @@ export function PendienteForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Motivo *</FormLabel>
-                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Elegí motivo">
-                          {motivos.find((m) => m.id === field.value)?.nombre ?? "Elegí motivo"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {motivos.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      options={motivoOptions.map((o) => ({ value: o.id, label: o.label }))}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || "")}
+                      placeholder={accionId ? "Elegí motivo" : "Elegí acción primero"}
+                      searchPlaceholder="Buscar..."
+                      emptyMessage="Sin opciones para esta acción"
+                      disabled={isPending || !accionId}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -405,7 +392,7 @@ export function PendienteForm({
 
         <Separator />
 
-        {/* ── Descripción + Categoría (editables) ── */}
+        {/* ── Descripción + Categoría (del catálogo) ── */}
         <div className="flex flex-col gap-4">
           <FormField
             control={form.control}
@@ -414,33 +401,35 @@ export function PendienteForm({
               <FormItem>
                 <div className="flex items-center justify-between gap-2">
                   <FormLabel>Descripción *</FormLabel>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-blue-700 hover:text-blue-800"
-                    onClick={() => {
-                      const texto = componerFallback()
-                      if (!texto) return
-                      form.setValue("descripcion", texto, { shouldValidate: true, shouldDirty: true })
-                      ultimaDescripcionAuto.current = texto
-                    }}
-                    disabled={isPending || !dimensionesCompletas}
-                    title="Re-generar descripción con el template a partir de las 5 dimensiones"
-                  >
-                    <Wand2 className="mr-1 h-3.5 w-3.5" />
-                    Regenerar desde wizard
-                  </Button>
+                  {permiteDescripcionManual && (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={descripcionManual}
+                        onChange={(e) => onToggleDescripcionManual(e.target.checked)}
+                        disabled={isPending}
+                        className="h-3.5 w-3.5 accent-blue-900"
+                      />
+                      Modificar descripción manualmente
+                    </label>
+                  )}
                 </div>
                 <FormControl>
-                  <DescripcionAutocomplete
-                    name={field.name}
+                  <Textarea
+                    {...field}
                     value={field.value ?? ""}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
                     disabled={isPending}
+                    readOnly={!descripcionManual}
+                    rows={3}
+                    className={!descripcionManual ? "bg-muted/40" : ""}
+                    placeholder={motivoNode ? undefined : "Elegí las 5 dimensiones — la descripción viene del catálogo."}
                   />
                 </FormControl>
+                {!descripcionManual && motivoNode && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Texto sugerido por el catálogo. Tildá "Modificar descripción manualmente" para editarlo.
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -452,20 +441,12 @@ export function PendienteForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Categoría *</FormLabel>
-                <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Elegí categoría">
-                        {categorias.find((c) => c.id === field.value)?.nombre ?? "Elegí categoría"}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {categorias.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-gray-700">
+                    {categorias.find((c) => c.id === field.value)?.nombre
+                      ?? (motivoNode ? motivoNode.categoriaNombre : <span className="text-muted-foreground">Sale del catálogo al completar el wizard</span>)}
+                  </div>
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

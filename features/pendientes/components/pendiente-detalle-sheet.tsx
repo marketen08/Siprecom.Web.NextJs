@@ -678,6 +678,7 @@ function EditarPendiente({
     tipoId: string
     responsableId: string
     descripcion: string
+    descripcionManual?: boolean
     prioridad: number
     fechaCierreEstimado: string
     subSistemaId: string | null
@@ -701,6 +702,7 @@ function EditarPendiente({
       categoriaId: values.categoriaId,
       tipoId: values.tipoId,
       descripcion: values.descripcion,
+      descripcionManual: values.descripcionManual ?? false,
       prioridad: values.prioridad,
       fechaCierreEstimado: values.fechaCierreEstimado,
       subSistemaId: values.subSistemaId ?? null,
@@ -726,6 +728,7 @@ function EditarPendiente({
           tipoId: pendiente.tipoId,
           responsableId: pendiente.responsableId,
           descripcion: pendiente.descripcion,
+          descripcionManual: pendiente.descripcionManual ?? false,
           prioridad: pendiente.prioridad,
           fechaCierreEstimado: pendiente.fechaCierreEstimado.substring(0, 10),
           subSistemaId: pendiente.subSistemaId ?? undefined,

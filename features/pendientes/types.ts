@@ -105,6 +105,41 @@ export interface PendienteCatalogoResolverResult {
   categoriaNombre: string
 }
 
+// ── Árbol del catálogo — cascada estricta en el form ──────────────────
+
+export interface PendienteCatalogoArbolMotivo {
+  motivoId: string
+  motivoNombre: string
+  categoriaId: string
+  categoriaNombre: string
+  descripcion: string
+}
+
+export interface PendienteCatalogoArbolAccion {
+  accionId: string
+  accionNombre: string
+  motivos: PendienteCatalogoArbolMotivo[]
+}
+
+export interface PendienteCatalogoArbolTipo {
+  tipoId: string
+  tipoNombre: string
+  acciones: PendienteCatalogoArbolAccion[]
+}
+
+export interface PendienteCatalogoArbolEspecialidad {
+  especialidadId: string
+  especialidadNombre: string
+  tipos: PendienteCatalogoArbolTipo[]
+}
+
+export interface PendienteCatalogoArbolNivel {
+  nivelId: string
+  nivelNombre: string
+  nivelPosicion: number
+  especialidades: PendienteCatalogoArbolEspecialidad[]
+}
+
 // ── Import Excel del catálogo maestro (multi-hoja) ─────────────────────
 
 export interface PendienteCatalogoImportResumen {
@@ -155,6 +190,8 @@ export interface Pendiente {
   responsableId: string
   responsableNombre: string | null
   descripcion: string
+  /** True si el usuario editó la descripción manualmente (checkbox activo). */
+  descripcionManual?: boolean
   pid: string | null
   especialidadId: string | null
   especialidadNombre: string | null
@@ -236,6 +273,8 @@ export interface PendienteCreateInput {
   tipoId: string
   responsableId: string
   descripcion: string
+  /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
+  descripcionManual?: boolean
   prioridad: number
   fechaCierreEstimado: string // YYYY-MM-DD
   subSistemaId?: string | null
@@ -243,6 +282,11 @@ export interface PendienteCreateInput {
   especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
+
+  // Dimensiones del wizard — requeridas por el backend (cascada estricta contra el catálogo).
+  nivelId?: string | null
+  accionId?: string | null
+  motivoId?: string | null
 
   /**
    * Vínculo opcional a un punto de un PID: se setean cuando el pendiente se crea
@@ -258,6 +302,8 @@ export interface PendienteUpdateInput {
   categoriaId: string
   tipoId: string
   descripcion: string
+  /** Idem PendienteCreateInput.descripcionManual. */
+  descripcionManual?: boolean
   prioridad: number
   fechaCierreEstimado: string
   subSistemaId?: string | null
@@ -265,7 +311,7 @@ export interface PendienteUpdateInput {
   especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
-  // Dimensiones del wizard — opcionales para no romper flujos antiguos.
+  // Dimensiones del wizard — requeridas al editar pendientes nuevos.
   nivelId?: string | null
   accionId?: string | null
   motivoId?: string | null

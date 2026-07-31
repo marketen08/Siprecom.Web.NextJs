@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
+  PendienteCatalogoArbolNivel,
   PendienteCatalogoImportResult,
   PendienteCatalogoMaestro,
   PendienteCatalogoMaestroCreate,
@@ -16,6 +17,22 @@ export function useGetPendienteCatalogo() {
     queryKey: ["pendientes-catalogo"],
     queryFn: () =>
       apiClient.get<ApiResponse<PendienteCatalogoMaestro[]>>("/api/pendientes-catalogo"),
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+// ─── Query: Árbol para cascada estricta ───────────────────────────────
+// Alimenta los 5 selects del form del pendiente. Cacheado con staleTime largo;
+// se invalida cuando el catálogo se muta desde /configuracion/pendientes-catalogo
+// (misma key raíz `["pendientes-catalogo"]`).
+
+export function useGetPendienteCatalogoArbol() {
+  return useQuery({
+    queryKey: ["pendientes-catalogo", "arbol"],
+    queryFn: () =>
+      apiClient.get<ApiResponse<PendienteCatalogoArbolNivel[]>>(
+        "/api/pendientes-catalogo/arbol",
+      ),
     staleTime: 1000 * 60 * 5,
   })
 }

@@ -19,9 +19,12 @@ export function makePendienteCreateSchema(elementoRequerido: boolean) {
     accionId: z.string().min(1, "Acción requerida"),
     motivoId: z.string().min(1, "Motivo requerido"),
 
-    // Salen del wizard/catálogo pero quedan editables.
+    // Salen del catálogo (readonly). La descripción puede editarse manualmente
+    // si el proyecto tiene activo PENDIENTES_DESCRIPCION_MANUAL y el user tildó
+    // el checkbox "Modificar descripción manualmente".
     categoriaId: z.string().min(1, "Categoría requerida"),
     descripcion: z.string().min(1, "Descripción requerida").max(2000),
+    descripcionManual: z.boolean().optional(),
 
     responsableId: z.string().min(1, "Responsable requerido"),
     fechaCierreEstimado: z.string().min(1, "Fecha de cierre estimada requerida"),
