@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { ListChecks, ShieldAlert, Sparkles } from "lucide-react"
 
@@ -11,7 +11,17 @@ import { useMeetsRole } from "@/lib/use-roles"
 
 type Tab = "existentes" | "faltantes"
 
+// El default export envuelve en <Suspense> — obligatorio en Next 16 cuando el
+// componente usa useSearchParams (client-side bailout en el pre-render estático).
 export default function CoordinacionTareasPage() {
+  return (
+    <Suspense>
+      <CoordinacionTareasPageContent />
+    </Suspense>
+  )
+}
+
+function CoordinacionTareasPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()

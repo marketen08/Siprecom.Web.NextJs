@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { FileSpreadsheet, Loader2, Package } from "lucide-react"
 
@@ -79,7 +79,17 @@ interface NivelLike { id: string; nombre: string; posicion: number }
 interface TipoLike { id: string; nombre: string; especialidadId?: string }
 interface EspecialidadLike { id: string; codigo?: string | null; nombre: string }
 
+// El default export envuelve en <Suspense> — obligatorio en Next 16 cuando el
+// componente usa useSearchParams (client-side bailout en el pre-render estático).
 export default function TareasListadoPage() {
+  return (
+    <Suspense>
+      <TareasListadoPageContent />
+    </Suspense>
+  )
+}
+
+function TareasListadoPageContent() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
