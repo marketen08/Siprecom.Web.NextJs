@@ -2,11 +2,12 @@
 
 import { useState } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
-import { ListChecks, Sparkles } from "lucide-react"
+import { ListChecks, ShieldAlert, Sparkles } from "lucide-react"
 
 import { TareasExistentesTab } from "@/features/tareas/components/tareas-existentes-tab"
 import { TareasFaltantesTab } from "@/features/tareas/components/tareas-faltantes-tab"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
+import { useMeetsRole } from "@/lib/use-roles"
 
 type Tab = "existentes" | "faltantes"
 
@@ -14,6 +15,10 @@ export default function CoordinacionTareasPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+
+  // Guard de rol: Coordinador+ (User/Consultor/Auditor no entran). El link del
+  // menú ya se oculta con el mismo criterio, esto tapa el acceso por URL directa.
+  const puedeVer = useMeetsRole("Coordinador")
 
   // Estado del tab activo — sincronizado con ?tab= para permitir deep-link
   // (el redirect desde /alcance/tareas/generacion pega directo en ?tab=faltantes).
@@ -32,6 +37,19 @@ export default function CoordinacionTareasPage() {
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", nuevo)
     router.replace(`${pathname}?${params.toString()}`)
+  }
+
+  if (!puedeVer) {
+    return (
+      <div className="mx-auto max-w-md mt-16 rounded-lg border bg-white p-6 text-center space-y-3">
+        <ShieldAlert className="mx-auto h-8 w-8 text-amber-600" />
+        <h1 className="text-lg font-semibold">Sin permisos</h1>
+        <p className="text-sm text-muted-foreground">
+          La coordinación de tareas es exclusiva para Coordinador o superiores.
+          Contactá a un supervisor si necesitás acceso.
+        </p>
+      </div>
+    )
   }
 
   return (

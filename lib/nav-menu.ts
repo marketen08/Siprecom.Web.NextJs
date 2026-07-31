@@ -122,9 +122,10 @@ export const menu: MenuItem[] = [
   // Coordinación — acciones sobre las ETs existentes (eliminar, cancelar,
   // asignar responsable) + generación de faltantes. Reemplaza el link legacy
   // /alcance/tareas/generacion (que ahora es redirect).
+  // Acceso: Coordinador+ (User/Consultor/Auditor NO).
   {
     label: "Coordinación",
-    minRole: "Supervisor",
+    minRole: "Coordinador",
     children: [
       { label: "Tareas", href: "/coordinacion/tareas" },
     ],

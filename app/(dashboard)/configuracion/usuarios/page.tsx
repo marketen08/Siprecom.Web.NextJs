@@ -53,12 +53,13 @@ const ESTADO_LABELS: Record<EstadoFiltro, string> = {
 const ALL = "__all__"
 
 // Roles globales, alineados con lib/roles.ts:
-//   SuperAdmin > AdminGlobal > Admin > Supervisor > User > Auditor > Consultor.
+//   SuperAdmin > AdminGlobal > Admin > Supervisor > Coordinador > User > Auditor > Consultor.
 const ROLES: { value: string; label: string }[] = [
   { value: "SuperAdmin", label: "SuperAdmin" },
   { value: "AdminGlobal", label: "AdminGlobal" },
   { value: "Admin", label: "Admin" },
   { value: "Supervisor", label: "Supervisor" },
+  { value: "Coordinador", label: "Coordinador" },
   { value: "User", label: "User" },
   { value: "Auditor", label: "Auditor" },
   { value: "Consultor", label: "Consultor" },
