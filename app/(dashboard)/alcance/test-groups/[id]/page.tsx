@@ -24,7 +24,8 @@ import { useExcluirTareaPack } from "@/features/testgroups/api/use-excluir-tarea
 import { useReincorporarTareaPack } from "@/features/testgroups/api/use-reincorporar-tarea-pack"
 import { useGetTareasExcluidasPack } from "@/features/testgroups/api/use-get-tareas-excluidas-pack"
 import { useGetTestGroupRegistroEncabezado } from "@/features/testgroups/api/use-get-registro-encabezado"
-import { ESTADO_TEST_GROUP } from "@/features/testgroups/types"
+import { ESTADO_TEST_GROUP, type TestGroup } from "@/features/testgroups/types"
+import { TIPO_CERTIFICADO_LABEL, TIPO_CERTIFICADO_NOMBRE } from "@/features/certificados/types"
 import { useCanWrite } from "@/lib/use-roles"
 import { TareaCard } from "@/features/elementos-tareas/components/tarea-card"
 import { useTareaHandlers } from "@/features/elementos-tareas/hooks/use-tarea-handlers"
@@ -223,22 +224,47 @@ function EstadoBadge({ estado, texto }: { estado: number; texto: string }) {
 function TabInfo({
   tg, testGroupId,
 }: {
-  tg: any
+  tg: TestGroup
   testGroupId: string
 }) {
   const { data: encabezadoRaw } = useGetTestGroupRegistroEncabezado(testGroupId)
   const encabezado = encabezadoRaw?.data
+
+  const certificado = tg.certificadoQueAlimenta
+    ? `${TIPO_CERTIFICADO_LABEL[tg.certificadoQueAlimenta] ?? "—"} — ${TIPO_CERTIFICADO_NOMBRE[tg.certificadoQueAlimenta] ?? ""}`
+    : "—"
+  const fmt = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "—"
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Card className="p-4 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">General</p>
-        <InfoRow label="Código" value={<span className="font-mono">{tg.codigo}</span>} />
-        <InfoRow label="Nombre" value={tg.nombre || "—"} />
-        <InfoRow label="Tipo" value={tg.tipoTexto} />
-        <InfoRow label="Estado" value={<EstadoBadge estado={tg.estado} texto={tg.estadoTexto} />} />
-        <InfoRow label="Subsistema" value={tg.subSistemaCodigo ? `${tg.subSistemaCodigo} — ${tg.subSistemaNombre}` : "—"} />
-        <InfoRow label="Descripción" value={tg.descripcion || "—"} />
+      {/* Identificación — qué es este pack: código, nombre, estado, descripción. */}
+      <Card className="p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identificación</p>
+        <div className="space-y-2">
+          <InfoRow label="Código" value={<span className="font-mono">{tg.codigo}</span>} />
+          <InfoRow label="Nombre" value={tg.nombre || "—"} />
+          <InfoRow label="Estado" value={<EstadoBadge estado={tg.estado} texto={tg.estadoTexto} />} />
+          <InfoRow label="Descripción" value={tg.descripcion || "—"} />
+        </div>
       </Card>
+
+      {/* Ubicación — dónde encaja en el proyecto + tipología / certificado que alimenta. */}
+      <Card className="p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ubicación</p>
+        <div className="space-y-2">
+          <InfoRow label="Sistema" value={tg.sistemaCodigo ? `${tg.sistemaCodigo} — ${tg.sistemaNombre ?? ""}` : "—"} />
+          <InfoRow label="Subsistema" value={tg.subSistemaCodigo ? `${tg.subSistemaCodigo} — ${tg.subSistemaNombre ?? ""}` : "—"} />
+          <InfoRow label="Tipo (sintético)" value={tg.elementoTipoSinteticoNombre || "—"} />
+          <InfoRow label="Alimenta certificado" value={certificado} />
+        </div>
+      </Card>
+
+      {/* Metadatos administrativos — full-width al pie, gris chico. */}
+      <div className="md:col-span-2 flex flex-col sm:flex-row sm:justify-between gap-1 text-[11px] text-muted-foreground px-1">
+        <span>Creado {fmt(tg.createdAt)}{tg.createdByNombre ? ` · ${tg.createdByNombre}` : ""}</span>
+        <span>Actualizado {fmt(tg.updatedAt)}{tg.updatedByNombre ? ` · ${tg.updatedByNombre}` : ""}</span>
+      </div>
 
       {encabezado && (
         <Card className="p-4 space-y-3 md:col-span-2">
@@ -731,34 +757,44 @@ function TareaRow({
             />
           )}
 
-          {/* Menú compacto con las acciones secundarias — dependen del modo:
-              Ejecución muestra operacionales (reiniciar / cargar físico);
-              Alcance muestra config (excluir). Descargas están en ambos. */}
-          {(() => {
-            // Cargar registro firmado: sólo Ejecución.
+          {/* Acciones secundarias.
+              - Alcance: config del pack. Sólo "Excluir del pack" — cancelar/reactivar
+                y demás operaciones sobre la ET viven en /coordinacion/tareas.
+                Como es 1 sola acción, va como botón directo (sin dropdown).
+              - Ejecución: menú operativo (descargas + reiniciar + cargar físico). */}
+          {esAlcance && !bloqueado && !tieneRegistro && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 text-xs text-red-700 hover:text-red-800 hover:bg-red-50 border-red-200"
+              onClick={() => setExcluirOpen(true)}
+              title="Excluir esta tarea del pack"
+            >
+              <XCircle className="h-3 w-3" />
+              Excluir del pack
+            </Button>
+          )}
+
+          {esEjecucion && (() => {
             const puedeCargarFisico =
-              esEjecucion && !bloqueado && permitirFisico && tienePlanilla &&
+              !bloqueado && permitirFisico && tienePlanilla &&
               (tarea.estado === ESTADO_TAREA.PENDIENTE
                 || tarea.estado === ESTADO_TAREA.EN_PROCESO
                 || tarea.estado === ESTADO_TAREA.RECHAZADO)
             const puedeDescargarProcedimiento =
               permitirDescargarProcedimientos && tarea.tareaProcedimientoTieneArchivo
             // Reiniciar: mismo criterio que ElementoTareaService.ReiniciarTareaAsync —
-            // solo tareas con avance. Sólo Ejecución.
+            // solo tareas con avance.
             const puedeReiniciar =
-              esEjecucion && !bloqueado && (
+              !bloqueado && (
                 tarea.estado === ESTADO_TAREA.EN_PROCESO
                 || tarea.estado === ESTADO_TAREA.COMPLETADO
                 || tarea.estado === ESTADO_TAREA.RECHAZADO
                 || tarea.estado === ESTADO_TAREA.APROBADO
                 || tarea.estado === ESTADO_TAREA.FIRMADO
               )
-            // Excluir del pack: sólo Alcance. El backend rechaza si hay Registro
-            // asociado — el UI lo replica para no ofrecer una acción que va a fallar.
-            const puedeExcluir =
-              esAlcance && !bloqueado && !tieneRegistro
             const hayAlgo = tienePlanilla || tieneRegistro || puedeCargarFisico
-              || puedeDescargarProcedimiento || puedeReiniciar || puedeExcluir
+              || puedeDescargarProcedimiento || puedeReiniciar
 
             if (!hayAlgo) return null
 
@@ -813,15 +849,6 @@ function TareaRow({
                     >
                       <RotateCcw className="h-4 w-4" />
                       Reiniciar tarea
-                    </DropdownMenuItem>
-                  )}
-                  {puedeExcluir && (
-                    <DropdownMenuItem
-                      onClick={() => setExcluirOpen(true)}
-                      className="text-red-700 focus:text-red-700"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      Excluir del pack
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>

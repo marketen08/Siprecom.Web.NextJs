@@ -15,6 +15,10 @@ export interface TestGroup {
   subSistemaId: string
   subSistemaCodigo: string | null
   subSistemaNombre: string | null
+  // Sistema padre — solo poblado en el detalle (ReloadDtoAsync); listados quedan null.
+  sistemaId?: string | null
+  sistemaCodigo?: string | null
+  sistemaNombre?: string | null
   // Rediseño 2026-07: la "tipología" ahora viene del ElementoTipo del sintético.
   elementoSinteticoId: string
   elementoTipoSinteticoId: string
