@@ -107,6 +107,32 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                   <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
                     {p.descripcion}
                   </SheetDescription>
+                  {/* Contexto del catálogo — misma info que "Datos principales" pero
+                      visible sin scrollear. Tira compacta con separadores. */}
+                  {(p.nivelNombre || p.especialidadNombre || p.tipoNombre
+                    || p.accionNombre || p.motivoNombre || p.categoriaNombre) && (
+                    <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1">
+                      {[
+                        p.nivelNombre,
+                        p.especialidadNombre,
+                        p.tipoNombre,
+                        p.accionNombre,
+                        p.motivoNombre,
+                      ]
+                        .filter(Boolean)
+                        .map((label, i, arr) => (
+                          <span key={`${label}-${i}`} className="inline-flex items-center gap-1.5">
+                            <span>{label}</span>
+                            {i < arr.length - 1 && <span className="text-gray-300">·</span>}
+                          </span>
+                        ))}
+                      {p.categoriaNombre && (
+                        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">
+                          {p.categoriaNombre}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {/* Barra de acciones compacta — solo íconos en mobile con
                       tooltip por `title`, ícono + label corto en sm+. Botones
                       chicos (h-8) para no ocupar mucho vertical en el header

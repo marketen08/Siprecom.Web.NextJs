@@ -6,8 +6,13 @@ import { z } from "zod"
  * proyecto activo — se resuelve en runtime.
  *
  * Sistema y Subsistema son siempre requeridos (decisión 2026-07 para
- * trazabilidad + certificados). El Sistema no vive en el form (solo filtra
- * el select de subsistemas), así que solo validamos subSistemaId.
+ * trazabilidad + certificados). Sistema vive en el form solo para poder
+ * mostrar el error en el campo correcto — al backend solo se envía subSistemaId.
+ *
+ * IMPORTANTE: los campos "requeridos" son `z.string().min(1, ...)` sin nullable.
+ * El form tiene que asegurar que los inputs pasen "" (string vacío) en vez de
+ * `null` cuando no hay selección — sino Zod tira el mensaje crudo
+ * "expected string, received null" en vez del custom.
  */
 export function makePendienteCreateSchema(elementoRequerido: boolean) {
   return z.object({
@@ -32,10 +37,16 @@ export function makePendienteCreateSchema(elementoRequerido: boolean) {
     // Avanzado (colapsable).
     prioridad: z.number().int().min(1).max(4),
 
-    // Localización — Subsistema siempre requerido; Elemento según flag del proyecto.
+    // Localización — Sistema y Subsistema requeridos; Elemento según flag del proyecto.
+    // Sistema se envía en el form solo para validar el UI; el backend solo consume subSistemaId.
+    sistemaId: z.string().min(1, "Sistema requerido"),
     subSistemaId: z.string().min(1, "Subsistema requerido"),
+    // Cuando es requerido usamos nullable + refine para poder emitir el custom
+    // message tanto para null como para "" (los Combobox pueden emitir cualquiera
+    // de los dos según el flow — dejar sin nullable rechaza null con el mensaje
+    // crudo "expected string, received null").
     elementoId: elementoRequerido
-      ? z.string().min(1, "Elemento requerido")
+      ? z.string().nullable().refine((v) => !!v && v.length > 0, "Elemento requerido")
       : z.string().optional().nullable(),
     pid: z.string().max(500).optional().nullable(),
   })

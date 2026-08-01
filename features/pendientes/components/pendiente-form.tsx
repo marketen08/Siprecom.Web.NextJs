@@ -18,7 +18,6 @@ import { PRIORIDAD } from "../types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
@@ -50,8 +49,6 @@ interface PendienteFormProps {
    */
   readonlyResponsable?: boolean
 }
-
-const NONE = "__none__"
 
 export function PendienteForm({
   defaultValues,
@@ -102,6 +99,11 @@ export function PendienteForm({
       responsableId: defaultValues?.responsableId ?? "",
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
+      // Sistema se infiere del subsistema del defaultValues (edición) o queda vacío
+      // al crear. La sincronización sistema→subsistema la maneja el useEffect abajo.
+      sistemaId: defaultValues?.sistemaId
+        ?? subSistemas.find((ss) => ss.id === defaultValues?.subSistemaId)?.sistemaId
+        ?? "",
       subSistemaId: defaultValues?.subSistemaId ?? "",
       elementoId: defaultValues?.elementoId ?? (elementoRequerido ? "" : null),
       pid: defaultValues?.pid ?? null,
@@ -220,15 +222,17 @@ export function PendienteForm({
     if (!elementoIdActual) return
     if (elementos.length === 0) return
     if (!elementos.some((e) => e.id === elementoIdActual)) {
-      form.setValue("elementoId", null, { shouldDirty: true })
+      form.setValue("elementoId", null, { shouldDirty: true, shouldValidate: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [especialidadId, subSistemaIdActual, elementos])
 
   // Al elegir un elemento con especialidad definida a nivel de ElementoTipo,
   // auto-populamos el campo especialidad si el user no lo tiene cargado.
+  // shouldValidate: true es crítico — sin él, el error "Elemento requerido"
+  // queda pegado aunque el user ya haya elegido uno.
   const onElementoChange = (nuevoElementoId: string | null) => {
-    form.setValue("elementoId", nuevoElementoId, { shouldDirty: true })
+    form.setValue("elementoId", nuevoElementoId, { shouldDirty: true, shouldValidate: true })
     if (!nuevoElementoId) return
     const el = elementos.find((e) => e.id === nuevoElementoId)
     const espDelElemento = el?.elementoTipoEspecialidadId
@@ -237,11 +241,26 @@ export function PendienteForm({
     }
   }
 
-  const [sistemaId, setSistemaId] = useStateLike(defaultValues?.subSistemaId, subSistemas)
+  // Sistema y Subsistema viven en el form (para tener validación uniforme).
+  // El sistema solo filtra el select de subsistemas — el backend consume subSistemaId.
+  const sistemaId = form.watch("sistemaId")
   const subSistemasFiltrados = useMemo(
     () => (sistemaId ? subSistemas.filter((ss) => ss.sistemaId === sistemaId) : subSistemas),
-    [sistemas, subSistemas, sistemaId],
+    [subSistemas, sistemaId],
   )
+  // Cuando cargan los subsistemas después del defaultValue (edición), inferimos
+  // el sistema desde el subsistema si no está seteado — necesario porque el
+  // defaultValue del form se resuelve una vez y las queries pueden llegar después.
+  useEffect(() => {
+    if (sistemaId) return
+    const currentSubId = form.getValues("subSistemaId")
+    if (!currentSubId) return
+    const ss = subSistemas.find((s) => s.id === currentSubId)
+    if (ss?.sistemaId) {
+      form.setValue("sistemaId", ss.sistemaId, { shouldValidate: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subSistemas.length])
   const elementoOptions = useMemo(
     () => [
       { value: "", label: "Sin elemento asignado" },
@@ -516,31 +535,42 @@ export function PendienteForm({
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
-            <FormItem>
-              <Label>Sistema *</Label>
-              <Select
-                value={sistemaId || NONE}
-                onValueChange={(v) => {
-                  const value = v ?? NONE
-                  setSistemaId(value === NONE ? "" : value)
-                  // Al cambiar el sistema limpiamos el subsistema — así se fuerza
-                  // que el user vuelva a elegir uno dentro del nuevo sistema.
-                  form.setValue("subSistemaId", "", { shouldDirty: true, shouldValidate: true })
-                }}
-                disabled={isPending}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Elegí sistema">
-                    {sistemaId ? sistemas.find((s) => s.id === sistemaId)?.nombre ?? "Sistema" : "Elegí sistema"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {sistemas.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormItem>
+            <FormField
+              control={form.control}
+              name="sistemaId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sistema *</FormLabel>
+                  <Select
+                    value={field.value || ""}
+                    onValueChange={(v) => {
+                      if (!v) return
+                      field.onChange(v)
+                      // Al cambiar el sistema limpiamos el subsistema — así se
+                      // fuerza al user a elegir uno dentro del nuevo sistema.
+                      form.setValue("subSistemaId", "", { shouldDirty: true, shouldValidate: true })
+                    }}
+                    disabled={isPending}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Elegí sistema">
+                          {field.value
+                            ? sistemas.find((s) => s.id === field.value)?.nombre ?? "Sistema"
+                            : "Elegí sistema"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {sistemas.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
@@ -688,23 +718,4 @@ export function PendienteForm({
       </form>
     </Form>
   )
-}
-
-// Helper para state local del select de sistema (no afecta el formulario).
-function useStateLike(
-  initialSubSistemaId: string | null | undefined,
-  subsistemas: Array<{ id: string; sistemaId: string }>,
-) {
-  const inferido = initialSubSistemaId
-    ? subsistemas.find((ss) => ss.id === initialSubSistemaId)?.sistemaId ?? ""
-    : ""
-  const [val, setVal] = useState<string>(inferido)
-  useEffect(() => {
-    if (!val && initialSubSistemaId) {
-      const ss = subsistemas.find((s) => s.id === initialSubSistemaId)
-      if (ss?.sistemaId) setVal(ss.sistemaId)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsistemas.length, initialSubSistemaId])
-  return [val, setVal] as const
 }

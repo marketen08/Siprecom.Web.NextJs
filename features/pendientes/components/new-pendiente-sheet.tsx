@@ -27,11 +27,13 @@ export function NewPendienteSheet({ hideOverlay, wide }: NewPendienteSheetProps 
   const desdePid = !!prefill?.pidArchivoId
 
   const onSubmit = (values: PendienteFormValues) => {
+    // sistemaId vive en el form sólo para validación; el backend no lo espera.
     // Los 4 campos PID no viven en el form: cuando vienen del visor los pegamos
     // al payload en el submit (el backend valida que van los 4 juntos).
+    const { sistemaId: _sistemaId, ...payload } = values
     mutation.mutate(
       {
-        ...values,
+        ...payload,
         pidArchivoId: prefill?.pidArchivoId ?? null,
         pidPagina: prefill?.pidPagina ?? null,
         pidCoordX: prefill?.pidCoordX ?? null,
