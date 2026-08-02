@@ -65,6 +65,11 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
   }, [isOpen, id])
 
   const puedeEditar = canWrite && p?.estadoId === PENDIENTE_ESTADO_IDS.ABIERTO
+  // El Workflow (sección "Acciones") solo tiene sentido en estados no terminales.
+  // En CERRADO/CANCELADO se oculta — ver early-return en el propio Workflow.
+  const puedeVerWorkflow = canWrite
+    && p?.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
+    && p?.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO
 
   // Interceptamos el intento de cerrar (X, click fuera, Escape) para que en
   // modo edición sólo salgamos del modo edit y el detalle quede visible.
@@ -228,8 +233,9 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                     </div>
 
                     {/* Grupo derecho — acciones del workflow (mobile only). En
-                        sm+ vive en el content bajo el título "Acciones". */}
-                    {canWrite && (
+                        sm+ vive en el content bajo el título "Acciones". Se oculta
+                        en estados terminales (CERRADO/CANCELADO) — no hay transiciones. */}
+                    {puedeVerWorkflow && (
                       <div className="sm:hidden flex flex-wrap items-center gap-1">
                         <Workflow pendienteId={p.id} estadoId={p.estadoId} compact />
                       </div>
@@ -257,13 +263,13 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
             {/* Workflow / acciones de transición arriba del detalle. En mobile
                 ya se rendera en el header sticky (ver arriba); acá aparece solo
                 en sm+ donde el header no tiene lugar para meterlo. */}
-            {canWrite && (
+            {puedeVerWorkflow && (
               <div className="hidden sm:block">
                 <Workflow pendienteId={p.id} estadoId={p.estadoId} />
               </div>
             )}
 
-            {canWrite && <Separator className="hidden sm:block" />}
+            {puedeVerWorkflow && <Separator className="hidden sm:block" />}
 
             {/* Datos principales — 1 columna en mobile (más legible con valores
                 largos como TAG-1234 — Nombre), 2 columnas en sm+. `sm:col-span-2`
@@ -378,6 +384,14 @@ function Workflow({
   }
 
   const busy = transicion.isPending
+
+  // Estados terminales — no hay ninguna transición posible. Salimos temprano
+  // para no renderizar la sección "Acciones" vacía (ni el fragment vacío en
+  // el header compact que igual toma espacio del gap).
+  if (estadoId === PENDIENTE_ESTADO_IDS.CERRADO
+      || estadoId === PENDIENTE_ESTADO_IDS.CANCELADO) {
+    return null
+  }
 
   // Botones más compactos cuando embebido en header sticky (mobile).
   const btnBase = compact ? "gap-1 h-8 px-2 sm:px-2.5 text-xs" : "gap-1.5 h-9 sm:h-8"
