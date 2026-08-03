@@ -16,7 +16,7 @@ import { useBulkAssignProyectosUsuario, useBulkUnassignProyectosUsuario } from "
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
-import { useRoles } from "@/lib/use-roles"
+import { useRoles, useMeetsRole } from "@/lib/use-roles"
 import { puedeAsignarRol, puedeEditarRolesDe } from "@/lib/roles"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
@@ -152,6 +152,10 @@ function TabDatos({ usuario }: { usuario: any }) {
   const [linkCopied, setLinkCopied] = useState(false)
 
   const esMicrosoft = (usuario.loginMethod ?? 0) === 1
+  // El reset directo de contraseña (admin escribe una nueva) queda restringido a
+  // SuperAdmin — para el resto la forma canónica es "Generar link" (más seguro,
+  // el admin nunca conoce la contraseña del user).
+  const esSuperAdmin = useMeetsRole("SuperAdmin")
   const linkUrl = passwordLink.data?.url ?? null
 
   async function handleCopyLink() {
@@ -266,7 +270,12 @@ function TabDatos({ usuario }: { usuario: any }) {
 
       {/* ── Columna derecha: Acceso ────────────────────────────────────────── */}
 
-      {/* Restablecer contraseña + link para definir (misma card, mismo tema) */}
+      {/* Restablecer contraseña + link para definir (misma card, mismo tema).
+          Se oculta cuando el usuario ingresa por SSO Microsoft — no tiene
+          contraseña local y las 2 acciones (reset directo + link) no aplican.
+          Si el admin necesita habilitarla, primero tiene que cambiar el método
+          de ingreso a mail+contraseña desde la card "Método de ingreso" arriba. */}
+      {!esMicrosoft && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -283,78 +292,83 @@ function TabDatos({ usuario }: { usuario: any }) {
             </p>
           </div>
 
-          {passwordSaved && (
-            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-              <CheckCircle2 className="h-4 w-4" /> Contraseña restablecida
-            </div>
-          )}
+          {/* Reset directo — solo SuperAdmin. El resto usa "Generar link" abajo. */}
+          {esSuperAdmin && (
+            <>
+              {passwordSaved && (
+                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                  <CheckCircle2 className="h-4 w-4" /> Contraseña restablecida
+                </div>
+              )}
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
-            {/* Honeypot: Chrome/Firefox hacen un "reverse scan" desde cada <input
-                type="password"> para adivinar el campo de usuario y autofillearlo.
-                Al no encontrar un input marcado como username, elegían el Combobox
-                de Empresa (que tiene un input de texto interno). Estos dos inputs
-                ocultos son el señuelo: los toman como par username/password del
-                autofill y dejan tranquilos a los reales. `tabIndex={-1}` +
-                `aria-hidden` los sacan del foco y de screen readers. */}
-            <input
-              type="text"
-              name="username"
-              autoComplete="username"
-              value=""
-              readOnly
-              tabIndex={-1}
-              aria-hidden="true"
-              style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
-            />
-            <input
-              type="password"
-              name="password"
-              autoComplete="new-password"
-              value=""
-              readOnly
-              tabIndex={-1}
-              aria-hidden="true"
-              style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
-            />
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
-                className="pr-10"
-                disabled={resetPassword.isPending}
-                autoComplete="new-password"
-                name={`nueva-password-${usuario.id}`}
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-                onClick={() => setShowPassword(v => !v)}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
+                {/* Honeypot: Chrome/Firefox hacen un "reverse scan" desde cada <input
+                    type="password"> para adivinar el campo de usuario y autofillearlo.
+                    Al no encontrar un input marcado como username, elegían el Combobox
+                    de Empresa (que tiene un input de texto interno). Estos dos inputs
+                    ocultos son el señuelo: los toman como par username/password del
+                    autofill y dejan tranquilos a los reales. `tabIndex={-1}` +
+                    `aria-hidden` los sacan del foco y de screen readers. */}
+                <input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  value=""
+                  readOnly
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
+                />
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="new-password"
+                  value=""
+                  readOnly
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
+                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    className="pr-10"
+                    disabled={resetPassword.isPending}
+                    autoComplete="new-password"
+                    name={`nueva-password-${usuario.id}`}
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                    onClick={() => setShowPassword(v => !v)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleResetPassword}
+                disabled={resetPassword.isPending || newPassword.length < 6}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
+                {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={handleResetPassword}
-            disabled={resetPassword.isPending || newPassword.length < 6}
-          >
-            {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-            {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
-          </Button>
+              {resetPassword.isError && (
+                <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
+              )}
 
-          {resetPassword.isError && (
-            <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
+              <Separator />
+            </>
           )}
-
-          <Separator />
 
           {/* Link para definir contraseña (compartir manual, útil si el email no llega) */}
           <div className="space-y-3">
@@ -367,51 +381,44 @@ function TabDatos({ usuario }: { usuario: any }) {
               contraseña. Sirve cuando el email de invitación no llega.
             </p>
 
-            {esMicrosoft ? (
-              <p className="text-xs text-amber-600">
-                El usuario ingresa con Microsoft. Cambialo a mail + contraseña para poder generar el link.
-              </p>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => passwordLink.mutate()}
-                  disabled={passwordLink.isPending}
-                >
-                  {passwordLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
-                  {passwordLink.isPending ? "Generando..." : "Generar link"}
-                </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => passwordLink.mutate()}
+              disabled={passwordLink.isPending}
+            >
+              {passwordLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+              {passwordLink.isPending ? "Generando..." : "Generar link"}
+            </Button>
 
-                {linkUrl && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        readOnly
-                        value={linkUrl}
-                        className="text-xs font-mono"
-                        onFocus={(e) => e.currentTarget.select()}
-                      />
-                      <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={handleCopyLink}>
-                        {linkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                        {linkCopied ? "Copiado" : "Copiar"}
-                      </Button>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      El link vence en ~1 día. Si expira, generá uno nuevo.
-                    </p>
-                  </div>
-                )}
+            {linkUrl && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={linkUrl}
+                    className="text-xs font-mono"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={handleCopyLink}>
+                    {linkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    {linkCopied ? "Copiado" : "Copiar"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  El link vence en ~1 día. Si expira, generá uno nuevo.
+                </p>
+              </div>
+            )}
 
-                {passwordLink.isError && (
-                  <p className="text-sm text-red-600">{(passwordLink.error as Error)?.message ?? "No se pudo generar el link"}</p>
-                )}
-              </>
+            {passwordLink.isError && (
+              <p className="text-sm text-red-600">{(passwordLink.error as Error)?.message ?? "No se pudo generar el link"}</p>
             )}
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Reenviar email de alta (invitación / bienvenida Microsoft) */}
       <Card>
