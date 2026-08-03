@@ -29,7 +29,19 @@ export type MenuItem = {
    * proyecto activo. Lo evalúa el Sidebar. Ej: "MAQUETA_3D".
    */
   requiereFuncionalidad?: string
+  /**
+   * Badge dinámico a mostrar al lado del label. El Sidebar mapea cada key a un
+   * componente que hace su propio fetch. Sirve para contadores de "hay pendiente"
+   * sin acoplar el menu a los hooks de datos.
+   * Keys soportadas: `"tareas-pendientes-mias"`.
+   */
+  badge?: SidebarBadgeKey
 }
+
+/** Keys de badges dinámicos soportadas por el Sidebar. Ampliar según se agreguen. */
+export type SidebarBadgeKey =
+  | "tareas-pendientes-mias"
+  | "pendientes-abiertos-mios"
 
 export const menu: MenuItem[] = [
   // Dashboard como top-level (sin grupo). Antes era único hijo de "Gestión
@@ -54,9 +66,9 @@ export const menu: MenuItem[] = [
     minRole: "Consultor",
     children: [
       // Tareas primero — vista operativa por tarea (movida desde "Avances").
-      { label: "Tareas",                  href: "/ejecucion/tareas" },
+      { label: "Tareas",                  href: "/ejecucion/tareas", badge: "tareas-pendientes-mias" },
       // Módulos operativos — Pendientes es lo más usado día a día.
-      { label: "Pendientes",              href: "/ejecucion/pendientes" },
+      { label: "Pendientes",              href: "/ejecucion/pendientes", badge: "pendientes-abiertos-mios" },
       { label: "Visor de PIDs",           href: "/ejecucion/pids" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
       { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true, minRole: "User" },

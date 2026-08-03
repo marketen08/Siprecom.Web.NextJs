@@ -1,6 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
+
+/**
+ * Invalida las 2 caches que dependen del listado de ElementoTareas:
+ * - `["elementostareas"]` — search + counts de /coordinacion/tareas.
+ * - `["tareas-listado"]` — pantalla /ejecucion/tareas + badge sidebar
+ *   (cantidad de tareas asignadas al user) + su endpoint counts.
+ * Se llama después de asignar/cancelar/reactivar/fecha/eliminar (single o bulk).
+ */
+function invalidarListaTareas(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ["elementostareas"] })
+  qc.invalidateQueries({ queryKey: ["tareas-listado"] })
+}
 
 // ─── Tipos ────────────────────────────────────────────────────────────
 
@@ -167,7 +179,7 @@ export function useDeleteElementoTarea() {
     mutationFn: (id: string) =>
       apiClient.delete<ApiResponse<boolean>>(`/api/elementostareas/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["elementostareas"] })
+      invalidarListaTareas(qc)
     },
   })
 }
@@ -181,7 +193,7 @@ export function useCancelarElementoTarea() {
         { motivo },
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["elementostareas"] })
+      invalidarListaTareas(qc)
     },
   })
 }
@@ -228,7 +240,7 @@ export function useBulkAsignar() {
         )
         .then((r) => r.data)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+    onSuccess: () => { invalidarListaTareas(qc) },
   })
 }
 
@@ -244,7 +256,7 @@ export function useBulkCancelar() {
         )
         .then((r) => r.data)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+    onSuccess: () => { invalidarListaTareas(qc) },
   })
 }
 
@@ -258,7 +270,7 @@ export function useBulkReactivar() {
           toBulkBody(input, {}),
         )
         .then((r) => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+    onSuccess: () => { invalidarListaTareas(qc) },
   })
 }
 
@@ -274,7 +286,7 @@ export function useBulkActualizarFechaPlanificada() {
         )
         .then((r) => r.data)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["elementostareas"] }) },
+    onSuccess: () => { invalidarListaTareas(qc) },
   })
 }
 
@@ -287,7 +299,7 @@ export function useReactivarElementoTarea() {
         {},
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["elementostareas"] })
+      invalidarListaTareas(qc)
     },
   })
 }
@@ -305,7 +317,7 @@ export function useActualizarFechaPlanificadaET() {
         fechaPlanificada: fecha,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["elementostareas"] })
+      invalidarListaTareas(qc)
     },
   })
 }
@@ -321,7 +333,7 @@ export function useAsignarResponsableET() {
         asignadoA: asignadoA ?? "",
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["elementostareas"] })
+      invalidarListaTareas(qc)
     },
   })
 }

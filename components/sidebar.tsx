@@ -11,8 +11,18 @@ import { useMounted } from "@/lib/use-mounted"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { meetsRole, type AppRole } from "@/lib/roles"
 import { menu, type MenuItem } from "@/lib/nav-menu"
+import { SidebarBadge } from "@/components/sidebar-badge"
 
-function NavLink({ href, label, depth, onNavigate }: { href: string; label: string; depth: number; onNavigate: () => void }) {
+function NavLink({
+  href, label, depth, onNavigate, badge,
+}: {
+  href: string
+  label: string
+  depth: number
+  onNavigate: () => void
+  /** Nodo opcional que se renderiza al final del link (contadores, dots, etc.). */
+  badge?: React.ReactNode
+}) {
   const pathname = usePathname()
   const isActive = pathname === href
 
@@ -22,13 +32,14 @@ function NavLink({ href, label, depth, onNavigate }: { href: string; label: stri
       onClick={onNavigate}
       style={{ paddingLeft: 16 + depth * 12 }}
       className={cn(
-        "block py-1.5 pr-4 text-sm rounded-md transition-colors duration-150 cursor-pointer",
+        "flex items-center justify-between gap-2 py-1.5 pr-4 text-sm rounded-md transition-colors duration-150 cursor-pointer",
         isActive
           ? "bg-white/20 text-white font-medium"
           : "text-blue-100 hover:bg-white/10 hover:text-white"
       )}
     >
-      {label}
+      <span className="truncate">{label}</span>
+      {badge}
     </Link>
   )
 }
@@ -73,7 +84,15 @@ function SidebarItem({
   }
 
   if (item.href && !item.children) {
-    return <NavLink href={item.href} label={item.label} depth={depth} onNavigate={onNavigate} />
+    return (
+      <NavLink
+        href={item.href}
+        label={item.label}
+        depth={depth}
+        onNavigate={onNavigate}
+        badge={item.badge ? <SidebarBadge kind={item.badge} /> : undefined}
+      />
+    )
   }
 
   return (

@@ -162,8 +162,11 @@ export function TareaAccionesMenu({
     try {
       await handleReiniciar(tarea)
       setReiniciarOpen(false)
-    } catch {
-      // Mantener abierto si falla
+    } catch (err) {
+      // Mostrar el motivo del rechazo (ej. "Sólo se pueden reiniciar tareas en
+      // estado EN_PROCESO, COMPLETADO o RECHAZADO") en el toast — sin esto el
+      // usuario ve el spinner desaparecer y cree que "el botón no hace nada".
+      setNotif({ type: "err", msg: (err as Error)?.message ?? "No se pudo reiniciar la tarea." })
     }
   }
 
@@ -341,13 +344,29 @@ interface TareaAccionesMenuByIdProps extends Omit<TareaAccionesMenuProps, "tarea
  * usuario abre el menú (para no bombardear la API con 50 requests en el mount
  * del listado). Mientras carga, muestra el botón con spinner y, en cuanto llega
  * la data, monta el menú abierto para que la UX se sienta como un solo click.
+ *
+ * Una vez que el componente montó por primera vez, se queda montado — así los
+ * `AlertDialog` internos (confirmar reiniciar, marcar sin registro, error gate)
+ * y el `DependenciasSheet` sobreviven al cierre del DropdownMenu. Si el
+ * componente se desmontara al cerrar el menú, los dialogs (que se abren DESDE
+ * ítems del menú) morirían junto con él y nunca se verían.
  */
 export function TareaAccionesMenuById({ elementoTareaId, ...rest }: TareaAccionesMenuByIdProps) {
   const [open, setOpen] = useState(false)
-  const { data: tarea, isLoading } = useGetElementoTarea(elementoTareaId, { enabled: open })
+  const [everOpened, setEverOpened] = useState(false)
+  const { data: tarea, isLoading } = useGetElementoTarea(elementoTareaId, { enabled: everOpened })
 
-  if (open && tarea) {
-    return <TareaAccionesMenu tarea={tarea} {...rest} open onOpenChange={setOpen} />
+  // Una vez montado el menú full-featured, no volvemos a la vista "solo botón"
+  // — sino los dialogs internos se pierden al cerrarse el DropdownMenu.
+  if (everOpened && tarea) {
+    return (
+      <TareaAccionesMenu
+        tarea={tarea}
+        {...rest}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    )
   }
 
   return (
@@ -355,11 +374,14 @@ export function TareaAccionesMenuById({ elementoTareaId, ...rest }: TareaAccione
       size="sm"
       variant="outline"
       className="h-7 w-7 p-0"
-      aria-label={open ? "Cargando acciones" : "Acciones"}
-      onClick={() => setOpen(true)}
-      disabled={open && isLoading}
+      aria-label={everOpened ? "Cargando acciones" : "Acciones"}
+      onClick={() => {
+        setEverOpened(true)
+        setOpen(true)
+      }}
+      disabled={everOpened && isLoading}
     >
-      {open && isLoading ? (
+      {everOpened && isLoading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
         <MoreVertical className="h-4 w-4" />
