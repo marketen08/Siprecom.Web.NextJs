@@ -186,10 +186,17 @@ function TabDatos({ usuario }: { usuario: any }) {
 
   async function handleResetPassword() {
     if (!newPassword) return
-    await resetPassword.mutateAsync(newPassword)
-    setNewPassword("")
-    setPasswordSaved(true)
-    setTimeout(() => setPasswordSaved(false), 2500)
+    // Catcheamos el reject para no ensuciar la consola con
+    // `unhandledRejection`. El mensaje ya se muestra en el UI via
+    // `resetPassword.error.message` (el hook lo captura internamente).
+    try {
+      await resetPassword.mutateAsync(newPassword)
+      setNewPassword("")
+      setPasswordSaved(true)
+      setTimeout(() => setPasswordSaved(false), 2500)
+    } catch {
+      // No-op: TanStack Query ya guardó el error para renderizarlo.
+    }
   }
 
   return (
@@ -335,7 +342,7 @@ function TabDatos({ usuario }: { usuario: any }) {
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 12 caracteres · mayúscula · número · símbolo"
                     className="pr-10"
                     disabled={resetPassword.isPending}
                     autoComplete="new-password"
@@ -349,6 +356,9 @@ function TabDatos({ usuario }: { usuario: any }) {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Requisitos: mínimo 12 caracteres, al menos una mayúscula, un número y un símbolo no alfanumérico.
+                </p>
               </div>
 
               <Button
@@ -356,14 +366,16 @@ function TabDatos({ usuario }: { usuario: any }) {
                 size="sm"
                 className="gap-1.5"
                 onClick={handleResetPassword}
-                disabled={resetPassword.isPending || newPassword.length < 6}
+                disabled={resetPassword.isPending || newPassword.length < 12}
               >
                 {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
                 {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
               </Button>
 
               {resetPassword.isError && (
-                <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
+                <p className="text-sm text-red-600 whitespace-pre-line">
+                  {(resetPassword.error as Error)?.message ?? "Error al restablecer"}
+                </p>
               )}
 
               <Separator />
