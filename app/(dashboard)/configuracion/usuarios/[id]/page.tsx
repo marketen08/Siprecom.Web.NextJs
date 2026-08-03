@@ -15,6 +15,9 @@ import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-pro
 import { useBulkAssignProyectosUsuario, useBulkUnassignProyectosUsuario } from "@/features/usuarios/api/use-bulk-proyectos-usuario"
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useRoles } from "@/lib/use-roles"
+import { puedeAsignarRol, puedeEditarRolesDe } from "@/lib/roles"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
 import { useGetPasswordLink } from "@/features/usuarios/api/use-get-password-link"
@@ -1180,11 +1183,12 @@ function ListaBulk({
 
 const ROLES = [
   { value: "AdminGlobal", label: "Administrador global", descripcion: "Como Administrador pero con acceso a TODOS los proyectos (no solo los asignados). Administrador corporativo." },
-  { value: "Admin",      label: "Administrador", descripcion: "Acceso completo a los proyectos donde está asignado: gestiona usuarios, configuración, alcance y todos los datos de esos proyectos." },
-  { value: "Supervisor", label: "Supervisor",    descripcion: "Acceso intermedio: gestiona usuarios y proyectos a los que tiene acceso, pero no la configuración global del sistema." },
-  { value: "User",       label: "Usuario",       descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
-  { value: "Auditor",    label: "Auditor",       descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D) más el Control de cambios. No puede modificar nada." },
-  { value: "Consultor",  label: "Consultor",     descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D). No puede modificar nada ni acceder al Control de cambios." },
+  { value: "Admin",       label: "Administrador",        descripcion: "Acceso completo a los proyectos donde está asignado: gestiona usuarios, configuración, alcance y todos los datos de esos proyectos." },
+  { value: "Supervisor",  label: "Supervisor",           descripcion: "Acceso intermedio: gestiona usuarios y proyectos a los que tiene acceso, pero no la configuración global del sistema." },
+  { value: "Coordinador", label: "Coordinador",          descripcion: "Coordinación de tareas del proyecto (asignación masiva, cambios de fecha, cancelaciones, generación de faltantes)." },
+  { value: "User",        label: "Usuario",              descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
+  { value: "Auditor",     label: "Auditor",              descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D) más el Control de cambios. No puede modificar nada." },
+  { value: "Consultor",   label: "Consultor",            descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D). No puede modificar nada ni acceder al Control de cambios." },
 ]
 
 // SuperAdmin es un rol del proveedor: no se ofrece como asignación normal, pero
@@ -1197,14 +1201,42 @@ const ROL_SUPERADMIN = {
 
 function TabRol({ usuarioId }: { usuarioId: string }) {
   const { data, isLoading } = useGetUsuarioRol(usuarioId)
+  const { data: perfil } = useGetPerfil()
   const setRol = useSetUsuarioRol(usuarioId)
   const [saved, setSaved] = useState(false)
 
   const rolActual = data?.roles?.[0] ?? ""
   const [rolSeleccionado, setRolSeleccionado] = useState<string | null>(null)
 
-  // Si el usuario es SuperAdmin, mostramos esa card además de las asignables.
-  const rolesVisibles = rolActual === "SuperAdmin" ? [ROL_SUPERADMIN, ...ROLES] : ROLES
+  // ── Gates de escalada (espejan AuthController.SetUserRol) ────────────────
+  // 1) No podés editarte a vos mismo.
+  // 2) No podés editar un peer/superior.
+  // 3) Sólo podés asignar roles ESTRICTAMENTE inferiores al tuyo.
+  const callerRoles = useRoles()
+  const targetRoles = data?.roles ?? []
+  const esSelf = !!perfil?.id && perfil.id === usuarioId
+  const puedeEditar = !esSelf && puedeEditarRolesDe(callerRoles, targetRoles)
+
+  // Cuando puede editar, mostramos SOLO los roles asignables por el caller.
+  // Si el user destino ya tiene un rol que el caller no puede asignar (ej. el
+  // caller es Admin y el target es SuperAdmin) el bloqueo del gate se ocupa;
+  // igual mostramos ese rol arriba para que se vea el estado actual.
+  const rolesAsignables = ROLES.filter((r) => puedeAsignarRol(callerRoles, r.value))
+  const rolesVisibles = (() => {
+    if (!rolActual) return rolesAsignables
+    // Si el rol actual no está en la lista de asignables (ej. SuperAdmin, o un
+    // rol superior al del caller), lo agregamos arriba para verlo pero se rendera
+    // deshabilitado por el gate.
+    if (rolActual === "SuperAdmin" && !rolesAsignables.some((r) => r.value === "SuperAdmin")) {
+      return [ROL_SUPERADMIN, ...rolesAsignables]
+    }
+    if (!rolesAsignables.some((r) => r.value === rolActual)) {
+      const rolFuera = ROLES.find((r) => r.value === rolActual)
+        ?? (rolActual === "SuperAdmin" ? ROL_SUPERADMIN : null)
+      if (rolFuera) return [rolFuera, ...rolesAsignables]
+    }
+    return rolesAsignables
+  })()
 
   // Inicializar selección cuando llegan los datos
   if (rolActual && rolSeleccionado === null) {
@@ -1232,6 +1264,23 @@ function TabRol({ usuarioId }: { usuarioId: string }) {
         El rol determina los permisos del usuario en todo el sistema.
       </p>
 
+      {esSelf && (
+        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            No podés editar tu propio rol. Pedile a otro administrador que lo haga.
+          </span>
+        </div>
+      )}
+      {!esSelf && !puedeEditar && (
+        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            No podés editar el rol de este usuario porque tiene un rol igual o superior al tuyo.
+          </span>
+        </div>
+      )}
+
       {saved && (
         <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
           <CheckCircle2 className="h-4 w-4" /> Rol actualizado correctamente
@@ -1239,33 +1288,46 @@ function TabRol({ usuarioId }: { usuarioId: string }) {
       )}
 
       <div className="space-y-2">
-        {rolesVisibles.map((r) => (
-          <button
-            key={r.value}
-            type="button"
-            onClick={() => setRolSeleccionado(r.value)}
-            className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
-              rolSeleccionado === r.value
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-200 bg-white hover:bg-gray-50"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900">{r.label}</span>
-              {rolSeleccionado === r.value && (
-                <Check className="h-4 w-4 text-blue-600" />
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{r.descripcion}</p>
-          </button>
-        ))}
+        {rolesVisibles.map((r) => {
+          const asignable = puedeEditar && puedeAsignarRol(callerRoles, r.value)
+          const activo = rolSeleccionado === r.value
+          const readonly = !asignable
+          return (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => { if (asignable) setRolSeleccionado(r.value) }}
+              disabled={readonly}
+              className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
+                activo
+                  ? "border-blue-500 bg-blue-50"
+                  : readonly
+                    ? "border-gray-200 bg-gray-50 opacity-70 cursor-not-allowed"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+              }`}
+              title={readonly ? "No podés asignar este rol." : undefined}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-900">{r.label}</span>
+                {activo && <Check className="h-4 w-4 text-blue-600" />}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{r.descripcion}</p>
+            </button>
+          )
+        })}
       </div>
 
       <Button
         size="sm"
         className="gap-1.5"
         onClick={handleSave}
-        disabled={setRol.isPending || rolSeleccionado === rolActual}
+        disabled={
+          setRol.isPending
+          || rolSeleccionado === rolActual
+          || !puedeEditar
+          || !rolSeleccionado
+          || !puedeAsignarRol(callerRoles, rolSeleccionado)
+        }
       >
         {setRol.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         {setRol.isPending ? "Guardando..." : "Guardar rol"}

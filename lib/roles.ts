@@ -61,3 +61,38 @@ export function canWrite(roles: string[] | undefined | null): boolean {
 export function isReadOnly(roles: string[] | undefined | null): boolean {
   return !canWrite(roles)
 }
+
+/** Nivel individual de un rol puntual (no compuesto). 0 si no existe. */
+export function roleLevelOne(role: string | null | undefined): number {
+  if (!role) return 0
+  return ROLE_LEVEL[role] ?? 0
+}
+
+/**
+ * True si `caller` puede asignar `nuevoRol` a otro usuario. Regla: sólo roles
+ * ESTRICTAMENTE inferiores al del caller. Un Admin no puede promover a
+ * AdminGlobal ni SuperAdmin; un AdminGlobal no puede tocar SuperAdmin.
+ * Espeja la validación server-side en `AuthController.SetUserRol`.
+ */
+export function puedeAsignarRol(
+  callerRoles: string[] | undefined | null,
+  nuevoRol: AppRole | string,
+): boolean {
+  const nivelCaller = roleLevel(callerRoles)
+  const nivelNuevo = roleLevelOne(nuevoRol)
+  return nivelCaller > 0 && nivelNuevo > 0 && nivelNuevo < nivelCaller
+}
+
+/**
+ * True si `caller` puede editar los roles de un usuario destino con
+ * `targetRoles`. Regla: no se puede tocar a un peer ni a un superior.
+ * Espeja la validación server-side en `AuthController.SetUserRol`.
+ */
+export function puedeEditarRolesDe(
+  callerRoles: string[] | undefined | null,
+  targetRoles: string[] | undefined | null,
+): boolean {
+  const nivelCaller = roleLevel(callerRoles)
+  const nivelTarget = roleLevel(targetRoles)
+  return nivelCaller > 0 && nivelTarget < nivelCaller
+}
