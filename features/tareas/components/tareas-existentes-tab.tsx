@@ -720,7 +720,6 @@ export function TareasExistentesTab() {
               </TableHead>
               <TableHead>Elemento (TAG)</TableHead>
               <TableHead>Tarea</TableHead>
-              <TableHead>Nivel</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Responsable</TableHead>
               <TableHead>Fecha planif.</TableHead>
@@ -730,13 +729,13 @@ export function TareasExistentesTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                   <Loader2 className="inline h-4 w-4 animate-spin mr-2" /> Cargando...
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                   Sin resultados con los filtros actuales.
                 </TableCell>
               </TableRow>
@@ -758,8 +757,12 @@ export function TareasExistentesTab() {
                       />
                     </TableCell>
                     <TableCell className="text-sm font-medium">{row.elementoTag ?? "—"}</TableCell>
-                    <TableCell className="text-sm">{row.tareaNombre ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{row.nivelNombre ?? "—"}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="font-medium">{row.tareaNombre ?? "—"}</div>
+                      {row.nivelNombre && (
+                        <div className="text-[11px] text-muted-foreground truncate">{row.nivelNombre}</div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">
                       <EstadoBadge estado={row.estado} />
                     </TableCell>
