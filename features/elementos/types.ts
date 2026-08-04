@@ -16,6 +16,10 @@ export interface Elemento {
   elementoTipoEspecialidadNombre: string | null
   /** True si el ElementoTipo es sintético (portador de TestGroup). Los sintéticos se gestionan desde el pack. */
   esSintetico: boolean
+  /** Datos del TestGroup asociado — se pobla sólo cuando `esSintetico=true`. */
+  testGroupId?: string | null
+  testGroupCodigo?: string | null
+  testGroupNombre?: string | null
   prioridad: number
   prioridadTexto: string
   sistemaId: string
