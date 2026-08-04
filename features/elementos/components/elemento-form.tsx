@@ -57,7 +57,10 @@ export function ElementoForm({
   const modulos = modulosData?.data ?? []
   const areas = areasData?.data ?? []
 
-  const tipos = (tiposData as any)?.data ?? []
+  // Excluimos los ElementoTipo sintéticos (portadores de TestGroup). Se crean
+  // solo desde el flujo del pack y no deben aparecer al armar un elemento físico.
+  const tipos = ((tiposData as any)?.data ?? [])
+    .filter((t: { esSintetico?: boolean }) => !t.esSintetico)
   const especialidades = especialidadesData?.data ?? []
 
   const ALL_ESP = "__all__"
