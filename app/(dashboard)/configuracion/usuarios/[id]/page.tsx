@@ -1201,13 +1201,48 @@ function ListaBulk({
 // ─── Tab Rol ──────────────────────────────────────────────────────────────────
 
 const ROLES = [
-  { value: "AdminGlobal", label: "Administrador global", descripcion: "Como Administrador pero con acceso a TODOS los proyectos (no solo los asignados). Administrador corporativo." },
-  { value: "Admin",       label: "Administrador",        descripcion: "Acceso completo a los proyectos donde está asignado: gestiona usuarios, configuración, alcance y todos los datos de esos proyectos." },
-  { value: "Supervisor",  label: "Supervisor",           descripcion: "Acceso intermedio: gestiona usuarios y proyectos a los que tiene acceso, pero no la configuración global del sistema." },
-  { value: "Coordinador", label: "Coordinador",          descripcion: "Coordinación de tareas del proyecto (asignación masiva, cambios de fecha, cancelaciones, generación de faltantes)." },
-  { value: "User",        label: "Usuario",              descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
-  { value: "Auditor",     label: "Auditor",              descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D) más el Control de cambios. No puede modificar nada." },
-  { value: "Consultor",   label: "Consultor",            descripcion: "Solo lectura: ve todo el proyecto (avance, planillas, registros, pendientes, certificados, 3D). No puede modificar nada ni acceder al Control de cambios." },
+  {
+    value: "AdminGlobal",
+    label: "Administrador global",
+    descripcion:
+      "Como Administrador pero con acceso a TODOS los proyectos del tenant (no sólo los asignados). Ideal para el administrador corporativo del cliente.",
+  },
+  {
+    value: "Admin",
+    label: "Administrador",
+    descripcion:
+      "Acceso completo dentro de los proyectos donde está asignado: crea, edita y desactiva usuarios; asigna roles; configura alcance, planillas y catálogos; coordina tareas y opera todos los flujos operativos.",
+  },
+  {
+    value: "Supervisor",
+    label: "Supervisor",
+    descripcion:
+      "Gestiona sus proyectos asignados (alcance, planificación, coordinación de tareas, reportes, certificados). Puede asignar usuarios EXISTENTES a sus proyectos (o quitarlos), pero NO puede crear usuarios, editar sus datos ni cambiar roles.",
+  },
+  {
+    value: "Coordinador",
+    label: "Coordinador",
+    descripcion:
+      "Coordinación operativa de tareas dentro del proyecto: asignación masiva de responsables, cambios de fecha planificada, cancelaciones y reactivaciones, generación de tareas faltantes. Escalón entre Usuario y Supervisor.",
+  },
+  {
+    value: "User",
+    label: "Usuario",
+    descripcion:
+      "Ejecución operativa: registra avances, completa y firma registros, crea pendientes y ejecuta las tareas que tiene asignadas.",
+  },
+  {
+    value: "Auditor",
+    label: "Auditor",
+    descripcion:
+      "Solo lectura de todo el proyecto (dashboard, avance, planillas, registros, pendientes, certificados, 3D) más acceso al Control de cambios. No puede escribir nada.",
+  },
+  {
+    value: "Consultor",
+    label: "Consultor",
+    descripcion:
+      "Solo lectura de todo el proyecto (dashboard, avance, planillas, registros, pendientes, certificados, 3D). Sin acceso al Control de cambios. No puede modificar nada.",
+  },
 ]
 
 // SuperAdmin es un rol del proveedor: no se ofrece como asignación normal, pero
@@ -1215,7 +1250,8 @@ const ROLES = [
 const ROL_SUPERADMIN = {
   value: "SuperAdmin",
   label: "Super Admin",
-  descripcion: "Acceso total del proveedor: licenciamiento, migraciones, datos de muestra y toda la administración del sistema.",
+  descripcion:
+    "Rol del proveedor de SIPRECOM: bypass total del scope de proyectos, panel de licenciamiento/migraciones/datos de muestra, y capacidad exclusiva de restablecer contraseñas directamente. Reservado al equipo del proveedor.",
 }
 
 function TabRol({ usuarioId }: { usuarioId: string }) {
