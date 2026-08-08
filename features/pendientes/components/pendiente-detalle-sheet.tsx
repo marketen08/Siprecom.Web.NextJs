@@ -291,6 +291,12 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
               <DataItem label="Cierre est." value={p.fechaCierreEstimado} />
               {p.fechaCierre && <DataItem label="Cierre real" value={p.fechaCierre} />}
               {p.fechaDesestimado && <DataItem label="Cancelado el" value={p.fechaDesestimado} />}
+              {p.ubicacion && (
+                <div className="sm:col-span-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Ubicación</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap mt-0.5">{p.ubicacion}</p>
+                </div>
+              )}
               {p.motivoRechazoCierre && (
                 <div className="sm:col-span-2 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
                   <strong>Cierre rechazado:</strong> {p.motivoRechazoCierre}
@@ -719,6 +725,7 @@ function EditarPendiente({
     responsableId: string
     descripcion: string
     descripcionManual?: boolean
+    ubicacion?: string | null
     prioridad: number
     fechaCierreEstimado: string
     subSistemaId: string | null
@@ -743,6 +750,7 @@ function EditarPendiente({
       tipoId: values.tipoId,
       descripcion: values.descripcion,
       descripcionManual: values.descripcionManual ?? false,
+      ubicacion: values.ubicacion ?? null,
       prioridad: values.prioridad,
       fechaCierreEstimado: values.fechaCierreEstimado,
       subSistemaId: values.subSistemaId ?? null,
@@ -769,6 +777,7 @@ function EditarPendiente({
           responsableId: pendiente.responsableId,
           descripcion: pendiente.descripcion,
           descripcionManual: pendiente.descripcionManual ?? false,
+          ubicacion: pendiente.ubicacion ?? null,
           prioridad: pendiente.prioridad,
           fechaCierreEstimado: pendiente.fechaCierreEstimado.substring(0, 10),
           subSistemaId: pendiente.subSistemaId ?? undefined,

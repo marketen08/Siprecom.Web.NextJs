@@ -96,6 +96,7 @@ export function PendienteForm({
       categoriaId: defaultValues?.categoriaId ?? "",
       descripcion: defaultValues?.descripcion ?? "",
       descripcionManual: defaultValues?.descripcionManual ?? false,
+      ubicacion: defaultValues?.ubicacion ?? null,
       responsableId: defaultValues?.responsableId ?? "",
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
@@ -465,6 +466,29 @@ export function PendienteForm({
                     {categorias.find((c) => c.id === field.value)?.nombre
                       ?? (motivoNode ? motivoNode.categoriaNombre : <span className="text-muted-foreground">Sale del catálogo al completar el wizard</span>)}
                   </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Ubicación geográfica — opcional. Texto libre para ayudar a encontrar
+              el equipo o el lugar del pendiente cuando el PID + TAG no alcanzan. */}
+          <FormField
+            control={form.control}
+            name="ubicacion"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ubicación (opcional)</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(e.target.value || null)}
+                    placeholder="Ej.: sala de bombas, nivel -3, cerca de la escalera oeste"
+                    rows={2}
+                    disabled={isPending}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

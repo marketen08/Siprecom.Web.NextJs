@@ -30,6 +30,8 @@ export function makePendienteCreateSchema(elementoRequerido: boolean) {
     categoriaId: z.string().min(1, "Categoría requerida"),
     descripcion: z.string().min(1, "Descripción requerida").max(2000),
     descripcionManual: z.boolean().optional(),
+    // Ubicación geográfica libre — opcional. 1000 chars = spec del backend.
+    ubicacion: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
 
     responsableId: z.string().min(1, "Responsable requerido"),
     fechaCierreEstimado: z.string().min(1, "Fecha de cierre estimada requerida"),

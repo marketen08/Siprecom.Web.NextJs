@@ -192,6 +192,8 @@ export interface Pendiente {
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean
+  /** Descripción libre de la ubicación geográfica del pendiente (opcional). */
+  ubicacion?: string | null
   pid: string | null
   especialidadId: string | null
   especialidadNombre: string | null
@@ -275,6 +277,8 @@ export interface PendienteCreateInput {
   descripcion: string
   /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
   descripcionManual?: boolean
+  /** Ubicación geográfica libre — opcional. */
+  ubicacion?: string | null
   prioridad: number
   fechaCierreEstimado: string // YYYY-MM-DD
   subSistemaId?: string | null
@@ -304,6 +308,8 @@ export interface PendienteUpdateInput {
   descripcion: string
   /** Idem PendienteCreateInput.descripcionManual. */
   descripcionManual?: boolean
+  /** Ubicación geográfica libre — opcional. */
+  ubicacion?: string | null
   prioridad: number
   fechaCierreEstimado: string
   subSistemaId?: string | null
