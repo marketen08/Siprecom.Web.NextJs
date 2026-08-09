@@ -47,7 +47,15 @@ function redirectToLogin(reason?: string): never {
   // limpiarlo, /login se queda y muestra el form. getState() funciona fuera de React.
   try { useAuthStore.getState().clearUser() } catch { /* noop */ }
 
+  // Borrar cookies httpOnly desde el server: los proxies /api/* hacen
+  // `Response.json(data, {status})` y descartan el Set-Cookie que backendFetch
+  // inyecta al recibir SESSION_SUPERSEDED. Por eso las cookies quedan vivas y
+  // al volver a /dashboard el user aparece "logueado" → loop. El endpoint
+  // /api/auth/logout las borra desde su propio response (Set-Cookie válido).
+  // `keepalive: true` deja que el fetch termine aunque estemos navegando.
   if (typeof window !== "undefined") {
+    try { fetch("/api/auth/logout", { method: "POST", keepalive: true }) } catch { /* noop */ }
+
     // Si ya estamos en /login no navegamos: reasignar la misma URL reinicia el
     // parseo del documento y se ve como "recarga infinita" cuando llegan varios
     // 401 en fila. .replace() para no acumular history entries.
