@@ -172,6 +172,7 @@ export function AddCampoModal({
       descripcion: "",
       numeroLineas: 3,
       mostrarComoMarca: false,
+      altoMm: 20,
     },
   })
 
@@ -227,6 +228,7 @@ export function AddCampoModal({
   const isChecklistNuevo = tipoDatoFormulario === 11
   const isTextoAreaNuevo = tipoDatoFormulario === 12
   const isBooleanNuevo = tipoDatoFormulario === 4
+  const isEspacioNuevo = tipoDatoFormulario === 13
   const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
@@ -915,6 +917,39 @@ export function AddCampoModal({
                     )}
                   />
                 </div>
+
+                {/* Solo Espacio: alto del bloque vacío. El recuadro y demás flags se
+                    configuran después desde la card del campo. */}
+                {isEspacioNuevo && (
+                  <FormField
+                    control={form.control}
+                    name="altoMm"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Alto (mm)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={5}
+                            max={200}
+                            placeholder="20"
+                            disabled={isPending}
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const n = Number(e.target.value)
+                              field.onChange(Number.isFinite(n) ? n : undefined)
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-[10px]">
+                          Alto del bloque vacío en el PDF (5-200 mm). El recuadro para dibujar
+                          se activa después, en la card del campo.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {/* Solo TextoArea: cantidad de líneas de escritura. */}
                 {isTextoAreaNuevo && (

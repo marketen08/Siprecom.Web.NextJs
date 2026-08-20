@@ -67,6 +67,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const isImagen = campo.campoTipoDato === 8
   const isTabla = campo.campoTipoDato === 9
   const isLabel = campo.campoTipoDato === 10
+  const isEspacio = campo.campoTipoDato === 13
   const isTextoArea = campo.campoTipoDato === 12
   const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
 
@@ -97,6 +98,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       sinMargen: campo.campoSinMargen ?? false,
       numeroLineas: campo.campoNumeroLineas ?? 3,
       mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
+      altoMm: campo.campoAltoMm ?? 20,
     })
   }
 
@@ -119,8 +121,32 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       sinMargen: campo.campoSinMargen ?? false,
       numeroLineas: clamped,
       mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
+      altoMm: campo.campoAltoMm ?? 20,
     })
   }
+  // Update del AltoMm (Campo global, solo Espacio). Rango 5-200, default 20.
+  const saveAltoMm = (valor: number) => {
+    const clamped = Math.min(200, Math.max(5, Math.floor(valor)))
+    if (clamped === (campo.campoAltoMm ?? 20)) return
+    updateCampoGlobal.mutate({
+      id: campo.campoId,
+      codigo: campo.campoCodigo ?? "",
+      etiqueta: campo.campoEtiqueta ?? "",
+      etiquetaAlt: campo.campoEtiquetaAlt || undefined,
+      tipoDato: campo.campoTipoDato,
+      unidad: campo.campoUnidad,
+      negrita: campo.campoNegrita ?? false,
+      conBorde: campo.campoConBorde ?? false,
+      fondoGris: campo.campoFondoGris ?? false,
+      alineacion: campo.campoAlineacion ?? 0,
+      sinPadding: campo.campoSinPadding ?? false,
+      sinMargen: campo.campoSinMargen ?? false,
+      numeroLineas: campo.campoNumeroLineas ?? 3,
+      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
+      altoMm: clamped,
+    })
+  }
+
   // El estilo del Label vive en el Campo global → update global (afecta todas las
   // planillas que usen este campo). Otros campos del Campo no aplican a un Label.
   const updateLabelStyle = (overrides: Partial<{ negrita: boolean; conBorde: boolean; fondoGris: boolean; alineacion: AlineacionTexto; sinPadding: boolean; sinMargen: boolean }>) => {
@@ -139,6 +165,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       sinMargen: campo.campoSinMargen ?? false,
       numeroLineas: campo.campoNumeroLineas ?? 3,
       mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
+      altoMm: campo.campoAltoMm ?? 20,
       ...overrides,
     })
   }
@@ -837,6 +864,56 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               )}
               <CampoTablaEditor campo={campo} />
             </>
+          )}
+
+          {/* Espacio (tipo 13): alto + recuadro. Display-only, vive en el Campo global.
+              Solo exponemos los flags que tienen sentido en un bloque vacío — negrita,
+              alineación y padding no aplican porque no hay texto. */}
+          {isEspacio && (
+            <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50/60 p-3">
+              <Label className="text-xs font-semibold">Espacio en blanco</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Bloque vacío que solo reserva alto en el PDF. No es un campo a completar.
+                Respeta el ancho de la grilla, así que dos espacios de 6 quedan lado a lado.
+                Afecta a todas las planillas que usen este campo.
+              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">Alto (mm)</Label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={200}
+                    defaultValue={campo.campoAltoMm ?? 20}
+                    onBlur={(e) => saveAltoMm(Number(e.target.value))}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur() }}
+                    className="h-8 w-20 text-sm"
+                    disabled={updateCampoGlobal.isPending}
+                  />
+                </div>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoConBorde ?? false}
+                    onChange={(e) => updateLabelStyle({ conBorde: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Recuadro (para dibujar)
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoFondoGris ?? false}
+                    onChange={(e) => updateLabelStyle({ fondoGris: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Fondo gris
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={campo.campoSinMargen ?? false}
+                    onChange={(e) => updateLabelStyle({ sinMargen: e.target.checked })}
+                    disabled={updateCampoGlobal.isPending} />
+                  Sin margen
+                </label>
+              </div>
+            </div>
           )}
 
           {/* Label (tipo 10): estilo (display-only). Vive en el Campo global. */}

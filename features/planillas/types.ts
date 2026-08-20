@@ -58,7 +58,10 @@ export interface CampoOpcion {
 //   - Firmas: ProyectosFirmasConfig + RegistroFirma.
 //   - Adjuntos: flags Proyecto.PermiteAdjuntos / Planilla.PermiteAdjuntos + RegistroArchivo.
 // 11 = Checklist se agregó como tipo propio (antes era Lista + renderMode=Checklist).
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11 | 12
+// 13 = Espacio: bloque vacío display-only (alto en mm). Es LAYOUT, no dato — igual que
+//      8 (Imagen) y 10 (Label), queda fuera de los valores del registro. El croquis
+//      DIGITAL (que sí persiste una imagen) irá como tipo propio, no como flag de éste.
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11 | 12 | 13
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -71,6 +74,7 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   10: "Label",
   11: "Checklist",
   12: "Texto multilínea",
+  13: "Espacio en blanco",
 }
 
 /**
@@ -222,6 +226,8 @@ export interface PlanillaCampoDetalle {
   campoSinMargen?: boolean
   /** Filas del área de texto (vive en el Campo global). Solo si campoTipoDato === 12 (TextoArea). Default 3. */
   campoNumeroLineas?: number
+  /** Alto en mm (Campo global). Solo si campoTipoDato === 13 (Espacio). Default 20. */
+  campoAltoMm?: number
   /**
    * Solo si campoTipoDato === 4 (Boolean): se presenta como casilla de marca (X / vacío)
    * en vez de Sí/No. Vive en el Campo global. El valor persistido sigue siendo booleano.

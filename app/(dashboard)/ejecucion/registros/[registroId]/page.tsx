@@ -244,9 +244,11 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   function buildValores(): RegistroValorInput[] {
-    // Excluimos tipos que NO son inputs digitales: Imagen (8) y Label (10).
+    // Excluimos tipos que NO son inputs digitales: Imagen (8), Label (10) y
+    // Espacio (13) — los tres son layout, no dato.
     return campos
-      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 8 && c.campoTipoDato !== 10)
+      .filter((c) => c.visible && !c.soloLectura
+                      && c.campoTipoDato !== 8 && c.campoTipoDato !== 10 && c.campoTipoDato !== 13)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -266,7 +268,8 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function validate(): boolean {
     const camposObligatorios = campos.filter(
-      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
+      (c) => c.visible && !c.soloLectura && c.esObligatorio
+             && c.campoTipoDato !== 8 && c.campoTipoDato !== 10 && c.campoTipoDato !== 13
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
@@ -1136,6 +1139,25 @@ function CampoInput({
           {campo.campoEtiqueta}
         </div>
       )
+    case 13: { // Espacio — bloque vacío del PDF. Acá no hay nada que completar, pero
+      //         dejamos un placeholder para que el que carga digital entienda por qué
+      //         hay un hueco en vez de un input. El alto NO se replica: en pantalla
+      //         reservar 140mm de aire no aporta nada, solo obliga a scrollear.
+      const conRecuadro = campo.campoConBorde
+      return (
+        <div id={`campo-${campo.id}`} className="py-1">
+          <div
+            className={`rounded-md px-3 py-3 text-center text-xs text-muted-foreground ${
+              conRecuadro ? "border border-dashed border-gray-300" : "bg-gray-50"
+            }`}
+          >
+            {conRecuadro
+              ? `Espacio para dibujar (${campo.campoAltoMm ?? 20} mm) — se completa en el PDF impreso.`
+              : `Espacio en blanco (${campo.campoAltoMm ?? 20} mm) en el PDF.`}
+          </div>
+        </div>
+      )
+    }
     case 8: // Imagen — parte de la planilla (global del Campo), sin input
       return (
         <div id={`campo-${campo.id}`} className="space-y-1">

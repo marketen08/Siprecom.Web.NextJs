@@ -73,6 +73,7 @@ export function CampoForm({
       etiquetaAlt: defaultValues?.etiquetaAlt ?? "",
       tipoDato: (defaultValues?.tipoDato ?? 1) as CampoTipoDato,
       numeroLineas: defaultValues?.numeroLineas ?? 3,
+      altoMm: defaultValues?.altoMm ?? 20,
       mostrarComoMarca: defaultValues?.mostrarComoMarca ?? false,
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
@@ -245,6 +246,38 @@ export function CampoForm({
             </FormItem>
           )}
         />
+
+        {/* Solo Espacio (tipoDato === 13): alto del bloque en mm. */}
+        {tipoDato === 13 && (
+          <FormField
+            control={form.control}
+            name="altoMm"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Alto (mm)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={200}
+                    placeholder="20"
+                    disabled={isPending}
+                    value={field.value ?? ""}
+                    onChange={(e) => {
+                      const n = Number(e.target.value)
+                      field.onChange(Number.isFinite(n) ? n : undefined)
+                    }}
+                  />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Alto del bloque vacío en el PDF. Rango 5-200 mm, default 20 (media hoja
+                  A4 ≈ 140 mm). Tildá «Recuadro» abajo si querés el borde para dibujar.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Solo TextoArea (tipoDato === 12): número de líneas de escritura. */}
         {tipoDato === 12 && (
