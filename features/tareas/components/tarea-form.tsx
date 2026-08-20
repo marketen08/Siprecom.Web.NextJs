@@ -88,6 +88,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
       tipoAsignacion: defaultValues?.tipoAsignacion ?? 1,
       tareaPrecedenteId: defaultValues?.tareaPrecedenteId ?? null,
       lagDias: defaultValues?.lagDias ?? 0,
+      esAdHoc: defaultValues?.esAdHoc ?? false,
       esPreservacion: defaultValues?.esPreservacion ?? false,
       periodoSemanas: defaultValues?.periodoSemanas ?? null,
       calculoProximaFecha: defaultValues?.calculoProximaFecha ?? CALCULO_PROXIMA_FECHA.DesdeCompletado,
@@ -125,6 +126,10 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   // se materializa cuando ambas tareas coexisten en el mismo elemento, y un
   // elemento tiene un único tipo. Cross-tipo era un no-op silencioso.
   const elementoTipoIdActual = form.watch("elementoTipoId")
+  // Puntual y preservación son mutuamente excluyentes (ver superRefine del schema):
+  // cada checkbox deshabilita al otro para que el conflicto no llegue al submit.
+  const esPreservacion = form.watch("esPreservacion")
+  const esAdHoc = form.watch("esAdHoc")
 
   const tareaPrecedenteOptions = useMemo(() => {
     const currentId = defaultValues?.id
@@ -567,6 +572,53 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
         <Separator />
 
         {/* Preservación (mantenimiento recurrente) */}
+        {/* Alcance — decide si la tarea es una regla de la matriz (todos los elementos
+            del tipo) o un trabajo puntual que se asigna a mano. */}
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Alcance
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Por defecto una tarea aplica a <strong>todos</strong> los elementos de su tipo
+              y el sistema la genera sola. Marcala como puntual si es un trabajo suelto que
+              querés asignar a elementos específicos.
+            </p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name="esAdHoc"
+            render={({ field }) => {
+              const disabled = isPending || esPreservacion
+              return (
+                <FormItem>
+                  <label
+                    className={`flex items-start gap-2 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-900 focus:ring-blue-900"
+                      checked={field.value}
+                      disabled={disabled}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    />
+                    <span className="text-sm">
+                      Tarea puntual (se asigna a elementos elegidos a mano)
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-muted-foreground pl-6">
+                    {esPreservacion
+                      ? "No disponible en tareas de preservación: esas se excluyen del avance y las puntuales cuentan."
+                      : "No aparece en Faltantes ni se genera automáticamente. Se asigna desde Coordinación de tareas → Puntuales. Cuenta para el % de avance."}
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
+          />
+        </div>
+
         <div className="flex flex-col gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -583,7 +635,7 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
             control={form.control}
             name="esPreservacion"
             render={({ field }) => {
-              const disabled = isPending || tipoEsSintetico
+              const disabled = isPending || tipoEsSintetico || esAdHoc
               return (
                 <FormItem>
                   <label
@@ -604,6 +656,12 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
                     <p className="text-[11px] text-muted-foreground pl-6">
                       No disponible para tipos sintéticos (test packs).
                       Los paquetes se ejecutan una vez y no soportan ciclos recurrentes.
+                    </p>
+                  )}
+                  {!tipoEsSintetico && esAdHoc && (
+                    <p className="text-[11px] text-muted-foreground pl-6">
+                      No disponible en tareas puntuales: la preservación se excluye del
+                      avance y las puntuales cuentan.
                     </p>
                   )}
                   <FormMessage />

@@ -15,6 +15,9 @@ export const tareaSchema = z
     // Nullable string: null = sin precedencia, string = id de la tarea precedente.
     tareaPrecedenteId: z.string().nullable(),
     lagDias: z.number().int().min(0).max(365),
+    // Tarea puntual (ad-hoc): no la expanden los generadores, se asigna eligiendo
+    // elementos a mano desde el tab "Puntuales" de Coordinación.
+    esAdHoc: z.boolean(),
     // ── Preservación ──
     esPreservacion: z.boolean(),
     periodoSemanas: z
@@ -26,6 +29,15 @@ export const tareaSchema = z
     calculoProximaFecha: z.number().int().min(1).max(2),
   })
   .superRefine((data, ctx) => {
+    // Mismo criterio que el backend: preservación se excluye del avance y las
+    // puntuales cuentan, así que la combinación es contradictoria.
+    if (data.esAdHoc && data.esPreservacion) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["esAdHoc"],
+        message: "Una tarea no puede ser puntual y de preservación a la vez.",
+      })
+    }
     if (data.esPreservacion && (data.periodoSemanas == null || data.periodoSemanas <= 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

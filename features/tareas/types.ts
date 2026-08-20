@@ -65,6 +65,8 @@ export interface Tarea {
   tareaPrecedenteNombre?: string | null
   lagDias: number
   esPreservacion: boolean
+  /** Tarea puntual: no la expanden los generadores; se asigna eligiendo elementos a mano. */
+  esAdHoc: boolean
   periodoSemanas?: number | null
   calculoProximaFecha: number
   createdByNombre?: string
@@ -88,6 +90,8 @@ export interface TareaCreateInput {
   tareaPrecedenteId?: string | null
   lagDias?: number
   esPreservacion?: boolean
+  /** Tarea puntual: no la expanden los generadores; se asigna eligiendo elementos a mano. */
+  esAdHoc?: boolean
   periodoSemanas?: number | null
   calculoProximaFecha?: number
 }
@@ -108,6 +112,8 @@ export interface TareaUpdateInput {
   tareaPrecedenteId?: string | null
   lagDias?: number
   esPreservacion?: boolean
+  /** Tarea puntual: no la expanden los generadores; se asigna eligiendo elementos a mano. */
+  esAdHoc?: boolean
   periodoSemanas?: number | null
   calculoProximaFecha?: number
 }
