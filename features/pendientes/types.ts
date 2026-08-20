@@ -189,6 +189,13 @@ export interface Pendiente {
   detectadoPorNombre: string | null
   responsableId: string
   responsableNombre: string | null
+  /**
+   * Grupo co-responsable (opcional). Complementa al responsable nominal: su único
+   * efecto es que el pendiente aparece en "Míos" para todos los miembros del grupo.
+   * No otorga permisos — eso se configura en la matriz de autorización del proyecto.
+   */
+  grupoResponsableId?: string | null
+  grupoResponsableNombre?: string | null
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean
@@ -274,6 +281,8 @@ export interface PendienteCreateInput {
   categoriaId: string
   tipoId: string
   responsableId: string
+  /** Grupo co-responsable (opcional). Solo afecta la visibilidad en "Míos". */
+  grupoResponsableId?: string | null
   descripcion: string
   /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
   descripcionManual?: boolean
@@ -332,6 +341,8 @@ export interface PendienteFilterInput {
   tipoId?: string
   estadoId?: string
   responsableId?: string
+  /** Pendientes asignados a este grupo co-responsable. Independiente de responsableId. */
+  grupoResponsableId?: string
   detectadoPorId?: string
   prioridad?: number
   especialidadId?: string

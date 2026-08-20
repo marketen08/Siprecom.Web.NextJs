@@ -37,14 +37,17 @@ export function usePendienteTransicion() {
 interface AsignarInput {
   id: string
   responsableId: string
+  /** Grupo co-responsable. null/"" = quitar el grupo (la asignación reemplaza, no parchea). */
+  grupoResponsableId?: string | null
 }
 
 export function useAsignarResponsable() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, responsableId }: AsignarInput) =>
+    mutationFn: ({ id, responsableId, grupoResponsableId }: AsignarInput) =>
       apiClient.put<ApiResponse<Pendiente>>(`/api/pendientes/${id}/responsable`, {
         responsableId,
+        grupoResponsableId: grupoResponsableId || null,
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["pendientes"] })

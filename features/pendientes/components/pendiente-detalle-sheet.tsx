@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
-  FileDown, FileUp, MapPin, ListChecks,
+  FileDown, FileUp, MapPin, ListChecks, UserCog,
 } from "lucide-react"
 
 import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
@@ -15,7 +15,10 @@ import { useGetPendiente } from "../api/use-get-pendiente"
 import { useAgregarComentario } from "../api/use-agregar-comentario"
 import { useSubirAdjunto, useEliminarAdjunto } from "../api/use-adjuntos"
 import { useCanWrite } from "@/lib/use-roles"
-import { usePendienteTransicion } from "../api/use-pendiente-workflow"
+import { usePendienteTransicion, useAsignarResponsable } from "../api/use-pendiente-workflow"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
+import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useUpdatePendiente } from "../api/use-update-pendiente"
 import { PendienteForm } from "./pendiente-form"
 import type { PendienteFormValues } from "../schema"
@@ -24,6 +27,7 @@ import {
 } from "../types"
 
 import { Button } from "@/components/ui/button"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
@@ -237,7 +241,13 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                         en estados terminales (CERRADO/CANCELADO) — no hay transiciones. */}
                     {puedeVerWorkflow && (
                       <div className="sm:hidden flex flex-wrap items-center gap-1">
-                        <Workflow pendienteId={p.id} estadoId={p.estadoId} compact />
+                        <Workflow
+                          pendienteId={p.id}
+                          estadoId={p.estadoId}
+                          responsableId={p.responsableId}
+                          grupoResponsableId={p.grupoResponsableId}
+                          compact
+                        />
                       </div>
                     )}
                   </div>
@@ -265,7 +275,12 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                 en sm+ donde el header no tiene lugar para meterlo. */}
             {puedeVerWorkflow && (
               <div className="hidden sm:block">
-                <Workflow pendienteId={p.id} estadoId={p.estadoId} />
+                <Workflow
+                  pendienteId={p.id}
+                  estadoId={p.estadoId}
+                  responsableId={p.responsableId}
+                  grupoResponsableId={p.grupoResponsableId}
+                />
               </div>
             )}
 
@@ -283,6 +298,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
               <DataItem label="Categoría"   value={p.categoriaNombre} />
               <DataItem label="Detectado por" value={p.detectadoPorNombre} />
               <DataItem label="Responsable" value={p.responsableNombre} />
+              <DataItem label="Grupo responsable" value={p.grupoResponsableNombre} />
               <DataItem label="Subsistema"  value={p.subSistemaNombre} />
               <DataItem label="Elemento"    value={p.elementoTag ? `${p.elementoTag} — ${p.elementoNombre}` : null} />
               <DataItem label="PID"         value={p.pid} />
@@ -366,16 +382,23 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
 function Workflow({
   pendienteId,
   estadoId,
+  responsableId,
+  grupoResponsableId,
   compact = false,
 }: {
   pendienteId: string
   estadoId: string
+  /** Responsable nominal actual — precarga el diálogo de reasignación. */
+  responsableId: string
+  /** Grupo co-responsable actual (null = sin grupo). */
+  grupoResponsableId?: string | null
   /** Variante compacta para embeber en el header sticky: sin título "Acciones" y botones más chicos. */
   compact?: boolean
 }) {
   const transicion = usePendienteTransicion()
   const [dialog, setDialog] = useState<null | { accion: "rechazar" | "cancelar"; titulo: string; descripcion: string }>(null)
   const [motivo, setMotivo] = useState("")
+  const [reasignarOpen, setReasignarOpen] = useState(false)
 
   async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "aprobar", comentario?: string) {
     await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
@@ -432,6 +455,12 @@ function Workflow({
           </Button>
         </>
       )}
+      <Button
+        size="sm" variant="outline" disabled={busy} className={btnBase}
+        onClick={() => setReasignarOpen(true)}
+      >
+        <UserCog className={iconSize} /> Reasignar
+      </Button>
       {estadoId !== PENDIENTE_ESTADO_IDS.CERRADO && estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
         <Button
           size="sm" variant="outline" disabled={busy}
@@ -457,6 +486,13 @@ function Workflow({
       <>
         {botones}
         {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy)}
+        <ReasignarDialog
+          open={reasignarOpen}
+          onOpenChange={setReasignarOpen}
+          pendienteId={pendienteId}
+          responsableActualId={responsableId}
+          grupoActualId={grupoResponsableId ?? null}
+        />
       </>
     )
   }
@@ -469,7 +505,148 @@ function Workflow({
       <div className="flex flex-wrap gap-2">{botones}</div>
 
       {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy)}
+      <ReasignarDialog
+        open={reasignarOpen}
+        onOpenChange={setReasignarOpen}
+        pendienteId={pendienteId}
+        responsableActualId={responsableId}
+        grupoActualId={grupoResponsableId ?? null}
+      />
     </section>
+  )
+}
+
+// ─── Reasignar (responsable + grupo) ─────────────────────────────────────
+
+/**
+ * Cambia el responsable nominal y/o el grupo co-responsable. Los dos viajan en
+ * el mismo PUT porque el endpoint reemplaza la asignación completa: mandar el
+ * grupo vacío lo quita.
+ *
+ * No hace gating por rol en el cliente — misma convención que el resto de las
+ * acciones de workflow: el botón se muestra y el backend rechaza si el usuario
+ * no está autorizado (la acción comparte permiso con "Aprobar"). El error del
+ * backend se muestra dentro del diálogo, que es donde el usuario lo va a leer.
+ */
+function ReasignarDialog({
+  open,
+  onOpenChange,
+  pendienteId,
+  responsableActualId,
+  grupoActualId,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  pendienteId: string
+  responsableActualId: string
+  grupoActualId: string | null
+}) {
+  const SIN_GRUPO = "__sin_grupo__"
+
+  const asignar = useAsignarResponsable()
+  const { data: perfil } = useGetPerfil()
+  const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
+  const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
+
+  const [responsableId, setResponsableId] = useState(responsableActualId)
+  const [grupoId, setGrupoId] = useState(grupoActualId ?? SIN_GRUPO)
+
+  // Al abrir, re-sincronizamos con lo que está guardado: si el usuario cerró sin
+  // confirmar (o el pendiente cambió por otra vía) el diálogo no debe conservar
+  // la selección abandonada.
+  useEffect(() => {
+    if (!open) return
+    setResponsableId(responsableActualId)
+    setGrupoId(grupoActualId ?? SIN_GRUPO)
+    asignar.reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, responsableActualId, grupoActualId])
+
+  const usuarioOptions: ComboboxOption[] = (usuariosRaw ?? []).map((u) => {
+    const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
+    // En SIPRECOM el userName suele ser el email — evitamos duplicarlo.
+    const identificador = u.userName && u.userName !== u.email ? u.userName : u.email
+    return {
+      value: u.usuarioId,
+      label: nombreCompleto ? `${nombreCompleto} — ${identificador}` : identificador,
+    }
+  })
+
+  const grupoOptions: ComboboxOption[] = [
+    { value: SIN_GRUPO, label: "Sin grupo" },
+    ...(gruposResp?.data ?? []).map((g) => ({ value: g.id, label: g.nombre })),
+  ]
+
+  const grupoElegido = grupoId === SIN_GRUPO ? null : grupoId
+  const sinCambios = responsableId === responsableActualId && grupoElegido === (grupoActualId ?? null)
+
+  async function confirmar() {
+    try {
+      await asignar.mutateAsync({
+        id: pendienteId,
+        responsableId,
+        grupoResponsableId: grupoElegido,
+      })
+      onOpenChange(false)
+    } catch {
+      /* el error queda visible dentro del diálogo */
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reasignar pendiente</AlertDialogTitle>
+          <AlertDialogDescription>
+            El responsable es la persona a cargo. El grupo es opcional y solo hace que
+            el pendiente aparezca en “Míos” para todos sus miembros — no cambia permisos.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Responsable *</label>
+            <Combobox
+              options={usuarioOptions}
+              value={responsableId}
+              onChange={(v) => setResponsableId(v || "")}
+              placeholder="Asignar a un usuario"
+              searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
+              emptyMessage="Sin usuarios en el proyecto"
+              disabled={asignar.isPending}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Grupo responsable</label>
+            <Combobox
+              options={grupoOptions}
+              value={grupoId}
+              onChange={(v) => setGrupoId(v || SIN_GRUPO)}
+              placeholder="Sin grupo"
+              searchPlaceholder="Buscar grupo..."
+              emptyMessage="No hay grupos habilitados para Pendientes"
+              disabled={asignar.isPending}
+            />
+          </div>
+
+          {asignar.error && (
+            <p className="text-xs text-destructive">{(asignar.error as Error).message}</p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={asignar.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={asignar.isPending || !responsableId || sinCambios}
+            onClick={(e) => { e.preventDefault(); confirmar() }}
+          >
+            {asignar.isPending ? "Guardando..." : "Reasignar"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
@@ -723,6 +900,7 @@ function EditarPendiente({
     categoriaId: string
     tipoId: string
     responsableId: string
+    grupoResponsableId?: string | null
     descripcion: string
     descripcionManual?: boolean
     ubicacion?: string | null
@@ -775,6 +953,7 @@ function EditarPendiente({
           categoriaId: pendiente.categoriaId,
           tipoId: pendiente.tipoId,
           responsableId: pendiente.responsableId,
+          grupoResponsableId: pendiente.grupoResponsableId ?? null,
           descripcion: pendiente.descripcion,
           descripcionManual: pendiente.descripcionManual ?? false,
           ubicacion: pendiente.ubicacion ?? null,

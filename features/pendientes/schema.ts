@@ -34,6 +34,8 @@ export function makePendienteCreateSchema(elementoRequerido: boolean) {
     ubicacion: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
 
     responsableId: z.string().min(1, "Responsable requerido"),
+    // Grupo co-responsable — opcional. El responsable nominal sigue siendo obligatorio.
+    grupoResponsableId: z.string().optional().nullable(),
     fechaCierreEstimado: z.string().min(1, "Fecha de cierre estimada requerida"),
 
     // Avanzado (colapsable).

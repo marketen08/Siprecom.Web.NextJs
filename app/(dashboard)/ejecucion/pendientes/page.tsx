@@ -17,6 +17,7 @@ import { useGetEspecialidades } from "@/features/especialidades/api/use-especial
 import { useGetPids } from "@/features/pids/api/use-get-pids"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
+import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import {
   ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD, PRIORIDAD_COLOR,
 } from "@/features/pendientes/types"
@@ -68,6 +69,7 @@ function PendientesPageContent() {
   const [pidArchivoId, setPidArchivoId] = useState(searchParams.get("pidArchivoId") ?? "")
   const [estadoSel, setEstadoSel] = useState<string>(searchParams.get("estado") ?? OPEN)
   const [responsableId, setResponsableId] = useState(searchParams.get("responsableId") ?? "")
+  const [grupoResponsableId, setGrupoResponsableId] = useState(searchParams.get("grupoResponsableId") ?? "")
   const [categoriaId, setCategoriaId] = useState(searchParams.get("categoriaId") ?? "")
   const [tipoId, setTipoId] = useState(searchParams.get("tipoId") ?? "")
   const [prioridad, setPrioridad] = useState(searchParams.get("prioridad") ?? "")
@@ -157,6 +159,7 @@ function PendientesPageContent() {
     setOrDelete(params, "especialidadId", especialidadId)
     setOrDelete(params, "pidArchivoId", pidArchivoId)
     setOrDelete(params, "responsableId", responsableId)
+    setOrDelete(params, "grupoResponsableId", grupoResponsableId)
     setOrDelete(params, "categoriaId", categoriaId)
     setOrDelete(params, "tipoId", tipoId)
     setOrDelete(params, "prioridad", prioridad)
@@ -173,7 +176,7 @@ function PendientesPageContent() {
     const current = searchParams.toString()
     if (current !== qs) router.replace(target, { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sistemaId, subSistemaId, elementoId, especialidadId, pidArchivoId, estadoSel, responsableId, categoriaId, tipoId, prioridad, page])
+  }, [search, sistemaId, subSistemaId, elementoId, especialidadId, pidArchivoId, estadoSel, responsableId, grupoResponsableId, categoriaId, tipoId, prioridad, page])
 
   const { data: perfil } = useGetPerfil()
   const { data: sistemasRaw } = useGetSistemasSelect()
@@ -182,6 +185,9 @@ function PendientesPageContent() {
   const { data: categoriasRaw } = useGetPendienteCategorias()
   const { data: tiposRaw } = useGetPendienteTipos()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
+  // Solo grupos declarados para uso en Pendientes — mismo criterio que el form
+  // de alta y la matriz de autorización.
+  const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
 
   const sistemas = sistemasRaw?.data ?? []
   const subSistemas = subSistemasRaw?.data ?? []
@@ -189,6 +195,7 @@ function PendientesPageContent() {
   const categorias = categoriasRaw?.data ?? []
   const tipos = tiposRaw?.data ?? []
   const usuarios = usuariosRaw ?? []
+  const gruposResponsables = gruposResp?.data ?? []
 
   const subSistemasFiltrados = useMemo(
     () => (sistemaId ? subSistemas.filter((ss) => ss.sistemaId === sistemaId) : subSistemas),
@@ -214,6 +221,7 @@ function PendientesPageContent() {
       pidArchivoId: pidArchivoId || undefined,
       estadoId: estadoIdFilter,
       responsableId: responsableId || undefined,
+      grupoResponsableId: grupoResponsableId || undefined,
       categoriaId: categoriaId || undefined,
       tipoId: tipoId || undefined,
       prioridad: prioridad ? Number(prioridad) : undefined,
@@ -229,7 +237,7 @@ function PendientesPageContent() {
   function clearFiltros() {
     setSistemaId(""); setSubSistemaId(""); setElementoId(""); setEspecialidadId("")
     setPidArchivoId("")
-    setEstadoSel(OPEN); setResponsableId("")
+    setEstadoSel(OPEN); setResponsableId(""); setGrupoResponsableId("")
     setCategoriaId(""); setTipoId(""); setPrioridad("")
     setPage(1)
   }
@@ -327,6 +335,10 @@ function PendientesPageContent() {
   if (responsableId) {
     const u = usuarios.find((x) => x.usuarioId === responsableId)
     activeFilters.push({ id: "responsable", label: `Responsable: ${u?.userName ?? "—"}`, onRemove: () => { setResponsableId(""); setPage(1) } })
+  }
+  if (grupoResponsableId) {
+    const g = gruposResponsables.find((x) => x.id === grupoResponsableId)
+    activeFilters.push({ id: "grupo-responsable", label: `Grupo: ${g?.nombre ?? "—"}`, onRemove: () => { setGrupoResponsableId(""); setPage(1) } })
   }
   if (categoriaId) {
     const c = categorias.find((x) => x.id === categoriaId)
@@ -456,6 +468,24 @@ function PendientesPageContent() {
                 <SelectItem value={ALL}>Cualquiera</SelectItem>
                 {usuarios.map((u) => (
                   <SelectItem key={u.usuarioId} value={u.usuarioId}>{u.userName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Grupo responsable">
+            <Select value={grupoResponsableId || ALL} onValueChange={(v) => { const value = v ?? ALL; setGrupoResponsableId(value === ALL ? "" : value); setPage(1) }}>
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {grupoResponsableId
+                    ? gruposResponsables.find((g) => g.id === grupoResponsableId)?.nombre ?? "Grupo"
+                    : "Cualquiera"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Cualquiera</SelectItem>
+                {gruposResponsables.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

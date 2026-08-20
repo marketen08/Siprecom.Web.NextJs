@@ -14,6 +14,7 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
+import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { PRIORIDAD } from "../types"
 
 import { Button } from "@/components/ui/button"
@@ -69,6 +70,10 @@ export function PendienteForm({
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
+  // Solo grupos declarados para uso en Pendientes — mismo criterio que la matriz
+  // de autorización, para no ofrecer grupos irrelevantes al asignar.
+  const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
+  const gruposResponsables = gruposResp?.data ?? []
 
   const categorias = categoriasRaw?.data ?? []
   const arbol = arbolRaw?.data ?? []
@@ -98,6 +103,7 @@ export function PendienteForm({
       descripcionManual: defaultValues?.descripcionManual ?? false,
       ubicacion: defaultValues?.ubicacion ?? null,
       responsableId: defaultValues?.responsableId ?? "",
+      grupoResponsableId: defaultValues?.grupoResponsableId ?? null,
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
       // Sistema se infiere del subsistema del defaultValues (edición) o queda vacío
@@ -498,8 +504,8 @@ export function PendienteForm({
 
         <Separator />
 
-        {/* ── Responsable + Fecha ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* ── Responsable + Grupo + Fecha ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <FormField
             control={form.control}
             name="responsableId"
@@ -530,6 +536,35 @@ export function PendienteForm({
                     Para reasignar, usá la acción de workflow en el detalle del pendiente.
                   </p>
                 )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Grupo co-responsable — opcional. No da permisos: solo hace que el
+              pendiente aparezca en "Míos" para todos los miembros del grupo.
+              Los permisos del workflow se configuran en la matriz de autorización
+              del proyecto. */}
+          <FormField
+            control={form.control}
+            name="grupoResponsableId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Grupo responsable</FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={gruposResponsables.map((g) => ({ value: g.id, label: g.nombre }))}
+                    value={field.value ?? ""}
+                    onChange={(v) => field.onChange(v || null)}
+                    placeholder="Sin grupo (opcional)"
+                    searchPlaceholder="Buscar grupo..."
+                    emptyMessage="No hay grupos habilitados para Pendientes"
+                    disabled={isPending || readonlyResponsable}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground mt-1">
+                  El pendiente le aparece en “Míos” a todo el grupo. No cambia permisos.
+                </p>
                 <FormMessage />
               </FormItem>
             )}
