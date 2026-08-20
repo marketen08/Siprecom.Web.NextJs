@@ -566,23 +566,14 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   afecta al campo global
                 </span>
               </div>
-              <Input
-                type="number"
+              <NumeroCommitInput
+                valorActual={campo.campoNumeroLineas}
+                fallback={3}
                 min={1}
                 max={20}
-                defaultValue={campo.campoNumeroLineas ?? 3}
-                onBlur={(e) => {
-                  const num = Number(e.target.value)
-                  if (Number.isFinite(num)) saveNumeroLineas(num)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    ;(e.target as HTMLInputElement).blur()
-                  }
-                }}
                 className="mt-1 h-7 text-sm w-24"
                 disabled={updateCampoGlobal.isPending}
+                onCommit={saveNumeroLineas}
               />
               <p className="text-[10px] text-muted-foreground mt-1">
                 Cantidad de líneas para escritura manual en el PDF (1–20).
@@ -622,16 +613,14 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   </SelectContent>
                 </Select>
               ) : (
-                <Input
+                <TextoCommitInput
+                  valorActual={campo.valorDefault}
                   className="mt-1 h-7 text-sm"
-                  defaultValue={campo.valorDefault ?? ""}
                   placeholder="—"
-                  onBlur={(e) => {
-                    if (e.target.value !== (campo.valorDefault ?? "")) {
-                      updateMutation.mutate(buildUpdatePayload({ valorDefault: e.target.value || undefined }))
-                    }
-                  }}
                   disabled={updateMutation.isPending}
+                  onCommit={(v) =>
+                    updateMutation.mutate(buildUpdatePayload({ valorDefault: v || undefined }))
+                  }
                 />
               )}
             </div>
@@ -885,15 +874,14 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="flex items-center gap-2">
                   <Label className="text-xs">Alto (mm)</Label>
-                  <Input
-                    type="number"
+                  <NumeroCommitInput
+                    valorActual={campo.campoAltoMm}
+                    fallback={20}
                     min={5}
                     max={200}
-                    defaultValue={campo.campoAltoMm ?? 20}
-                    onBlur={(e) => saveAltoMm(Number(e.target.value))}
-                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur() }}
                     className="h-8 w-20 text-sm"
                     disabled={updateCampoGlobal.isPending}
+                    onCommit={saveAltoMm}
                   />
                 </div>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
@@ -999,6 +987,112 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
  * propio estado (evita el warning de Base UI por cambiar defaultValue de un input
  * no controlado tras guardar) y se re-sincroniza si el valor persistido cambia.
  */
+/**
+ * Input numérico que commitea al blur, controlado con estado local.
+ *
+ * NO usar `defaultValue` para estos casos: al guardar, la invalidación de la query
+ * trae el campo con el valor nuevo y el prop cambia, con lo que Base UI avisa
+ * "changing the default value state of an uncontrolled FieldControl after being
+ * initialized". Controlado + useEffect de sincronización es el patrón que ya usaba
+ * FilasPorDefectoInput; éste lo generaliza para el alto (Espacio/Croquis) y las
+ * líneas (TextoArea).
+ */
+function NumeroCommitInput({
+  valorActual,
+  fallback,
+  min,
+  max,
+  className,
+  disabled,
+  onCommit,
+}: {
+  valorActual: number | null | undefined
+  fallback: number
+  min: number
+  max: number
+  className?: string
+  disabled?: boolean
+  onCommit: (n: number) => void
+}) {
+  const actual = valorActual ?? fallback
+  const [valor, setValor] = useState(String(actual))
+
+  useEffect(() => {
+    setValor(String(actual))
+  }, [actual])
+
+  return (
+    <Input
+      type="number"
+      min={min}
+      max={max}
+      className={className}
+      value={valor}
+      onChange={(e) => setValor(e.target.value)}
+      onBlur={(e) => {
+        const n = Number(e.target.value)
+        // Input vacío o basura: no commiteamos, y como el prop no cambió el useEffect
+        // no corre — restauramos a mano el último valor válido.
+        if (!Number.isFinite(n) || e.target.value.trim() === "") {
+          setValor(String(actual))
+          return
+        }
+        const clamped = Math.max(min, Math.min(max, Math.floor(n)))
+        setValor(String(clamped))
+        if (clamped !== actual) onCommit(clamped)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault()
+          ;(e.target as HTMLInputElement).blur()
+        }
+      }}
+      disabled={disabled}
+    />
+  )
+}
+
+/** Versión de texto de NumeroCommitInput. Mismo motivo para ser controlado. */
+function TextoCommitInput({
+  valorActual,
+  placeholder,
+  className,
+  disabled,
+  onCommit,
+}: {
+  valorActual: string | null | undefined
+  placeholder?: string
+  className?: string
+  disabled?: boolean
+  onCommit: (v: string) => void
+}) {
+  const actual = valorActual ?? ""
+  const [valor, setValor] = useState(actual)
+
+  useEffect(() => {
+    setValor(actual)
+  }, [actual])
+
+  return (
+    <Input
+      className={className}
+      placeholder={placeholder}
+      value={valor}
+      onChange={(e) => setValor(e.target.value)}
+      onBlur={(e) => {
+        if (e.target.value !== actual) onCommit(e.target.value)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault()
+          ;(e.target as HTMLInputElement).blur()
+        }
+      }}
+      disabled={disabled}
+    />
+  )
+}
+
 function FilasPorDefectoInput({
   numeroFilas,
   disabled,
