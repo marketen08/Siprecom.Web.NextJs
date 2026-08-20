@@ -228,7 +228,7 @@ export function AddCampoModal({
   const isChecklistNuevo = tipoDatoFormulario === 11
   const isTextoAreaNuevo = tipoDatoFormulario === 12
   const isBooleanNuevo = tipoDatoFormulario === 4
-  const isEspacioNuevo = tipoDatoFormulario === 13
+  const isEspacioNuevo = tipoDatoFormulario === 13 || tipoDatoFormulario === 14
   const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10

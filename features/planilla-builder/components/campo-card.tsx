@@ -68,6 +68,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const isTabla = campo.campoTipoDato === 9
   const isLabel = campo.campoTipoDato === 10
   const isEspacio = campo.campoTipoDato === 13
+  const isCroquis = campo.campoTipoDato === 14
   const isTextoArea = campo.campoTipoDato === 12
   const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
 
@@ -869,12 +870,16 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
           {/* Espacio (tipo 13): alto + recuadro. Display-only, vive en el Campo global.
               Solo exponemos los flags que tienen sentido en un bloque vacío — negrita,
               alineación y padding no aplican porque no hay texto. */}
-          {isEspacio && (
+          {(isEspacio || isCroquis) && (
             <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50/60 p-3">
-              <Label className="text-xs font-semibold">Espacio en blanco</Label>
+              <Label className="text-xs font-semibold">
+                {isCroquis ? "Croquis" : "Espacio en blanco"}
+              </Label>
               <p className="text-[10px] text-muted-foreground">
-                Bloque vacío que solo reserva alto en el PDF. No es un campo a completar.
-                Respeta el ancho de la grilla, así que dos espacios de 6 quedan lado a lado.
+                {isCroquis
+                  ? "Recuadro donde el operador dibuja. El dibujo se guarda en el registro y se imprime en el PDF; si no hay, sale el recuadro vacío para hacerlo a mano."
+                  : "Bloque vacío que solo reserva alto en el PDF. No es un campo a completar."}{" "}
+                Respeta el ancho de la grilla, así que dos de 6 quedan lado a lado.
                 Afecta a todas las planillas que usen este campo.
               </p>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -896,7 +901,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                     checked={campo.campoConBorde ?? false}
                     onChange={(e) => updateLabelStyle({ conBorde: e.target.checked })}
                     disabled={updateCampoGlobal.isPending} />
-                  Recuadro (para dibujar)
+                  {isCroquis ? "Recuadro alrededor del dibujo" : "Recuadro (para dibujar)"}
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"

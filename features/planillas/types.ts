@@ -61,7 +61,7 @@ export interface CampoOpcion {
 // 13 = Espacio: bloque vacío display-only (alto en mm). Es LAYOUT, no dato — igual que
 //      8 (Imagen) y 10 (Label), queda fuera de los valores del registro. El croquis
 //      DIGITAL (que sí persiste una imagen) irá como tipo propio, no como flag de éste.
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11 | 12 | 13
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11 | 12 | 13 | 14
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -75,6 +75,7 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   11: "Checklist",
   12: "Texto multilínea",
   13: "Espacio en blanco",
+  14: "Croquis (dibujo)",
 }
 
 /**

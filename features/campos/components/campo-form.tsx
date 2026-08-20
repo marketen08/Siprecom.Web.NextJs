@@ -247,8 +247,8 @@ export function CampoForm({
           )}
         />
 
-        {/* Solo Espacio (tipoDato === 13): alto del bloque en mm. */}
-        {tipoDato === 13 && (
+        {/* Espacio (13) y Croquis (14): alto del bloque en mm. */}
+        {(tipoDato === 13 || tipoDato === 14) && (
           <FormField
             control={form.control}
             name="altoMm"

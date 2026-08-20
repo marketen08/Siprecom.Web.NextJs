@@ -20,6 +20,7 @@ import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
+import { CampoCroquisInput } from "@/features/registros/components/campo-croquis-input"
 import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
 import {
   CargaFisicaUploader,
@@ -259,7 +260,11 @@ export default function RegistroFormPage({ params }: PageProps) {
           case 2: input.valorNumero = raw !== "" ? Number(raw) : null; break
           case 3: input.valorFecha  = raw || null; break
           case 4: input.valorBit    = raw === "true" ? true : raw === "false" ? false : null; break
-          case 9: input.valorJson   = raw || null; break
+          // 9 = Tabla (matriz de celdas), 14 = Croquis (data URL PNG del dibujo).
+          // Los dos van a ValorJson porque es la única columna sin tope de largo
+          // (ValorTexto está capado en 1000 chars).
+          case 9:
+          case 14: input.valorJson = raw || null; break
           default: input.valorTexto = raw || null
         }
         return input
@@ -1119,6 +1124,16 @@ function CampoInput({
       )
       break
     }
+    case 14: // Croquis — el operador dibuja; se guarda el PNG en base64.
+      input = (
+        <CampoCroquisInput
+          value={value}
+          onChange={onChange}
+          readOnly={readOnly}
+          altoMm={campo.campoAltoMm ?? 20}
+        />
+      )
+      break
     case 9: // Tabla — celdas de texto (matriz fija o dinámica)
       input = (
         <CampoTablaInput
