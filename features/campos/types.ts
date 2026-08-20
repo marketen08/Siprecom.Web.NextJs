@@ -111,6 +111,8 @@ export interface CampoTablaColumnaCreateInput {
   esColumnaEtiqueta: boolean
   /** Header agrupador opcional. Ver docstring en `types` (planillas). */
   grupo?: string | null
+  /** Peso relativo del ancho (1..12). Default 2 si no se manda. */
+  ancho?: number
 }
 
 export interface CampoTablaColumnaUpdateInput {
@@ -121,6 +123,11 @@ export interface CampoTablaColumnaUpdateInput {
   esColumnaEtiqueta: boolean
   /** Header agrupador opcional. Ver docstring en `types` (planillas). */
   grupo?: string | null
+  /**
+   * Peso relativo del ancho (1..12). El PUT reemplaza la fila entera, así que hay
+   * que reenviarlo siempre o el backend lo vuelve al default.
+   */
+  ancho?: number
 }
 
 export interface CampoTablaFilaCreateInput {

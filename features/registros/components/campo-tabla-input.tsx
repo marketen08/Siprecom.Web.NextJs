@@ -95,10 +95,6 @@ export function CampoTablaInput({
     emit(rows.filter((_, i) => i !== ri))
   }
 
-  if (columnas.length === 0) {
-    return <p className="text-xs text-muted-foreground italic">Tabla sin columnas definidas.</p>
-  }
-
   // Segmenta las columnas en tramos contiguos con el mismo `grupo` para el
   // header agrupador. Columnas sin grupo (o vacío) salen como celdas vacías
   // individuales para mantener alineada la grilla. La col extra "eliminar"
@@ -119,10 +115,41 @@ export function CampoTablaInput({
 
   const hayGrupos = grupoTramos.some((t) => t.grupo !== null)
 
+  // Anchos: mismo peso relativo que usa el PDF (CampoTablaColumna.Ancho), así la
+  // pantalla y el papel muestran la misma tabla. Sin esto el <table> usa auto-layout
+  // y acomoda las columnas según el contenido, que es lo que hacía diferir a los dos.
+  //
+  // La columna extra de "eliminar fila" (solo tablas dinámicas editables) se lleva un
+  // porcentaje fijo y las de datos se reparten el resto — así el colgroup suma
+  // exactamente 100% y no desborda con table-layout: fixed.
+  const hayColumnaEliminar = !esMatriz && !readOnly
+  const PCT_COL_ELIMINAR = 4
+  const totalAncho = columnas.reduce((sum, c) => sum + (c.ancho || 0), 0)
+  const pctDisponible = 100 - (hayColumnaEliminar ? PCT_COL_ELIMINAR : 0)
+  const anchoPct = (ancho: number) =>
+    totalAncho > 0
+      ? `${((ancho || 0) / totalAncho) * pctDisponible}%`
+      : `${pctDisponible / Math.max(1, columnas.length)}%`
+
+  // Va DESPUÉS de todos los hooks: cuando estaba arriba del useMemo de grupoTramos,
+  // una tabla que pasaba de 0 columnas a N cambiaba la cantidad de hooks entre
+  // renders y React tiraba "Rendered more hooks than during the previous render".
+  if (columnas.length === 0) {
+    return <p className="text-xs text-muted-foreground italic">Tabla sin columnas definidas.</p>
+  }
+
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto border rounded-md">
-        <table className="w-full text-sm border-collapse">
+        {/* min-w: en pantallas angostas la tabla mantiene un piso y scrollea, en vez
+            de comprimir las columnas hasta que los porcentajes dejan de leerse. */}
+        <table className="w-full min-w-[32rem] table-fixed text-sm border-collapse">
+          <colgroup>
+            {columnas.map((c) => (
+              <col key={c.id} style={{ width: anchoPct(c.ancho) }} />
+            ))}
+            {hayColumnaEliminar && <col style={{ width: `${PCT_COL_ELIMINAR}%` }} />}
+          </colgroup>
           <thead>
             {hayGrupos && (
               <tr className="bg-gray-100">
@@ -160,7 +187,7 @@ export function CampoTablaInput({
                       return (
                         <td
                           key={c.id}
-                          className="border-b border-r last:border-r-0 px-2 py-1 font-medium text-gray-700 bg-gray-50/50 whitespace-nowrap"
+                          className="border-b border-r last:border-r-0 px-2 py-1 font-medium text-gray-700 bg-gray-50/50 truncate"
                         >
                           {filasDef[ri]?.etiquetaFila ?? ""}
                         </td>

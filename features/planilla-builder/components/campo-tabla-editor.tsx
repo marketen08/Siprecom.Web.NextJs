@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react"
 
-import type { PlanillaCampoDetalle } from "@/features/planillas/types"
+import type { CampoTablaColumna, PlanillaCampoDetalle } from "@/features/planillas/types"
 import { useCreateTablaColumna } from "@/features/campos/api/use-create-tabla-columna"
 import { useDeleteTablaColumna } from "@/features/campos/api/use-delete-tabla-columna"
 import { useReorderTablaColumnas } from "@/features/campos/api/use-reorder-tabla-columnas"
@@ -57,6 +57,8 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
         esColumnaEtiqueta: newColumnaEsEtiqueta,
         orden: columnas.reduce((m, c) => Math.max(m, c.orden), 0) + 1,
         grupo: newColumnaGrupo.trim() || null,
+        // Mismo default que el backend: la columna de etiquetas arranca más ancha.
+        ancho: newColumnaEsEtiqueta ? 3 : 2,
       },
       {
         onSuccess: () => {
@@ -68,8 +70,28 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
     )
   }
 
+  // El PUT de columna REEMPLAZA la fila entera, así que cualquier update tiene que
+  // reenviar todos los campos — mandar solo el que cambió pisa el resto con los
+  // defaults del DTO. Este helper arma el payload completo y aplica el override.
+  const commitColumna = (
+    col: CampoTablaColumna,
+    overrides: Partial<Pick<CampoTablaColumna, "grupo" | "ancho">>,
+    onDone?: () => void,
+  ) => {
+    updateColumna.mutate({
+      id: col.id,
+      campoId: col.campoId,
+      encabezado: col.encabezado,
+      orden: col.orden,
+      esColumnaEtiqueta: col.esColumnaEtiqueta,
+      grupo: col.grupo ?? null,
+      ancho: col.ancho,
+      ...overrides,
+    }, { onSuccess: onDone })
+  }
+
   // Persiste el Grupo de una columna cuando cambia (blur del input).
-  const commitGrupo = (col: { id: string; campoId: string; encabezado: string; orden: number; esColumnaEtiqueta: boolean; grupo?: string | null }) => {
+  const commitGrupo = (col: CampoTablaColumna) => {
     const draft = drafts[col.id]
     if (draft === undefined) return
     const nuevoGrupo = draft.trim() || null
@@ -78,16 +100,16 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
       setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c })
       return
     }
-    updateColumna.mutate({
-      id: col.id,
-      campoId: col.campoId,
-      encabezado: col.encabezado,
-      orden: col.orden,
-      esColumnaEtiqueta: col.esColumnaEtiqueta,
-      grupo: nuevoGrupo,
-    }, {
-      onSuccess: () => setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c }),
-    })
+    commitColumna(col, { grupo: nuevoGrupo }, () =>
+      setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c }),
+    )
+  }
+
+  // Ancho: se persiste en el acto (es un stepper acotado, no texto libre).
+  const commitAncho = (col: CampoTablaColumna, nuevo: number) => {
+    const clamped = Math.min(12, Math.max(1, Math.round(nuevo)))
+    if (clamped === col.ancho) return
+    commitColumna(col, { ancho: clamped })
   }
 
   const handleAddFila = () => {
@@ -120,6 +142,12 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
 
   const esMatriz = filas.length > 0
 
+  // Suma de pesos: es el denominador del % que mostramos al lado de cada columna.
+  // Guardamos contra 0 (tabla recién creada) para no dividir por cero.
+  const totalAncho = columnas.reduce((sum, c) => sum + (c.ancho || 0), 0)
+  const porcentaje = (ancho: number) =>
+    totalAncho > 0 ? Math.round((ancho / totalAncho) * 100) : 0
+
   return (
     <div className="space-y-3 rounded-md border border-indigo-100 bg-indigo-50/40 p-3">
       <Label className="text-xs font-semibold text-indigo-900">Definición de la tabla</Label>
@@ -127,6 +155,10 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
       {/* Columnas */}
       <div>
         <Label className="text-xs">Columnas</Label>
+        <p className="text-[10px] text-muted-foreground">
+          El ancho es un peso relativo: cada columna ocupa su peso sobre la suma de todos.
+          No hace falta que sumen un total — el % de al lado se recalcula solo.
+        </p>
         <div className="mt-1 space-y-1">
           {columnas.map((c, i, arr) => (
             <div key={c.id} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
@@ -149,6 +181,26 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
                 disabled={updateColumna.isPending}
                 title="Header agrupador. Columnas consecutivas con el mismo grupo se dibujan bajo un encabezado extra."
               />
+              {/* Ancho: peso relativo + el % que representa hoy. El % es informativo
+                  y se recalcula solo al agregar/quitar columnas — no hay total que
+                  cuadrar a mano. */}
+              <div
+                className="flex items-center gap-1 shrink-0"
+                title="Ancho relativo de la columna (1-12). El ancho real es este peso dividido la suma de todos."
+              >
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={c.ancho}
+                  onChange={(e) => commitAncho(c, Number(e.target.value))}
+                  className="h-6 text-[11px] w-12"
+                  disabled={updateColumna.isPending}
+                />
+                <span className="text-[10px] text-muted-foreground w-8 tabular-nums">
+                  {porcentaje(c.ancho)}%
+                </span>
+              </div>
               <Button
                 variant="ghost"
                 size="icon"

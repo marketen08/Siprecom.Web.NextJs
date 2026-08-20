@@ -109,6 +109,12 @@ export interface CampoTablaColumna {
   /** True si es la columna de etiquetas (primera columna read-only de una tabla matriz). */
   esColumnaEtiqueta: boolean
   /**
+   * Peso relativo del ancho (1..12). El ancho real es `ancho / suma(anchos)`, así que
+   * no hay total que cuadrar: agregar o quitar columnas reacomoda el resto solo.
+   * Default 2 (3 en la columna de etiquetas). Ver docstring de la entity.
+   */
+  ancho: number
+  /**
    * Header agrupador opcional. Columnas consecutivas con el mismo `grupo` se
    * dibujan bajo una fila extra de encabezado en PDF y en el input web
    * (colspan). Null / vacío = columna sin agrupar. Ver docstring de la entity.
