@@ -73,7 +73,7 @@ interface AddCampoModalProps {
 }
 
 type Tab = "existing" | "new" | "bulk"
-type BulkTipo = 1 | 11 // Texto | Checklist
+type BulkTipo = 1 | 4 | 11 // Texto | Marca (Boolean con casilla) | Checklist
 
 /** Opciones precargadas para el bloque compartido de Checklist en el tab "bulk". */
 const BULK_CHECKLIST_DEFAULT_OPCIONES = CHECKLIST_PRESETS[0].opciones
@@ -171,6 +171,7 @@ export function AddCampoModal({
       unidad: "",
       descripcion: "",
       numeroLineas: 3,
+      mostrarComoMarca: false,
     },
   })
 
@@ -225,6 +226,7 @@ export function AddCampoModal({
   const isListaNuevo = tipoDatoFormulario === 5
   const isChecklistNuevo = tipoDatoFormulario === 11
   const isTextoAreaNuevo = tipoDatoFormulario === 12
+  const isBooleanNuevo = tipoDatoFormulario === 4
   const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
@@ -359,17 +361,31 @@ export function AddCampoModal({
   //   - "en_planilla" — reuso encontró el campo, pero ya está en esta planilla
   //   - "dup"         — la etiqueta ya apareció más arriba en el mismo pegado
   const bulkParsed = useMemo(() => {
+    // Cada línea es "Etiqueta" o "Etiqueta | Traducción". Partimos por el PRIMER
+    // pipe nomás, así una traducción que contenga "|" no se corta al medio.
     const lineas = bulkEtiquetas
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter((l) => l.length > 0)
+      .map((l) => {
+        const i = l.indexOf("|")
+        return i === -1
+          ? { etiqueta: l, etiquetaAlt: "" }
+          : { etiqueta: l.slice(0, i).trim(), etiquetaAlt: l.slice(i + 1).trim() }
+      })
+      .filter((l) => l.etiqueta.length > 0)
 
     // Catálogo filtrado por tipo, indexado por etiqueta lowercase. Sólo con
     // reuso activo — sino, forzamos crear cada campo aunque exista.
     const catalogo = new Map<string, (typeof campos)[number]>()
     if (bulkReusar) {
       for (const c of campos) {
-        if (c.tipoDato === bulkTipo) {
+        // Para tipo Marca exigimos además que el campo del catálogo sea marca: un
+        // Boolean común (Sí/No) con la misma etiqueta NO es intercambiable.
+        const mismoTipo =
+          c.tipoDato === bulkTipo &&
+          (bulkTipo !== 4 || Boolean(c.mostrarComoMarca))
+        if (mismoTipo) {
           catalogo.set(String(c.etiqueta ?? "").trim().toLowerCase(), c)
         }
       }
@@ -400,7 +416,7 @@ export function AddCampoModal({
     }
 
     const vistos = new Set<string>()
-    return lineas.map((etiqueta) => {
+    return lineas.map(({ etiqueta, etiquetaAlt }) => {
       const key = etiqueta.toLowerCase()
       if (vistos.has(key)) {
         return { etiqueta, estado: "dup" as const }
@@ -426,6 +442,7 @@ export function AddCampoModal({
 
       return {
         etiqueta,
+        etiquetaAlt,
         estado: "nuevo" as const,
         codigoNuevo: generarCodigo(etiqueta),
       }
@@ -455,10 +472,13 @@ export function AddCampoModal({
           const res: any = await createCampoMutation.mutateAsync({
             codigo: item.codigoNuevo,
             etiqueta: item.etiqueta,
+            etiquetaAlt: item.etiquetaAlt || undefined,
             tipoDato: bulkTipo as CampoTipoDato,
             unidad: "",
             descripcion: "",
             esObligatorioDefault: esObligatorio,
+            // Tipo "Marca" = Boolean presentado como casilla que se tilda con X.
+            mostrarComoMarca: bulkTipo === 4,
           } as any)
           const newId = res?.data?.id ?? res?.id
           if (!newId) throw new Error(`No se pudo crear el campo "${item.etiqueta}"`)
@@ -927,6 +947,39 @@ export function AddCampoModal({
                   />
                 )}
 
+                {/* Solo Boolean: presentarlo como casilla de marca en vez de Sí/No.
+                    Para listas de "marcar lo que corresponda" — un campo por ítem,
+                    con la traducción en Etiqueta alternativa. Ver la tab "En lote"
+                    para cargar la lista entera de una. */}
+                {isBooleanNuevo && (
+                  <FormField
+                    control={form.control}
+                    name="mostrarComoMarca"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex flex-row items-center gap-2 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={!!field.value}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                              disabled={isPending}
+                              className="h-4 w-4 cursor-pointer"
+                            />
+                          </FormControl>
+                          <FormLabel className="mt-0! cursor-pointer font-normal">
+                            Mostrar como casilla de marca
+                          </FormLabel>
+                        </div>
+                        <FormDescription className="text-[10px]">
+                          Un cuadrito que se tilda con una X, en vez de elegir Sí/No.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 {/* Sub-sección Imagen: subir archivo + preview */}
                 {isImagenNuevo && (
                   <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50/40 p-3">
@@ -1243,7 +1296,8 @@ export function AddCampoModal({
               <div className="rounded-md border border-blue-100 bg-blue-50/40 p-3 space-y-3">
                 <p className="text-xs text-blue-900">
                   Pegá una lista de etiquetas — cada línea se convierte en un campo
-                  independiente en esta planilla.
+                  independiente en esta planilla. Para agregarle la traducción a cada
+                  una, escribí <code className="font-mono">Etiqueta | Traducción</code>.
                 </p>
 
                 <div className="space-y-1.5">
@@ -1259,6 +1313,17 @@ export function AddCampoModal({
                         className="h-3.5 w-3.5"
                       />
                       Checklist
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulk-tipo"
+                        checked={bulkTipo === 4}
+                        onChange={() => setBulkTipo(4)}
+                        disabled={bulkPending}
+                        className="h-3.5 w-3.5"
+                      />
+                      Marca (X)
                     </label>
                     <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                       <input

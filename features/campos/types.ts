@@ -18,6 +18,11 @@ export interface Campo {
   numeroFilas?: number
   /** Líneas para TextoArea (sólo cuando tipoDato === 12). Default 3, rango 1-20. */
   numeroLineas?: number
+  /**
+   * Sólo Boolean (tipoDato === 4): se presenta como casilla de marca (X / vacío) en
+   * vez de un Sí/No. El valor sigue siendo un booleano — cambia sólo la presentación.
+   */
+  mostrarComoMarca?: boolean
   /** Estilo de Label (sólo cuando tipoDato === 10). */
   negrita?: boolean
   conBorde?: boolean
@@ -49,6 +54,8 @@ export interface CampoCreateInput {
   numeroFilas?: number
   /** Líneas para TextoArea (sólo tipoDato === 12). Default 3, rango 1-20. */
   numeroLineas?: number
+  /** Sólo Boolean (tipoDato === 4): casilla de marca (X / vacío) en vez de Sí/No. */
+  mostrarComoMarca?: boolean
   esObligatorioDefault?: boolean
   negrita?: boolean
   conBorde?: boolean
@@ -71,6 +78,8 @@ export interface CampoUpdateInput {
   numeroFilas?: number
   /** Líneas para TextoArea (sólo tipoDato === 12). Default 3, rango 1-20. */
   numeroLineas?: number
+  /** Sólo Boolean (tipoDato === 4): casilla de marca (X / vacío) en vez de Sí/No. */
+  mostrarComoMarca?: boolean
   esObligatorioDefault?: boolean
   negrita?: boolean
   conBorde?: boolean

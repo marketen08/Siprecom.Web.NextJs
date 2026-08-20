@@ -971,6 +971,50 @@ function CampoInput({
       )
       break
     case 4: // Boolean
+      // Variante "casilla de marca": un único checkbox que se tilda o no, en vez del
+      // Sí/No. El valor persistido es el mismo booleano ("true"/"" ), así que prender
+      // o apagar el flag en el Campo no invalida registros ya cargados.
+      //
+      // Devolvemos temprano porque el label va A LA DERECHA del checkbox, no arriba
+      // como en el resto de los tipos.
+      if (campo.campoMostrarComoMarca) {
+        const marcado = value === "true"
+        return (
+          <div id={`campo-${campo.id}`} className="space-y-1">
+            <label
+              className={`flex items-start gap-2 rounded-md border px-3 py-2 transition-colors ${
+                readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-gray-50"
+              } ${marcado ? "border-blue-600 bg-blue-50" : "border-gray-200 bg-white"} ${
+                hasError ? "border-red-500" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-blue-600"
+                checked={marcado}
+                disabled={readOnly}
+                onChange={(e) => !readOnly && onChange(e.target.checked ? "true" : "")}
+              />
+              <span className="flex flex-col gap-0.5">
+                <span
+                  className={`text-sm ${marcado ? "font-medium text-blue-900" : "text-gray-700"}`}
+                >
+                  {campo.campoEtiqueta}
+                  {campo.esObligatorio && <span className="text-red-500"> *</span>}
+                </span>
+                {campo.campoEtiquetaAlt && (
+                  <span className="text-xs italic text-muted-foreground">
+                    {campo.campoEtiquetaAlt}
+                  </span>
+                )}
+              </span>
+            </label>
+            {hasError && (
+              <p className="text-xs text-red-500">Este campo es obligatorio.</p>
+            )}
+          </div>
+        )
+      }
       input = (
         <Select value={value} onValueChange={(v) => onChange(v ?? "")} disabled={readOnly}>
           <SelectTrigger>

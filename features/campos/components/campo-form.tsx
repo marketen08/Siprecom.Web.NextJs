@@ -73,6 +73,7 @@ export function CampoForm({
       etiquetaAlt: defaultValues?.etiquetaAlt ?? "",
       tipoDato: (defaultValues?.tipoDato ?? 1) as CampoTipoDato,
       numeroLineas: defaultValues?.numeroLineas ?? 3,
+      mostrarComoMarca: defaultValues?.mostrarComoMarca ?? false,
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
       imagenUrl: defaultValues?.imagenUrl ?? "",
@@ -270,6 +271,41 @@ export function CampoForm({
                 <FormDescription className="text-xs">
                   Cantidad de renglones (líneas de puntos) que se dibujan en la planilla en blanco.
                   Rango 1-20, default 3.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {/* Solo Boolean (tipoDato === 4): presentarlo como casilla de marca.
+            Sirve para listas donde el operador tilda con una X todos los ítems que
+            corresponden — un Campo por ítem, así se pueden marcar varios, y cada uno
+            lleva su traducción en "Etiqueta alternativa". */}
+        {tipoDato === 4 && (
+          <FormField
+            control={form.control}
+            name="mostrarComoMarca"
+            render={({ field }) => (
+              <FormItem className="space-y-1">
+                <div className="flex flex-row items-center gap-2 space-y-0">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      checked={!!field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      disabled={isPending}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                  </FormControl>
+                  <FormLabel className="mt-0! cursor-pointer font-normal">
+                    Mostrar como casilla de marca
+                  </FormLabel>
+                </div>
+                <FormDescription className="text-xs">
+                  En vez de elegir Sí/No, se muestra un cuadrito que se tilda con una X.
+                  Para listas de «marcar lo que corresponda»: creá un campo por ítem y
+                  el operador puede marcar varios.
                 </FormDescription>
                 <FormMessage />
               </FormItem>

@@ -96,6 +96,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       sinPadding: campo.campoSinPadding ?? false,
       sinMargen: campo.campoSinMargen ?? false,
       numeroLineas: campo.campoNumeroLineas ?? 3,
+      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
     })
   }
 
@@ -117,6 +118,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       sinPadding: campo.campoSinPadding ?? false,
       sinMargen: campo.campoSinMargen ?? false,
       numeroLineas: clamped,
+      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
     })
   }
   // El estilo del Label vive en el Campo global → update global (afecta todas las
@@ -136,6 +138,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       sinPadding: campo.campoSinPadding ?? false,
       sinMargen: campo.campoSinMargen ?? false,
       numeroLineas: campo.campoNumeroLineas ?? 3,
+      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
       ...overrides,
     })
   }

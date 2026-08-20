@@ -216,6 +216,11 @@ export interface PlanillaCampoDetalle {
   campoSinMargen?: boolean
   /** Filas del área de texto (vive en el Campo global). Solo si campoTipoDato === 12 (TextoArea). Default 3. */
   campoNumeroLineas?: number
+  /**
+   * Solo si campoTipoDato === 4 (Boolean): se presenta como casilla de marca (X / vacío)
+   * en vez de Sí/No. Vive en el Campo global. El valor persistido sigue siendo booleano.
+   */
+  campoMostrarComoMarca?: boolean
 }
 
 export interface PlanillaEstructura {

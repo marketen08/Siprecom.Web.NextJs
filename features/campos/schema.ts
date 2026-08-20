@@ -15,6 +15,8 @@ export const campoSchema = z.object({
   numeroFilas: z.number().int().min(1).max(100).optional(),
   /** Solo TextoArea (tipoDato === 12). Default 3, rango 1-20. */
   numeroLineas: z.number().int().min(1).max(20).optional(),
+  /** Solo Boolean (tipoDato === 4): se presenta como casilla de marca (X) en vez de Sí/No. */
+  mostrarComoMarca: z.boolean().optional(),
   /** Default de obligatoriedad: precarga el checkbox al agregar el campo a una planilla. */
   esObligatorioDefault: z.boolean().optional(),
 })
