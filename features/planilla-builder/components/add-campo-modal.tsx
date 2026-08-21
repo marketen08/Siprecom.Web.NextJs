@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -173,6 +174,7 @@ export function AddCampoModal({
       numeroLineas: 3,
       mostrarComoMarca: false,
       altoMm: 20,
+      textoLargo: "",
     },
   })
 
@@ -229,6 +231,7 @@ export function AddCampoModal({
   const isTextoAreaNuevo = tipoDatoFormulario === 12
   const isBooleanNuevo = tipoDatoFormulario === 4
   const isEspacioNuevo = tipoDatoFormulario === 13 || tipoDatoFormulario === 14
+  const isNotaNueva = tipoDatoFormulario === 15
   const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
@@ -917,6 +920,32 @@ export function AddCampoModal({
                     )}
                   />
                 </div>
+
+                {/* Solo Nota: el texto que se imprime (multilínea). */}
+                {isNotaNueva && (
+                  <FormField
+                    control={form.control}
+                    name="textoLargo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Texto de la nota *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={"Verificar torque según especificación.\nAnotar desvíos en el reverso."}
+                            rows={4}
+                            disabled={isPending}
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-[10px]">
+                          Se imprime respetando los saltos de línea. La etiqueta no se imprime.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {/* Solo Espacio: alto del bloque vacío. El recuadro y demás flags se
                     configuran después desde la card del campo. */}

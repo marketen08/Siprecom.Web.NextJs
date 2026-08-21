@@ -61,7 +61,7 @@ export interface CampoOpcion {
 // 13 = Espacio: bloque vacío display-only (alto en mm). Es LAYOUT, no dato — igual que
 //      8 (Imagen) y 10 (Label), queda fuera de los valores del registro. El croquis
 //      DIGITAL (que sí persiste una imagen) irá como tipo propio, no como flag de éste.
-export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11 | 12 | 13 | 14
+export type CampoTipoDato = 1 | 2 | 3 | 4 | 5 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15
 
 export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   1: "Texto",
@@ -76,6 +76,7 @@ export const CAMPO_TIPO_DATO: Record<CampoTipoDato, string> = {
   12: "Texto multilínea",
   13: "Espacio en blanco",
   14: "Croquis (dibujo)",
+  15: "Nota (texto fijo)",
 }
 
 /**
@@ -229,6 +230,8 @@ export interface PlanillaCampoDetalle {
   campoNumeroLineas?: number
   /** Alto en mm (Campo global). Solo si campoTipoDato === 13 (Espacio). Default 20. */
   campoAltoMm?: number
+  /** Texto fijo multilínea (Campo global). Solo si campoTipoDato === 15 (Nota). */
+  campoTextoLargo?: string | null
   /**
    * Solo si campoTipoDato === 4 (Boolean): se presenta como casilla de marca (X / vacío)
    * en vez de Sí/No. Vive en el Campo global. El valor persistido sigue siendo booleano.

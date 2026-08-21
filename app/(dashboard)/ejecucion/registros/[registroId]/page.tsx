@@ -245,11 +245,12 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   function buildValores(): RegistroValorInput[] {
-    // Excluimos tipos que NO son inputs digitales: Imagen (8), Label (10) y
-    // Espacio (13) — los tres son layout, no dato.
+    // Excluimos tipos que NO son inputs digitales: Imagen (8), Label (10),
+    // Espacio (13) y Nota (15) — son layout, no dato.
     return campos
       .filter((c) => c.visible && !c.soloLectura
-                      && c.campoTipoDato !== 8 && c.campoTipoDato !== 10 && c.campoTipoDato !== 13)
+                      && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
+                      && c.campoTipoDato !== 13 && c.campoTipoDato !== 15)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -274,7 +275,8 @@ export default function RegistroFormPage({ params }: PageProps) {
   function validate(): boolean {
     const camposObligatorios = campos.filter(
       (c) => c.visible && !c.soloLectura && c.esObligatorio
-             && c.campoTipoDato !== 8 && c.campoTipoDato !== 10 && c.campoTipoDato !== 13
+             && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
+             && c.campoTipoDato !== 13 && c.campoTipoDato !== 15
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
@@ -1152,6 +1154,24 @@ function CampoInput({
           style={{ textAlign: campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left" }}
         >
           {campo.campoEtiqueta}
+        </div>
+      )
+    case 15: // Nota — texto fijo del diseño. Se muestra igual que en el PDF, con los
+      //        saltos de línea respetados (whitespace-pre-line).
+      return (
+        <div
+          id={`campo-${campo.id}`}
+          className={`text-sm whitespace-pre-line ${campo.campoSinPadding ? "" : "px-3 py-2"} ${
+            campo.campoSinMargen ? "-my-2.5" : ""
+          } ${campo.campoFondoGris ? "bg-gray-100" : ""} ${
+            campo.campoConBorde ? "border border-gray-300 rounded" : ""
+          } ${campo.campoNegrita ? "font-bold" : ""}`}
+          style={{
+            textAlign:
+              campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left",
+          }}
+        >
+          {campo.campoTextoLargo ?? ""}
         </div>
       )
     case 13: { // Espacio — bloque vacío del PDF. Acá no hay nada que completar, pero

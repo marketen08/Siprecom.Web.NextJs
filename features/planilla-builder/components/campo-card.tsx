@@ -100,6 +100,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       numeroLineas: campo.campoNumeroLineas ?? 3,
       mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
       altoMm: campo.campoAltoMm ?? 20,
+      textoLargo: campo.campoTextoLargo ?? undefined,
     })
   }
 
@@ -123,6 +124,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       numeroLineas: clamped,
       mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
       altoMm: campo.campoAltoMm ?? 20,
+      textoLargo: campo.campoTextoLargo ?? undefined,
     })
   }
   // Update del AltoMm (Campo global, solo Espacio). Rango 5-200, default 20.
@@ -145,6 +147,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       numeroLineas: campo.campoNumeroLineas ?? 3,
       mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
       altoMm: clamped,
+      textoLargo: campo.campoTextoLargo ?? undefined,
     })
   }
 
@@ -167,6 +170,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       numeroLineas: campo.campoNumeroLineas ?? 3,
       mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
       altoMm: campo.campoAltoMm ?? 20,
+      textoLargo: campo.campoTextoLargo ?? undefined,
       ...overrides,
     })
   }

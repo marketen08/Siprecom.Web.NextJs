@@ -20,6 +20,8 @@ export interface Campo {
   numeroLineas?: number
   /** Alto en mm para Espacio (sólo cuando tipoDato === 13). Default 20, rango 5-200. */
   altoMm?: number
+  /** Texto fijo multilínea (sólo cuando tipoDato === 15 / Nota). */
+  textoLargo?: string | null
   /**
    * Sólo Boolean (tipoDato === 4): se presenta como casilla de marca (X / vacío) en
    * vez de un Sí/No. El valor sigue siendo un booleano — cambia sólo la presentación.
@@ -58,6 +60,8 @@ export interface CampoCreateInput {
   numeroLineas?: number
   /** Alto en mm para Espacio (sólo tipoDato === 13). Default 20, rango 5-200. */
   altoMm?: number
+  /** Texto fijo multilínea (sólo tipoDato === 15 / Nota). */
+  textoLargo?: string | null
   /** Sólo Boolean (tipoDato === 4): casilla de marca (X / vacío) en vez de Sí/No. */
   mostrarComoMarca?: boolean
   esObligatorioDefault?: boolean
@@ -84,6 +88,8 @@ export interface CampoUpdateInput {
   numeroLineas?: number
   /** Alto en mm para Espacio (sólo tipoDato === 13). Default 20, rango 5-200. */
   altoMm?: number
+  /** Texto fijo multilínea (sólo tipoDato === 15 / Nota). */
+  textoLargo?: string | null
   /** Sólo Boolean (tipoDato === 4): casilla de marca (X / vacío) en vez de Sí/No. */
   mostrarComoMarca?: boolean
   esObligatorioDefault?: boolean

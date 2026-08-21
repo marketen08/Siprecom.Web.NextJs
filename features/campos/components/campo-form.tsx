@@ -74,6 +74,7 @@ export function CampoForm({
       tipoDato: (defaultValues?.tipoDato ?? 1) as CampoTipoDato,
       numeroLineas: defaultValues?.numeroLineas ?? 3,
       altoMm: defaultValues?.altoMm ?? 20,
+      textoLargo: defaultValues?.textoLargo ?? "",
       mostrarComoMarca: defaultValues?.mostrarComoMarca ?? false,
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
@@ -246,6 +247,34 @@ export function CampoForm({
             </FormItem>
           )}
         />
+
+        {/* Solo Nota (tipoDato === 15): el texto que se imprime. Es el contenido real
+            del campo — la Etiqueta solo lo nombra en el catálogo y no se imprime. */}
+        {tipoDato === 15 && (
+          <FormField
+            control={form.control}
+            name="textoLargo"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Texto de la nota *</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder={"Verificar torque según especificación.\nAnotar desvíos en el reverso."}
+                    rows={5}
+                    disabled={isPending}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Se imprime tal cual en el PDF, respetando los saltos de línea. La etiqueta
+                  del campo no se imprime — solo sirve para encontrarlo en el catálogo.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Espacio (13) y Croquis (14): alto del bloque en mm. */}
         {(tipoDato === 13 || tipoDato === 14) && (

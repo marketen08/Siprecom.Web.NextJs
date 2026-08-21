@@ -16,6 +16,7 @@ export const CAMPO_FIELD_MAP: Record<string, keyof CampoFormValues> = {
   NumeroFilas: "numeroFilas",
   NumeroLineas: "numeroLineas",
   AltoMm: "altoMm",
+  TextoLargo: "textoLargo",
   MostrarComoMarca: "mostrarComoMarca",
 }
 
