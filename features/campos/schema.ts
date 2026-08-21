@@ -8,8 +8,9 @@ export const campoSchema = z.object({
   // 6 (Firma) y 7 (Adjunto) excluidos: ya no son tipos de campo. Resto: 1..5, 8, 9 (Tabla),
   // 10 (Label), 11 (Checklist — tipo propio), 12 (TextoArea — texto multilínea),
   // 13 (Espacio — bloque vacío display-only), 14 (Croquis — dibujo del operador),
-  // 15 (Nota — texto fijo multilínea del diseño).
-  tipoDato: z.number().int().min(1).max(15).refine((v) => v !== 6 && v !== 7, { message: "Tipo no válido" }),
+  // 15 (Nota — texto fijo multilínea del diseño), 16 (Leyenda — fila de códigos que
+  // reusa las opciones de Lista/Checklist).
+  tipoDato: z.number().int().min(1).max(16).refine((v) => v !== 6 && v !== 7, { message: "Tipo no válido" }),
   unidad: z.string().optional(),
   descripcion: z.string().optional(),
   imagenUrl: z.string().optional(),

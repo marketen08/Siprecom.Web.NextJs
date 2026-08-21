@@ -228,17 +228,20 @@ export function AddCampoModal({
   const isTextoAreaExistente = selectedCampoExistente?.tipoDato === 12
   const isListaNuevo = tipoDatoFormulario === 5
   const isChecklistNuevo = tipoDatoFormulario === 11
+  const isLeyendaNueva = tipoDatoFormulario === 16
   const isTextoAreaNuevo = tipoDatoFormulario === 12
   const isBooleanNuevo = tipoDatoFormulario === 4
   const isEspacioNuevo = tipoDatoFormulario === 13 || tipoDatoFormulario === 14
   const isNotaNueva = tipoDatoFormulario === 15
-  const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo
+  // La Leyenda reusa CampoOpcion, así que también carga opciones al crearse.
+  const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo || isLeyendaNueva
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
   // Ancho fijo 12 (full-width) forzado: Checklist y TextoArea deben tomar toda
   // la fila. Se refleja en el disabled del selector de ancho y en el payload.
   const anchoForzadoCompleto =
     isChecklistExistente || isChecklistNuevo || isTextoAreaExistente || isTextoAreaNuevo
+    || isLeyendaNueva
 
   const handleUploadImagen = async (file: File) => {
     const url = await uploadMutation.mutateAsync(file)

@@ -62,14 +62,21 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   const tipoDatoLabel = CAMPO_TIPO_DATO[campo.campoTipoDato as CampoTipoDato] ?? "—"
   const isLista = campo.campoTipoDato === 5
   const isChecklist = campo.campoTipoDato === 11
-  // "Con opciones" agrupa Lista y Checklist para el editor de opciones.
-  const tieneOpciones = isLista || isChecklist
+  const isLeyenda = campo.campoTipoDato === 16
   const isImagen = campo.campoTipoDato === 8
   const isTabla = campo.campoTipoDato === 9
   const isLabel = campo.campoTipoDato === 10
   const isEspacio = campo.campoTipoDato === 13
   const isCroquis = campo.campoTipoDato === 14
+  const isNota = campo.campoTipoDato === 15
   const isTextoArea = campo.campoTipoDato === 12
+  // "Con opciones" agrupa Lista y Checklist para el editor de opciones.
+  // La Leyenda reusa CampoOpcion (código + descripción), así que comparte editor.
+  const tieneOpciones = isLista || isChecklist || isLeyenda
+  // Tipos que no son inputs: no tiene sentido ofrecerles "valor por defecto".
+  // Croquis sí es input pero su valor es una imagen, no un default tipeable.
+  const sinValorDefault =
+    isImagen || isTabla || isLabel || isEspacio || isCroquis || isNota || isLeyenda
   const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
 
   const updateCampoGlobal = useUpdateCampoGlobal()
@@ -585,8 +592,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             </div>
           )}
 
-          {/* Valor por defecto — no aplica a tipo Imagen, Tabla ni Label */}
-          {!isImagen && !isTabla && !isLabel && (
+          {/* Valor por defecto — solo para los tipos que son input de texto/valor */}
+          {!sinValorDefault && (
             <div>
               <Label className="text-xs">Valor por defecto</Label>
               {tieneOpciones ? (
@@ -649,7 +656,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                     handleTamanoChange(num)
                   }
                 }}
-                disabled={updateMutation.isPending || isChecklist}
+                disabled={updateMutation.isPending || isChecklist || isLeyenda}
               >
                 <SelectTrigger className="h-8 text-sm flex-1">
                   <SelectValue>
@@ -684,7 +691,9 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             <p className="text-[10px] text-muted-foreground">
               {isChecklist
                 ? "Los campos Checklist siempre ocupan el ancho completo (12) para renderizarse como tabla."
-                : "En grilla de 12. Los campos consecutivos se agrupan automáticamente."}
+                : isLeyenda
+                  ? "Las leyendas siempre ocupan el ancho completo (12) — la fila de códigos se reparte a lo ancho."
+                  : "En grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
 
@@ -739,7 +748,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
           {tieneOpciones && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Label className="text-xs">{isChecklist ? "Opciones del checklist" : "Opciones de lista"}</Label>
+                <Label className="text-xs">{isLeyenda ? "Códigos de la leyenda" : isChecklist ? "Opciones del checklist" : "Opciones de lista"}</Label>
                 <Button
                   variant="ghost"
                   size="icon"

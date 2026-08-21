@@ -246,11 +246,12 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function buildValores(): RegistroValorInput[] {
     // Excluimos tipos que NO son inputs digitales: Imagen (8), Label (10),
-    // Espacio (13) y Nota (15) — son layout, no dato.
+    // Espacio (13), Nota (15) y Leyenda (16) — son layout, no dato.
     return campos
       .filter((c) => c.visible && !c.soloLectura
                       && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
-                      && c.campoTipoDato !== 13 && c.campoTipoDato !== 15)
+                      && c.campoTipoDato !== 13 && c.campoTipoDato !== 15
+                      && c.campoTipoDato !== 16)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -276,7 +277,7 @@ export default function RegistroFormPage({ params }: PageProps) {
     const camposObligatorios = campos.filter(
       (c) => c.visible && !c.soloLectura && c.esObligatorio
              && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
-             && c.campoTipoDato !== 13 && c.campoTipoDato !== 15
+             && c.campoTipoDato !== 13 && c.campoTipoDato !== 15 && c.campoTipoDato !== 16
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
@@ -1156,6 +1157,30 @@ function CampoInput({
           {campo.campoEtiqueta}
         </div>
       )
+    case 16: { // Leyenda — fila de códigos que explica las respuestas válidas de los
+      //         campos de arriba. Display-only: mismas opciones que usa el PDF.
+      const opcionesLeyenda = [...campo.opciones].sort((a, b) => a.orden - b.orden)
+      return (
+        <div id={`campo-${campo.id}`} className="py-1">
+          {opcionesLeyenda.length === 0 ? (
+            <p className="text-xs italic text-muted-foreground">Leyenda sin códigos definidos.</p>
+          ) : (
+            <div className="flex flex-wrap overflow-hidden rounded-md border border-gray-300">
+              {opcionesLeyenda.map((op) => (
+                <div key={op.id} className="flex min-w-0 flex-1 items-stretch border-r last:border-r-0">
+                  <span className="shrink-0 border-r bg-gray-100 px-2 py-1 text-xs font-bold text-gray-800">
+                    {op.valor}
+                  </span>
+                  <span className="min-w-0 flex-1 px-2 py-1 text-xs text-gray-700">
+                    {op.etiqueta}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
     case 15: // Nota — texto fijo del diseño. Se muestra igual que en el PDF, con los
       //        saltos de línea respetados (whitespace-pre-line).
       return (
