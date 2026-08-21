@@ -76,6 +76,14 @@ interface AddCampoModalProps {
 type Tab = "existing" | "new" | "bulk"
 type BulkTipo = 1 | 4 | 11 // Texto | Marca (Boolean con casilla) | Checklist
 
+/**
+ * Tipos que usan CampoOpcion: Lista (5), Checklist (11) y Leyenda (16).
+ * Una sola fuente para el gate que MUESTRA el editor de opciones y el que las CREA
+ * al guardar — tenerlos duplicados hizo que la Leyenda dejara cargar opciones y
+ * después las descartara en silencio.
+ */
+const TIPOS_CON_OPCIONES = [5, 11, 16]
+
 /** Opciones precargadas para el bloque compartido de Checklist en el tab "bulk". */
 const BULK_CHECKLIST_DEFAULT_OPCIONES = CHECKLIST_PRESETS[0].opciones
 
@@ -234,14 +242,15 @@ export function AddCampoModal({
   const isEspacioNuevo = tipoDatoFormulario === 13 || tipoDatoFormulario === 14
   const isNotaNueva = tipoDatoFormulario === 15
   // La Leyenda reusa CampoOpcion, así que también carga opciones al crearse.
-  const tieneOpcionesNuevo = isListaNuevo || isChecklistNuevo || isLeyendaNueva
+  const tieneOpcionesNuevo = TIPOS_CON_OPCIONES.includes(tipoDatoFormulario)
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
   // Ancho fijo 12 (full-width) forzado: Checklist y TextoArea deben tomar toda
   // la fila. Se refleja en el disabled del selector de ancho y en el payload.
+  // Leyenda NO entra acá a propósito: arranca en 12 (ver el onValueChange del tipo)
+  // pero el ancho queda elegible — una leyenda de pocos códigos puede ir a media fila.
   const anchoForzadoCompleto =
     isChecklistExistente || isChecklistNuevo || isTextoAreaExistente || isTextoAreaNuevo
-    || isLeyendaNueva
 
   const handleUploadImagen = async (file: File) => {
     const url = await uploadMutation.mutateAsync(file)
@@ -287,9 +296,9 @@ export function AddCampoModal({
       const newCampoId = res?.data?.id ?? res?.id
       if (!newCampoId) return
 
-      // Si es Lista o Checklist, y hay opciones cargadas, crearlas en serie antes
-      // de agregar a la planilla.
-      const esConOpciones = values.tipoDato === 5 || values.tipoDato === 11
+      // Si el tipo usa opciones y hay cargadas, crearlas en serie antes de agregar
+      // a la planilla. Mismo predicado que decide mostrar el editor arriba.
+      const esConOpciones = TIPOS_CON_OPCIONES.includes(values.tipoDato)
       if (esConOpciones && tempOpciones.length > 0) {
         for (let i = 0; i < tempOpciones.length; i++) {
           const op = tempOpciones[i]
@@ -813,6 +822,17 @@ export function AddCampoModal({
                             setTamano(12)
                             setModoPersonalizado(false)
                           }
+                          // Leyenda: arranca a ancho completo porque la fila de códigos
+                          // se reparte a lo ancho, pero se puede achicar si son pocos.
+                          // Precargamos OK/NC/NA, que es el uso típico.
+                          if (nuevoTipo === 16) {
+                            setTamano(12)
+                            setModoPersonalizado(false)
+                            if (tempOpciones.length === 0) {
+                              setTempOpciones(CHECKLIST_PRESETS[1].opciones)
+                              setOpcionesManualOrder(true)
+                            }
+                          }
                         }}
                         disabled={isPending}
                       >
@@ -1212,7 +1232,7 @@ export function AddCampoModal({
 
                     {/* Presets rápidos — sólo para Checklist. Reemplazan la lista
                         actual y limpian el default si el valor previo ya no está. */}
-                    {isChecklistNuevo && (
+                    {(isChecklistNuevo || isLeyendaNueva) && (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] text-blue-700/70">Preset:</span>
                         {CHECKLIST_PRESETS.map((p) => (

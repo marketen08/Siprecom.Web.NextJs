@@ -22,15 +22,16 @@ interface CampoOpcionesEditorProps {
   campoId: string
   /**
    * Si true, muestra la fila de botones "preset" arriba del editor. Aplicable
-   * solo a campos Checklist — para Lista los presets no aplican semánticamente.
+   * a campos Checklist y Leyenda — en ambos las opciones son el par código/etiqueta
+   * (OK/NC/NA, SI/NO/NA). Para Lista los presets no aplican semánticamente.
    * Aplicar un preset REEMPLAZA las opciones actuales (borra + crea) y afecta
    * a todas las planillas que usan el campo, por eso pedimos confirmación.
    */
-  esChecklist?: boolean
+  mostrarPresets?: boolean
 }
 
-/** Editor de opciones de un campo Lista o Checklist (catálogo global). */
-export function CampoOpcionesEditor({ campoId, esChecklist = false }: CampoOpcionesEditorProps) {
+/** Editor de opciones de un campo Lista, Checklist o Leyenda (catálogo global). */
+export function CampoOpcionesEditor({ campoId, mostrarPresets = false }: CampoOpcionesEditorProps) {
   const { data, isLoading } = useGetOpciones(campoId)
   const opciones: CampoOpcion[] = (((data as any)?.data ?? []) as CampoOpcion[])
     .slice()
@@ -132,10 +133,10 @@ export function CampoOpcionesEditor({ campoId, esChecklist = false }: CampoOpcio
         </Button>
       </div>
 
-      {/* Presets — sólo para Checklist. Reemplazan las opciones actuales del
+      {/* Presets — Checklist y Leyenda. Reemplazan las opciones actuales del
           catálogo global; por eso pedimos confirmación (afecta a todas las
           planillas que usen este campo). */}
-      {esChecklist && (
+      {mostrarPresets && (
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] text-blue-700/70">Preset:</span>
           {CHECKLIST_PRESETS.map((p) => (

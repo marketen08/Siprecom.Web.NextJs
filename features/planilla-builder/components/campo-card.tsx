@@ -656,7 +656,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                     handleTamanoChange(num)
                   }
                 }}
-                disabled={updateMutation.isPending || isChecklist || isLeyenda}
+                disabled={updateMutation.isPending || isChecklist}
               >
                 <SelectTrigger className="h-8 text-sm flex-1">
                   <SelectValue>
@@ -692,7 +692,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
               {isChecklist
                 ? "Los campos Checklist siempre ocupan el ancho completo (12) para renderizarse como tabla."
                 : isLeyenda
-                  ? "Las leyendas siempre ocupan el ancho completo (12) — la fila de códigos se reparte a lo ancho."
+                  ? "La fila de códigos se reparte a lo ancho asignado. Suele ir en 12, pero podés achicarla si son pocos códigos."
                   : "En grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
