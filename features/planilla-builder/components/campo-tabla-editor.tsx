@@ -75,7 +75,7 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   // defaults del DTO. Este helper arma el payload completo y aplica el override.
   const commitColumna = (
     col: CampoTablaColumna,
-    overrides: Partial<Pick<CampoTablaColumna, "grupo" | "ancho">>,
+    overrides: Partial<Pick<CampoTablaColumna, "grupo" | "ancho" | "esColumnaEtiqueta">>,
     onDone?: () => void,
   ) => {
     updateColumna.mutate({
@@ -103,6 +103,14 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
     commitColumna(col, { grupo: nuevoGrupo }, () =>
       setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c }),
     )
+  }
+
+  // Marca/desmarca la columna de etiquetas. El backend garantiza que sea única:
+  // al marcar una, desmarca las otras del mismo campo (ver
+  // DesmarcarOtrasColumnasEtiquetaAsync). Por eso invalidamos y refetcheamos —
+  // el cambio puede afectar a una columna distinta de la que se tocó.
+  const commitEsEtiqueta = (col: CampoTablaColumna, valor: boolean) => {
+    commitColumna(col, { esColumnaEtiqueta: valor })
   }
 
   // Ancho: se persiste en el acto (es un stepper acotado, no texto libre).
@@ -163,11 +171,25 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
           {columnas.map((c, i, arr) => (
             <div key={c.id} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
               <span className="flex-1 truncate">{c.encabezado}</span>
-              {c.esColumnaEtiqueta && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">
-                  etiquetas
-                </span>
-              )}
+              {/* Toggle de columna de etiquetas. Antes era un badge de solo lectura y
+                  la única forma de cambiarlo era borrar la columna y recrearla. */}
+              <label
+                className={`shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] cursor-pointer transition-colors ${
+                  c.esColumnaEtiqueta
+                    ? "bg-amber-100 text-amber-700"
+                    : "text-muted-foreground hover:bg-gray-100"
+                } ${updateColumna.isPending ? "opacity-60 cursor-not-allowed" : ""}`}
+                title="Columna de etiquetas: primera columna read-only con las etiquetas de fila (tabla matriz). Sólo puede haber una por tabla."
+              >
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 rounded border-gray-300"
+                  checked={c.esColumnaEtiqueta}
+                  disabled={updateColumna.isPending}
+                  onChange={(e) => commitEsEtiqueta(c, e.target.checked)}
+                />
+                etiquetas
+              </label>
               <Input
                 value={drafts[c.id] ?? c.grupo ?? ""}
                 onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
