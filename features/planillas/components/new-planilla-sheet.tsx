@@ -6,6 +6,7 @@ import { useNewPlanilla } from "../hooks/use-new-planilla"
 import { useCreatePlanilla } from "../api/use-create-planilla"
 import { PlanillaForm } from "./planilla-form"
 import type { PlanillaFormValues } from "../schema"
+import type { ApiError } from "@/lib/api-client"
 
 import {
   Sheet,
@@ -47,7 +48,16 @@ export function NewPlanillaSheet() {
             onSubmit={onSubmit}
             isPending={mutation.isPending}
             onCancel={close}
+            serverErrors={(mutation.error as ApiError | null)?.body?.errors}
           />
+          {/* Mensaje general del error. Los de validación por field ya salen inline
+              dentro del form; esto cubre el resto (500, red, etc.) para que crear
+              nunca falle en silencio. */}
+          {mutation.isError && (
+            <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">
+              {(mutation.error as Error)?.message ?? "Error al crear la planilla."}
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

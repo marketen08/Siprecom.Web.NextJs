@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -8,6 +9,11 @@ import { Info } from "lucide-react"
 import { planillaSchema, type PlanillaFormValues } from "../schema"
 import type { Planilla } from "../types"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import {
+  applyServerErrorsToForm,
+  PLANILLA_FIELD_MAP,
+  type ServerValidationError,
+} from "../lib/apply-server-errors"
 import {
   Tooltip,
   TooltipContent,
@@ -42,6 +48,12 @@ interface PlanillaFormProps {
   onSubmit: (values: PlanillaFormValues) => void
   isPending: boolean
   onCancel: () => void
+  /**
+   * Errores de validación del backend (`field` en PascalCase + mensajes). Se mapean
+   * al field del form y se muestran inline; lo que no matchee sale como banner.
+   * Ver `PLANILLA_FIELD_MAP`.
+   */
+  serverErrors?: ServerValidationError[]
 }
 
 export function PlanillaForm({
@@ -49,6 +61,7 @@ export function PlanillaForm({
   onSubmit,
   isPending,
   onCancel,
+  serverErrors,
 }: PlanillaFormProps) {
   const form = useForm<PlanillaFormValues>({
     resolver: zodResolver(planillaSchema),
@@ -72,6 +85,13 @@ export function PlanillaForm({
       esEncabezadoTG: defaultValues?.esEncabezadoTG ?? false,
     },
   })
+
+  // Aplica los errores de validación del backend a los fields. El caso típico es
+  // el código duplicado al crear: el mensaje aparece bajo "Código".
+  useEffect(() => {
+    applyServerErrorsToForm(form, serverErrors, PLANILLA_FIELD_MAP)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverErrors])
 
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
@@ -351,6 +371,14 @@ export function PlanillaForm({
             </div>
           </TooltipProvider>
         </div>
+
+        {/* Errores del backend que no matchean ningún field conocido. Sin esto un
+            error nuevo del servidor quedaría invisible. */}
+        {form.formState.errors.root?.message && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {form.formState.errors.root.message}
+          </div>
+        )}
 
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">
