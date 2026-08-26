@@ -112,6 +112,35 @@ export function useReBootstrapIfcArchivo(proyectoId: string) {
   })
 }
 
+/** Resultado del /rematch — el backend devuelve estos contadores. */
+export interface RematchEntidadesResultado {
+  entidadesVinculadas: number
+  totalEntidades: number
+  elementosConTag: number
+  mensaje: string
+}
+
+/**
+ * Re-vincula bulk las entidades del archivo contra los Elementos actuales del
+ * proyecto por TAG. NO destructivo — solo toca entidades sin vincular. Se usa
+ * cuando el modelo se cargó (o se importó de otro proyecto) DESPUÉS de tener
+ * los elementos, y el auto-match reactivo nunca se disparó para ellos.
+ */
+export function useRematchIfcArchivo(proyectoId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (archivoId: string) =>
+      apiClient.post<ApiResponse<RematchEntidadesResultado>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/rematch`,
+        {},
+      ),
+    onSuccess: (_data, archivoId) => {
+      qc.invalidateQueries({ queryKey: QK_ARCHIVO(proyectoId) })
+      qc.invalidateQueries({ queryKey: ["ifc", archivoId, "entidades"] })
+    },
+  })
+}
+
 /**
  * Devuelve todos los IfcGuid del archivo vinculados a un mismo Elemento. El visor
  * lo usa para seleccionar la línea/equipo COMPLETO al clickear una de sus piezas

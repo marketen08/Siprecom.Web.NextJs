@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Loader2, Palette, RefreshCw, ScanSearch, Star, Trash2, Wrench,
+  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Link2, Loader2, Palette, RefreshCw, ScanSearch, Star, Trash2, Wrench,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -20,6 +20,7 @@ import {
   getGuidsPorElemento,
   useProcesarIfcArchivo,
   useReBootstrapIfcArchivo,
+  useRematchIfcArchivo,
 } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
 import { CodificacionesSheet } from "@/features/modelo-3d/components/codificaciones-sheet"
@@ -63,7 +64,25 @@ function ModeloPageContent() {
   const eliminar = useDeleteIfcArchivo(id)
   const procesar = useProcesarIfcArchivo(id)
   const reBootstrap = useReBootstrapIfcArchivo(id)
+  const rematch = useRematchIfcArchivo(id)
   const marcarPrincipal = useMarcarIfcPrincipal(id)
+  // Al terminar el rematch mostramos un feedback simple con el resultado.
+  const [rematchMsg, setRematchMsg] = useState<{ archivoId: string; mensaje: string; ok: boolean } | null>(null)
+
+  async function handleRematch(archivoId: string) {
+    try {
+      const res = await rematch.mutateAsync(archivoId)
+      const data = res?.data
+      setRematchMsg({
+        archivoId,
+        mensaje: data?.mensaje ?? "Re-vinculación completada.",
+        ok: (data?.entidadesVinculadas ?? 0) > 0,
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo re-vincular."
+      setRematchMsg({ archivoId, mensaje: msg, ok: false })
+    }
+  }
 
   const [openUpload, setOpenUpload] = useState(false)
   const [openAps, setOpenAps] = useState(false)
@@ -321,10 +340,14 @@ function ModeloPageContent() {
               }
               procesando={procesar.isPending && procesar.variables === a.id}
               reBootstrapeando={reBootstrap.isPending && reBootstrap.variables === a.id}
+              rematcheando={rematch.isPending && rematch.variables === a.id}
               marcandoPrincipal={marcarPrincipal.isPending && marcarPrincipal.variables === a.id}
+              rematchMsg={rematchMsg && rematchMsg.archivoId === a.id ? rematchMsg : null}
+              onCloseRematchMsg={() => setRematchMsg(null)}
               onVisualizar={() => handleVisualizar(a)}
               onProcesar={() => procesar.mutateAsync(a.id)}
               onReBootstrap={() => reBootstrap.mutateAsync(a.id)}
+              onRematch={() => handleRematch(a.id)}
               onMarcarPrincipal={() => marcarPrincipal.mutateAsync(a.id)}
               onEliminar={() => eliminar.mutateAsync(a.id)}
               onExportarJson={() => descargarMaquetaJson(id, a.id, a.nombre)}
@@ -430,8 +453,9 @@ function ModeloPageContent() {
 // ─── Card de archivo IFC ───────────────────────────────────────────────────
 
 function ArchivoCard({
-  archivo, activo, loading, disabledVisualizar, procesando, reBootstrapeando, marcandoPrincipal,
-  onVisualizar, onProcesar, onReBootstrap, onMarcarPrincipal, onEliminar, onExportarJson,
+  archivo, activo, loading, disabledVisualizar, procesando, reBootstrapeando, rematcheando, marcandoPrincipal,
+  rematchMsg, onCloseRematchMsg,
+  onVisualizar, onProcesar, onReBootstrap, onRematch, onMarcarPrincipal, onEliminar, onExportarJson,
 }: {
   archivo: ProyectoIfcArchivo
   activo: boolean
@@ -439,10 +463,14 @@ function ArchivoCard({
   disabledVisualizar: boolean
   procesando: boolean
   reBootstrapeando: boolean
+  rematcheando: boolean
   marcandoPrincipal: boolean
+  rematchMsg: { mensaje: string; ok: boolean } | null
+  onCloseRematchMsg: () => void
   onVisualizar: () => void
   onProcesar: () => Promise<unknown>
   onReBootstrap: () => Promise<unknown>
+  onRematch: () => Promise<unknown>
   onMarcarPrincipal: () => Promise<unknown>
   onEliminar: () => Promise<unknown>
   onExportarJson: () => Promise<unknown>
@@ -488,6 +516,26 @@ function ArchivoCard({
       </div>
 
       <EstadoProcesamientoBadge archivo={archivo} />
+
+      {rematchMsg && (
+        <div
+          className={`rounded-md border px-2.5 py-2 text-xs flex items-start justify-between gap-2 ${
+            rematchMsg.ok
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}
+        >
+          <span className="min-w-0 flex-1 leading-snug">{rematchMsg.mensaje}</span>
+          <button
+            type="button"
+            onClick={onCloseRematchMsg}
+            className="shrink-0 -mt-0.5 -mr-0.5 rounded px-1 leading-none text-sm hover:bg-black/5"
+            aria-label="Cerrar"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 pt-1">
         <Button
@@ -537,6 +585,15 @@ function ArchivoCard({
             <ScanSearch className="h-3.5 w-3.5" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={onRematch}
+          disabled={rematcheando}
+          className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors disabled:opacity-50"
+          title="Vincular con elementos actuales (bulk match por TAG)"
+        >
+          {rematcheando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+        </button>
         <button
           type="button"
           onClick={handleExportar}
