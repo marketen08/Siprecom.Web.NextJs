@@ -51,9 +51,15 @@ function TareasPendientesMiasBadge() {
 }
 
 /**
- * Cantidad de Pendientes en estado ABIERTO cuyo `responsableId` es el user
- * actual. Refleja "cuántos pendientes tengo que arrancar" — no cuenta los que
- * ya están EN_PROCESO o esperando aprobación.
+ * Cantidad de Pendientes en estado ABIERTO donde el user es "dueño" — misma
+ * semántica que el tab "Míos" de /ejecucion/pendientes: creador (DetectadoPor)
+ * OR responsable nominal OR miembro activo del grupo co-responsable.
+ * Antes filtraba sólo por responsableId, así que los asignados por grupo (sin
+ * responsable nominal) no contaban en el badge aunque sí aparecían en el tab.
+ *
+ * Usa `soloMios: true` para delegar la resolución al backend, que espeja el
+ * OR en query — y respeta el vínculo vivo del grupo (si te sacan de un grupo,
+ * el badge se actualiza).
  *
  * Usa el mismo endpoint /pendientes/search que la pantalla, con pageSize=1
  * (solo queremos `.total`, no las filas).
@@ -64,7 +70,7 @@ function PendientesAbiertosMiosBadge() {
     page: 1,
     pageSize: 1,
     filter: perfil?.id
-      ? { estadoId: PENDIENTE_ESTADO_IDS.ABIERTO, responsableId: perfil.id }
+      ? { estadoId: PENDIENTE_ESTADO_IDS.ABIERTO, soloMios: true }
       : undefined,
   })
 
