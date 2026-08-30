@@ -148,8 +148,13 @@ export const menu: MenuItem[] = [
     children: [
       // "Proyecto" (singular) apunta al detalle del proyecto activo del user.
       // `/alcance/proyecto` es un wrapper que resuelve el activo y redirige a
-      // `/alcance/proyectos/{id}`. La lista global vive en `/configuracion/proyectos`.
+      // `/alcance/proyectos/{id}`.
       { label: "Proyecto",     href: "/alcance/proyecto" },
+      // "Proyectos" (plural) es el ABM global. La URL vive en /configuracion/proyectos
+      // por historia — no la cambiamos para no romper links directos, pero en el
+      // menú aparece bajo Alcance con minRole=Admin (Configuración es AdminGlobal
+      // y no queremos exigir AdminGlobal para crear/administrar los propios proyectos).
+      { label: "Proyectos",    href: "/configuracion/proyectos", minRole: "Admin" },
       { label: "Sistemas",     href: "/alcance/sistemas" },
       { label: "Subsistemas",  href: "/alcance/subsistemas" },
       { label: "Elementos",    href: "/alcance/elementos" },
@@ -171,46 +176,36 @@ export const menu: MenuItem[] = [
     ],
   },
   {
+    // Configuración = catálogos del TENANT (afectan a todos los proyectos).
+    // Restringido a AdminGlobal — un Admin de un proyecto no debería pisar
+    // catálogos usados por otros proyectos del cliente. "Proyectos" (el ABM)
+    // se movió a Alcance con minRole=Admin para que Admin siga creando/
+    // administrando sus proyectos. Sidebar aplanado: antes había 3 sub-grupos
+    // ("Catálogos", "Planillas y campos", "Organización"); al sacar Proyectos
+    // y con el chip amber marcando el scope tenant, no hace falta ese nivel
+    // extra de agrupación.
     label: "Configuración",
-    minRole: "Admin",
+    minRole: "AdminGlobal",
     children: [
-      // Sub-agrupada en tres bloques temáticos: catálogos del dominio,
-      // planillas/campos, y datos de organización.
+      { label: "Especialidades",    href: "/configuracion/especialidades" },
+      { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
+      { label: "Niveles",           href: "/configuracion/niveles" },
       {
-        label: "Catálogos",
+        label: "Pendientes",
         children: [
-          { label: "Especialidades",    href: "/configuracion/especialidades" },
-          { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
-          { label: "Niveles",           href: "/configuracion/niveles" },
-          {
-            label: "Pendientes",
-            children: [
-              { label: "Categorías",       href: "/configuracion/pendientes-categorias" },
-              { label: "Tipos",            href: "/configuracion/pendientes-tipos" },
-              { label: "Acciones",         href: "/configuracion/pendientes-acciones" },
-              { label: "Motivos",          href: "/configuracion/pendientes-motivos" },
-              { label: "Catálogo maestro", href: "/configuracion/pendientes-catalogo" },
-              { label: "Importar / Exportar", href: "/configuracion/importacion-maestro-pendientes" },
-            ],
-          },
+          { label: "Categorías",       href: "/configuracion/pendientes-categorias" },
+          { label: "Tipos",            href: "/configuracion/pendientes-tipos" },
+          { label: "Acciones",         href: "/configuracion/pendientes-acciones" },
+          { label: "Motivos",          href: "/configuracion/pendientes-motivos" },
+          { label: "Catálogo maestro", href: "/configuracion/pendientes-catalogo" },
+          { label: "Importar / Exportar", href: "/configuracion/importacion-maestro-pendientes" },
         ],
       },
-      {
-        label: "Planillas y campos",
-        children: [
-          { label: "Campos",         href: "/configuracion/campos" },
-          { label: "Planillas",      href: "/configuracion/planillas" },
-          { label: "Procedimientos", href: "/configuracion/procedimientos" },
-        ],
-      },
-      {
-        label: "Organización",
-        children: [
-          { label: "Proyectos",    href: "/configuracion/proyectos" },
-          { label: "Clientes",     href: "/configuracion/clientes" },
-          { label: "Contratistas", href: "/configuracion/contratistas" },
-        ],
-      },
+      { label: "Campos",         href: "/configuracion/campos" },
+      { label: "Planillas",      href: "/configuracion/planillas" },
+      { label: "Procedimientos", href: "/configuracion/procedimientos" },
+      { label: "Clientes",       href: "/configuracion/clientes" },
+      { label: "Contratistas",   href: "/configuracion/contratistas" },
     ],
   },
   {
