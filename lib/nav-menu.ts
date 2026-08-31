@@ -150,11 +150,7 @@ export const menu: MenuItem[] = [
       // `/alcance/proyecto` es un wrapper que resuelve el activo y redirige a
       // `/alcance/proyectos/{id}`.
       { label: "Proyecto",     href: "/alcance/proyecto" },
-      // "Proyectos" (plural) es el ABM global. La URL vive en /configuracion/proyectos
-      // por historia — no la cambiamos para no romper links directos, pero en el
-      // menú aparece bajo Alcance con minRole=Admin (Configuración es AdminGlobal
-      // y no queremos exigir AdminGlobal para crear/administrar los propios proyectos).
-      { label: "Proyectos",    href: "/configuracion/proyectos", minRole: "Admin" },
+      // "Proyectos" (plural, ABM) vive bajo Configuración — ver sección más abajo.
       { label: "Sistemas",     href: "/alcance/sistemas" },
       { label: "Subsistemas",  href: "/alcance/subsistemas" },
       { label: "Elementos",    href: "/alcance/elementos" },
@@ -176,22 +172,28 @@ export const menu: MenuItem[] = [
     ],
   },
   {
-    // Configuración = catálogos del TENANT (afectan a todos los proyectos).
-    // Restringido a AdminGlobal — un Admin de un proyecto no debería pisar
-    // catálogos usados por otros proyectos del cliente. "Proyectos" (el ABM)
-    // se movió a Alcance con minRole=Admin para que Admin siga creando/
-    // administrando sus proyectos. Sidebar aplanado: antes había 3 sub-grupos
-    // ("Catálogos", "Planillas y campos", "Organización"); al sacar Proyectos
-    // y con el chip amber marcando el scope tenant, no hace falta ese nivel
-    // extra de agrupación.
+    // Configuración = catálogos del TENANT (afectan a todos los proyectos) +
+    // ABM de Proyectos. La sección se abre a Admin+ porque "Proyectos" (el ABM)
+    // vive acá y es Admin+; los catálogos estructurales llevan su propio
+    // `minRole: "AdminGlobal"` explícito (no confiar en herencia — la herencia
+    // del section header ya no alcanza para gatearlos).
+    //
+    // Sidebar aplanado (histórico): antes había 3 sub-grupos ("Catálogos",
+    // "Planillas y campos", "Organización"). Al chip amber en la página que
+    // marca el scope tenant, no hace falta ese nivel extra de agrupación.
     label: "Configuración",
-    minRole: "AdminGlobal",
+    minRole: "Admin",
     children: [
-      { label: "Especialidades",    href: "/configuracion/especialidades" },
-      { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
-      { label: "Niveles",           href: "/configuracion/niveles" },
+      // ABM de proyectos — Admin+ puede administrar los propios proyectos del
+      // tenant. Es el único ítem que Admin ve en esta sección; el resto son
+      // catálogos tenant-wide (AdminGlobal+).
+      { label: "Proyectos",         href: "/configuracion/proyectos", minRole: "Admin" },
+      { label: "Especialidades",    href: "/configuracion/especialidades", minRole: "AdminGlobal" },
+      { label: "Tipos de elemento", href: "/configuracion/elementos-tipos", minRole: "AdminGlobal" },
+      { label: "Niveles",           href: "/configuracion/niveles",         minRole: "AdminGlobal" },
       {
         label: "Pendientes",
+        minRole: "AdminGlobal",
         children: [
           { label: "Categorías",       href: "/configuracion/pendientes-categorias" },
           { label: "Tipos",            href: "/configuracion/pendientes-tipos" },
@@ -201,11 +203,11 @@ export const menu: MenuItem[] = [
           { label: "Importar / Exportar", href: "/configuracion/importacion-maestro-pendientes" },
         ],
       },
-      { label: "Campos",         href: "/configuracion/campos" },
-      { label: "Planillas",      href: "/configuracion/planillas" },
-      { label: "Procedimientos", href: "/configuracion/procedimientos" },
-      { label: "Clientes",       href: "/configuracion/clientes" },
-      { label: "Contratistas",   href: "/configuracion/contratistas" },
+      { label: "Campos",         href: "/configuracion/campos",         minRole: "AdminGlobal" },
+      { label: "Planillas",      href: "/configuracion/planillas",      minRole: "AdminGlobal" },
+      { label: "Procedimientos", href: "/configuracion/procedimientos", minRole: "AdminGlobal" },
+      { label: "Clientes",       href: "/configuracion/clientes",       minRole: "AdminGlobal" },
+      { label: "Contratistas",   href: "/configuracion/contratistas",   minRole: "AdminGlobal" },
     ],
   },
   {
