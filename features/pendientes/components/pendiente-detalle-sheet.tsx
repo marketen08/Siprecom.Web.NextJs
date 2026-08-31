@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
-  FileDown, FileUp, MapPin, ListChecks, UserCog,
+  FileDown, FileUp, MapPin, ListChecks, UserCog, Lock,
 } from "lucide-react"
 
 import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
@@ -110,6 +110,18 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
+                {/* Badge de pendiente interno — visible solo cuando hay grupo de
+                    visibilidad. Ícono candado + nombre del grupo. Color amber
+                    para diferenciarlo de los otros chips sin gritar. */}
+                {p.grupoVisibilidadId && (
+                  <span
+                    className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1"
+                    title={`Solo visible al grupo ${p.grupoVisibilidadNombre ?? ""} (+ creador, responsable, Admin+)`}
+                  >
+                    <Lock className="h-3 w-3" />
+                    <span>Interno · {p.grupoVisibilidadNombre ?? "Grupo"}</span>
+                  </span>
+                )}
               </SheetTitle>
               {!isEditing && (
                 <>
@@ -299,6 +311,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
               <DataItem label="Detectado por" value={p.detectadoPorNombre} />
               <DataItem label="Responsable" value={p.responsableNombre} />
               <DataItem label="Grupo responsable" value={p.grupoResponsableNombre} />
+              <DataItem label="Grupo de visibilidad" value={p.grupoVisibilidadNombre} />
               <DataItem label="Subsistema"  value={p.subSistemaNombre} />
               <DataItem label="Elemento"    value={p.elementoTag ? `${p.elementoTag} — ${p.elementoNombre}` : null} />
               <DataItem label="PID"         value={p.pid} />
@@ -901,6 +914,7 @@ function EditarPendiente({
     tipoId: string
     responsableId: string
     grupoResponsableId?: string | null
+    grupoVisibilidadId?: string | null
     descripcion: string
     descripcionManual?: boolean
     ubicacion?: string | null
@@ -939,6 +953,7 @@ function EditarPendiente({
       nivelId: values.nivelId,
       accionId: values.accionId,
       motivoId: values.motivoId,
+      grupoVisibilidadId: values.grupoVisibilidadId ?? null,
     })
     onDone()
   }
@@ -954,6 +969,7 @@ function EditarPendiente({
           tipoId: pendiente.tipoId,
           responsableId: pendiente.responsableId,
           grupoResponsableId: pendiente.grupoResponsableId ?? null,
+          grupoVisibilidadId: pendiente.grupoVisibilidadId ?? null,
           descripcion: pendiente.descripcion,
           descripcionManual: pendiente.descripcionManual ?? false,
           ubicacion: pendiente.ubicacion ?? null,

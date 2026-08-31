@@ -74,6 +74,12 @@ export function PendienteForm({
   // de autorización, para no ofrecer grupos irrelevantes al asignar.
   const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
   const gruposResponsables = gruposResp?.data ?? []
+  // Grupos habilitados para restringir visibilidad (pendientes internos).
+  // Muestra todos los grupos con `usoVisibilidadPendientes=true` — el backend
+  // valida que el creador sea miembro (salvo Admin+). Si el user no es Admin+
+  // ni miembro de ninguno, el select simplemente aparece vacío.
+  const { data: gruposVisResp } = useGetUsuariosGrupos("visibilidad-pendientes")
+  const gruposVisibilidad = gruposVisResp?.data ?? []
 
   const categorias = categoriasRaw?.data ?? []
   const arbol = arbolRaw?.data ?? []
@@ -104,6 +110,7 @@ export function PendienteForm({
       ubicacion: defaultValues?.ubicacion ?? null,
       responsableId: defaultValues?.responsableId ?? "",
       grupoResponsableId: defaultValues?.grupoResponsableId ?? null,
+      grupoVisibilidadId: defaultValues?.grupoVisibilidadId ?? null,
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
       // Sistema se infiere del subsistema del defaultValues (edición) o queda vacío
@@ -584,6 +591,36 @@ export function PendienteForm({
             )}
           />
         </div>
+
+        {/* Grupo de visibilidad — opcional. Con valor el pendiente es INTERNO:
+            solo lo ven miembros del grupo (+ creador, responsable, Admin+).
+            El listado y las estadísticas también respetan el filtro. */}
+        <FormField
+          control={form.control}
+          name="grupoVisibilidadId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>🔒 Restringir visibilidad al grupo</FormLabel>
+              <FormControl>
+                <Combobox
+                  options={gruposVisibilidad.map((g) => ({ value: g.id, label: g.nombre }))}
+                  value={field.value ?? ""}
+                  onChange={(v) => field.onChange(v || null)}
+                  placeholder="Pendiente público (sin restricción)"
+                  searchPlaceholder="Buscar grupo..."
+                  emptyMessage="No hay grupos habilitados para visibilidad"
+                  disabled={isPending}
+                />
+              </FormControl>
+              <p className="text-xs text-muted-foreground mt-1">
+                {field.value
+                  ? "Solo miembros del grupo (+ vos, el responsable y roles Admin) verán este pendiente."
+                  : "Dejá vacío para pendiente público. Con valor, solo el grupo verá el pendiente."}
+              </p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <Separator />
 

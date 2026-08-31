@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { MapPin, Plus, Search } from "lucide-react"
+import { Lock, MapPin, Plus, Search } from "lucide-react"
 
 import { useSearchPendientes } from "@/features/pendientes/api/use-search-pendientes"
 import {
@@ -650,7 +650,15 @@ function PendientesPageContent() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="font-mono text-xs text-blue-700">{p.codigoFormateado}</p>
+                    <p className="font-mono text-xs text-blue-700 inline-flex items-center gap-1">
+                      {p.grupoVisibilidadId && (
+                        <Lock
+                          className="h-3 w-3 text-amber-700"
+                          aria-label="Pendiente interno"
+                        />
+                      )}
+                      {p.codigoFormateado}
+                    </p>
                     <p className="text-sm font-medium line-clamp-2">{p.descripcion}</p>
                     {(p.subSistemaNombre || p.subSistemaCodigo) && (
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -712,7 +720,17 @@ function PendientesPageContent() {
                     className="cursor-pointer hover:bg-blue-50 transition-colors"
                     onClick={() => openDetalle(p.id)}
                   >
-                    <TableCell className="font-mono text-sm text-blue-700">{p.codigoFormateado}</TableCell>
+                    <TableCell className="font-mono text-sm text-blue-700">
+                      <span className="inline-flex items-center gap-1">
+                        {p.grupoVisibilidadId && (
+                          <Lock
+                            className="h-3 w-3 text-amber-700"
+                            aria-label={`Interno · ${p.grupoVisibilidadNombre ?? "grupo"}`}
+                          />
+                        )}
+                        {p.codigoFormateado}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <p className="text-sm line-clamp-2">{p.descripcion}</p>
                       {p.elementoTag && (

@@ -196,6 +196,14 @@ export interface Pendiente {
    */
   grupoResponsableId?: string | null
   grupoResponsableNombre?: string | null
+  /**
+   * Grupo de visibilidad (opcional). Con valor, el pendiente es INTERNO —
+   * solo visible a miembros del grupo (+ creador, responsable, Admin+).
+   * Ver `UsuarioGrupo.usoVisibilidadPendientes` — el grupo debe tener ese flag
+   * en true para aparecer como opción en el select del form.
+   */
+  grupoVisibilidadId?: string | null
+  grupoVisibilidadNombre?: string | null
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean
@@ -283,6 +291,13 @@ export interface PendienteCreateInput {
   responsableId: string
   /** Grupo co-responsable (opcional). Solo afecta la visibilidad en "Míos". */
   grupoResponsableId?: string | null
+  /**
+   * Grupo de visibilidad (opcional). Si tiene valor, el pendiente es INTERNO —
+   * solo visible al grupo (+ creador, responsable, Admin+). El grupo debe
+   * tener `usoVisibilidadPendientes = true` y el user creador debe ser miembro
+   * (salvo Admin+).
+   */
+  grupoVisibilidadId?: string | null
   descripcion: string
   /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
   descripcionManual?: boolean
@@ -330,6 +345,8 @@ export interface PendienteUpdateInput {
   nivelId?: string | null
   accionId?: string | null
   motivoId?: string | null
+  /** Grupo de visibilidad. Null/vacío = pendiente público. Con valor = interno. */
+  grupoVisibilidadId?: string | null
 }
 
 export interface PendienteFilterInput {

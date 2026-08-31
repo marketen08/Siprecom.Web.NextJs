@@ -34,6 +34,7 @@ interface EditSheetState {
   descripcion: string
   usoPendientes: boolean
   usoAccesoProyecto: boolean
+  usoVisibilidadPendientes: boolean
 }
 
 export default function GruposUsuariosPage() {
@@ -57,6 +58,7 @@ export default function GruposUsuariosPage() {
         descripcion: editSheet.descripcion.trim() || undefined,
         usoPendientes: editSheet.usoPendientes,
         usoAccesoProyecto: editSheet.usoAccesoProyecto,
+        usoVisibilidadPendientes: editSheet.usoVisibilidadPendientes,
       }
       if (editSheet.mode === "new") await create.mutateAsync(payload)
       else await update.mutateAsync({ id: editSheet.id!, ...payload })
@@ -91,6 +93,9 @@ export default function GruposUsuariosPage() {
           onClick={() => { setError(null); setEditSheet({
             mode: "new", nombre: "", descripcion: "",
             usoPendientes: true, usoAccesoProyecto: true,
+            // Visibilidad restringida es opt-in explícito: solo activar
+            // cuando el grupo se creó justamente para ese uso.
+            usoVisibilidadPendientes: false,
           }) }}
           className="gap-2"
         >
@@ -138,7 +143,12 @@ export default function GruposUsuariosPage() {
                           Acceso a proyecto
                         </span>
                       )}
-                      {!g.usoPendientes && !g.usoAccesoProyecto && (
+                      {g.usoVisibilidadPendientes && (
+                        <span className="inline-flex items-center rounded bg-purple-50 text-purple-800 border border-purple-200 px-1.5 py-0.5 text-[11px] font-medium">
+                          Visibilidad pendientes
+                        </span>
+                      )}
+                      {!g.usoPendientes && !g.usoAccesoProyecto && !g.usoVisibilidadPendientes && (
                         <span className="text-xs text-muted-foreground italic">Sin uso declarado</span>
                       )}
                     </div>
@@ -166,6 +176,7 @@ export default function GruposUsuariosPage() {
                         descripcion: g.descripcion ?? "",
                         usoPendientes: g.usoPendientes,
                         usoAccesoProyecto: g.usoAccesoProyecto,
+                        usoVisibilidadPendientes: g.usoVisibilidadPendientes,
                       }) }}
                     >
                       <Pencil className="h-4 w-4" />
@@ -245,6 +256,19 @@ export default function GruposUsuariosPage() {
                     onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoAccesoProyecto: e.target.checked } : editSheet)}
                   />
                   Acceso a proyecto <span className="text-xs text-muted-foreground">(bulk-add desde grupo)</span>
+                </label>
+                {/* Visibilidad restringida — opt-in explícito. Activar solo si
+                    el grupo se creó justamente para acotar quién ve ciertos
+                    pendientes internos. El backend valida que el creador del
+                    pendiente sea miembro (salvo Admin+). */}
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                    checked={editSheet?.usoVisibilidadPendientes ?? false}
+                    onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoVisibilidadPendientes: e.target.checked } : editSheet)}
+                  />
+                  Visibilidad de pendientes <span className="text-xs text-muted-foreground">(pendientes internos)</span>
                 </label>
               </div>
             </div>
