@@ -278,7 +278,7 @@ export default function GruposUsuariosPage() {
                     checked={editSheet?.usoPendientes ?? true}
                     onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoPendientes: e.target.checked } : editSheet)}
                   />
-                  Pendientes <span className="text-xs text-muted-foreground">(matriz de autorización por proyecto)</span>
+                  Pendientes <span className="text-xs text-muted-foreground">(grupo responsable + matriz de autorización)</span>
                 </label>
                 <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
                   <input

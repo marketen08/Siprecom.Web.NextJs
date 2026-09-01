@@ -447,9 +447,24 @@ function Workflow({
         </Button>
       )}
       {estadoId === PENDIENTE_ESTADO_IDS.EN_PROCESO && (
-        <Button size="sm" disabled={busy} className={btnBase} onClick={() => ejecutar("enviar-aprobacion")}>
-          <Send className={iconSize} /> {compact ? "Enviar" : "Enviar a aprobación"}
-        </Button>
+        <>
+          <Button size="sm" disabled={busy} className={btnBase} onClick={() => ejecutar("enviar-aprobacion")}>
+            <Send className={iconSize} /> {compact ? "Enviar" : "Enviar a aprobación"}
+          </Button>
+          {/* Rechazar desde EN_PROCESO — devuelve el pendiente a ABIERTO.
+              Uso típico: el responsable devuelve porque no aplica, falta
+              información, o se cargó a la persona equivocada. */}
+          <Button
+            size="sm" variant="outline" disabled={busy} className={btnBase}
+            onClick={() => setDialog({
+              accion: "rechazar",
+              titulo: "Rechazar pendiente",
+              descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a ABIERTO.",
+            })}
+          >
+            <ThumbsDown className={iconSize} /> Rechazar
+          </Button>
+        </>
       )}
       {estadoId === PENDIENTE_ESTADO_IDS.PENDIENTE_APROBACION && (
         <>
