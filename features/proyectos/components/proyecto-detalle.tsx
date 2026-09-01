@@ -13,6 +13,7 @@ import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
 import { useUpdateProyectoNivelMc } from "@/features/proyectos/api/use-update-proyecto-nivel-mc"
+import { useUpdateProyectoGrupoVisibilidadDefault } from "@/features/proyectos/api/use-update-proyecto-grupo-visibilidad-default"
 import {
   useUploadProyectoLogoHeader,
   useDeleteProyectoLogoHeader,
@@ -370,6 +371,8 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
 
         <NivelMcSelector proyecto={proyecto} />
 
+        <GrupoVisibilidadDefaultSelector proyecto={proyecto} />
+
         <ProyectoLogoHeaderCard proyecto={proyecto} />
       </section>
 
@@ -434,6 +437,75 @@ function NivelMcSelector({ proyecto }: { proyecto: Proyecto }) {
           ))}
         </SelectContent>
       </Select>
+    </div>
+  )
+}
+
+// ─── Grupo default de visibilidad (para "Pendiente interno") ─────────────────
+
+const GRUPO_VIS_NONE = "__none__"
+
+function GrupoVisibilidadDefaultSelector({ proyecto }: { proyecto: Proyecto }) {
+  // Solo grupos con UsoVisibilidadPendientes=true. Si la lista viene vacía, el
+  // usuario ve un hint y un link mental hacia /configuracion/grupos-usuarios
+  // para prender el flag en algún grupo.
+  const { data: gruposRaw, isLoading } = useGetUsuariosGrupos("visibilidad-pendientes")
+  const update = useUpdateProyectoGrupoVisibilidadDefault(proyecto.id)
+  const [saving, setSaving] = useState(false)
+
+  const grupos = gruposRaw?.data ?? []
+  const currentId = proyecto.grupoVisibilidadPorDefectoId ?? GRUPO_VIS_NONE
+
+  async function handleChange(v: string | null) {
+    const grupoVisibilidadPorDefectoId = !v || v === GRUPO_VIS_NONE ? null : v
+    setSaving(true)
+    try {
+      await update.mutateAsync({ grupoVisibilidadPorDefectoId })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-white p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-gray-900">Grupo default para pendientes internos</p>
+        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Grupo aplicado cuando el operador activa el toggle "🔒 Pendiente interno" al
+        crear un pendiente en este proyecto. Puede modificarse por pendiente en
+        "Opciones avanzadas". Si dejás "Sin configurar", el toggle abre esas
+        opciones pidiendo elegir un grupo manualmente.
+      </p>
+      <Select
+        value={currentId}
+        onValueChange={handleChange}
+        disabled={isLoading || saving}
+      >
+        <SelectTrigger className="w-full max-w-xs">
+          <SelectValue placeholder="Sin configurar">
+            {currentId === GRUPO_VIS_NONE
+              ? "Sin configurar"
+              : grupos.find((g) => g.id === currentId)?.nombre ?? proyecto.grupoVisibilidadPorDefectoNombre ?? "—"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={GRUPO_VIS_NONE}>Sin configurar</SelectItem>
+          {grupos.map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.nombre}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {!isLoading && grupos.length === 0 && (
+        <p className="text-xs text-amber-700">
+          No hay grupos habilitados para visibilidad. Activá el flag
+          "Visibilidad de pendientes" en al menos un grupo desde
+          Configuración → Grupos de usuarios.
+        </p>
+      )}
     </div>
   )
 }

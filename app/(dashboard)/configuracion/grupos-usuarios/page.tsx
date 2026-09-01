@@ -153,7 +153,22 @@ export default function GruposUsuariosPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{g.cantidadMiembros}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>{g.cantidadMiembros}</span>
+                      {/* Badge "en uso" — total de referencias vivas (pendientes,
+                          proyectos como default, matriz de autorización). Sirve
+                          para anticipar que el delete puede fallar. */}
+                      {g.referenciasEnUso > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium"
+                          title={`Referenciado en ${g.referenciasEnUso} lugar(es). El delete se bloquea mientras existan referencias.`}
+                        >
+                          {g.referenciasEnUso} en uso
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="icon"

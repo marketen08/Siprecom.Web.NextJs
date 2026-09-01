@@ -12,6 +12,13 @@ export interface UsuarioGrupo {
    */
   usoVisibilidadPendientes: boolean
   cantidadMiembros: number
+  /**
+   * Total de referencias vivas al grupo (pendientes por visibilidad,
+   * pendientes por responsable, proyectos como default, filas de la matriz
+   * de autorización). Sirve para mostrar un badge "en uso" y anticipar por
+   * qué el delete puede fallar.
+   */
+  referenciasEnUso: number
   isActive: boolean
   createdAt: string
   updatedAt: string

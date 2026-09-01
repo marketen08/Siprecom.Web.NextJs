@@ -285,9 +285,66 @@ export function PendienteForm({
 
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false)
 
+  // ── Toggle "🔒 Pendiente interno" (compone el estado de grupoVisibilidadId) ──
+  //
+  // El toggle es azúcar de UI: el modelo persistente sigue siendo un único
+  // campo `grupoVisibilidadId` (null = público, con valor = interno). El
+  // estado local sincroniza con el form:
+  //  - Al montar/editar: toggle = !!grupoVisibilidadId (deriva del form).
+  //  - Al activar: si el proyecto tiene default → auto-aplica; sino abre
+  //    avanzado + deja el error visible al submit.
+  //  - Al desactivar: limpia grupoVisibilidadId (y el override si había).
+  const grupoDefaultId = proyectoRaw?.data?.grupoVisibilidadPorDefectoId ?? null
+  const grupoDefaultNombre = proyectoRaw?.data?.grupoVisibilidadPorDefectoNombre ?? null
+  const [esInterno, setEsInterno] = useState<boolean>(() => !!defaultValues?.grupoVisibilidadId)
+  const grupoVisibilidadIdActual = form.watch("grupoVisibilidadId")
+
+  // Al toggle: encender aplica el default (si hay) o abre avanzado; apagar limpia.
+  function handleToggleInterno(nuevo: boolean) {
+    setEsInterno(nuevo)
+    if (nuevo) {
+      if (grupoDefaultId) {
+        form.setValue("grupoVisibilidadId", grupoDefaultId, { shouldDirty: true })
+      } else {
+        // Sin default: dejo el campo vacío y abro avanzado para que el user elija.
+        setAvanzadoAbierto(true)
+      }
+    } else {
+      form.setValue("grupoVisibilidadId", null, { shouldDirty: true })
+    }
+  }
+
+  // Indicador "override" — grupo elegido distinto del default del proyecto.
+  const esOverride = Boolean(
+    esInterno
+    && grupoVisibilidadIdActual
+    && grupoDefaultId
+    && grupoVisibilidadIdActual !== grupoDefaultId,
+  )
+  const grupoVisibilidadActualNombre = grupoVisibilidadIdActual
+    ? gruposVisibilidad.find((g) => g.id === grupoVisibilidadIdActual)?.nombre ?? null
+    : null
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6 pb-24 sm:pb-4">
+      <form
+        onSubmit={form.handleSubmit((values) => {
+          // Guard local: si el toggle está activo pero no hay grupo elegido
+          // (proyecto sin default), pedimos al usuario que elija uno en
+          // avanzado. No lo metemos en el schema para no acoplarlo al
+          // proyecto activo — es UX guard, no invariante de dominio.
+          if (esInterno && !values.grupoVisibilidadId) {
+            setAvanzadoAbierto(true)
+            form.setError("grupoVisibilidadId", {
+              type: "manual",
+              message: "Elegí un grupo o desactivá 'Pendiente interno'.",
+            })
+            return
+          }
+          onSubmit(values)
+        })}
+        className="flex flex-col gap-6 pb-24 sm:pb-4"
+      >
         {/* ── Wizard de descripción (cascada estricta desde catálogo) ── */}
         <div className="flex flex-col gap-4">
           <div>
@@ -592,35 +649,53 @@ export function PendienteForm({
           />
         </div>
 
-        {/* Grupo de visibilidad — opcional. Con valor el pendiente es INTERNO:
-            solo lo ven miembros del grupo (+ creador, responsable, Admin+).
-            El listado y las estadísticas también respetan el filtro. */}
-        <FormField
-          control={form.control}
-          name="grupoVisibilidadId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>🔒 Restringir visibilidad al grupo</FormLabel>
-              <FormControl>
-                <Combobox
-                  options={gruposVisibilidad.map((g) => ({ value: g.id, label: g.nombre }))}
-                  value={field.value ?? ""}
-                  onChange={(v) => field.onChange(v || null)}
-                  placeholder="Pendiente público (sin restricción)"
-                  searchPlaceholder="Buscar grupo..."
-                  emptyMessage="No hay grupos habilitados para visibilidad"
-                  disabled={isPending}
-                />
-              </FormControl>
-              <p className="text-xs text-muted-foreground mt-1">
-                {field.value
-                  ? "Solo miembros del grupo (+ vos, el responsable y roles Admin) verán este pendiente."
-                  : "Dejá vacío para pendiente público. Con valor, solo el grupo verá el pendiente."}
-              </p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Toggle "Pendiente interno" — compone el estado de grupoVisibilidadId.
+            El select de grupo vive dentro de Opciones avanzadas más abajo.
+            Casos:
+              - off  → público (grupoVisibilidadId = null).
+              - on  + proyecto tiene default → auto-aplica el default.
+              - on  + proyecto sin default → abre avanzado + hint amber.
+              - on  + user eligió otro grupo en avanzado → chip "override".  */}
+        <div className="rounded-md border bg-white px-3 py-3 flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-blue-900"
+                checked={esInterno}
+                onChange={(e) => handleToggleInterno(e.target.checked)}
+                disabled={isPending}
+              />
+              <span className="text-sm font-medium">🔒 Pendiente interno</span>
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {!esInterno
+                ? "Visible para todos los que acceden al proyecto."
+                : grupoVisibilidadIdActual
+                  ? (
+                      <>
+                        Grupo:{" "}
+                        <span className="font-medium text-gray-800">
+                          {grupoVisibilidadActualNombre ?? "…"}
+                        </span>
+                        {esOverride && (
+                          <span className="ml-2 inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
+                            override
+                          </span>
+                        )}
+                        {!esOverride && grupoDefaultId && (
+                          <span className="ml-1 text-[10px] text-muted-foreground">(default del proyecto)</span>
+                        )}
+                      </>
+                    )
+                  : (
+                      <span className="text-amber-700">
+                        ⚠️ Este proyecto no tiene grupo por defecto configurado. Elegí uno en Opciones avanzadas.
+                      </span>
+                    )}
+            </p>
+          </div>
+        </div>
 
         <Separator />
 
@@ -758,7 +833,7 @@ export function PendienteForm({
             <ChevronDown className={`h-4 w-4 transition-transform ${avanzadoAbierto ? "rotate-180" : ""}`} />
           </button>
           {avanzadoAbierto && (
-            <div className="px-3 pb-3">
+            <div className="px-3 pb-3 space-y-4">
               <FormField
                 control={form.control}
                 name="prioridad"
@@ -785,6 +860,46 @@ export function PendienteForm({
                   </FormItem>
                 )}
               />
+
+              {/* Grupo de visibilidad — solo se muestra con el toggle activo.
+                  Permite override del default del proyecto por pendiente. */}
+              {esInterno && (
+                <FormField
+                  control={form.control}
+                  name="grupoVisibilidadId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        Grupo que verá el pendiente
+                        {esOverride && (
+                          <span className="inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
+                            override
+                          </span>
+                        )}
+                      </FormLabel>
+                      <FormControl>
+                        <Combobox
+                          options={gruposVisibilidad.map((g) => ({ value: g.id, label: g.nombre }))}
+                          value={field.value ?? ""}
+                          onChange={(v) => field.onChange(v || null)}
+                          placeholder={grupoDefaultId ? `Default: ${grupoDefaultNombre ?? "…"}` : "Elegí un grupo"}
+                          searchPlaceholder="Buscar grupo..."
+                          emptyMessage="No hay grupos habilitados para visibilidad"
+                          disabled={isPending}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {grupoDefaultId
+                          ? esOverride
+                            ? `El default del proyecto es "${grupoDefaultNombre ?? "…"}". Estás usando otro.`
+                            : "Podés elegir otro grupo si querés distinto al default."
+                          : "El proyecto no tiene default configurado — es obligatorio elegir uno."}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
           )}
         </div>
