@@ -740,7 +740,18 @@ export function PendienteForm({
                   <FormLabel>Subsistema *</FormLabel>
                   <Select
                     value={field.value || ""}
-                    onValueChange={(v) => v && field.onChange(v)}
+                    onValueChange={(v) => {
+                      if (!v) return
+                      // Usamos form.setValue con shouldValidate en vez de
+                      // field.onChange — el field.onChange de RHF no dispara
+                      // revalidación en modo submit-only con Zod resolver, y
+                      // el error del schema queda pegado aunque el value ya
+                      // sea válido. Mismo patrón que el select de Sistema.
+                      form.setValue("subSistemaId", v, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }}
                     disabled={isPending || !sistemaId}
                   >
                     <FormControl>
