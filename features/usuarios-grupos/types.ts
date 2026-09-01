@@ -6,11 +6,6 @@ export interface UsuarioGrupo {
   usoPendientes: boolean
   /** Se muestra como opción al asignar usuarios a un proyecto ("Agregar desde grupo"). */
   usoAccesoProyecto: boolean
-  /**
-   * Se muestra como opción al restringir la visibilidad de un pendiente
-   * (pendientes internos). Opt-in explícito — default false.
-   */
-  usoVisibilidadPendientes: boolean
   cantidadMiembros: number
   /**
    * Total de referencias vivas al grupo (pendientes por visibilidad,
@@ -25,7 +20,7 @@ export interface UsuarioGrupo {
 }
 
 /** Filtro opcional para el listado de grupos, usado por contextos específicos. */
-export type UsoGrupoFiltro = "pendientes" | "acceso-proyecto" | "visibilidad-pendientes"
+export type UsoGrupoFiltro = "pendientes" | "acceso-proyecto"
 
 export interface UsuarioGrupoMiembro {
   membresiaId: string
@@ -45,5 +40,4 @@ export interface UsuarioGrupoInput {
   descripcion?: string
   usoPendientes: boolean
   usoAccesoProyecto: boolean
-  usoVisibilidadPendientes: boolean
 }

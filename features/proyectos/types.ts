@@ -56,13 +56,6 @@ export interface Proyecto {
   nivelMcId: string | null
   nivelMcNombre: string | null
   /**
-   * Grupo aplicado por defecto al activar el toggle "Pendiente interno" al
-   * crear un pendiente en este proyecto. Null = el proyecto no ofrece default,
-   * el toggle abre "Opciones avanzadas" pidiendo elegir uno.
-   */
-  grupoVisibilidadPorDefectoId: string | null
-  grupoVisibilidadPorDefectoNombre: string | null
-  /**
    * Grupo aplicado por defecto al activar el toggle "Asignar al grupo
    * responsable por defecto" al crear un pendiente en este proyecto. Null =
    * el proyecto no ofrece default.

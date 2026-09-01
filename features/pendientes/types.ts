@@ -197,13 +197,11 @@ export interface Pendiente {
   grupoResponsableId?: string | null
   grupoResponsableNombre?: string | null
   /**
-   * Grupo de visibilidad (opcional). Con valor, el pendiente es INTERNO —
-   * solo visible a miembros del grupo (+ creador, responsable, Admin+).
-   * Ver `UsuarioGrupo.usoVisibilidadPendientes` — el grupo debe tener ese flag
-   * en true para aparecer como opción en el select del form.
+   * True cuando el pendiente es INTERNO — solo visible al creador,
+   * responsable, miembros del grupo responsable y roles Admin+. Cuando es
+   * false (default), es público (visible a todos los que acceden al proyecto).
    */
-  grupoVisibilidadId?: string | null
-  grupoVisibilidadNombre?: string | null
+  esInterno: boolean
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean
@@ -292,12 +290,11 @@ export interface PendienteCreateInput {
   /** Grupo co-responsable (opcional). Solo afecta la visibilidad en "Míos". */
   grupoResponsableId?: string | null
   /**
-   * Grupo de visibilidad (opcional). Si tiene valor, el pendiente es INTERNO —
-   * solo visible al grupo (+ creador, responsable, Admin+). El grupo debe
-   * tener `usoVisibilidadPendientes = true` y el user creador debe ser miembro
-   * (salvo Admin+).
+   * Marca el pendiente como INTERNO. Cuando es true, solo lo ven el creador,
+   * responsable, miembros del grupo responsable y roles Admin+. Cuando es
+   * false, es público (visible a todos los que acceden al proyecto).
    */
-  grupoVisibilidadId?: string | null
+  esInterno?: boolean
   descripcion: string
   /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
   descripcionManual?: boolean
@@ -345,8 +342,8 @@ export interface PendienteUpdateInput {
   nivelId?: string | null
   accionId?: string | null
   motivoId?: string | null
-  /** Grupo de visibilidad. Null/vacío = pendiente público. Con valor = interno. */
-  grupoVisibilidadId?: string | null
+  /** True = interno (solo asignatarios + Admin+). False = público. */
+  esInterno?: boolean
 }
 
 export interface PendienteFilterInput {

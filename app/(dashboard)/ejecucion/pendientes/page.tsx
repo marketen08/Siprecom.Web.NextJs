@@ -651,7 +651,7 @@ function PendientesPageContent() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-xs text-blue-700 inline-flex items-center gap-1">
-                      {p.grupoVisibilidadId && (
+                      {p.esInterno && (
                         <Lock
                           className="h-3 w-3 text-amber-700"
                           aria-label="Pendiente interno"
@@ -722,10 +722,12 @@ function PendientesPageContent() {
                   >
                     <TableCell className="font-mono text-sm text-blue-700">
                       <span className="inline-flex items-center gap-1">
-                        {p.grupoVisibilidadId && (
+                        {p.esInterno && (
                           <Lock
                             className="h-3 w-3 text-amber-700"
-                            aria-label={`Interno · ${p.grupoVisibilidadNombre ?? "grupo"}`}
+                            aria-label={p.grupoResponsableNombre
+                              ? `Interno · ${p.grupoResponsableNombre}`
+                              : "Interno"}
                           />
                         )}
                         {p.codigoFormateado}
