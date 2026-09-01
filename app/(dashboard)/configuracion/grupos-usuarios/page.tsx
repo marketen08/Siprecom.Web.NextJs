@@ -98,9 +98,11 @@ export default function GruposUsuariosPage() {
         <Button
           onClick={() => { setError(null); setEditSheet({
             mode: "new", nombre: "", descripcion: "",
-            usoPendientes: true, usoAccesoProyecto: true,
-            // Visibilidad restringida es opt-in explícito: solo activar
-            // cuando el grupo se creó justamente para ese uso.
+            // Todos los usos arrancan en false — el usuario tiene que marcar
+            // explícitamente para qué se usa el grupo. La validación local +
+            // backend exige al menos uno antes de guardar.
+            usoPendientes: false,
+            usoAccesoProyecto: false,
             usoVisibilidadPendientes: false,
           }) }}
           className="gap-2"
