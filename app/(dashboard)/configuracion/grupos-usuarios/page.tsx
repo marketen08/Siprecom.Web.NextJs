@@ -51,6 +51,12 @@ export default function GruposUsuariosPage() {
 
   async function guardar() {
     if (!editSheet || !editSheet.nombre.trim()) return
+    // Guard local — al menos un uso declarado. El backend también valida,
+    // pero acá lo cortamos antes para no gastar el request.
+    if (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto && !editSheet.usoVisibilidadPendientes) {
+      setError("Seleccioná al menos un caso de uso.")
+      return
+    }
     setError(null)
     try {
       const payload = {
@@ -148,8 +154,17 @@ export default function GruposUsuariosPage() {
                           Visibilidad pendientes
                         </span>
                       )}
+                      {/* Grupos activos nuevos siempre tienen al menos un uso
+                          (regla de validación). Los que no aparecen acá son
+                          legacy de antes de la regla — quedan silenciados y se
+                          arreglan al primer edit. */}
                       {!g.usoPendientes && !g.usoAccesoProyecto && !g.usoVisibilidadPendientes && (
-                        <span className="text-xs text-muted-foreground italic">Sin uso declarado</span>
+                        <span
+                          className="inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[11px] font-medium"
+                          title="Grupo legacy sin uso declarado. Editalo y marcá al menos uno."
+                        >
+                          Sin uso
+                        </span>
                       )}
                     </div>
                   </TableCell>
@@ -286,13 +301,26 @@ export default function GruposUsuariosPage() {
                   Visibilidad de pendientes <span className="text-xs text-muted-foreground">(pendientes internos)</span>
                 </label>
               </div>
+              {editSheet
+                && !editSheet.usoPendientes
+                && !editSheet.usoAccesoProyecto
+                && !editSheet.usoVisibilidadPendientes && (
+                <p className="mt-2 text-[11px] text-amber-700">
+                  Marcá al menos uno — sino el grupo no aparecerá en ningún selector.
+                </p>
+              )}
             </div>
 
             {error && <p className="text-xs text-red-600 whitespace-pre-line">{error}</p>}
             <div className="flex gap-2 pt-2">
               <Button
                 onClick={guardar}
-                disabled={!editSheet?.nombre.trim() || create.isPending || update.isPending}
+                disabled={
+                  !editSheet?.nombre.trim()
+                  || create.isPending
+                  || update.isPending
+                  || (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto && !editSheet.usoVisibilidadPendientes)
+                }
                 className="flex-1"
               >
                 {create.isPending || update.isPending ? "Guardando..." : "Guardar"}
