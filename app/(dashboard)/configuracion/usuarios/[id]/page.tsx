@@ -203,7 +203,7 @@ function TabDatos({ usuario }: { usuario: any }) {
     <div className="max-w-5xl grid gap-4 lg:grid-cols-2 items-start">
       {/* ── Columna izquierda: Perfil ─────────────────────────────────────── */}
 
-      {/* Datos personales */}
+      {/* Datos personales. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

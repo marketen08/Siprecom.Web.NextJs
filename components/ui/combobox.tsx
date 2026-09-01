@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import * as PopoverPrimitive from "@radix-ui/react-popover"
 import { ChevronDown, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -21,8 +22,14 @@ interface ComboboxProps {
 }
 
 /**
- * Combobox simple con búsqueda. No depende de librerías externas — usa primitives
- * de React para el toggle, búsqueda client-side y click-outside.
+ * Combobox con búsqueda. Montado sobre Radix Popover — el dropdown va por
+ * portal a `document.body`, así que NO lo clippea ningún `overflow-hidden` de
+ * ancestros (Card, Sheet, Dialog). Radix se encarga del posicionamiento
+ * (flip cuando falta espacio abajo, shift cuando toca borde de viewport) y
+ * del click-outside / escape.
+ *
+ * API pública preservada del Combobox previo — todos los call sites siguen
+ * funcionando sin cambios.
  */
 export function Combobox({
   options,
@@ -38,25 +45,17 @@ export function Combobox({
   const [search, setSearch] = React.useState("")
   // Índice de la opción resaltada para navegación con teclado (flechas + Enter).
   const [highlighted, setHighlighted] = React.useState(0)
-  const wrapperRef = React.useRef<HTMLDivElement>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
   // ID estable por instancia para el atributo `name` del input de búsqueda —
   // evita que el navegador matchee por nombre y aplique autofill (email/name).
   const searchName = React.useId()
 
-  // Click-outside para cerrar
-  React.useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open])
+  // Ancho medido del trigger — Radix expone `--radix-popover-trigger-width`
+  // como CSS var en el content, la usamos para que el panel copie el ancho.
 
-  // Resetear búsqueda al cerrar
+  // Reset búsqueda al cerrar.
   React.useEffect(() => {
     if (!open) setSearch("")
   }, [open])
@@ -110,37 +109,55 @@ export function Combobox({
   }
 
   return (
-    // `min-w-0` + `w-full` fuerzan al wrapper a colapsar al ancho del padre
-    // aunque sus hijos (labels de opciones largas) tengan contenido intrínseco
-    // más grande. Sin esto, en un flex/grid parent, el wrapper se ensancha con
-    // el contenido y empuja el layout hacia la derecha del viewport.
-    <div ref={wrapperRef} className="relative w-full min-w-0">
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen((o) => !o)}
-        disabled={disabled}
-        className={cn(
-          "flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          className
-        )}
-      >
-        <span className={cn("truncate text-left", !selected && "text-muted-foreground")}>
-          {selected?.label ?? placeholder}
-        </span>
-        <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
-      </button>
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger asChild disabled={disabled}>
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            className,
+          )}
+        >
+          <span className={cn("truncate text-left", !selected && "text-muted-foreground")}>
+            {selected?.label ?? placeholder}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+        </button>
+      </PopoverPrimitive.Trigger>
 
-      {open && (
-        // Popup: `w-full` copia el ancho del wrapper (que ya está clamped al
-        // parent con min-w-0). `overflow-hidden` en el panel + wrap-break-word
-        // en los items garantiza que ningún contenido interno pueda empujar
-        // el ancho del panel hacia afuera del viewport.
-        <div className="absolute z-50 left-0 top-full mt-1 w-full max-w-[calc(100vw-1rem)] rounded-md bg-popover shadow-md ring-1 ring-foreground/10 max-h-72 flex flex-col overflow-hidden">
+      <PopoverPrimitive.Portal>
+        {/*
+          Portal a `document.body`: no lo clippan overflow-hidden ancestros.
+          `--radix-popover-trigger-width` copia el ancho del trigger.
+          `collisionPadding` deja un margen para que no toque el borde del viewport.
+          `align="start"` alinea el borde izquierdo con el trigger.
+          `onOpenAutoFocus` prevenido para enfocar el input de búsqueda propio.
+        */}
+        <PopoverPrimitive.Content
+          align="start"
+          sideOffset={4}
+          collisionPadding={8}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            inputRef.current?.focus()
+          }}
+          className={cn(
+            "z-50 rounded-md bg-popover shadow-md ring-1 ring-foreground/10 max-h-72 flex flex-col overflow-hidden",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+            "data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1",
+          )}
+          style={{
+            width: "var(--radix-popover-trigger-width)",
+            maxWidth: "calc(100vw - 1rem)",
+          }}
+        >
           <div className="p-1.5 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
-                autoFocus
+                ref={inputRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -181,7 +198,7 @@ export function Combobox({
                     // "empuja" al contenedor y desborda.
                     "w-full text-left rounded-sm px-2 py-1.5 text-sm whitespace-normal wrap-break-word min-w-0",
                     i === highlighted && "bg-accent text-accent-foreground",
-                    value === o.value && "font-medium"
+                    value === o.value && "font-medium",
                   )}
                 >
                   {o.label}
@@ -189,8 +206,8 @@ export function Combobox({
               ))
             )}
           </div>
-        </div>
-      )}
-    </div>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   )
 }
