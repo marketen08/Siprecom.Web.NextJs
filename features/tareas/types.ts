@@ -12,17 +12,9 @@ export const PRIORIDAD_COLOR: Record<number, string> = {
   4: "bg-red-100 text-red-700",
 }
 
-// Espejo del enum TipoAsignacionTarea del backend. Post-rediseño 2026-07 solo
-// queda un valor: las tareas de pack son ETs del elemento sintético (=1).
-export const TIPO_ASIGNACION_TAREA = {
-  ELEMENTO_INDIVIDUAL: 1,
-} as const
-
-export type TipoAsignacionTarea = (typeof TIPO_ASIGNACION_TAREA)[keyof typeof TIPO_ASIGNACION_TAREA]
-
-export const TIPO_ASIGNACION_LABEL: Record<number, string> = {
-  1: "Por elemento",
-}
+// (TipoAsignacionTarea eliminado 2026-09 — todas las tareas son
+// ELEMENTO_INDIVIDUAL. Con el rediseño de TestGroups los paquetes sintéticos
+// son Elementos comunes y no hay distinción de "modo de asignación".)
 
 // Espejo del enum CalculoProximaFecha del backend (preservación).
 export const CALCULO_PROXIMA_FECHA = {
@@ -59,8 +51,6 @@ export interface Tarea {
   terminalNombre?: string
   horasBase: number
   impactoBase: number
-  tipoAsignacion: TipoAsignacionTarea
-  tipoAsignacionTexto?: string
   tareaPrecedenteId?: string | null
   tareaPrecedenteNombre?: string | null
   lagDias: number
@@ -86,7 +76,6 @@ export interface TareaCreateInput {
   prioridad: number
   horasBase: number
   impactoBase: number
-  tipoAsignacion: number
   tareaPrecedenteId?: string | null
   lagDias?: number
   esPreservacion?: boolean
@@ -108,7 +97,6 @@ export interface TareaUpdateInput {
   prioridad: number
   horasBase: number
   impactoBase: number
-  tipoAsignacion: number
   tareaPrecedenteId?: string | null
   lagDias?: number
   esPreservacion?: boolean

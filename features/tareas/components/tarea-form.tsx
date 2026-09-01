@@ -85,7 +85,6 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
       prioridad: defaultValues?.prioridad ?? 2,
       horasBase: defaultValues?.horasBase ?? 4,
       impactoBase: defaultValues?.impactoBase ?? 1,
-      tipoAsignacion: defaultValues?.tipoAsignacion ?? 1,
       tareaPrecedenteId: defaultValues?.tareaPrecedenteId ?? null,
       lagDias: defaultValues?.lagDias ?? 0,
       esAdHoc: defaultValues?.esAdHoc ?? false,

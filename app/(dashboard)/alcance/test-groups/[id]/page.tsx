@@ -556,7 +556,7 @@ function TabTareasAlcance({
               <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                 {bloqueado
                   ? "El paquete está en BORRADOR — activá para instanciar tareas."
-                  : "No hay tareas instanciadas. ¿Definiste Tareas con TipoAsignacion coincidente al tipo del pack?"}
+                  : "No hay tareas instanciadas. ¿Definiste Tareas del mismo tipo de elemento que el pack?"}
               </TableCell>
             </TableRow>
           ) : (

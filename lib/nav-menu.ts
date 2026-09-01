@@ -173,41 +173,58 @@ export const menu: MenuItem[] = [
   },
   {
     // Configuración = catálogos del TENANT (afectan a todos los proyectos) +
-    // ABM de Proyectos. La sección se abre a Admin+ porque "Proyectos" (el ABM)
-    // vive acá y es Admin+; los catálogos estructurales llevan su propio
-    // `minRole: "AdminGlobal"` explícito (no confiar en herencia — la herencia
-    // del section header ya no alcanza para gatearlos).
+    // ABM de Proyectos. La sección se abre a Admin+ porque "Proyectos" (el
+    // ABM) vive acá y es Admin+; el resto de la config son catálogos
+    // tenant-wide restringidos a AdminGlobal.
     //
-    // Sidebar aplanado (histórico): antes había 3 sub-grupos ("Catálogos",
-    // "Planillas y campos", "Organización"). Al chip amber en la página que
-    // marca el scope tenant, no hace falta ese nivel extra de agrupación.
+    // Estructura: Proyectos queda suelto arriba, el resto va agrupado en 4
+    // sub-grupos temáticos. Cada sub-grupo lleva `minRole: "AdminGlobal"`
+    // explícito para que Admin no vea el header colapsable vacío (herencia
+    // del section no alcanza — los items propios son los que restringen).
     label: "Configuración",
     minRole: "Admin",
     children: [
-      // ABM de proyectos — Admin+ puede administrar los propios proyectos del
-      // tenant. Es el único ítem que Admin ve en esta sección; el resto son
-      // catálogos tenant-wide (AdminGlobal+).
-      { label: "Proyectos",         href: "/configuracion/proyectos", minRole: "Admin" },
-      { label: "Especialidades",    href: "/configuracion/especialidades", minRole: "AdminGlobal" },
-      { label: "Tipos de elemento", href: "/configuracion/elementos-tipos", minRole: "AdminGlobal" },
-      { label: "Niveles",           href: "/configuracion/niveles",         minRole: "AdminGlobal" },
+      // ABM de proyectos — Admin+ puede administrar los propios proyectos
+      // del tenant. Único ítem que Admin ve suelto arriba de las categorías.
+      { label: "Proyectos", href: "/configuracion/proyectos", minRole: "Admin" },
+      {
+        label: "Catálogos",
+        minRole: "AdminGlobal",
+        children: [
+          { label: "Especialidades",    href: "/configuracion/especialidades" },
+          { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
+          { label: "Niveles",           href: "/configuracion/niveles" },
+        ],
+      },
       {
         label: "Pendientes",
         minRole: "AdminGlobal",
         children: [
-          { label: "Categorías",       href: "/configuracion/pendientes-categorias" },
-          { label: "Tipos",            href: "/configuracion/pendientes-tipos" },
-          { label: "Acciones",         href: "/configuracion/pendientes-acciones" },
-          { label: "Motivos",          href: "/configuracion/pendientes-motivos" },
-          { label: "Catálogo maestro", href: "/configuracion/pendientes-catalogo" },
+          { label: "Categorías",          href: "/configuracion/pendientes-categorias" },
+          { label: "Tipos",               href: "/configuracion/pendientes-tipos" },
+          { label: "Acciones",            href: "/configuracion/pendientes-acciones" },
+          { label: "Motivos",             href: "/configuracion/pendientes-motivos" },
+          { label: "Catálogo maestro",    href: "/configuracion/pendientes-catalogo" },
           { label: "Importar / Exportar", href: "/configuracion/importacion-maestro-pendientes" },
         ],
       },
-      { label: "Campos",         href: "/configuracion/campos",         minRole: "AdminGlobal" },
-      { label: "Planillas",      href: "/configuracion/planillas",      minRole: "AdminGlobal" },
-      { label: "Procedimientos", href: "/configuracion/procedimientos", minRole: "AdminGlobal" },
-      { label: "Clientes",       href: "/configuracion/clientes",       minRole: "AdminGlobal" },
-      { label: "Contratistas",   href: "/configuracion/contratistas",   minRole: "AdminGlobal" },
+      {
+        label: "Planillas y campos",
+        minRole: "AdminGlobal",
+        children: [
+          { label: "Campos",         href: "/configuracion/campos" },
+          { label: "Planillas",      href: "/configuracion/planillas" },
+          { label: "Procedimientos", href: "/configuracion/procedimientos" },
+        ],
+      },
+      {
+        label: "Organización",
+        minRole: "AdminGlobal",
+        children: [
+          { label: "Clientes",     href: "/configuracion/clientes" },
+          { label: "Contratistas", href: "/configuracion/contratistas" },
+        ],
+      },
     ],
   },
   {

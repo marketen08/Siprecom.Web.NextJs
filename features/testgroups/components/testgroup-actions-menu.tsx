@@ -142,8 +142,8 @@ export function TestGroupActionsMenu({ tg, onAfterDelete, variant = "icon" }: Pr
         title="¿Activar paquete?"
         description={
           <>
-            Se instanciarán las tareas del proyecto con <code>TipoAsignacion</code> coincidente al tipo del paquete
-            y pasará a <strong>ACTIVO</strong>.
+            Se instanciarán las tareas del proyecto cuyo tipo de elemento coincida con el del
+            paquete y pasará a <strong>ACTIVO</strong>.
           </>
         }
         confirmText="Activar"
