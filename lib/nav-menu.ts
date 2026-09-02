@@ -187,10 +187,6 @@ export const menu: MenuItem[] = [
       // ABM de proyectos — Admin+ puede administrar los propios proyectos
       // del tenant. Único ítem que Admin ve suelto arriba de las categorías.
       { label: "Proyectos", href: "/configuracion/proyectos", minRole: "Admin" },
-      // Grupos de planillas — Admin+ (operativo). El grupo agrupa planillas
-      // del tenant y define scope por proyecto. Editar la planilla en sí
-      // sigue siendo AdminGlobal (bajo "Planillas y campos").
-      { label: "Grupos de planillas", href: "/configuracion/planillas-grupos", minRole: "Admin" },
       {
         label: "Catálogos",
         minRole: "AdminGlobal",
@@ -213,12 +209,17 @@ export const menu: MenuItem[] = [
         ],
       },
       {
+        // Sub-grupo abierto a Admin+ para que "Grupos de planillas"
+        // (operativo, gestión de scope por proyecto) sea visible. Los otros
+        // ítems catálogos siguen restringidos a AdminGlobal con minRole
+        // explícito — Admin no los va a ver aunque abra el submenu.
         label: "Planillas y campos",
-        minRole: "AdminGlobal",
+        minRole: "Admin",
         children: [
-          { label: "Campos",         href: "/configuracion/campos" },
-          { label: "Planillas",      href: "/configuracion/planillas" },
-          { label: "Procedimientos", href: "/configuracion/procedimientos" },
+          { label: "Grupos de planillas", href: "/configuracion/planillas-grupos", minRole: "Admin" },
+          { label: "Campos",         href: "/configuracion/campos",         minRole: "AdminGlobal" },
+          { label: "Planillas",      href: "/configuracion/planillas",      minRole: "AdminGlobal" },
+          { label: "Procedimientos", href: "/configuracion/procedimientos", minRole: "AdminGlobal" },
         ],
       },
       {
