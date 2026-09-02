@@ -1,3 +1,9 @@
+/** Referencia mínima a un grupo de planillas — para mostrar chips en el listado. */
+export interface PlanillaGrupoSimple {
+  id: string
+  nombre: string
+}
+
 /** Orientación del PDF de la planilla: 0 = Vertical, 1 = Horizontal (apaisado). */
 export type OrientacionPdf = 0 | 1
 
@@ -26,6 +32,12 @@ export interface Planilla {
   especialidadColor?: string | null
   /** True = candidata al select "Planilla del encabezado" del ElementoTipo sintético. */
   esEncabezadoTG?: boolean
+  /**
+   * Grupos a los que pertenece la planilla (M:N). Vacío = planilla sin grupo
+   * (comodín, visible en todos los proyectos). Se muestra como chips en el
+   * listado de config y se usa como filtro.
+   */
+  grupos?: PlanillaGrupoSimple[]
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string

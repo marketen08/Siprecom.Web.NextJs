@@ -15,13 +15,13 @@ import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla
 import { ImportExcelSheet } from "@/features/planillas/components/import-excel-sheet"
 import { ImportJsonSheet } from "@/features/planillas/components/import-json-sheet"
 import { GenerarConIASheet } from "@/features/planillas/components/generar-con-ia-sheet"
-import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
-/** Token sentinela en el CSV de EspecialidadIds para pedir planillas sin especialidad
-    (genéricas). Debe matchear el string usado en `PlanillaService` del backend. */
-const TOKEN_GENERICAS = "__none__"
+/** Token sentinela en el CSV de PlanillaGrupoIds para pedir planillas sin grupo.
+    Debe matchear el string usado en `PlanillaService` del backend. */
+const TOKEN_SIN_GRUPO = "__none__"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,24 +38,24 @@ export default function PlanillasPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const pageSize = 10
-  const [especialidadesSel, setEspecialidadesSel] = useState<Set<string>>(new Set())
+  const [gruposSel, setGruposSel] = useState<Set<string>>(new Set())
   // Tri-state: undefined = todas, true = solo encabezado TG, false = solo no encabezado.
   const [encabezadoFilter, setEncabezadoFilter] = useState<boolean | undefined>(undefined)
 
-  const especialidadIdsArr = useMemo(() => Array.from(especialidadesSel), [especialidadesSel])
+  const gruposIdsArr = useMemo(() => Array.from(gruposSel), [gruposSel])
   const { data, isLoading, isFetching } = useGetPlanillas({
     page,
     pageSize,
     nombre: search || undefined,
-    especialidadIds: especialidadIdsArr.length > 0 ? especialidadIdsArr : undefined,
+    planillaGrupoIds: gruposIdsArr.length > 0 ? gruposIdsArr : undefined,
     esEncabezadoTG: encabezadoFilter,
   })
-  const { data: especialidadesRaw } = useGetEspecialidades()
-  const especialidades = especialidadesRaw?.data ?? []
+  const { data: gruposRaw } = useGetPlanillasGrupos()
+  const grupos = gruposRaw?.data ?? []
   const { open } = useNewPlanilla()
 
-  const toggleEspecialidad = (id: string) => {
-    setEspecialidadesSel((prev) => {
+  const toggleGrupo = (id: string) => {
+    setGruposSel((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -63,8 +63,8 @@ export default function PlanillasPage() {
     })
     setPage(1)
   }
-  const limpiarEspecialidades = () => {
-    setEspecialidadesSel(new Set())
+  const limpiarGrupos = () => {
+    setGruposSel(new Set())
     setPage(1)
   }
   const [importOpen, setImportOpen] = useState(false)
@@ -122,62 +122,57 @@ export default function PlanillasPage() {
           </div>
         </div>
 
-        {/* Filtro chips por especialidad. Multi-select ESTRICTO: cada chip agrega
-            su ID al filtro y sólo matchean planillas con esa especialidad. El chip
-            "Genéricas" (token "__none__") pide explícitamente las planillas sin
-            especialidad. Sin nada seleccionado = sin filtro (muestra todas). */}
-        {especialidades.length > 0 && (
+        {/* Filtro chips por grupo de planillas. Multi-select ESTRICTO: cada chip
+            agrega su ID al filtro. El chip "Sin grupo" (token "__none__") pide
+            explícitamente las planillas comodín (sin grupo). Sin nada seleccionado
+            = sin filtro (muestra todas). Reemplazó al filtro por especialidad, que
+            no aportaba valor al no usarse (todas caían en "Genérica"). */}
+        {grupos.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap text-xs">
-            <span className="text-muted-foreground mr-1">Especialidad:</span>
-            {especialidades.map((e) => {
-              const activo = especialidadesSel.has(e.id)
-              const color = e.color ?? "#6b7280"
+            <span className="text-muted-foreground mr-1">Grupo:</span>
+            {grupos.map((g) => {
+              const activo = gruposSel.has(g.id)
               return (
                 <button
-                  key={e.id}
+                  key={g.id}
                   type="button"
-                  onClick={() => toggleEspecialidad(e.id)}
+                  onClick={() => toggleGrupo(g.id)}
                   className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer"
                   style={
                     activo
-                      ? { backgroundColor: `${color}22`, color, borderColor: color }
+                      ? { backgroundColor: "#dbeafe", color: "#1e40af", borderColor: "#3b82f6" }
                       : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
                   }
-                  title={e.nombre}
+                  title={g.descripcion ?? g.nombre}
                 >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: color }}
-                    aria-hidden
-                  />
-                  {e.codigo || e.nombre}
+                  {g.nombre}
                 </button>
               )
             })}
-            {/* Chip especial "Genéricas" — matchea planillas sin EspecialidadId.
-                Se envía como token "__none__" en la CSV que consume el backend. */}
+            {/* Chip especial "Sin grupo" — matchea planillas comodín (que no
+                están en ningún grupo activo). Se envía como token "__none__". */}
             {(() => {
-              const activo = especialidadesSel.has(TOKEN_GENERICAS)
+              const activo = gruposSel.has(TOKEN_SIN_GRUPO)
               return (
                 <button
                   type="button"
-                  onClick={() => toggleEspecialidad(TOKEN_GENERICAS)}
+                  onClick={() => toggleGrupo(TOKEN_SIN_GRUPO)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-2 py-0.5 font-medium italic transition-colors cursor-pointer"
                   style={
                     activo
                       ? { backgroundColor: "#f3f4f6", color: "#111827", borderColor: "#9ca3af" }
                       : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
                   }
-                  title="Planillas sin especialidad asignada"
+                  title="Planillas sin grupo asignado (comodín — visibles en todos los proyectos)"
                 >
-                  Genéricas
+                  Sin grupo
                 </button>
               )
             })()}
-            {especialidadesSel.size > 0 && (
+            {gruposSel.size > 0 && (
               <button
                 type="button"
-                onClick={limpiarEspecialidades}
+                onClick={limpiarGrupos}
                 className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <X className="h-3 w-3" /> Limpiar

@@ -15,6 +15,11 @@ import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proye
 import { useUpdateProyectoNivelMc } from "@/features/proyectos/api/use-update-proyecto-nivel-mc"
 import { useUpdateProyectoGrupoResponsableDefault } from "@/features/proyectos/api/use-update-proyecto-grupo-responsable-default"
 import {
+  useGetProyectoPlanillasGrupos,
+  useSetProyectoPlanillasGrupos,
+} from "@/features/proyectos/api/use-proyecto-planillas-grupos"
+import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
+import {
   useUploadProyectoLogoHeader,
   useDeleteProyectoLogoHeader,
   useProyectoLogoHeaderSas,
@@ -373,6 +378,8 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
 
         <GrupoResponsableDefaultSelector proyecto={proyecto} />
 
+        <PlanillasGruposHabilitadosCard proyecto={proyecto} />
+
         <ProyectoLogoHeaderCard proyecto={proyecto} />
       </section>
 
@@ -508,6 +515,80 @@ function GrupoResponsableDefaultSelector({ proyecto }: { proyecto: Proyecto }) {
           en al menos un grupo desde Configuración → Grupos de usuarios.
         </p>
       )}
+    </div>
+  )
+}
+
+// ─── Grupos de planillas habilitados en el proyecto ─────────────────────────
+
+function PlanillasGruposHabilitadosCard({ proyecto }: { proyecto: Proyecto }) {
+  const { data: gruposRaw, isLoading: loadingGrupos } = useGetPlanillasGrupos()
+  const { data: habilitadosRaw, isLoading: loadingHabilitados } = useGetProyectoPlanillasGrupos(proyecto.id)
+  const set = useSetProyectoPlanillasGrupos(proyecto.id)
+  const [saving, setSaving] = useState(false)
+
+  const grupos = gruposRaw?.data ?? []
+  const habilitadosSet = new Set(habilitadosRaw ?? [])
+  const cantidad = habilitadosSet.size
+
+  async function toggle(grupoId: string) {
+    const next = new Set(habilitadosSet)
+    if (next.has(grupoId)) next.delete(grupoId)
+    else next.add(grupoId)
+    setSaving(true)
+    try {
+      await set.mutateAsync(Array.from(next))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-white p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-gray-900">Grupos de planillas habilitados</p>
+        {(saving || loadingHabilitados) && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Al asignar planillas en las tareas del proyecto, solo se ofrecen las planillas
+        de estos grupos + las <strong>planillas sin grupo</strong> (comodín). Si no marcás
+        ningún grupo, solo se ofrecen las planillas sin grupo.
+      </p>
+      {loadingGrupos ? (
+        <p className="text-xs text-muted-foreground">Cargando grupos...</p>
+      ) : grupos.length === 0 ? (
+        <p className="text-xs text-amber-700">
+          No hay grupos de planillas cargados. Creá uno en Configuración → Grupos de planillas.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {grupos.map((g) => {
+            const activo = habilitadosSet.has(g.id)
+            return (
+              <button
+                key={g.id}
+                type="button"
+                disabled={saving}
+                onClick={() => toggle(g.id)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                style={
+                  activo
+                    ? { backgroundColor: "#dbeafe", color: "#1e40af", borderColor: "#3b82f6" }
+                    : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
+                }
+                title={g.descripcion ?? g.nombre}
+              >
+                {g.nombre}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground pt-1">
+        {cantidad === 0
+          ? "Sin grupos habilitados — solo las planillas sin grupo (comodín) están disponibles."
+          : `${cantidad} grupo(s) habilitado(s).`}
+      </p>
     </div>
   )
 }

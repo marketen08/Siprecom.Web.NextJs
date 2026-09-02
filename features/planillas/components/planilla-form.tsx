@@ -216,45 +216,62 @@ export function PlanillaForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="especialidadId"
-            render={({ field }) => {
-              const currentValue = field.value ?? SIN_ESPECIALIDAD
-              const especialidadSel = especialidades.find((e) => e.id === field.value)
-              return (
-                <FormItem>
-                  <FormLabel>Especialidad</FormLabel>
-                  <Select
-                    value={currentValue}
-                    onValueChange={(v) => field.onChange(v === SIN_ESPECIALIDAD ? null : v)}
-                    disabled={isPending}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue>
-                          {field.value
-                            ? (especialidadSel?.nombre ?? "—")
-                            : "Sin especialidad (aplica a todas)"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={SIN_ESPECIALIDAD}>
-                        Sin especialidad (aplica a todas)
-                      </SelectItem>
-                      {especialidades.map((e) => (
-                        <SelectItem key={e.id} value={e.id}>
-                          {e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )
-            }}
-          />
+          {/* Especialidad — movida a "Opciones avanzadas" (colapsable) porque
+              el filtro por especialidad en el listado se dejó de usar (todas
+              caían en "Genérica"). Se mantiene el campo para retrocompat con
+              planillas que ya lo tienen seteado, pero fuera del flujo principal.
+              El filtro/orden visible del catálogo ahora es por Grupos. */}
+          <details className="group rounded-md border bg-muted/30">
+            <summary className="flex items-center justify-between px-3 py-2 text-sm font-medium text-muted-foreground cursor-pointer select-none">
+              <span>Opciones avanzadas</span>
+              <span className="text-xs text-muted-foreground group-open:hidden">▾</span>
+              <span className="text-xs text-muted-foreground hidden group-open:inline">▴</span>
+            </summary>
+            <div className="px-3 pb-3 pt-1 space-y-3">
+              <FormField
+                control={form.control}
+                name="especialidadId"
+                render={({ field }) => {
+                  const currentValue = field.value ?? SIN_ESPECIALIDAD
+                  const especialidadSel = especialidades.find((e) => e.id === field.value)
+                  return (
+                    <FormItem>
+                      <FormLabel>Especialidad</FormLabel>
+                      <Select
+                        value={currentValue}
+                        onValueChange={(v) => field.onChange(v === SIN_ESPECIALIDAD ? null : v)}
+                        disabled={isPending}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue>
+                              {field.value
+                                ? (especialidadSel?.nombre ?? "—")
+                                : "Sin especialidad (aplica a todas)"}
+                            </SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={SIN_ESPECIALIDAD}>
+                            Sin especialidad (aplica a todas)
+                          </SelectItem>
+                          {especialidades.map((e) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              {e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Solo referencia — el filtrado del catálogo se hace por Grupos.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
+              />
+            </div>
+          </details>
 
           <TooltipProvider delay={200}>
             <div className="flex flex-col gap-2">

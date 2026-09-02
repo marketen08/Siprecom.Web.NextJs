@@ -15,7 +15,8 @@ import type { Tarea } from "../types"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
-import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
+import { useGetPlanillasDisponibles } from "@/features/planillas/api/use-get-planillas-disponibles"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProcedimientosSelect } from "@/features/procedimientos/api/use-get-procedimientos-select"
 import { useGetTareasSelect } from "@/features/tareas/api/use-get-tareas-select"
 
@@ -52,7 +53,12 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
   const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
   const { data: especialidadesData } = useGetEspecialidades()
   const { data: nivelesData, isLoading: loadingNiveles } = useGetNivelesSelect()
-  const { data: planillasData, isLoading: loadingPlanillas } = useGetPlanillasSelect()
+  // Filtro estricto por grupos habilitados del proyecto activo — el backend
+  // devuelve las planillas del scope (comodín sin grupo + grupos del proyecto).
+  // Si el proyecto no tiene grupos habilitados, solo devuelve las planillas
+  // sin grupo (comportamiento actual preservado mientras todo esté sin grupo).
+  const { data: perfil } = useGetPerfil()
+  const { data: planillasData, isLoading: loadingPlanillas } = useGetPlanillasDisponibles(perfil?.proyectoId ?? null)
   const { data: procedimientosData, isLoading: loadingProcedimientos } = useGetProcedimientosSelect()
   const { data: tareasData, isLoading: loadingTareas } = useGetTareasSelect()
 

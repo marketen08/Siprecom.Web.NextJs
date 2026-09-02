@@ -187,6 +187,10 @@ export const menu: MenuItem[] = [
       // ABM de proyectos — Admin+ puede administrar los propios proyectos
       // del tenant. Único ítem que Admin ve suelto arriba de las categorías.
       { label: "Proyectos", href: "/configuracion/proyectos", minRole: "Admin" },
+      // Grupos de planillas — Admin+ (operativo). El grupo agrupa planillas
+      // del tenant y define scope por proyecto. Editar la planilla en sí
+      // sigue siendo AdminGlobal (bajo "Planillas y campos").
+      { label: "Grupos de planillas", href: "/configuracion/planillas-grupos", minRole: "Admin" },
       {
         label: "Catálogos",
         minRole: "AdminGlobal",

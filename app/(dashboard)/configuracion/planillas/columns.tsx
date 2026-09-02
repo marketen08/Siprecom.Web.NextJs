@@ -177,33 +177,33 @@ export const columns: ColumnDef<Planilla>[] = [
     ),
   },
   {
-    accessorKey: "especialidad",
-    header: "Especialidad",
+    id: "grupos",
+    header: "Grupos",
     cell: ({ row }) => {
       const p = row.original
-      if (!p.especialidadId) {
+      const grupos = p.grupos ?? []
+      if (grupos.length === 0) {
         return (
-          <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500 italic">
-            Genérica
+          <span
+            className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500 italic"
+            title="Sin grupo — visible en todos los proyectos (comodín)."
+          >
+            Sin grupo
           </span>
         )
       }
-      // Chip con el color de la especialidad (background con opacidad, texto sólido).
-      // Si no hay color, cae a gris.
-      const color = p.especialidadColor ?? "#6b7280"
       return (
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{ backgroundColor: `${color}22`, color }}
-          title={p.especialidadNombre ?? undefined}
-        >
-          <span
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: color }}
-            aria-hidden
-          />
-          {p.especialidadCodigo || p.especialidadNombre || "—"}
-        </span>
+        <div className="flex flex-wrap gap-1">
+          {grupos.map((g) => (
+            <span
+              key={g.id}
+              className="inline-flex items-center rounded-full bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 text-[11px] font-medium"
+              title={g.nombre}
+            >
+              {g.nombre}
+            </span>
+          ))}
+        </div>
       )
     },
   },
