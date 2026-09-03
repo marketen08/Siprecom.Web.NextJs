@@ -484,9 +484,15 @@ function ArchivoCard({
     ? Math.round((archivo.tamanioBytes / (1024 * 1024)) * 10) / 10
     : null
   const [codisOpen, setCodisOpen] = useState(false)
-  // Analizar TAGs solo aplica a NWD ya traducido (usa properties APS).
+  // Analizar TAGs solo aplica a NWD ya traducido (usa properties APS). Incluye
+  // los que quedaron en Error: el estado es compartido entre la traducción APS y
+  // nuestro bootstrap, así que un bootstrap fallido (property names que no
+  // matchean) marca Error sobre una traducción que salió bien — y es justo el
+  // caso donde el usuario necesita este analizador para destrabarse. El backend
+  // valida el manifest antes de leer properties.
   const puedeAnalizar = archivo.formatoArchivo === FormatoArchivo3d.Nwd
-    && archivo.apsTranslationStatus === ApsTranslationStatus.Completado
+    && (archivo.apsTranslationStatus === ApsTranslationStatus.Completado
+      || archivo.apsTranslationStatus === ApsTranslationStatus.Error)
   return (
     <div
       className={`rounded-lg border bg-white p-3 space-y-2 transition-colors ${
@@ -681,12 +687,9 @@ function EstadoProcesamientoBadge({ archivo }: { archivo: ProyectoIfcArchivo }) 
       )
     case EstadoProcesamientoIfc.Error:
       return (
-        <div
-          className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1"
-          title={archivo.errorProcesamiento ?? undefined}
-        >
+        <div className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1">
           <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-          <span className="truncate">
+          <span className="min-w-0 whitespace-pre-line wrap-break-word">
             Error: {archivo.errorProcesamiento ?? "fallo al procesar"}
           </span>
         </div>
@@ -734,12 +737,12 @@ function ApsTranslationBadge({ archivo }: { archivo: ProyectoIfcArchivo }) {
     }
     case ApsTranslationStatus.Error:
       return (
-        <div
-          className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1"
-          title={archivo.apsTranslationError ?? undefined}
-        >
+        <div className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1">
           <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-          <span className="truncate">
+          {/* Sin truncate: el error del bootstrap trae la lista de properties
+              candidatas del modelo — cortarla a una línea la volvía inútil.
+              whitespace-pre-line respeta los saltos que arma el backend. */}
+          <span className="min-w-0 whitespace-pre-line wrap-break-word">
             Error APS: {archivo.apsTranslationError ?? "fallo al traducir"}
           </span>
         </div>
