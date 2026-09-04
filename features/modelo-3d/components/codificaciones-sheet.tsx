@@ -103,7 +103,9 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
           {query.isLoading && (
             <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-              Analizando el modelo… puede tardar hasta ~1 min en modelos grandes.
+              Analizando el modelo… El backend vuelve a leer las propiedades desde APS,
+              así que en maquetas grandes puede tardar varios minutos (y por encima del
+              millón de objetos puede cortar por timeout).
             </div>
           )}
 

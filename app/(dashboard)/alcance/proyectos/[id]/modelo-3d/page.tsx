@@ -42,6 +42,8 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
@@ -543,110 +545,185 @@ function ArchivoCard({
         </div>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
-        <Button
-          size="sm"
-          variant={activo ? "default" : "outline"}
-          className="flex-1 gap-1.5"
-          onClick={onVisualizar}
-          disabled={disabledVisualizar}
-        >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
-          {loading ? "Cargando…" : activo ? "En visor" : "Visualizar"}
-        </Button>
-        <button
-          type="button"
-          onClick={onMarcarPrincipal}
-          disabled={marcandoPrincipal || archivo.esPrincipal}
-          className={`inline-flex items-center justify-center h-8 w-8 rounded-md border transition-colors disabled:opacity-50 ${
-            archivo.esPrincipal
-              ? "border-amber-200 bg-amber-50 text-amber-600 cursor-default"
-              : "border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
-          }`}
-          title={archivo.esPrincipal ? "Es el IFC principal del proyecto" : "Marcar como principal"}
-        >
-          {marcandoPrincipal
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <Star className={`h-3.5 w-3.5 ${archivo.esPrincipal ? "fill-amber-400" : ""}`} />}
-        </button>
-        <button
-          type="button"
-          onClick={onProcesar}
-          disabled={procesando
-            || archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
-            || archivo.apsTranslationStatus === ApsTranslationStatus.EnProceso
-            || archivo.apsTranslationStatus === ApsTranslationStatus.Pendiente}
-          className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors disabled:opacity-50"
-          title="Re-procesar"
-        >
-          {procesando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-        </button>
-        {puedeAnalizar && (
-          <button
-            type="button"
-            onClick={() => setCodisOpen(true)}
-            className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
-            title="Analizar codificaciones de TAG"
-          >
-            <ScanSearch className="h-3.5 w-3.5" />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onRematch}
-          disabled={rematcheando}
-          className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors disabled:opacity-50"
-          title="Vincular con elementos actuales (bulk match por TAG)"
-        >
-          {rematcheando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          type="button"
-          onClick={handleExportar}
-          disabled={exportando}
-          className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors disabled:opacity-50"
-          title="Exportar a JSON (para reutilizar en otro proyecto)"
-        >
-          {exportando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-        </button>
-        <ConfirmActionDialog
-          trigger={reBootstrapeando
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <Wrench className="h-3.5 w-3.5" />}
-          triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition-colors disabled:opacity-50"
-          title="¿Re-armar la estructura desde cero?"
-          description={
-            <>
-              Esto <strong>borra todos los Sistemas, SubSistemas y Elementos</strong> del
-              proyecto (más tareas, pendientes y planificación) y vuelve a correr el
-              bootstrap de <strong>{archivo.nombre}</strong> con la config de
-              «property names» actual. No se puede deshacer.
-              <br />
-              <span className="text-xs text-muted-foreground">
-                Si el proyecto ya tiene registros de avance cargados, la operación se
-                rechaza para no perder ese trabajo.
-              </span>
-            </>
-          }
-          confirmText="Re-armar"
-          pendingText="Re-armando…"
-          variant="destructive"
-          onConfirm={onReBootstrap}
-        />
-        <ConfirmActionDialog
-          trigger={<Trash2 className="h-3.5 w-3.5" />}
-          triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
-          title="¿Eliminar archivo IFC?"
-          description={
-            <>
-              Vas a eliminar <strong>{archivo.nombre}</strong>. Esta acción no se puede deshacer.
-            </>
-          }
-          confirmText="Eliminar"
-          pendingText="Eliminando…"
-          variant="destructive"
-          onConfirm={onEliminar}
-        />
+      {/* Acciones: la principal ocupa su propia fila y los íconos van abajo con
+          wrap. La card vive en una grilla de hasta 3 columnas, así que 8 botones
+          en una sola línea no entran — antes se deformaban por flex-shrink y con
+          los wrappers del tooltip pasaban a desbordar. */}
+      <div className="space-y-2 pt-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex w-full">
+              <Button
+                size="sm"
+                variant={activo ? "default" : "outline"}
+                className="flex-1 gap-1.5"
+                onClick={onVisualizar}
+                disabled={disabledVisualizar}
+              >
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                {loading ? "Cargando…" : activo ? "En visor" : "Visualizar"}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {activo
+              ? "Esta maqueta ya está cargada en el visor"
+              : "Cargar esta maqueta en el visor 3D"}
+          </TooltipContent>
+        </Tooltip>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <AccionMaqueta
+            tooltip={archivo.esPrincipal
+              ? "Ya es la maqueta principal del proyecto"
+              : "Marcar como maqueta principal"}
+            icono={<Star className={`h-3.5 w-3.5 ${archivo.esPrincipal ? "fill-amber-400" : ""}`} />}
+            pending={marcandoPrincipal}
+            disabled={archivo.esPrincipal}
+            tono={archivo.esPrincipal
+              ? "border-amber-200 bg-amber-50 text-amber-600"
+              : "border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"}
+            confirmacion={{
+              title: "¿Marcar como maqueta principal?",
+              description: (
+                <>
+                  <strong>{archivo.nombre}</strong> pasa a ser la maqueta que se abre por
+                  defecto en el visor de ejecución, para todos los usuarios del proyecto.
+                  La que era principal deja de serlo.
+                </>
+              ),
+              confirmText: "Marcar como principal",
+              pendingText: "Marcando…",
+            }}
+            onAction={onMarcarPrincipal}
+          />
+          <AccionMaqueta
+            tooltip="Re-procesar: vuelve a leer el modelo y re-vincula las entidades"
+            icono={<RefreshCw className="h-3.5 w-3.5" />}
+            pending={procesando}
+            disabled={archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
+              || archivo.apsTranslationStatus === ApsTranslationStatus.EnProceso
+              || archivo.apsTranslationStatus === ApsTranslationStatus.Pendiente}
+            tono="border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+            confirmacion={{
+              title: "¿Re-procesar la maqueta?",
+              description: (
+                <>
+                  Vuelve a leer las propiedades de <strong>{archivo.nombre}</strong> y
+                  recrea sus entidades con la config de «property names» actual del
+                  proyecto. <strong>Los vínculos manuales se preservan.</strong> No toca
+                  Sistemas, SubSistemas ni Elementos.
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Corre en segundo plano y en maquetas grandes puede tardar varios
+                    minutos. Podés seguir usando la app mientras tanto.
+                  </span>
+                </>
+              ),
+              confirmText: "Re-procesar",
+              pendingText: "Encolando…",
+            }}
+            onAction={onProcesar}
+          />
+          {puedeAnalizar && (
+            <AccionMaqueta
+              tooltip="Analizar codificaciones de TAG del modelo"
+              icono={<ScanSearch className="h-3.5 w-3.5" />}
+              tono="border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+              confirmacion={{
+                title: "¿Analizar las codificaciones de TAG?",
+                description: (
+                  <>
+                    Lee las propiedades de <strong>{archivo.nombre}</strong> desde APS y
+                    arma la lista de patrones de nombre detectados, para que elijas cuáles
+                    representan elementos a trackear.
+                    <br />
+                    <span className="text-xs text-muted-foreground">
+                      El análisis se hace en el momento y puede tardar varios minutos. En
+                      maquetas de más de un millón de objetos puede llegar a cortar por
+                      timeout — en ese caso, el perfil completo queda igual en el log del
+                      procesamiento.
+                    </span>
+                  </>
+                ),
+                confirmText: "Analizar",
+                pendingText: "Abriendo…",
+              }}
+              onAction={async () => setCodisOpen(true)}
+            />
+          )}
+          <AccionMaqueta
+            tooltip="Vincular con los elementos actuales (match masivo por TAG)"
+            icono={<Link2 className="h-3.5 w-3.5" />}
+            pending={rematcheando}
+            tono="border-input bg-white text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200"
+            confirmacion={{
+              title: "¿Vincular con los elementos actuales?",
+              description: (
+                <>
+                  Recorre las entidades de <strong>{archivo.nombre}</strong> que quedaron
+                  sin vincular y las asocia al Elemento del proyecto que tenga el mismo
+                  TAG. <strong>No toca las que ya están vinculadas</strong>, así que no
+                  perdés vinculaciones manuales.
+                </>
+              ),
+              confirmText: "Vincular",
+              pendingText: "Vinculando…",
+            }}
+            onAction={onRematch}
+          />
+          <AccionMaqueta
+            tooltip="Exportar a JSON (para reutilizar la maqueta en otro proyecto)"
+            icono={<Download className="h-3.5 w-3.5" />}
+            pending={exportando}
+            tono="border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+            onAction={handleExportar}
+          />
+          <AccionMaqueta
+            tooltip="Re-armar la estructura del proyecto desde la maqueta"
+            icono={<Wrench className="h-3.5 w-3.5" />}
+            pending={reBootstrapeando}
+            tono="border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200"
+            confirmacion={{
+              title: "¿Re-armar la estructura desde cero?",
+              description: (
+                <>
+                  Esto <strong>borra todos los Sistemas, SubSistemas y Elementos</strong> del
+                  proyecto (más tareas, pendientes y planificación) y vuelve a correr el
+                  bootstrap de <strong>{archivo.nombre}</strong> con la config de
+                  «property names» actual. No se puede deshacer.
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Si el proyecto ya tiene registros de avance cargados, la operación se
+                    rechaza para no perder ese trabajo.
+                  </span>
+                </>
+              ),
+              confirmText: "Re-armar",
+              pendingText: "Re-armando…",
+              variant: "destructive",
+            }}
+            onAction={onReBootstrap}
+          />
+          <AccionMaqueta
+            tooltip="Eliminar la maqueta del proyecto"
+            icono={<Trash2 className="h-3.5 w-3.5" />}
+            tono="border-input bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            confirmacion={{
+              title: "¿Eliminar la maqueta?",
+              description: (
+                <>
+                  Vas a eliminar <strong>{archivo.nombre}</strong> y todas sus entidades,
+                  junto con las vinculaciones a Elementos que tengan. Los Elementos del
+                  proyecto NO se borran. Esta acción no se puede deshacer.
+                </>
+              ),
+              confirmText: "Eliminar",
+              pendingText: "Eliminando…",
+              variant: "destructive",
+            }}
+            onAction={onEliminar}
+          />
+        </div>
       </div>
 
       {puedeAnalizar && (
@@ -659,6 +736,79 @@ function ArchivoCard({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Botón de acción sobre una maqueta: ícono + tooltip + (opcional) confirmación.
+ *
+ * Todas las acciones de la card comparten esta forma para que el usuario sepa qué
+ * hace cada ícono antes de apretarlo y qué consecuencias tiene después. El tooltip
+ * cuelga de un <span> envolvente y no del <button>: los botones deshabilitados no
+ * emiten eventos de puntero, así que sin el wrapper el tooltip no aparecería justo
+ * cuando más hace falta (explicar POR QUÉ está deshabilitado).
+ *
+ * El diálogo va en modo controlado en vez de usar su `trigger` propio, porque el
+ * TooltipTrigger necesita clonar un único elemento DOM y el ConfirmActionDialog
+ * renderiza su propia raíz.
+ */
+function AccionMaqueta({
+  tooltip, icono, tono, pending = false, disabled = false, confirmacion, onAction,
+}: {
+  tooltip: string
+  icono: React.ReactNode
+  /** Clases de color/borde propias de la acción (el layout lo pone el componente). */
+  tono: string
+  pending?: boolean
+  disabled?: boolean
+  /** Si se omite, la acción se dispara directo (solo para acciones sin efecto). */
+  confirmacion?: {
+    title: React.ReactNode
+    description: React.ReactNode
+    confirmText: string
+    pendingText: string
+    variant?: "default" | "destructive"
+  }
+  onAction: () => Promise<unknown>
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* shrink-0: sin esto el botón se deforma cuando la fila queda justa,
+              en vez de pasar a la línea siguiente por el flex-wrap del contenedor. */}
+          <span className="inline-flex shrink-0">
+            <button
+              type="button"
+              aria-label={tooltip}
+              disabled={disabled || pending}
+              onClick={() => { if (confirmacion) setConfirmOpen(true); else void onAction() }}
+              className={cn(
+                "inline-flex items-center justify-center h-8 w-8 rounded-md border transition-colors",
+                "cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                tono,
+              )}
+            >
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icono}
+            </button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+      {confirmacion && (
+        <ConfirmActionDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmacion.title}
+          description={confirmacion.description}
+          confirmText={confirmacion.confirmText}
+          pendingText={confirmacion.pendingText}
+          variant={confirmacion.variant ?? "default"}
+          onConfirm={onAction}
+        />
+      )}
+    </>
   )
 }
 
