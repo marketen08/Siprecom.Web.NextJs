@@ -33,15 +33,24 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
     () => (authResp?.data ?? []).map((r) => `${r.accion}:${r.grupoId}`).sort().join("|"),
     [authResp?.data],
   )
+  // Los grupos que efectivamente se dibujan como columna. Solo hidratamos con
+  // estos: una asignación de un grupo que no está en la lista (eliminado, o sin
+  // el flag de uso en Pendientes) no se puede ver ni destildar, pero se enviaba
+  // igual al guardar y el backend la rechazaba — trabando la pantalla entera.
+  // Lo que se guarda es exactamente la matriz que el usuario ve.
+  const gruposKey = useMemo(() => grupos.map((g) => g.id).sort().join("|"), [grupos])
   useEffect(() => {
+    const disponibles = new Set(grupos.map((g) => g.id))
     const inicial: Record<number, Set<string>> = {}
     for (const a of ACCIONES_LIST) inicial[a.value] = new Set()
     for (const row of authResp?.data ?? []) {
+      if (!disponibles.has(row.grupoId)) continue
       inicial[row.accion] = inicial[row.accion] ?? new Set()
       inicial[row.accion].add(row.grupoId)
     }
     setSeleccion(inicial)
-  }, [serverKey, authResp?.data])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverKey, gruposKey])
 
   function toggle(accion: AccionPendiente, grupoId: string) {
     setSeleccion((prev) => {
