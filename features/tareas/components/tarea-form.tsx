@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { Download, Eye } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -395,7 +396,33 @@ export function TareaForm({ defaultValues, onSubmit, isPending, onCancel }: Tare
             name="planillaId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Planilla</FormLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FormLabel>Planilla</FormLabel>
+                  {/* Ver / descargar la planilla elegida sin salir del formulario —
+                      es el mismo PDF en blanco que ofrece /configuracion/planillas.
+                      Solo aparecen con una planilla seleccionada: sin id no hay nada
+                      que pedir, y un botón deshabilitado permanente es ruido. */}
+                  {field.value && (
+                    <span className="flex items-center gap-1">
+                      <a
+                        href={`/api/planillas/${field.value}/pdf/blanco/preview`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Ver la planilla en PDF"
+                        className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <Eye className="h-3.5 w-3.5" /> Ver
+                      </a>
+                      <a
+                        href={`/api/planillas/${field.value}/pdf/blanco`}
+                        title="Descargar la planilla en PDF"
+                        className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <Download className="h-3.5 w-3.5" /> PDF
+                      </a>
+                    </span>
+                  )}
+                </div>
                 <FormControl>
                   <Combobox
                     options={[
