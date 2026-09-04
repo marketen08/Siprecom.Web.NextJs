@@ -32,6 +32,8 @@ export interface UnifiedViewerHandle {
    * clickear una de sus piezas.
    */
   selectByGuids: (guids: string[]) => void
+  /** Solo el visor APS/NWD la implementa; el motor IFC no la expone. */
+  selectByDbIds?: (dbIds: number[]) => void
   /**
    * Encuadra la cámara sobre las entidades indicadas. En mobile lo dispara la
    * página tras abrir el bottom sheet (y redimensionar el viewer) para centrar
@@ -43,7 +45,10 @@ export interface UnifiedViewerHandle {
    * visibles quedan completamente invisibles. Si es false (default), quedan
    * semi-transparentes (efecto fantasma del viewer).
    */
-  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
+  applyGhost: (
+    visibleGuids: string[] | null,
+    opts?: { hide?: boolean; dbIds?: number[] },
+  ) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   /**
    * F7 del roadmap TestGroups: pinta cada TestGroup con un color de la paleta
@@ -63,6 +68,10 @@ export interface BucketsPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
+  /** dbIds paralelos, cuando el backend los tiene — evitan construir el índice. */
+  noIniciadosIds?: number[]
+  enCursoIds?: number[]
+  completadosIds?: number[]
 }
 
 export interface BucketsPorTestGroup {
@@ -71,7 +80,7 @@ export interface BucketsPorTestGroup {
 }
 
 export interface CreateUnifiedViewerOptions {
-  onPick?: (guids: string[] | null) => void
+  onPick?: (guids: string[] | null, dbIds?: number[]) => void
   /**
    * Callback para reportar progreso de la carga: usado para el indicador de
    * "Descargando IFC… X MB" o "Cargando NWD desde APS…" en la UI.
@@ -148,10 +157,17 @@ async function crearApsViewer(
     throw new Error("Archivo NWD sin URN APS asignada — re-procesá la traducción.")
   }
   const { createApsViewer } = await import("./aps-viewer")
-  const handle = await createApsViewer(container, { onPick: opts.onPick, onProgress: opts.onProgress })
+  const handle = await createApsViewer(container, {
+    onPick: opts.onPick,
+    onProgress: opts.onProgress,
+    // El índice de piezas termina DESPUÉS de que la maqueta ya se ve. Avisamos
+    // para que el usuario entienda por qué el clic y los colores todavía no
+    // responden, en vez de creer que la pantalla se colgó.
+    onIndiceListo: () => opts.onProgress?.(""),
+  })
 
-  opts.onProgress?.("Cargando NWD desde Autodesk…")
+  opts.onProgress?.("Cargando maqueta…")
   await handle.loadModel(archivo.apsUrn)
-  opts.onProgress?.("")
+  opts.onProgress?.("Preparando clic y colores… la maqueta ya se puede navegar")
   return handle
 }

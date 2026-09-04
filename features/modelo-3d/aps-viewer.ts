@@ -79,13 +79,18 @@ export interface ApsViewerHandle {
    * cuando se clickea una de sus piezas.
    */
   selectByGuids: (guids: string[]) => void
+  /** Selección por dbId — camino rápido, no requiere el índice externalId → dbId. */
+  selectByDbIds: (dbIds: number[]) => void
   /**
    * Encuadra la cámara sobre las entidades indicadas (por externalId). Usado en
    * mobile al seleccionar para centrar la pieza en la zona visible una vez que
    * el bottom sheet redimensionó el viewer. No-op si no resuelve ningún dbId.
    */
   fitToGuids: (guids: string[]) => void
-  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
+  applyGhost: (
+    visibleGuids: string[] | null,
+    opts?: { hide?: boolean; dbIds?: number[] },
+  ) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
   /**
    * F7 del roadmap TestGroups: pinta cada TestGroup con un color de una paleta
@@ -105,6 +110,14 @@ export interface BucketsPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
+  /**
+   * dbIds paralelos a los guids, cuando el backend los tiene (ApsObjectId). Si
+   * vienen, el visor pinta directo y no construye el índice externalId → dbId,
+   * que en una maqueta de más de un millón de objetos son varios minutos.
+   */
+  noIniciadosIds?: number[]
+  enCursoIds?: number[]
+  completadosIds?: number[]
 }
 
 /** F7: buckets de IfcGuids agrupados por TestGroup para el modo APS/NWD. */
@@ -129,12 +142,19 @@ export interface CreateApsViewerOptions {
    * geometría que el usuario realmente clickea. Cada guid es el externalId del
    * objeto o un sintético "aps-{dbId}". null = se deseleccionó.
    */
-  onPick?: (guids: string[] | null) => void
+  onPick?: (guids: string[] | null, dbIds?: number[]) => void
   /**
    * Reporta progreso durante el arranque del visor (ej. mientras se espera el
    * token con el backend frío). El caller lo muestra en el banner de carga.
    */
   onProgress?: (msg: string) => void
+  /**
+   * Se dispara cuando termina de construirse el índice externalId → dbId, que
+   * corre en segundo plano después de mostrar la geometría. Hasta entonces el
+   * modelo se ve y se navega, pero clic, colores y filtros tienen que esperarlo.
+   * Recibe la cantidad de piezas indexadas (0 si falló).
+   */
+  onIndiceListo?: (piezas: number) => void
 }
 
 // Paleta semáforo coherente con el viewer IFC.
@@ -160,8 +180,10 @@ export async function createApsViewer(
   // lanzamos — así la página muestra su banner de error en vez de que el SDK de
   // Autodesk pinte "Backend call failure" sobre el canvas negro.
   opts.onProgress?.("Conectando con Autodesk…")
+  const tArranque = performance.now()
   let tokenInicialPendiente: { token: string; expiresIn: number } | null =
     await fetchViewerTokenConReintentos(opts.onProgress)
+  const msToken = Math.round(performance.now() - tArranque)
 
   const viewerOptions = {
     env: "AutodeskProduction",
@@ -190,10 +212,23 @@ export async function createApsViewer(
     },
   }
 
+  const tInit = performance.now()
   await new Promise<void>((resolve) => Autodesk.Viewing.Initializer(viewerOptions, () => resolve()))
 
   const viewer = new Autodesk.Viewing.GuiViewer3D(container)
   viewer.start()
+  // eslint-disable-next-line no-console
+  console.log(
+    `[APS viewer] arranque — token ${msToken} ms · SDK+init ${Math.round(performance.now() - tInit)} ms`,
+  )
+
+  // Manija de debug fuera de producción: permite medir a mano desde la consola
+  // (ej. cronometrar getExternalIdMapping) sin tener que instrumentar el código
+  // cada vez. No se expone en producción para no dar acceso al viewer desde la
+  // consola del cliente.
+  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
+    ;(window as unknown as Record<string, unknown>).__apsViewer = viewer
+  }
 
   let currentModel: unknown | null = null
   let disposed = false
@@ -201,6 +236,10 @@ export async function createApsViewer(
   // property tables en cada operación.
   const guidToDbId = new Map<string, number>()
   const dbIdToGuid = new Map<number, string>()
+  // Estado del índice de piezas. Se construye en segundo plano tras mostrar la
+  // geometría; las operaciones que resuelven guids esperan `indicePromesa`.
+  let indicePromesa: Promise<void> | null = null
+  let indiceListo = false
   // Último set de buckets de colores por estado aplicado. Lo guardamos para
   // poder re-aplicarlo cuando el filtro (isolate) cambia — sino los colores
   // pintados antes del filtro se pierden o quedan en dbIds incorrectos.
@@ -218,19 +257,39 @@ export async function createApsViewer(
   async function loadModel(urn: string): Promise<{ totalItems: number }> {
     if (disposed) throw new Error("Viewer dispuesto.")
     const fullUrn = urn.startsWith("urn:") ? urn : `urn:${urn}`
+    // Cronómetro por etapa: "Cargando NWD desde Autodesk…" tapa tres fases con
+    // costos muy distintos (manifest, geometría, índice de piezas). Sin separarlas
+    // no se puede saber si conviene atacar la red, el modelo o el índice.
+    const t0 = performance.now()
+    const ms = (desde: number) => Math.round(performance.now() - desde)
     return new Promise((resolve, reject) => {
       Autodesk.Viewing.Document.load(
         fullUrn,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async (doc: any) => {
           try {
+            const tManifest = ms(t0)
+            const t1 = performance.now()
             const viewable = doc.getRoot().getDefaultGeometry()
             currentModel = await viewer.loadDocumentNode(doc, viewable)
+            const tGeometria = ms(t1)
 
-            // Pre-cargar mapping externalId → dbId.
-            await refreshGuidMapping()
+            // El índice externalId → dbId arranca acá pero NO se espera: necesita
+            // la base de propiedades del modelo, que en maquetas grandes tarda
+            // mucho más que la geometría. Bloquear la carga con esto dejaba la
+            // pantalla en "Cargando…" con la planta ya visible, y —peor— la página
+            // no marcaba el archivo como cargado, así que colores y filtros
+            // quedaban deshabilitados justo mientras el modelo se veía perfecto.
+            // Las operaciones que necesitan el índice lo esperan por su cuenta.
+            iniciarIndice()
 
-            resolve({ totalItems: guidToDbId.size })
+            // eslint-disable-next-line no-console
+            console.log(
+              `[APS viewer] listo para mostrar en ${ms(t0)} ms — manifest ${tManifest} ms · ` +
+              `geometría ${tGeometria} ms · índice en segundo plano`,
+            )
+
+            resolve({ totalItems: 0 })
           } catch (e) { reject(e) }
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -241,32 +300,60 @@ export async function createApsViewer(
     })
   }
 
-  async function refreshGuidMapping(): Promise<void> {
+  /**
+   * Arranca la construcción del índice externalId → dbId y devuelve la promesa.
+   * Idempotente: llamarla dos veces reusa la misma corrida.
+   *
+   * `getExternalIdMapping` necesita la base de propiedades del modelo, que se
+   * descarga y parsea aparte de la geometría. En una maqueta de más de un millón
+   * de objetos es la etapa más cara de toda la carga — por eso no se espera para
+   * mostrar la planta.
+   */
+  function iniciarIndice(): Promise<void> {
+    if (indicePromesa) return indicePromesa
     guidToDbId.clear()
     dbIdToGuid.clear()
-    if (!currentModel) return
+    if (!currentModel) return Promise.resolve()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
-    await new Promise<void>((resolve) => {
+    const t0 = performance.now()
+
+    indicePromesa = new Promise<void>((resolve) => {
       m.getExternalIdMapping(
         (mapping: Record<string, number>) => {
-          for (const [externalId, dbId] of Object.entries(mapping)) {
+          for (const externalId in mapping) {
+            const dbId = mapping[externalId]
             guidToDbId.set(externalId, dbId)
             dbIdToGuid.set(dbId, externalId)
           }
-          // Debug: muestreamos para que se pueda comparar contra los IfcGuid
-          // persistidos en DB (deberían tener exactamente el mismo formato).
-          const sample = Array.from(guidToDbId.entries()).slice(0, 5)
+          indiceListo = true
           // eslint-disable-next-line no-console
           console.log(
-            `[APS viewer] externalIdMapping: ${guidToDbId.size} entries. Sample:`,
-            sample,
+            `[APS viewer] índice listo: ${guidToDbId.size} piezas en ` +
+            `${Math.round(performance.now() - t0)} ms`,
           )
+          opts.onIndiceListo?.(guidToDbId.size)
           resolve()
         },
-        () => resolve(),
+        () => {
+          // Sin índice no hay resolución de guids, pero el modelo sigue usable
+          // para navegar. Marcamos listo para no dejar operaciones esperando
+          // una promesa que nunca resuelve.
+          indiceListo = true
+          // eslint-disable-next-line no-console
+          console.warn("[APS viewer] no se pudo construir el índice de piezas.")
+          opts.onIndiceListo?.(0)
+          resolve()
+        },
       )
     })
+    return indicePromesa
+  }
+
+  /** Espera el índice si todavía no está. Lo usan las operaciones que resuelven guids. */
+  async function conIndice(): Promise<void> {
+    if (indiceListo) return
+    await iniciarIndice()
   }
 
   /**
@@ -276,14 +363,23 @@ export async function createApsViewer(
    * resuelve cuál es entidad. Cada nivel: su externalId, o "aps-{dbId}" sintético.
    */
   function ancestorGuids(dbId: number): string[] {
-    const out: string[] = []
+    return ancestorDbIds(dbId).map((id) => dbIdToGuid.get(id) ?? `aps-${id}`)
+  }
+
+  /**
+   * Misma cadena de ancestros pero en dbIds. NO necesita el índice: el instance
+   * tree viene con la geometría. Es el camino rápido del click — el backend
+   * resuelve la entidad por ApsObjectId.
+   */
+  function ancestorDbIds(dbId: number): number[] {
+    const out: number[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
     const tree = m?.getInstanceTree?.()
     let id: number | undefined = dbId
     let guard = 0
     while (id !== undefined && id !== null && guard++ < 64) {
-      out.push(dbIdToGuid.get(id) ?? `aps-${id}`)
+      out.push(id)
       const parent: number | undefined = tree?.getNodeParentId?.(id)
       if (parent === undefined || parent === null || parent === id || parent === 0) break
       id = parent
@@ -297,7 +393,17 @@ export async function createApsViewer(
   let lastProgrammaticKey: string | null = null
   const keyDeDbIds = (ids: number[]) => ids.slice().sort((a, b) => a - b).join(",")
 
+  /** Selección directa por dbId — no necesita el índice. */
+  function selectByDbIds(dbIds: number[]): void {
+    if (disposed || dbIds.length === 0) return
+    lastProgrammaticKey = keyDeDbIds(dbIds)
+    viewer.select(dbIds)
+  }
+
   function selectByGuids(guids: string[]): void {
+    // Si el índice todavía no está, reintentamos cuando termine en vez de no
+    // hacer nada: el usuario ya pidió la acción y no tiene por qué repetirla.
+    if (!indiceListo) { void conIndice().then(() => selectByGuids(guids)); return }
     const dbIds = guidsToIds(guids)
     if (dbIds.length === 0) return
     lastProgrammaticKey = keyDeDbIds(dbIds)
@@ -309,6 +415,7 @@ export async function createApsViewer(
   // pieza en la zona visible.
   function fitToGuids(guids: string[]): void {
     if (disposed) return
+    if (!indiceListo) { void conIndice().then(() => fitToGuids(guids)); return }
     const dbIds = guidsToIds(guids)
     if (dbIds.length === 0) return
     viewer.fitToView(dbIds)
@@ -331,17 +438,22 @@ export async function createApsViewer(
       }
       return
     }
-    const chain = ancestorGuids(dbId)
-    const key = chain.join("|")
+    // La cadena de dbIds no necesita el índice, así que el click responde desde
+    // el primer segundo. Los guids se mandan solo si el índice ya está — el
+    // caller prefiere los dbIds y resuelve contra ApsObjectId.
+    const chainIds = ancestorDbIds(dbId)
+    const chain = indiceListo ? ancestorGuids(dbId) : []
+    const key = chainIds.join("|")
     if (key !== lastSelectionKey) {
       lastSelectionKey = key
-      opts.onPick(chain)
+      opts.onPick(chain, chainIds)
     }
   }
   viewer.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, onSelectionChanged)
 
   async function highlightByGuid(guid: string | null): Promise<void> {
     if (!currentModel) return
+    await conIndice()
     if (guid === null) {
       viewer.clearSelection()
       // Al deseleccionar NO destruimos el pintado de colores-por-estado: si está
@@ -364,9 +476,12 @@ export async function createApsViewer(
 
   async function applyGhost(
     visibleGuids: string[] | null,
-    opts?: { hide?: boolean },
+    opts?: { hide?: boolean; dbIds?: number[] },
   ): Promise<void> {
     if (!currentModel) return
+    // Con dbIds del backend no hace falta traducir nada: nos salteamos el índice,
+    // que es lo que tarda minutos en maquetas grandes.
+    if (!opts?.dbIds?.length) await conIndice()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
     // Si hide=true → los no-isolated quedan invisibles. Si false (default) →
@@ -393,7 +508,7 @@ export async function createApsViewer(
       return
     }
 
-    const dbIds = guidsToIds(visibleGuids)
+    const dbIds = opts?.dbIds?.length ? opts.dbIds : guidsToIds(visibleGuids)
     // eslint-disable-next-line no-console
     console.log(
       `[APS viewer] applyGhost: ${visibleGuids.length} guids pedidos → ${dbIds.length} dbIds resueltos`,
@@ -459,6 +574,11 @@ export async function createApsViewer(
 
   async function applyColorPorEstado(buckets: BucketsPorEstado | null): Promise<void> {
     if (!currentModel) return
+    // Si el backend mandó dbIds no necesitamos el índice — es el caso que hace
+    // que los colores por estado sean inmediatos en vez de esperar minutos.
+    const tieneIds = !!(buckets
+      && (buckets.noIniciadosIds?.length || buckets.enCursoIds?.length || buckets.completadosIds?.length))
+    if (!tieneIds) await conIndice()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
     lastBuckets = buckets
@@ -495,9 +615,10 @@ export async function createApsViewer(
 
     // Pre-resolver dbIds de cada bucket — los necesitamos tanto para pintar
     // como (eventualmente) para inicializar el isolate cuando no hay filtro.
-    const dbIdsNoIniciados = guidsToIds(buckets.noIniciados)
-    const dbIdsEnCurso     = guidsToIds(buckets.enCurso)
-    const dbIdsCompletados = guidsToIds(buckets.completados)
+    // Preferimos los dbIds que ya trae el backend; solo traducimos si no vinieron.
+    const dbIdsNoIniciados = buckets.noIniciadosIds?.length ? buckets.noIniciadosIds : guidsToIds(buckets.noIniciados)
+    const dbIdsEnCurso     = buckets.enCursoIds?.length     ? buckets.enCursoIds     : guidsToIds(buckets.enCurso)
+    const dbIdsCompletados = buckets.completadosIds?.length ? buckets.completadosIds : guidsToIds(buckets.completados)
 
     // Isolate del FILTRO (lo trackeamos a mano; NO sondeamos getIsolatedNodes()
     // porque showAll()/isolate() son async y devolvían el isolate viejo justo
@@ -565,6 +686,7 @@ export async function createApsViewer(
   // (o gris si el backend las devolvió en sinTestGroup).
   async function applyColorPorTestGroup(buckets: BucketsPorTestGroup | null): Promise<void> {
     if (!currentModel) return
+    await conIndice()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
 
@@ -629,7 +751,7 @@ export async function createApsViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadModel, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
+  return { loadModel, highlightByGuid, selectByGuids, selectByDbIds, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
 }
 
 /** Convierte un GUID sintético "aps-{dbId}" a dbId numérico. Si no matchea, null. */

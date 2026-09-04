@@ -17,7 +17,9 @@ import {
 import { ImportarMaquetaJsonSheet } from "@/features/modelo-3d/components/importar-maqueta-json-dialog"
 import {
   resolverEntidadesPorGuids,
+  resolverEntidadesPorIds,
   getGuidsPorElemento,
+  getIdsPorElemento,
   useProcesarIfcArchivo,
   useReBootstrapIfcArchivo,
   useRematchIfcArchivo,
@@ -48,8 +50,13 @@ import { cn } from "@/lib/utils"
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   selectByGuids: (guids: string[]) => void
+  /** Solo el motor APS/NWD. Evita traducir guid → dbId, que requiere el índice. */
+  selectByDbIds?: (dbIds: number[]) => void
   fitToGuids: (guids: string[]) => void
-  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
+  applyGhost: (
+    visibleGuids: string[] | null,
+    opts?: { hide?: boolean; dbIds?: number[] },
+  ) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   resize: () => void
   dispose: () => void
@@ -169,8 +176,9 @@ function ModeloPageContent() {
         const { createUnifiedViewer } = await import("@/features/modelo-3d/unified-viewer")
         if (cancelled) return
         const handle = await createUnifiedViewer(container, archivoActual, id, {
-          onPick: async (guids) => {
-            if (guids === null || guids.length === 0) {
+          onPick: async (guids, dbIds) => {
+            const hayAlgo = (guids && guids.length > 0) || (dbIds && dbIds.length > 0)
+            if (!hayAlgo) {
               setEntidadSeleccionada(null)
               return
             }
@@ -178,17 +186,36 @@ function ModeloPageContent() {
             if (!archivoActivo) return
             setResolviendoPick(true)
             try {
-              // guids = cadena hoja→raíz (APS) o un único guid (IFC). Elegimos la
-              // entidad que matchea el guid más profundo.
-              const entidades = await resolverEntidadesPorGuids(id, archivoActivo, guids)
-              const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
-              const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              // Camino rápido: si el visor nos dio la cadena de dbIds resolvemos por
+              // ApsObjectId y no dependemos del índice externalId → dbId, que en
+              // maquetas grandes tarda minutos en construirse. Si no, por guid.
+              let elegida: ProyectoIfcEntidad | null = null
+              if (dbIds && dbIds.length > 0) {
+                const entidades = await resolverEntidadesPorIds(id, archivoActivo, dbIds)
+                // dbIds viene hoja → raíz. Nos quedamos con la coincidencia más
+                // profunda, igual que en el camino por guid.
+                const porDbId = new Map(
+                  entidades
+                    .filter((e) => e.apsObjectId != null)
+                    .map((e) => [e.apsObjectId as number, e]),
+                )
+                elegida = dbIds.map((d) => porDbId.get(d)).find(Boolean) ?? null
+              } else if (guids && guids.length > 0) {
+                const entidades = await resolverEntidadesPorGuids(id, archivoActivo, guids)
+                const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
+                elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              }
               setEntidadSeleccionada(elegida)
 
               // Seleccionar TODAS las piezas del Elemento (línea/equipo completo).
               if (elegida?.elementoId) {
-                const guidsElemento = await getGuidsPorElemento(id, archivoActivo, elegida.elementoId)
-                if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+                const idsElemento = await getIdsPorElemento(id, archivoActivo, elegida.elementoId)
+                if (idsElemento.length > 0) {
+                  viewerRef.current?.selectByDbIds?.(idsElemento)
+                } else {
+                  const guidsElemento = await getGuidsPorElemento(id, archivoActivo, elegida.elementoId)
+                  if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+                }
               }
             } catch (e) {
               setViewError((e as Error).message)

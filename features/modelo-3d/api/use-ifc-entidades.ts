@@ -288,3 +288,34 @@ export function useGetDimensionesUsadas(proyectoId: string | null, archivoId: st
       ),
   })
 }
+
+/**
+ * Resuelve entidades a partir de la cadena de dbIds que devuelve el click del
+ * visor. Es el camino rápido: no requiere que el visor haya construido el índice
+ * externalId → dbId, que en maquetas de más de un millón de objetos tarda minutos.
+ * El backend matchea contra ProyectoIfcEntidad.ApsObjectId.
+ */
+export async function resolverEntidadesPorIds(
+  proyectoId: string,
+  archivoId: string,
+  apsObjectIds: number[],
+): Promise<ProyectoIfcEntidad[]> {
+  if (apsObjectIds.length === 0) return []
+  const resp = await apiClient.post<ApiResponse<ProyectoIfcEntidad[]>>(
+    `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/resolver-ids`,
+    { apsObjectIds },
+  )
+  return resp?.data ?? []
+}
+
+/** dbIds de las piezas de un Elemento — para seleccionar/encuadrar sin índice. */
+export async function getIdsPorElemento(
+  proyectoId: string,
+  archivoId: string,
+  elementoId: string,
+): Promise<number[]> {
+  const resp = await apiClient.get<ApiResponse<number[]>>(
+    `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/ids-por-elemento/${elementoId}`,
+  )
+  return resp?.data ?? []
+}

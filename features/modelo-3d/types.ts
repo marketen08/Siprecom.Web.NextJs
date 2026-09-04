@@ -77,6 +77,8 @@ export interface ProyectoIfcEntidad {
   id: string
   proyectoIfcArchivoId: string
   ifcGuid: string
+  /** dbId de la pieza en el visor. Null en entidades previas a la columna. */
+  apsObjectId?: number | null
   ifcType: string | null
   tagDetectado: string | null
   nombre: string | null
@@ -131,6 +133,12 @@ export const EstadoVisualIds = {
 
 export interface FiltroResultado {
   guidsCoinciden: string[]
+  /**
+   * dbIds de las mismas entidades. El visor los usa directo y así evita construir
+   * el índice externalId → dbId, que en maquetas grandes tarda minutos. Vacío en
+   * maquetas procesadas antes de la columna ApsObjectId → se cae al índice.
+   */
+  idsCoinciden?: number[]
   totalCoinciden: number
   totalEntidades: number
 }
@@ -167,6 +175,10 @@ export interface ColoresPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
+  /** dbIds paralelos a los buckets de guids — ver FiltroResultado.idsCoinciden. */
+  noIniciadosIds?: number[]
+  enCursoIds?: number[]
+  completadosIds?: number[]
   /** Total de PIEZAS/GUIDs vinculadas (para pintar el visor). NO es cantidad de elementos. */
   totalConVinculo: number
   /** Conteos por ELEMENTOS distintos (no piezas). La leyenda usa estos para coincidir con la lista de elementos. */
