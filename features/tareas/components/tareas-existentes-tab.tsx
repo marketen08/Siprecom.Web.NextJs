@@ -358,6 +358,10 @@ export function TareasExistentesTab() {
   const [bulkReactivarOpen, setBulkReactivarOpen] = useState(false)
   const [bulkFechaOpen, setBulkFechaOpen] = useState(false)
   const [bulkFecha, setBulkFecha] = useState("")
+  // Segundo paso dentro del mismo diálogo en vez de un AlertDialog anidado:
+  // apilar overlays trae problemas de foco y de scroll bloqueado, y el usuario
+  // ya está en un diálogo — sacarlo para meterlo en otro es peor.
+  const [confirmandoQuitarFecha, setConfirmandoQuitarFecha] = useState(false)
 
   // ── Resumen post-acción ─────────────────────────────────────────────
   const [bulkResumen, setBulkResumen] = useState<{ accion: string; result: BulkResult } | null>(null)
@@ -412,6 +416,7 @@ export function TareasExistentesTab() {
       })
       setBulkFechaOpen(false)
       setBulkFecha("")
+      setConfirmandoQuitarFecha(false)
       limpiarSeleccion()
     } catch { /* error visible abajo */ }
   }
@@ -522,7 +527,7 @@ export function TareasExistentesTab() {
             <Button size="sm" variant="outline" onClick={() => { setBulkAsignarUser(SIN_ASIGNAR); setBulkAsignarOpen(true) }}>
               Asignar
             </Button>
-            <Button size="sm" variant="outline" onClick={() => { setBulkFecha(""); setBulkFechaOpen(true) }}>
+            <Button size="sm" variant="outline" onClick={() => { setBulkFecha(""); setConfirmandoQuitarFecha(false); setBulkFechaOpen(true) }}>
               Fecha planif.
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setBulkCancelarMotivo(""); setBulkCancelarOpen(true) }}>
@@ -1066,38 +1071,77 @@ export function TareasExistentesTab() {
               {selectAllMatching && <> Aplica a todas las tareas que matchean el filtro actual.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Nueva fecha *</label>
-            <Input
-              type="date"
-              value={bulkFecha}
-              onChange={(e) => setBulkFecha(e.target.value)}
-              className="h-9"
-            />
-            <p className="text-xs text-muted-foreground">
-              Si te equivocaste al cargar, <strong>Quitar fecha</strong> las deja sin fecha
-              planificada y vuelven a entrar en el cálculo automático.
-            </p>
-            {bulkFechaMut.error && (
-              <p className="text-xs text-destructive">{(bulkFechaMut.error as Error).message}</p>
-            )}
-          </div>
+          {confirmandoQuitarFecha ? (
+            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-medium text-amber-900">
+                {selectAllMatching
+                  ? "Vas a quitar la fecha planificada de todas las tareas que matchean el filtro actual."
+                  : `Vas a quitar la fecha planificada de ${selectionCount} tarea(s).`}
+              </p>
+              <p className="text-xs text-amber-800">
+                Quedan sin fecha y vuelven a entrar en el cálculo automático: la próxima
+                corrida del generador les va a asignar una fecha nueva. No se puede deshacer.
+              </p>
+              {bulkFechaMut.error && (
+                <p className="text-xs text-destructive">{(bulkFechaMut.error as Error).message}</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nueva fecha *</label>
+              <Input
+                type="date"
+                value={bulkFecha}
+                onChange={(e) => setBulkFecha(e.target.value)}
+                className="h-9"
+              />
+              <p className="text-xs text-muted-foreground">
+                Si te equivocaste al cargar, <strong>Quitar fecha</strong> las deja sin fecha
+                planificada y vuelven a entrar en el cálculo automático.
+              </p>
+              {bulkFechaMut.error && (
+                <p className="text-xs text-destructive">{(bulkFechaMut.error as Error).message}</p>
+              )}
+            </div>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkFechaMut.isPending}>Cancelar</AlertDialogCancel>
-            <button
-              type="button"
-              disabled={bulkFechaMut.isPending}
-              onClick={(e) => { e.preventDefault(); ejecutarBulkFecha(true) }}
-              className="inline-flex items-center justify-center h-9 rounded-md border border-input px-3 text-sm font-medium cursor-pointer hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Quitar fecha
-            </button>
-            <AlertDialogAction
-              disabled={!bulkFecha || bulkFechaMut.isPending}
-              onClick={(e) => { e.preventDefault(); ejecutarBulkFecha() }}
-            >
-              {bulkFechaMut.isPending ? "Actualizando..." : "Confirmar"}
-            </AlertDialogAction>
+            {confirmandoQuitarFecha ? (
+              <>
+                <button
+                  type="button"
+                  disabled={bulkFechaMut.isPending}
+                  onClick={(e) => { e.preventDefault(); setConfirmandoQuitarFecha(false) }}
+                  className="inline-flex items-center justify-center h-9 rounded-md border border-input px-3 text-sm font-medium cursor-pointer hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Volver
+                </button>
+                <AlertDialogAction
+                  disabled={bulkFechaMut.isPending}
+                  onClick={(e) => { e.preventDefault(); ejecutarBulkFecha(true) }}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  {bulkFechaMut.isPending ? "Quitando..." : "Sí, quitar fecha"}
+                </AlertDialogAction>
+              </>
+            ) : (
+              <>
+                <AlertDialogCancel disabled={bulkFechaMut.isPending}>Cancelar</AlertDialogCancel>
+                <button
+                  type="button"
+                  disabled={bulkFechaMut.isPending}
+                  onClick={(e) => { e.preventDefault(); setConfirmandoQuitarFecha(true) }}
+                  className="inline-flex items-center justify-center h-9 rounded-md border border-input px-3 text-sm font-medium cursor-pointer hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Quitar fecha
+                </button>
+                <AlertDialogAction
+                  disabled={!bulkFecha || bulkFechaMut.isPending}
+                  onClick={(e) => { e.preventDefault(); ejecutarBulkFecha() }}
+                >
+                  {bulkFechaMut.isPending ? "Actualizando..." : "Confirmar"}
+                </AlertDialogAction>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
