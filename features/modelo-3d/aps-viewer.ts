@@ -400,16 +400,24 @@ export async function createApsViewer(
     )
 
     if (dbIds.length === 0) {
+      // Filtro sin resultados. ANTES esto hacía showAll() + clearThemingColors,
+      // o sea que un filtro que no matcheaba nada se veía igual que no tener
+      // filtro Y encima borraba los colores por estado — el usuario leía
+      // "se rompió el visor". Ahora no mostramos nada (que es lo que el filtro
+      // pide) y la capa de color queda intacta para cuando el filtro cambie.
       // eslint-disable-next-line no-console
       console.warn(
-        "[APS viewer] applyGhost: ninguna entidad mapeada — mostrando modelo completo.",
+        "[APS viewer] applyGhost: el filtro no matcheó ninguna entidad — no se muestra nada.",
       )
-      m.clearThemingColors?.()
-      try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
-      viewer.showAll()
-      filterIsolatedIds = null
-      if (lastBuckets) await aplicarBucketsRespetandoIsolate(lastBuckets)
-      else viewer.impl.invalidate(true, true, true)
+      try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(!hideMode) } catch { /* ignore */ }
+      const rootId = m.getRootId?.()
+      if (rootId !== undefined && rootId !== null) viewer.hide(rootId)
+      // [] (y no null) = "hay filtro activo y no matchea nada". Con null,
+      // aplicarBucketsRespetandoIsolate lo leería como "sin filtro" y volvería
+      // a mostrar las entidades con estado, contradiciendo al filtro.
+      filterIsolatedIds = []
+      isolatedByColors = false
+      viewer.impl.invalidate(true, true, true)
       return
     }
 
@@ -423,6 +431,10 @@ export async function createApsViewer(
     try {
       (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(!hideMode)
     } catch { /* ignore */ }
+    // Si venimos del estado "filtro sin resultados" ocultamos el árbol entero con
+    // hide(rootId); isolate() no necesariamente revierte ese hidden state, así que
+    // lo limpiamos explícitamente antes de aislar o quedaría todo negro.
+    if (filterIsolatedIds !== null && filterIsolatedIds.length === 0) viewer.showAll()
     viewer.isolate(dbIds)
     filterIsolatedIds = dbIds
 
@@ -492,10 +504,11 @@ export async function createApsViewer(
     // después de limpiar el filtro → los colores se pintaban solo sobre lo
     // filtrado). Si el filtro está activo restringimos los colores a su set;
     // si no, isolatedSet queda null y abajo auto-aislamos los con-estado.
+    // Ojo con el array vacío: `[]` significa "filtro activo, cero resultados" y
+    // NO "sin filtro". Con `length > 0` acá, ese caso caía en el auto-isolate de
+    // abajo y volvía a mostrar todo lo que tiene estado, contradiciendo al filtro.
     let isolatedSet: Set<number> | null =
-      filterIsolatedIds && filterIsolatedIds.length > 0
-        ? new Set(filterIsolatedIds)
-        : null
+      filterIsolatedIds !== null ? new Set(filterIsolatedIds) : null
 
     // Si NO hay isolate activo y se acaban de aplicar colores por estado,
     // automáticamente isolamos los dbIds de los 4 buckets para que las

@@ -547,6 +547,8 @@ function ModeloEjecucionContent() {
               totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
               loading={filtroVisor.loading}
               onClose={() => setMostrarFiltros(false)}
+              proyectoId={proyectoActivo?.id ?? null}
+              archivoId={archivo?.id ?? null}
             />
           </div>
         )}

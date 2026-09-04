@@ -270,3 +270,21 @@ export async function filtrarEntidades(
   )
   return resp?.data ?? { guidsCoinciden: [], totalCoinciden: 0, totalEntidades: 0 }
 }
+
+/**
+ * Sistemas y SubSistemas que tienen geometría en el archivo. El panel de filtros
+ * acota sus combos con esto: un proyecto puede tener cientos de SubSistemas y que
+ * solo un puñado esté en la maqueta — ofrecer el resto es ofrecer opciones que
+ * devuelven 0 sí o sí, y un filtro sin resultados se lee como "se rompió".
+ */
+export function useGetDimensionesUsadas(proyectoId: string | null, archivoId: string | null) {
+  return useQuery({
+    queryKey: ["ifc", archivoId, "dimensiones-usadas"],
+    enabled: !!proyectoId && !!archivoId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: () =>
+      apiClient.get<ApiResponse<{ sistemaIds: string[]; subSistemaIds: string[] }>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/dimensiones-usadas`,
+      ),
+  })
+}

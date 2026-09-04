@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { Check, ChevronDown, ChevronRight, Filter, X } from "lucide-react"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetDimensionesUsadas } from "../api/use-ifc-entidades"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
@@ -26,6 +27,13 @@ interface Props {
   totalEntidades: number | null
   loading?: boolean
   onClose: () => void
+  /**
+   * Archivo activo en el visor. Sirve para acotar los combos de Sistema y
+   * SubSistema a los que tienen geometría en esa maqueta. Si no se pasa (o
+   * todavía no cargó), se ofrecen todos.
+   */
+  proyectoId?: string | null
+  archivoId?: string | null
 }
 
 /**
@@ -35,9 +43,16 @@ interface Props {
  */
 export function FiltrosVisorPanel({
   filtro, onChange, totalCoinciden, totalEntidades, loading, onClose,
+  proyectoId, archivoId,
 }: Props) {
   const { data: sistemasData } = useGetSistemasSelect()
   const { data: subsistemasData } = useGetSubSistemasSelect()
+  // Sistemas/SubSistemas con geometría en la maqueta activa. Mismo criterio que
+  // Especialidades y Niveles, que ya se acotan a "los usados" — sin esto el
+  // panel ofrece opciones que devuelven 0 garantizado (un proyecto con 185
+  // subsistemas puede tener solo 4 representados en el modelo).
+  const { data: dimsData } = useGetDimensionesUsadas(proyectoId ?? null, archivoId ?? null)
+  const dims = dimsData?.data ?? null
   // Solo las Especialidades usadas por el proyecto activo — evita ofrecer
   // opciones en el filtro que dejarían 0 elementos al seleccionarlas.
   const { data: especialidadesData } = useGetEspecialidadesUsadas()
@@ -46,9 +61,18 @@ export function FiltrosVisorPanel({
   const { data: nivelesRaw } = useGetNivelesUsadosSelect()
 
   // Ordenado por código (numérico natural: S1, S2, … S10), no alfabético por nombre.
-  const sistemas = [...(sistemasData?.data ?? [])].sort((a, b) =>
-    (a.codigo ?? "").localeCompare(b.codigo ?? "", undefined, { numeric: true, sensitivity: "base" }))
-  const todosSubsistemas = subsistemasData?.data ?? []
+  // Si el backend ya respondió qué dimensiones tiene la maqueta, filtramos por
+  // ahí. Mientras no haya respuesta (o venga vacía, ej. archivo sin procesar)
+  // mostramos todo — vale más un combo de más que un panel vacío.
+  const sistemasUsados = dims && dims.sistemaIds.length > 0 ? new Set(dims.sistemaIds) : null
+  const subsistemasUsados = dims && dims.subSistemaIds.length > 0 ? new Set(dims.subSistemaIds) : null
+
+  const sistemas = [...(sistemasData?.data ?? [])]
+    .filter((s) => !sistemasUsados || sistemasUsados.has(s.id))
+    .sort((a, b) =>
+      (a.codigo ?? "").localeCompare(b.codigo ?? "", undefined, { numeric: true, sensitivity: "base" }))
+  const todosSubsistemas = (subsistemasData?.data ?? [])
+    .filter((s) => !subsistemasUsados || subsistemasUsados.has(s.id))
   const especialidades = especialidadesData?.data ?? []
   // El endpoint /api/niveles devuelve el array directo (no envuelto en {data}).
   // Lo soportamos por compat por si alguna versión lo envuelve.

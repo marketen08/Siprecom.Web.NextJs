@@ -381,6 +381,8 @@ function ModeloPageContent() {
             totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
             loading={filtroVisor.loading}
             onClose={() => setMostrarFiltros(false)}
+            proyectoId={id}
+            archivoId={actualId}
           />
         )}
         <div
