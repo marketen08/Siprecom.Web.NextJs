@@ -396,11 +396,20 @@ export function TareasExistentesTab() {
       limpiarSeleccion()
     } catch { /* error visible abajo */ }
   }
-  const ejecutarBulkFecha = async () => {
-    if (!bulkFecha) return
+  // `limpiar` es una acción aparte del confirmar normal: sobre un lote (que puede
+  // ser "todas las que matchean el filtro") borrar no puede ser el efecto de dejar
+  // un input vacío.
+  const ejecutarBulkFecha = async (limpiar = false) => {
+    if (!limpiar && !bulkFecha) return
     try {
-      const result = await bulkFechaMut.mutateAsync({ ...buildBulkTargets(), fechaPlanificada: bulkFecha })
-      setBulkResumen({ accion: "Cambio de fecha planificada", result })
+      const result = await bulkFechaMut.mutateAsync({
+        ...buildBulkTargets(),
+        fechaPlanificada: limpiar ? null : bulkFecha,
+      })
+      setBulkResumen({
+        accion: limpiar ? "Fecha planificada quitada" : "Cambio de fecha planificada",
+        result,
+      })
       setBulkFechaOpen(false)
       setBulkFecha("")
       limpiarSeleccion()
@@ -643,7 +652,14 @@ export function TareasExistentesTab() {
                       value={row.fechaPlanificada ? row.fechaPlanificada.substring(0, 10) : ""}
                       onChange={(e) => {
                         const nueva = e.target.value
-                        if (!nueva) return
+                        // Vaciar el input limpia la fecha. Es una sola fila y se
+                        // deshace escribiendo otra, así que acá no hace falta la
+                        // acción explícita que sí pide el bulk.
+                        if (!nueva) {
+                          if (!row.fechaPlanificada) return
+                          fechaMut.mutate({ id: row.id, fecha: null })
+                          return
+                        }
                         if (nueva === row.fechaPlanificada?.substring(0, 10)) return
                         fechaMut.mutate({ id: row.id, fecha: nueva })
                       }}
@@ -793,7 +809,12 @@ export function TareasExistentesTab() {
                         value={row.fechaPlanificada ? row.fechaPlanificada.substring(0, 10) : ""}
                         onChange={(e) => {
                           const nueva = e.target.value
-                          if (!nueva) return // no soportamos limpiar desde inline (el backend requiere HasValue)
+                          // Vaciar el input limpia la fecha (ver fila de la vista mobile).
+                          if (!nueva) {
+                            if (!row.fechaPlanificada) return
+                            fechaMut.mutate({ id: row.id, fecha: null })
+                            return
+                          }
                           if (nueva === row.fechaPlanificada?.substring(0, 10)) return
                           fechaMut.mutate({ id: row.id, fecha: nueva })
                         }}
@@ -1053,12 +1074,24 @@ export function TareasExistentesTab() {
               onChange={(e) => setBulkFecha(e.target.value)}
               className="h-9"
             />
+            <p className="text-xs text-muted-foreground">
+              Si te equivocaste al cargar, <strong>Quitar fecha</strong> las deja sin fecha
+              planificada y vuelven a entrar en el cálculo automático.
+            </p>
             {bulkFechaMut.error && (
               <p className="text-xs text-destructive">{(bulkFechaMut.error as Error).message}</p>
             )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={bulkFechaMut.isPending}>Cancelar</AlertDialogCancel>
+            <button
+              type="button"
+              disabled={bulkFechaMut.isPending}
+              onClick={(e) => { e.preventDefault(); ejecutarBulkFecha(true) }}
+              className="inline-flex items-center justify-center h-9 rounded-md border border-input px-3 text-sm font-medium cursor-pointer hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Quitar fecha
+            </button>
             <AlertDialogAction
               disabled={!bulkFecha || bulkFechaMut.isPending}
               onClick={(e) => { e.preventDefault(); ejecutarBulkFecha() }}

@@ -277,12 +277,18 @@ export function useBulkReactivar() {
 export function useBulkActualizarFechaPlanificada() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: BulkTargets & { fechaPlanificada: string }) => {
+    // `fechaPlanificada: null` deja el lote sin fecha. Va como flag `limpiar` y no
+    // como fecha vacía, para que borrar sea deliberado y no el efecto de un input
+    // en blanco.
+    mutationFn: (input: BulkTargets & { fechaPlanificada: string | null }) => {
       const { fechaPlanificada, ...targets } = input
       return apiClient
         .post<ApiResponse<BulkResult>>(
           "/api/elementostareas/bulk/fecha-planificada",
-          toBulkBody(targets as BulkTargets, { fechaPlanificada }),
+          toBulkBody(
+            targets as BulkTargets,
+            fechaPlanificada === null ? { limpiar: true } : { fechaPlanificada },
+          ),
         )
         .then((r) => r.data)
     },
@@ -307,14 +313,15 @@ export function useReactivarElementoTarea() {
 export function useActualizarFechaPlanificadaET() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fecha }: { id: string; fecha: string }) =>
-      // El backend solo aplica FechaPlanificada si HasValue → mandar null borra
-      // no funciona por este endpoint (usar la vista detallada para eso).
-      // La UI inline solo permite setear una fecha (input date no puede quedar vacío
-      // sin permitir explícitamente clear).
+    // `fecha: null` limpia. En el DTO del backend un null significa "no toques el
+    // campo", así que borrar viaja como un flag aparte (`limpiarFechaPlanificada`)
+    // y no como una fecha vacía.
+    mutationFn: ({ id, fecha }: { id: string; fecha: string | null }) =>
       apiClient.put<ApiResponse<ElementoTareaRow>>(`/api/elementostareas/${id}`, {
         id,
-        fechaPlanificada: fecha,
+        ...(fecha === null
+          ? { limpiarFechaPlanificada: true }
+          : { fechaPlanificada: fecha }),
       }),
     onSuccess: () => {
       invalidarListaTareas(qc)
