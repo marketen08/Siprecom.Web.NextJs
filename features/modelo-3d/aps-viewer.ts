@@ -526,6 +526,19 @@ export async function createApsViewer(
       for (const id of filteredIds) m.setThemingColor(id, v4, true)
     }
 
+    // Diagnóstico: si esto reporta 0 pintados, el clearThemingColors de abajo
+    // deja el modelo en sus colores originales aunque los colores por estado
+    // sigan "activos" — es el síntoma de "se perdieron los colores".
+    const pintables = [dbIdsNoIniciados, dbIdsEnCurso, dbIdsCompletados]
+      .flat()
+      .filter((id) => !isolatedSet || isolatedSet.has(id)).length
+    // eslint-disable-next-line no-console
+    console.log(
+      `[APS viewer] colores por estado: guids ${buckets.noIniciados.length}/${buckets.enCurso.length}/${buckets.completados.length}`
+      + ` → dbIds ${dbIdsNoIniciados.length}/${dbIdsEnCurso.length}/${dbIdsCompletados.length}`
+      + ` | isolate=${isolatedSet ? isolatedSet.size : "ninguno"} | a pintar=${pintables}`,
+    )
+
     m.clearThemingColors?.()
     setColor(dbIdsNoIniciados, COLOR_NO_INICIADO)
     setColor(dbIdsEnCurso,     COLOR_EN_CURSO)
