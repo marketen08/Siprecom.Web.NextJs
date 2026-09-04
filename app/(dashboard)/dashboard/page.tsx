@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
 import { useGetAvanceHitosYFases } from "@/features/avance/api/use-get-avance-hitos-fases"
@@ -173,8 +175,12 @@ function HitosFasesPanel({
   const totalHitos =
     hitosFases.rfc.total + hitosFases.rfsu.total + hitosFases.aoc.total
   const hayFases = hitosFases.fases.length > 0
+  // Packs cargados que no entran en ningún hito por falta de configuración.
+  const sinCertificado = hitosFases.packsSinCertificado ?? 0
 
-  if (totalHitos === 0 && !hayFases) return null
+  // Ojo con esconder el panel: si hay packs sin clasificar, esconderlo deja al
+  // usuario sin ningún indicio de que le falta configurar algo.
+  if (totalHitos === 0 && sinCertificado === 0 && !hayFases) return null
 
   return (
     <div className="space-y-3">
@@ -192,20 +198,41 @@ function HitosFasesPanel({
         {/* Hitos */}
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-3">
           <div className="flex items-baseline justify-between">
-            <h3 className="text-sm font-semibold text-gray-800">Hitos (TestGroups)</h3>
+            <h3 className="text-sm font-semibold text-gray-800">Hitos (de TestGroups)</h3>
             <span className="text-[11px] text-muted-foreground">
               % de packs terminales (Completado o Cerrado)
             </span>
           </div>
-          {totalHitos === 0 ? (
+          {totalHitos === 0 && sinCertificado === 0 ? (
             <p className="text-xs text-muted-foreground italic py-4 text-center">
               El proyecto todavía no tiene TestGroups cargados.
             </p>
+          ) : totalHitos === 0 ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-1">
+              <p className="font-medium">
+                Hay {sinCertificado} TestGroup{sinCertificado === 1 ? "" : "s"} cargado
+                {sinCertificado === 1 ? "" : "s"}, pero ninguno alimenta un hito.
+              </p>
+              <p className="text-amber-800">
+                Un pack cuenta como hito según el <strong>Certificado que alimenta</strong> del
+                tipo de su elemento sintético. Cargalo en{" "}
+                <Link href="/configuracion/elementos-tipos" className="underline underline-offset-2">
+                  Configuración → Tipos de elemento
+                </Link>
+                . El panel grafica RFC, RFSU y AOC; los tipos marcados como MC no aparecen acá.
+              </p>
+            </div>
           ) : (
             <div className="space-y-2.5">
               <HitoRow label="RFC" nombre="Ready For Commissioning" hito={hitosFases.rfc} />
               <HitoRow label="RFSU" nombre="Ready For Start-Up" hito={hitosFases.rfsu} />
               <HitoRow label="AOC" nombre="Acceptance Of Commissioning" hito={hitosFases.aoc} />
+              {sinCertificado > 0 && (
+                <p className="text-[11px] text-amber-700 pt-1 border-t border-gray-100">
+                  {sinCertificado} pack{sinCertificado === 1 ? "" : "s"} no {sinCertificado === 1 ? "está" : "están"}{" "}
+                  contado{sinCertificado === 1 ? "" : "s"}: su tipo de elemento no declara certificado, o declara MC.
+                </p>
+              )}
             </div>
           )}
         </div>

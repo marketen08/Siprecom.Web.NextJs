@@ -69,6 +69,12 @@ export interface AvanceHitosFasesDTO {
   fases: AvanceFaseDTO[]
   /** Tareas del proyecto cuyo catálogo no tiene NivelId — quedan fuera de fases. */
   tareasSinNivel: number
+  /**
+   * TestGroups que no entran en ningún hito: el ElementoTipo de su elemento
+   * sintético no declara «Certificado que alimenta», o declara MC (que el panel
+   * no grafica). Distingue "no hay packs" de "hay packs sin clasificar".
+   */
+  packsSinCertificado?: number
 }
 
 export interface HitoCategoriaDTO {

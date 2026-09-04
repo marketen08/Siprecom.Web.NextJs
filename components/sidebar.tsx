@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/sidebar-context"
 import { useAuthStore } from "@/store/auth-store"
@@ -49,8 +49,28 @@ function hasActiveChild(item: MenuItem, pathname: string): boolean {
   return item.children?.some((child) => hasActiveChild(child, pathname)) ?? false
 }
 
+/**
+ * Clave estable de una sección plegable. Incluye la ruta de labels para que dos
+ * secciones con el mismo nombre en distinta rama no compartan estado.
+ */
+function claveSeccion(label: string, parentKey?: string): string {
+  return parentKey ? `${parentKey}>${label}` : label
+}
+
+/** Todas las claves de secciones plegables del menú, en cualquier nivel. */
+function recolectarClaves(items: MenuItem[], parentKey?: string): string[] {
+  const out: string[] = []
+  for (const item of items) {
+    if (!item.children?.length) continue
+    const key = claveSeccion(item.label, parentKey)
+    out.push(key, ...recolectarClaves(item.children, key))
+  }
+  return out
+}
+
 function SidebarItem({
   item, depth = 0, onNavigate, roles, inheritedMin, ocultarFirmas, funcionalidades,
+  parentKey, abiertos, setAbierto,
 }: {
   item: MenuItem
   depth?: number
@@ -59,9 +79,20 @@ function SidebarItem({
   inheritedMin?: AppRole
   ocultarFirmas: boolean
   funcionalidades: Record<string, boolean>
+  /** Clave de la sección padre, para armar una clave única por rama. */
+  parentKey?: string
+  /**
+   * Overrides explícitos de apertura, levantados al Sidebar para que el botón
+   * de plegar/desplegar todo pueda actuar sobre secciones que no son sus hijas
+   * directas. Sin entrada acá, la sección usa su default: abierta si contiene
+   * la ruta activa.
+   */
+  abiertos: Record<string, boolean>
+  setAbierto: (key: string, value: boolean) => void
 }) {
   const pathname = usePathname()
-  const [open, setOpen] = useState(() => hasActiveChild(item, pathname))
+  const key = claveSeccion(item.label, parentKey)
+  const open = abiertos[key] ?? hasActiveChild(item, pathname)
 
   // Proyecto solo pre-firmados → no hay firmas electrónicas: ocultar "Mis firmas".
   if (item.requiereFirmas && ocultarFirmas) return null
@@ -98,7 +129,7 @@ function SidebarItem({
   return (
     <div>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setAbierto(key, !open)}
         style={{ paddingLeft: 16 + depth * 12 }}
         className={cn(
           "w-full flex items-center justify-between pr-4 py-2 text-sm font-semibold rounded-md cursor-pointer",
@@ -133,6 +164,9 @@ function SidebarItem({
                 inheritedMin={effectiveMin}
                 ocultarFirmas={ocultarFirmas}
                 funcionalidades={funcionalidades}
+                parentKey={key}
+                abiertos={abiertos}
+                setAbierto={setAbierto}
               />
             ))}
           </div>
@@ -150,7 +184,32 @@ function SidebarItem({
  */
 export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   const { open, close } = useSidebar()
+  const pathname = usePathname()
   const userRoles = useAuthStore((s) => s.user?.roles)
+
+  // Overrides de apertura por sección. Vacío = cada una decide por su cuenta
+  // (abierta si contiene la ruta activa). El botón de plegar todo escribe una
+  // entrada por sección, así que un override explícito le gana al default —
+  // navegar a otra sección no vuelve a abrir lo que el usuario plegó.
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({})
+  const setAbierto = (key: string, value: boolean) =>
+    setAbiertos((prev) => ({ ...prev, [key]: value }))
+
+  const clavesTopLevel = useMemo(
+    () => menu.filter((s) => s.children?.length).map((s) => claveSeccion(s.label)),
+    [],
+  )
+  // El botón dice lo que va a hacer: si hay algo abierto pliega, si no despliega.
+  // Se calcula del estado efectivo (override o default) para que no se desincronice
+  // cuando el usuario abre o cierra secciones a mano.
+  const algunaAbierta = clavesTopLevel.some((k) => {
+    const seccion = menu.find((s) => claveSeccion(s.label) === k)
+    return abiertos[k] ?? (seccion ? hasActiveChild(seccion, pathname) : false)
+  })
+  const plegarODesplegarTodo = () => {
+    const valor = !algunaAbierta
+    setAbiertos(Object.fromEntries(recolectarClaves(menu).map((k) => [k, valor])))
+  }
 
   // Antes de montar (SSR + primer render cliente) tratamos los roles como vacíos
   // para que el HTML del server y el del cliente coincidan; tras la hidratación
@@ -192,7 +251,25 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
           !drawer && "lg:translate-x-0"
         )}
       >
-        <nav className="py-4 space-y-1">
+        <div className="flex justify-end px-3 pt-3">
+          <button
+            type="button"
+            onClick={plegarODesplegarTodo}
+            aria-label={algunaAbierta ? "Plegar todas las secciones" : "Desplegar todas las secciones"}
+            title={algunaAbierta ? "Plegar todo" : "Desplegar todo"}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium cursor-pointer",
+              "text-blue-200 hover:bg-white/10 hover:text-white transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+            )}
+          >
+            {algunaAbierta
+              ? <><ChevronsDownUp className="h-3.5 w-3.5" /> Plegar todo</>
+              : <><ChevronsUpDown className="h-3.5 w-3.5" /> Desplegar todo</>}
+          </button>
+        </div>
+
+        <nav className="pb-4 pt-1 space-y-1">
           {menu.map((section) => (
             <SidebarItem
               key={section.label}
@@ -202,6 +279,8 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
               roles={roles}
               ocultarFirmas={ocultarFirmas}
               funcionalidades={funcionalidades}
+              abiertos={abiertos}
+              setAbierto={setAbierto}
             />
           ))}
         </nav>
