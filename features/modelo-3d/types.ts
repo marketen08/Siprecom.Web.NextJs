@@ -52,6 +52,13 @@ export interface ProyectoIfcArchivo {
   apsTranslationStatus: ApsTranslationStatusValue
   apsTranslationProgress: number | null
   apsTranslationError: string | null
+  /**
+   * Fase actual dentro de apsTranslationStatus = EnProceso ("Extrayendo
+   * propiedades…", "Guardando entidades (10.000 de 194.741)…"). Null cuando no
+   * hay nada en curso, y también en archivos procesados antes de que existiera
+   * el campo — el badge cae al texto genérico en ese caso.
+   */
+  apsFase?: string | null
 }
 
 export interface ProyectoIfcArchivoCreateInput {

@@ -877,11 +877,23 @@ function ApsTranslationBadge({ archivo }: { archivo: ProyectoIfcArchivo }) {
         </div>
       )
     case ApsTranslationStatus.EnProceso: {
+      // El backend informa la fase real (subida / traducción / extracción de
+      // propiedades / guardado de entidades). El porcentaje solo tiene sentido
+      // durante la traducción — en las otras fases queda clavado en 100 y decía
+      // "Traduciendo a SVF2 (100%)" durante los ~20 min que en realidad estaba
+      // guardando entidades. Sin fase (archivos viejos) caemos al texto genérico.
+      // El % solo se muestra mientras avanza: apsTranslationProgress queda clavado
+      // en 100 apenas termina la traducción, y las fases que siguen son las largas.
+      // Así evitamos acoplar la UI al texto exacto de la fase.
+      const fase = archivo.apsFase ?? null
       const pct = archivo.apsTranslationProgress ?? null
       return (
-        <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 rounded-md px-2 py-1">
-          <Loader2 className="h-3 w-3 animate-spin" /> {accionLabel}
-          {pct !== null && ` (${pct}%)`}…
+        <div className="flex items-start gap-1.5 text-xs text-blue-700 bg-blue-50 rounded-md px-2 py-1">
+          <Loader2 className="h-3 w-3 animate-spin mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            {fase ?? `${accionLabel}…`}
+            {pct !== null && pct < 100 && ` (${pct}%)`}
+          </span>
         </div>
       )
     }
