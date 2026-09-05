@@ -25,6 +25,8 @@ import {
  * pueden no estar implementadas según el motor.
  */
 export interface UnifiedViewerHandle {
+  /** Resuelve cuando la maqueta pasa a ser interactiva. El motor IFC resuelve ya. */
+  esperarArbol: () => Promise<void>
   highlightByGuid: (guid: string | null) => Promise<void>
   /**
    * Selecciona en el visor TODAS las entidades indicadas (por guid/externalId)
@@ -140,7 +142,10 @@ async function crearIfcViewer(
   opts.onProgress?.("Parseando IFC (puede tardar varios segundos)…")
   await handle.loadIfc(new Uint8Array(buffer), archivo.nombre)
   opts.onProgress?.("")
-  return handle
+  // El motor IFC no tiene una carga diferida equivalente al árbol de objetos de
+  // APS: cuando terminó de parsear ya es interactivo. Resolvemos de una para que
+  // las páginas puedan esperar lo mismo en ambos motores.
+  return { ...handle, esperarArbol: () => Promise.resolve() }
 }
 
 async function crearApsViewer(
@@ -160,14 +165,24 @@ async function crearApsViewer(
   const handle = await createApsViewer(container, {
     onPick: opts.onPick,
     onProgress: opts.onProgress,
-    // El índice de piezas termina DESPUÉS de que la maqueta ya se ve. Avisamos
-    // para que el usuario entienda por qué el clic y los colores todavía no
-    // responden, en vez de creer que la pantalla se colgó.
-    onIndiceListo: () => opts.onProgress?.(""),
+    // El árbol de objetos llega después de la geometría y es lo que habilita el
+    // clic y el aislamiento. Recién ahí la maqueta está realmente operativa.
+    onArbolListo: () => opts.onProgress?.(""),
   })
 
   opts.onProgress?.("Cargando maqueta…")
   await handle.loadModel(archivo.apsUrn)
-  opts.onProgress?.("Preparando clic y colores… la maqueta ya se puede navegar")
+
+  // Contador en vivo mientras carga el árbol de objetos. En maquetas grandes esto
+  // son minutos, y un cartel estático no distingue "trabajando" de "colgado".
+  // El propio número le dice al usuario (y a nosotros) cuánto cuesta el modelo.
+  const t0 = Date.now()
+  const tick = setInterval(() => {
+    const seg = Math.round((Date.now() - t0) / 1000)
+    opts.onProgress?.(`Maqueta visible — preparando selección y colores… (${seg} s)`)
+  }, 1000)
+  opts.onProgress?.("Maqueta visible — preparando selección y colores… (0 s)")
+  void handle.esperarArbol().finally(() => clearInterval(tick))
+
   return handle
 }

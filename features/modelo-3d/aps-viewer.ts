@@ -72,6 +72,12 @@ async function fetchViewerTokenConReintentos(
 
 export interface ApsViewerHandle {
   loadModel: (urn: string) => Promise<{ totalItems: number }>
+  /**
+   * Resuelve cuando el árbol de objetos terminó de cargar — el momento en que la
+   * maqueta pasa a ser interactiva (clic, aislamiento, colores). La geometría ya
+   * está mucho antes; esto es lo que realmente cuesta en modelos grandes.
+   */
+  esperarArbol: () => Promise<void>
   highlightByGuid: (guid: string | null) => Promise<void>
   /**
    * Selecciona en el visor TODAS las entidades indicadas (por externalId), sin
@@ -155,6 +161,12 @@ export interface CreateApsViewerOptions {
    * Recibe la cantidad de piezas indexadas (0 si falló).
    */
   onIndiceListo?: (piezas: number) => void
+  /**
+   * Se dispara cuando el árbol de objetos del modelo terminó de cargar. Hasta
+   * entonces la maqueta se ve y se navega, pero el clic y el aislamiento no
+   * funcionan: ambos dependen del árbol.
+   */
+  onArbolListo?: () => void
 }
 
 // Paleta semáforo coherente con el viewer IFC.
@@ -240,6 +252,48 @@ export async function createApsViewer(
   // geometría; las operaciones que resuelven guids esperan `indicePromesa`.
   let indicePromesa: Promise<void> | null = null
   let indiceListo = false
+
+  // Árbol de objetos del modelo. Llega DESPUÉS de la geometría porque depende de
+  // la base de propiedades, y es lo que realmente cuesta en maquetas grandes.
+  // Sin él no funcionan `isolate` (necesita mapear dbId → fragmentos) ni la
+  // subida por ancestros del click (el TAG vive en un nodo padre, no en la hoja).
+  // Todo lo interactivo espera esto; la geometría se muestra igual mientras tanto.
+  let arbolPromesa: Promise<unknown> | null = null
+  let arbolListo = false
+
+  function iniciarArbol(): Promise<unknown> {
+    if (arbolPromesa) return arbolPromesa
+    if (!currentModel) return Promise.resolve(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mm: any = currentModel
+    const t0 = performance.now()
+    arbolPromesa = new Promise((resolve) => {
+      mm.getObjectTree?.(
+        (tree: unknown) => {
+          arbolListo = true
+          // eslint-disable-next-line no-console
+          console.log(`[APS viewer] árbol de objetos listo en ${Math.round(performance.now() - t0)} ms`)
+          opts.onArbolListo?.()
+          resolve(tree)
+        },
+        (e: unknown) => {
+          // Sin árbol el modelo se ve y se navega, pero no hay clic ni aislamiento.
+          arbolListo = true
+          // eslint-disable-next-line no-console
+          console.warn("[APS viewer] no se pudo cargar el árbol de objetos:", e)
+          opts.onArbolListo?.()
+          resolve(null)
+        },
+      )
+    })
+    return arbolPromesa
+  }
+
+  /** Espera el árbol si todavía no está. Lo usan clic, isolate y colores. */
+  async function conArbol(): Promise<void> {
+    if (arbolListo) return
+    await iniciarArbol()
+  }
   // Último set de buckets de colores por estado aplicado. Lo guardamos para
   // poder re-aplicarlo cuando el filtro (isolate) cambia — sino los colores
   // pintados antes del filtro se pierden o quedan en dbIds incorrectos.
@@ -274,19 +328,21 @@ export async function createApsViewer(
             currentModel = await viewer.loadDocumentNode(doc, viewable)
             const tGeometria = ms(t1)
 
-            // El índice externalId → dbId arranca acá pero NO se espera: necesita
-            // la base de propiedades del modelo, que en maquetas grandes tarda
-            // mucho más que la geometría. Bloquear la carga con esto dejaba la
-            // pantalla en "Cargando…" con la planta ya visible, y —peor— la página
-            // no marcaba el archivo como cargado, así que colores y filtros
-            // quedaban deshabilitados justo mientras el modelo se veía perfecto.
-            // Las operaciones que necesitan el índice lo esperan por su cuenta.
-            iniciarIndice()
+            // El índice externalId → dbId NO se construye acá. Es carísimo (más de
+            // 6 minutos en una maqueta de 1,4M de objetos, contra 90 ms de
+            // geometría) y desde que el backend persiste ApsObjectId ya no hace
+            // falta: colores, filtros, clic y selección van con dbIds directos.
+            // Queda como fallback perezoso para maquetas procesadas antes de esa
+            // columna — `conIndice()` lo construye recién si alguien lo necesita.
+
+            // El árbol sí hace falta y es lo caro: lo arrancamos ya, sin esperarlo,
+            // para que empiece a cargar mientras el usuario mira la maqueta.
+            iniciarArbol()
 
             // eslint-disable-next-line no-console
             console.log(
-              `[APS viewer] listo para mostrar en ${ms(t0)} ms — manifest ${tManifest} ms · ` +
-              `geometría ${tGeometria} ms · índice en segundo plano`,
+              `[APS viewer] listo en ${ms(t0)} ms — manifest ${tManifest} ms · ` +
+              `geometría ${tGeometria} ms · índice: no se construye (se usa ApsObjectId)`,
             )
 
             resolve({ totalItems: 0 })
@@ -438,9 +494,10 @@ export async function createApsViewer(
       }
       return
     }
-    // La cadena de dbIds no necesita el índice, así que el click responde desde
-    // el primer segundo. Los guids se mandan solo si el índice ya está — el
-    // caller prefiere los dbIds y resuelve contra ApsObjectId.
+    // Sin árbol, ancestorDbIds devuelve solo la hoja clickeada y el TAG vive en
+    // un nodo padre: resolveríamos "pieza no vinculada" sobre una que sí lo está.
+    // Mejor no responder que responder mal — el árbol está en camino.
+    if (!arbolListo) { void conArbol(); return }
     const chainIds = ancestorDbIds(dbId)
     const chain = indiceListo ? ancestorGuids(dbId) : []
     const key = chainIds.join("|")
@@ -479,6 +536,7 @@ export async function createApsViewer(
     opts?: { hide?: boolean; dbIds?: number[] },
   ): Promise<void> {
     if (!currentModel) return
+    await conArbol()
     // Con dbIds del backend no hace falta traducir nada: nos salteamos el índice,
     // que es lo que tarda minutos en maquetas grandes.
     if (!opts?.dbIds?.length) await conIndice()
@@ -574,6 +632,7 @@ export async function createApsViewer(
 
   async function applyColorPorEstado(buckets: BucketsPorEstado | null): Promise<void> {
     if (!currentModel) return
+    await conArbol()
     // Si el backend mandó dbIds no necesitamos el índice — es el caso que hace
     // que los colores por estado sean inmediatos en vez de esperar minutos.
     const tieneIds = !!(buckets
@@ -644,6 +703,29 @@ export async function createApsViewer(
         viewer.isolate(todosLosConEstado)
         isolatedByColors = true
         isolatedSet = new Set(todosLosConEstado)
+
+        // DIAGNÓSTICO temporal: confirma (a) que el isolate tomó y (b) que los
+        // ApsObjectId del backend son realmente los dbId del visor. Sin esto no
+        // se puede distinguir "isolate roto" de "ids equivocados".
+        const primerId = todosLosConEstado[0]
+        setTimeout(() => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const aislados = (viewer as any).getIsolatedNodes?.()?.length ?? "n/d"
+            // eslint-disable-next-line no-console
+            console.log(
+              `[APS diag] pedidos ${todosLosConEstado.length} · aislados según el visor: ${aislados}`,
+            )
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ;(m as any).getProperties?.(primerId, (p: { externalId?: string; name?: string }) => {
+              // eslint-disable-next-line no-console
+              console.log(`[APS diag] dbId ${primerId} → externalId "${p?.externalId}" · name "${p?.name}"`)
+            })
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn("[APS diag] falló:", e)
+          }
+        }, 800)
       }
     }
 
@@ -686,6 +768,7 @@ export async function createApsViewer(
   // (o gris si el backend las devolvió en sinTestGroup).
   async function applyColorPorTestGroup(buckets: BucketsPorTestGroup | null): Promise<void> {
     if (!currentModel) return
+    await conArbol()
     await conIndice()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
@@ -751,7 +834,7 @@ export async function createApsViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadModel, highlightByGuid, selectByGuids, selectByDbIds, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
+  return { loadModel, esperarArbol: conArbol, highlightByGuid, selectByGuids, selectByDbIds, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
 }
 
 /** Convierte un GUID sintético "aps-{dbId}" a dbId numérico. Si no matchea, null. */
