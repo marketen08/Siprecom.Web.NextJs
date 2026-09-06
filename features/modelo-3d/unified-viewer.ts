@@ -172,17 +172,10 @@ async function crearApsViewer(
 
   opts.onProgress?.("Cargando maqueta…")
   await handle.loadModel(archivo.apsUrn)
-
-  // Contador en vivo mientras carga el árbol de objetos. En maquetas grandes esto
-  // son minutos, y un cartel estático no distingue "trabajando" de "colgado".
-  // El propio número le dice al usuario (y a nosotros) cuánto cuesta el modelo.
-  const t0 = Date.now()
-  const tick = setInterval(() => {
-    const seg = Math.round((Date.now() - t0) / 1000)
-    opts.onProgress?.(`Maqueta visible — preparando selección y colores… (${seg} s)`)
-  }, 1000)
-  opts.onProgress?.("Maqueta visible — preparando selección y colores… (0 s)")
-  void handle.esperarArbol().finally(() => clearInterval(tick))
-
+  // Listo: con la geometría ya se navega, se clickea y se pinta por estado. El
+  // árbol de objetos sigue cargando por detrás —en maquetas de más de un millón
+  // de piezas son minutos— pero solo lo necesita el atenuado de lo no filtrado,
+  // que se aplica solo cuando llega. No bloqueamos la UI por eso.
+  opts.onProgress?.("")
   return handle
 }

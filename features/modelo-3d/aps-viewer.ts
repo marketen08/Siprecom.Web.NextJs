@@ -294,6 +294,73 @@ export async function createApsViewer(
     if (arbolListo) return
     await iniciarArbol()
   }
+
+  // Fragmentos que apagamos a mano (camino sin árbol), para poder restaurarlos.
+  let fragmentosApagados: number[] = []
+
+  /**
+   * Atenúa todo lo que NO está en `dbIdsVisibles`, operando a nivel de fragmento.
+   *
+   * `viewer.isolate` necesita el árbol de objetos, que en maquetas de más de un
+   * millón de piezas tarda minutos. El mapa `fragId2dbId` en cambio viene con la
+   * geometría, así que podemos resolver qué fragmentos apagar sin esperar nada.
+   *
+   * Devuelve false si la API de visibilidad del fragment list no está disponible
+   * en esta versión del SDK — el caller cae entonces al camino con árbol.
+   */
+  function atenuarPorFragmentos(dbIdsVisibles: Set<number>, fantasma = true): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m2: any = currentModel
+    const frag2db: ArrayLike<number> | undefined = m2?.getData?.()?.fragments?.fragId2dbId
+    const fragList = m2?.getFragmentList?.()
+    if (!frag2db || !fragList || typeof fragList.setVisibility !== "function") {
+      // eslint-disable-next-line no-console
+      console.warn("[APS viewer] atenuado por fragmentos no disponible; se espera el árbol.")
+      return false
+    }
+
+    restaurarFragmentos()
+    // Clave: un fragmento invisible se dibuja como FANTASMA (translúcido) si el
+    // ghosting está activo, y desaparece si no lo está. Es la única diferencia
+    // entre "atenuar lo que no aplica" y "ocultarlo".
+    try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(fantasma) } catch { /* ignore */ }
+    const t0 = performance.now()
+    const apagar: number[] = []
+    for (let fragId = 0; fragId < frag2db.length; fragId++) {
+      if (!dbIdsVisibles.has(frag2db[fragId])) apagar.push(fragId)
+    }
+    for (const fragId of apagar) fragList.setVisibility(fragId, false)
+    fragmentosApagados = apagar
+    viewer.impl.invalidate(true, true, true)
+    // eslint-disable-next-line no-console
+    console.log(
+      `[APS viewer] atenuado por fragmentos: ${apagar.length.toLocaleString()} de ` +
+      `${frag2db.length.toLocaleString()} apagados en ${Math.round(performance.now() - t0)} ms`,
+    )
+    return true
+  }
+
+  /** Vuelve a mostrar los fragmentos que apagamos con atenuarPorFragmentos. */
+  function restaurarFragmentos(): void {
+    if (fragmentosApagados.length === 0) return
+    const cuantos = fragmentosApagados.length
+    // El ghosting va PRIMERO: con ghosting apagado, volver a marcar visible un
+    // fragmento no siempre lo repinta. Restaurar el flag antes evita quedarse con
+    // piezas invisibles al pasar de "ocultar" a "atenuar".
+    try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fragList = (currentModel as any)?.getFragmentList?.()
+    if (fragList?.setVisibility) {
+      for (const fragId of fragmentosApagados) fragList.setVisibility(fragId, true)
+    }
+    fragmentosApagados = []
+    // showAll además resetea el estado de visibilidad que el visor lleva por su
+    // cuenta; sin esto quedaban piezas apagadas que no habíamos tocado nosotros.
+    try { viewer.showAll() } catch { /* ignore */ }
+    viewer.impl.invalidate(true, true, true)
+    // eslint-disable-next-line no-console
+    console.log(`[APS viewer] restaurados ${cuantos.toLocaleString()} fragmentos`)
+  }
   // Último set de buckets de colores por estado aplicado. Lo guardamos para
   // poder re-aplicarlo cuando el filtro (isolate) cambia — sino los colores
   // pintados antes del filtro se pierden o quedan en dbIds incorrectos.
@@ -494,11 +561,13 @@ export async function createApsViewer(
       }
       return
     }
-    // Sin árbol, ancestorDbIds devuelve solo la hoja clickeada y el TAG vive en
-    // un nodo padre: resolveríamos "pieza no vinculada" sobre una que sí lo está.
-    // Mejor no responder que responder mal — el árbol está en camino.
-    if (!arbolListo) { void conArbol(); return }
-    const chainIds = ancestorDbIds(dbId)
+    // Sin árbol no podemos subir por ancestros, pero SÍ tenemos el dbId de la
+    // pieza clickeada — y en modelos donde el TAG vive en cada componente (CADWorx)
+    // eso alcanza para resolver la entidad. Respondemos con la hoja sola y, si el
+    // árbol ya está, con la cadena completa. Así el clic funciona desde el primer
+    // segundo en vez de esperar minutos a la base de propiedades.
+    if (!arbolListo) void conArbol()
+    const chainIds = arbolListo ? ancestorDbIds(dbId) : [dbId]
     const chain = indiceListo ? ancestorGuids(dbId) : []
     const key = chainIds.join("|")
     if (key !== lastSelectionKey) {
@@ -536,10 +605,13 @@ export async function createApsViewer(
     opts?: { hide?: boolean; dbIds?: number[] },
   ): Promise<void> {
     if (!currentModel) return
-    await conArbol()
+    // NO esperamos el árbol: si no está, atenuamos por fragmento igual que los
+    // colores. Bloquear acá dejaba el filtro inerte por minutos.
     // Con dbIds del backend no hace falta traducir nada: nos salteamos el índice,
     // que es lo que tarda minutos en maquetas grandes.
-    if (!opts?.dbIds?.length) await conIndice()
+    // Igual que en los colores: el índice solo hace falta para traducir guids.
+    // Con visibleGuids null estamos LIMPIANDO el filtro y no hay nada que traducir.
+    if (visibleGuids !== null && !opts?.dbIds?.length) await conIndice()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
     // Si hide=true → los no-isolated quedan invisibles. Si false (default) →
@@ -549,6 +621,7 @@ export async function createApsViewer(
     // Sin filtro: limpiar isolation + theming, mostrar todo.
     if (visibleGuids === null) {
       m.clearThemingColors?.()
+      restaurarFragmentos()
       // Restaurar ghosting al default (true) → sin filtro el viewer vuelve a
       // su estado normal con todos los elementos en su color.
       try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
@@ -601,6 +674,14 @@ export async function createApsViewer(
     //      (semi-transparentes/atenuados) — el comportamiento nativo del viewer.
     m.clearThemingColors?.()
     isolatedByColors = false
+    // Sin árbol, `isolate` no tiene efecto (devuelve 0 aislados). Atenuamos por
+    // fragmento, que solo necesita la geometría.
+    if (!arbolListo && atenuarPorFragmentos(new Set(dbIds), !hideMode)) {
+      filterIsolatedIds = dbIds
+      isolatedByColors = false
+      if (lastBuckets) await aplicarBucketsRespetandoIsolate(lastBuckets)
+      return
+    }
     try {
       (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(!hideMode)
     } catch { /* ignore */ }
@@ -632,18 +713,25 @@ export async function createApsViewer(
 
   async function applyColorPorEstado(buckets: BucketsPorEstado | null): Promise<void> {
     if (!currentModel) return
-    await conArbol()
+    // NO esperamos el árbol: pintar funciona sin él (setThemingColor resuelve por
+    // fragmentos). Lo único que necesita árbol es el auto-isolate, y eso se aplica
+    // solo, más tarde, cuando el árbol llega.
     // Si el backend mandó dbIds no necesitamos el índice — es el caso que hace
     // que los colores por estado sean inmediatos en vez de esperar minutos.
+    // El índice solo hace falta para TRADUCIR guids → dbIds, o sea cuando hay
+    // buckets y el backend no mandó los ids. Con buckets null estamos apagando
+    // los colores: esperar el índice ahí dejaba el apagado colgado varios minutos.
     const tieneIds = !!(buckets
       && (buckets.noIniciadosIds?.length || buckets.enCursoIds?.length || buckets.completadosIds?.length))
-    if (!tieneIds) await conIndice()
+    if (buckets !== null && !tieneIds) await conIndice()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
     lastBuckets = buckets
 
     if (buckets === null) {
       m.clearThemingColors?.()
+      // Restaurar lo que apagamos por fragmento (camino sin árbol).
+      restaurarFragmentos()
       // Si el isolate actual lo causamos nosotros al activar colores (no fue
       // un filtro), limpiarlo ahora que se desactiva. Si fue por filtro, se
       // mantiene intacto.
@@ -698,34 +786,28 @@ export async function createApsViewer(
       const todosLosConEstado = [
         ...dbIdsNoIniciados, ...dbIdsEnCurso, ...dbIdsCompletados,
       ]
-      if (todosLosConEstado.length > 0) {
+      // El auto-isolate atenúa lo que no tiene estado, pero `viewer.isolate`
+      // necesita el árbol de objetos: sin él devuelve 0 aislados y el resultado
+      // es peor que no hacer nada (queda todo atenuado, nada clickeable). Así que
+      // pintamos ya y re-aplicamos el aislamiento cuando el árbol llegue.
+      if (todosLosConEstado.length > 0 && arbolListo) {
         try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
         viewer.isolate(todosLosConEstado)
         isolatedByColors = true
         isolatedSet = new Set(todosLosConEstado)
-
-        // DIAGNÓSTICO temporal: confirma (a) que el isolate tomó y (b) que los
-        // ApsObjectId del backend son realmente los dbId del visor. Sin esto no
-        // se puede distinguir "isolate roto" de "ids equivocados".
-        const primerId = todosLosConEstado[0]
-        setTimeout(() => {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const aislados = (viewer as any).getIsolatedNodes?.()?.length ?? "n/d"
-            // eslint-disable-next-line no-console
-            console.log(
-              `[APS diag] pedidos ${todosLosConEstado.length} · aislados según el visor: ${aislados}`,
-            )
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ;(m as any).getProperties?.(primerId, (p: { externalId?: string; name?: string }) => {
-              // eslint-disable-next-line no-console
-              console.log(`[APS diag] dbId ${primerId} → externalId "${p?.externalId}" · name "${p?.name}"`)
-            })
-          } catch (e) {
-            // eslint-disable-next-line no-console
-            console.warn("[APS diag] falló:", e)
-          }
-        }, 800)
+      } else if (todosLosConEstado.length > 0) {
+        // Sin árbol: atenuamos por FRAGMENTO. `fragId2dbId` viene con la geometría
+        // (disponible a los ~110 ms), así que no hay que esperar la base de
+        // propiedades. Si la API de visibilidad no está donde esperamos, no
+        // rompemos nada: el atenuado llega igual cuando el árbol termine.
+        if (atenuarPorFragmentos(new Set(todosLosConEstado))) {
+          isolatedByColors = true
+          isolatedSet = new Set(todosLosConEstado)
+        } else {
+          void conArbol().then(() => {
+            if (lastBuckets) void aplicarBucketsRespetandoIsolate(lastBuckets)
+          })
+        }
       }
     }
 
@@ -768,8 +850,11 @@ export async function createApsViewer(
   // (o gris si el backend las devolvió en sinTestGroup).
   async function applyColorPorTestGroup(buckets: BucketsPorTestGroup | null): Promise<void> {
     if (!currentModel) return
-    await conArbol()
-    await conIndice()
+    // Los buckets por TestGroup todavía viajan solo con guids (el backend no manda
+    // sus dbIds), así que este camino sigue necesitando el índice para pintar. Pero
+    // APAGARLO no: con buckets null no hay nada que traducir y esperar dejaba el
+    // apagado colgado varios minutos.
+    if (buckets !== null) await conIndice()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
 

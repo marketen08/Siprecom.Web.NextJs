@@ -2,11 +2,15 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { ArrowUpRight, Box, ChevronDown, Hash, Layers, Link2, Link2Off, ListChecks, Loader2, Tag, X } from "lucide-react"
+import { AlertTriangle, ArrowUpRight, Box, ChevronDown, Hash, Layers, Link2, Link2Off, ListChecks, Loader2, Tag, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useGetAvanceElemento } from "@/features/avance/api/use-get-avance-elemento"
 import { useGetElementosTareasPorElemento } from "@/features/elementos-tareas/api/use-get-elementostareas-por-elemento"
 import { ElementoDetalleSheet } from "@/features/avance/components/elemento-detalle-sheet"
+import {
+  PendientesElementoSheet,
+  usePendientesDeElementoCount,
+} from "@/features/pendientes/components/pendientes-elemento-sheet"
 import type { AvanceElementoDTO } from "@/features/avance/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import type { ProyectoIfcEntidad } from "../types"
@@ -38,6 +42,11 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
   // Sheet secundario de preservación — dentro del visor 3D no exponemos el estado
   // vía URL (el visor no vive en /ejecucion/elementos). Toggle local.
   const [preservacionOpen, setPreservacionOpen] = useState(false)
+  // Pendientes del Elemento: sheet en vez de navegar al listado filtrado (perder
+  // el visor implica recargar la maqueta). El contador alimenta el badge del botón
+  // y comparte caché con el sheet, así que abrirlo no vuelve a consultar.
+  const [pendientesOpen, setPendientesOpen] = useState(false)
+  const pendientesCount = usePendientesDeElementoCount(entidad.elementoId ?? null)
 
   // TAG protagonista: el del Elemento vinculado; si no hay, el detectado en el modelo.
   const tagPrincipal = entidad.elementoTag ?? entidad.tagDetectado ?? null
@@ -133,11 +142,21 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
                 Ver avance del Elemento
                 <ListChecks className="h-3.5 w-3.5" />
               </Button>
-              <Button asChild size="sm" variant="outline" className="w-full justify-between gap-2">
-                <Link href={`/ejecucion/pendientes?elementoId=${entidad.elementoId}`}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-between gap-2"
+                onClick={() => setPendientesOpen(true)}
+              >
+                <span className="flex items-center gap-2">
                   Ver pendientes
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
+                  {pendientesCount > 0 && (
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-800">
+                      {pendientesCount}
+                    </span>
+                  )}
+                </span>
+                <AlertTriangle className="h-3.5 w-3.5" />
               </Button>
               <Button asChild size="sm" variant="outline" className="w-full justify-between gap-2">
                 <Link href={`/ejecucion/elementos?elementoId=${entidad.elementoId}`}>
@@ -157,6 +176,13 @@ export function EntidadDetalleSidebar({ proyectoId, entidad, onClose }: Props) {
               preservacionOpen={preservacionOpen}
               onOpenPreservacion={() => setPreservacionOpen(true)}
               onClosePreservacion={() => setPreservacionOpen(false)}
+            />
+
+            <PendientesElementoSheet
+              elementoId={entidad.elementoId}
+              elementoTag={tagPrincipal}
+              open={pendientesOpen}
+              onClose={() => setPendientesOpen(false)}
             />
           </>
         ) : (
