@@ -16,6 +16,20 @@ import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { PRIORIDAD } from "../types"
+import {
+  CAMPO_DIMENSION,
+  DIMENSIONES,
+  LABEL_DIMENSION,
+  SELECCION_VACIA,
+  aplanarArbol,
+  filaCoincide,
+  reconciliarSeleccion,
+  seleccionAlcanzable,
+  type Dimension,
+  type FilaCatalogo,
+  type OpcionDimension,
+  type SeleccionDimensiones,
+} from "../catalogo-facetas"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -64,8 +78,8 @@ export function PendienteForm({
   const permiteDescripcionManual =
     proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTES_DESCRIPCION_MANUAL !== false
   const { data: categoriasRaw } = useGetPendienteCategorias()
-  // Árbol del catálogo maestro — única fuente de las opciones de los 5 selects
-  // del wizard (cascada estricta) y de la descripción/categoría autopobladas.
+  // Catálogo maestro — única fuente de las opciones de los 5 selects del wizard
+  // y de la descripción/categoría autopobladas. Ver `catalogo-facetas.ts`.
   const { data: arbolRaw } = useGetPendienteCatalogoArbol()
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
@@ -76,7 +90,6 @@ export function PendienteForm({
   const gruposResponsables = gruposResp?.data ?? []
 
   const categorias = categoriasRaw?.data ?? []
-  const arbol = arbolRaw?.data ?? []
   const sistemas = sistemasRaw?.data ?? []
   const subSistemas = subSistemasRaw?.data ?? []
   const usuarios = usuariosRaw ?? []
@@ -126,91 +139,98 @@ export function PendienteForm({
   const motivoId = form.watch("motivoId")
   const descripcionManual = form.watch("descripcionManual") ?? false
 
-  // ── Cascada desde el árbol del catálogo ──────────────────────────────
-  // Cada nivel se filtra según el elegido en el anterior. Si el user cambia
-  // un select superior, los hijos se limpian (useEffect abajo).
-  const nivelNode = arbol.find((n) => n.nivelId === nivelId)
-  const especialidadNode = nivelNode?.especialidades.find((e) => e.especialidadId === especialidadId)
-  const tipoNode = especialidadNode?.tipos.find((t) => t.tipoId === tipoId)
-  const accionNode = tipoNode?.acciones.find((a) => a.accionId === accionId)
-  const motivoNode = accionNode?.motivos.find((m) => m.motivoId === motivoId)
+  // ── Filtrado cruzado entre las 5 dimensiones ─────────────────────────
+  // El catálogo maestro es una tabla PLANA de 5-tuplas: el "árbol" que devuelve
+  // el backend es sólo un agrupamiento de presentación, no una jerarquía real.
+  // Por eso no imponemos un orden: aplanamos de vuelta y cada select ofrece los
+  // valores que siguen siendo alcanzables dadas LAS OTRAS dimensiones elegidas.
+  //
+  // Esto vale por dos motivos concretos:
+  //  - El usuario puede empezar por donde quiera (típicamente por Especialidad,
+  //    cuando ésta viene del Elemento).
+  //  - Como las opciones de cada dimensión se calculan excluyéndose a sí misma,
+  //    elegir cualquier opción ofrecida deja SIEMPRE una tupla que existe en el
+  //    catálogo. Es decir: no hace falta limpiar hijos al cambiar un select.
+  const filas = useMemo<FilaCatalogo[]>(() => aplanarArbol(arbolRaw?.data ?? []), [arbolRaw])
 
-  // Opciones disponibles para cada select (siempre desde el nodo padre elegido).
-  const nivelOptions = useMemo(
-    () => arbol.map((n) => ({ id: n.nivelId, label: n.nivelNombre })),
-    [arbol],
+  const seleccion = useMemo<SeleccionDimensiones>(
+    () => ({ nivel: nivelId, especialidad: especialidadId, tipo: tipoId, accion: accionId, motivo: motivoId }),
+    [nivelId, especialidadId, tipoId, accionId, motivoId],
   )
-  const especialidadOptions = useMemo(
-    () => (nivelNode?.especialidades ?? []).map((e) => ({ id: e.especialidadId, label: e.especialidadNombre })),
-    [nivelNode],
+
+  // Un pendiente viejo puede tener una combinación que el catálogo ya no
+  // contiene. Si filtráramos por ella, los 5 selects quedarían vacíos y sin
+  // salida: en ese caso ofrecemos todo el catálogo para poder re-anclar.
+  const seleccionValida = useMemo(
+    () => seleccionAlcanzable(filas, seleccion),
+    [filas, seleccion],
   )
-  const tipoOptions = useMemo(
-    () => (especialidadNode?.tipos ?? []).map((t) => ({ id: t.tipoId, label: t.tipoNombre })),
-    [especialidadNode],
-  )
-  const accionOptions = useMemo(
-    () => (tipoNode?.acciones ?? []).map((a) => ({ id: a.accionId, label: a.accionNombre })),
-    [tipoNode],
-  )
-  const motivoOptions = useMemo(
-    () => (accionNode?.motivos ?? []).map((m) => ({ id: m.motivoId, label: m.motivoNombre })),
-    [accionNode],
+
+  const opciones = useMemo(() => {
+    const base = seleccionValida ? seleccion : SELECCION_VACIA
+    const out = {} as Record<Dimension, OpcionDimension[]>
+    for (const dim of DIMENSIONES) {
+      const vistos = new Set<string>()
+      const acc: OpcionDimension[] = []
+      // Filtramos por todas las dimensiones MENOS la propia: así el select
+      // siempre muestra alternativas para su eje sin auto-restringirse.
+      for (const fila of filas) {
+        if (!filaCoincide(fila, base, dim)) continue
+        const id = fila[`${dim}Id`]
+        if (vistos.has(id)) continue
+        vistos.add(id)
+        acc.push({ id, label: fila[`${dim}Nombre`], orden: dim === "nivel" ? fila.nivelPosicion : 0 })
+      }
+      acc.sort((a, b) => a.orden - b.orden || a.label.localeCompare(b.label))
+      out[dim] = acc
+    }
+    return out
+  }, [filas, seleccion, seleccionValida])
+
+  // Fila exacta del catálogo cuando las 5 dimensiones cierran. De acá salen la
+  // categoría y la descripción autopobladas.
+  const filaSeleccionada = useMemo(
+    () => (DIMENSIONES.every((d) => seleccion[d])
+      ? filas.find((f) => DIMENSIONES.every((d) => f[`${d}Id`] === seleccion[d])) ?? null
+      : null),
+    [filas, seleccion],
   )
 
   // Retrocompat en edición: el pendiente puede haberse cargado antes de que el
   // catálogo tuviera esa combinación. Mostramos aviso y dejamos los selects
-  // visibles con los valores actuales — si el user cambia alguno, la cascada
-  // los limpia y fuerza a elegir dentro del catálogo.
-  const dimensionesCompletas = Boolean(nivelId && especialidadId && tipoId && accionId && motivoId)
-  const comboFueraDeCatalogo = dimensionesCompletas && !motivoNode
+  // visibles con los valores actuales — nunca los pisamos solos, para no perder
+  // datos históricos. Si el user cambia alguno, el filtrado cruzado lo reencauza.
+  const dimensionesCompletas = DIMENSIONES.every((d) => Boolean(seleccion[d]))
+  const comboFueraDeCatalogo = dimensionesCompletas && !filaSeleccionada && filas.length > 0
 
-  // Al cambiar un select superior, limpiamos los hijos que ya no sean válidos.
-  useEffect(() => {
-    if (especialidadId && !especialidadOptions.some((o) => o.id === especialidadId)) {
-      form.setValue("especialidadId", "", { shouldValidate: true, shouldDirty: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nivelId, especialidadOptions.length])
-  useEffect(() => {
-    if (tipoId && !tipoOptions.some((o) => o.id === tipoId)) {
-      form.setValue("tipoId", "", { shouldValidate: true, shouldDirty: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [especialidadId, tipoOptions.length])
-  useEffect(() => {
-    if (accionId && !accionOptions.some((o) => o.id === accionId)) {
-      form.setValue("accionId", "", { shouldValidate: true, shouldDirty: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipoId, accionOptions.length])
-  useEffect(() => {
-    if (motivoId && !motivoOptions.some((o) => o.id === motivoId)) {
-      form.setValue("motivoId", "", { shouldValidate: true, shouldDirty: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accionId, motivoOptions.length])
-
-  // Al cerrarse las 5 dimensiones sobre una hoja del árbol, autopoblamos
+  // Al cerrarse las 5 dimensiones sobre una fila del catálogo, autopoblamos
   // categoría y descripción (esta última solo si el user NO está overrideando
   // manualmente — el checkbox lo controla).
   useEffect(() => {
-    if (!motivoNode) return
-    if (form.getValues("categoriaId") !== motivoNode.categoriaId) {
-      form.setValue("categoriaId", motivoNode.categoriaId, { shouldValidate: true, shouldDirty: true })
+    if (!filaSeleccionada) return
+    if (form.getValues("categoriaId") !== filaSeleccionada.categoriaId) {
+      form.setValue("categoriaId", filaSeleccionada.categoriaId, { shouldValidate: true, shouldDirty: true })
     }
-    if (!descripcionManual && form.getValues("descripcion") !== motivoNode.descripcion) {
-      form.setValue("descripcion", motivoNode.descripcion, { shouldValidate: true, shouldDirty: true })
+    if (!descripcionManual && form.getValues("descripcion") !== filaSeleccionada.descripcion) {
+      form.setValue("descripcion", filaSeleccionada.descripcion, { shouldValidate: true, shouldDirty: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [motivoNode?.motivoId, descripcionManual])
+  }, [filaSeleccionada?.motivoId, filaSeleccionada?.categoriaId, descripcionManual])
+
+  /** Limpia las 5 dimensiones para volver a elegir dentro del catálogo. */
+  const reiniciarWizard = () => {
+    for (const d of DIMENSIONES) {
+      form.setValue(CAMPO_DIMENSION[d], "", { shouldDirty: true, shouldValidate: true })
+    }
+  }
 
   // Toggle del checkbox "Modificar descripción manualmente":
   //  - Al desactivar → restaura la descripción del catálogo (si hay match).
   //  - Al activar → deja el textarea editable con el valor actual (o vacío).
   const onToggleDescripcionManual = (nuevo: boolean) => {
     form.setValue("descripcionManual", nuevo, { shouldDirty: true })
-    if (!nuevo && motivoNode) {
-      form.setValue("descripcion", motivoNode.descripcion, { shouldValidate: true, shouldDirty: true })
+    if (!nuevo && filaSeleccionada) {
+      form.setValue("descripcion", filaSeleccionada.descripcion, { shouldValidate: true, shouldDirty: true })
     }
   }
 
@@ -236,17 +256,42 @@ export function PendienteForm({
   }, [especialidadId, subSistemaIdActual, elementos])
 
   // Al elegir un elemento con especialidad definida a nivel de ElementoTipo,
-  // auto-populamos el campo especialidad si el user no lo tiene cargado.
+  // la imponemos sobre el wizard: el elemento es el dato más concreto que dio
+  // el usuario. Es la ÚNICA escritura externa sobre las 5 dimensiones, así que
+  // es el único lugar donde la selección puede quedar inconsistente y hay que
+  // reconciliarla (elegir dentro de las opciones ofrecidas nunca la rompe).
   // shouldValidate: true es crítico — sin él, el error "Elemento requerido"
   // queda pegado aunque el user ya haya elegido uno.
+  const [ajusteWizard, setAjusteWizard] = useState<Dimension[]>([])
+  const [especialidadSinCatalogo, setEspecialidadSinCatalogo] = useState(false)
+
   const onElementoChange = (nuevoElementoId: string | null) => {
     form.setValue("elementoId", nuevoElementoId, { shouldDirty: true, shouldValidate: true })
+    setAjusteWizard([])
+    setEspecialidadSinCatalogo(false)
     if (!nuevoElementoId) return
     const el = elementos.find((e) => e.id === nuevoElementoId)
     const espDelElemento = el?.elementoTipoEspecialidadId
-    if (espDelElemento && espDelElemento !== especialidadId) {
-      form.setValue("especialidadId", espDelElemento, { shouldDirty: true, shouldValidate: true })
+    if (!espDelElemento || espDelElemento === especialidadId) return
+
+    // Si el catálogo no tiene ninguna fila para esa especialidad, aplicarla
+    // dejaría los 5 selects sin opciones. Preferimos no tocar el wizard y avisar.
+    if (filas.length > 0 && !filas.some((f) => f.especialidadId === espDelElemento)) {
+      setEspecialidadSinCatalogo(true)
+      return
     }
+
+    const { seleccion: saneada, soltadas } = reconciliarSeleccion(
+      filas,
+      { ...seleccion, especialidad: espDelElemento },
+      ["especialidad"],
+    )
+    for (const d of DIMENSIONES) {
+      if (saneada[d] !== seleccion[d]) {
+        form.setValue(CAMPO_DIMENSION[d], saneada[d], { shouldDirty: true, shouldValidate: true })
+      }
+    }
+    setAjusteWizard(soltadas)
   }
 
   // Sistema y Subsistema viven en el form (para tener validación uniforme).
@@ -334,15 +379,16 @@ export function PendienteForm({
         })}
         className="flex flex-col gap-6 pb-24 sm:pb-4"
       >
-        {/* ── Wizard de descripción (cascada estricta desde catálogo) ── */}
+        {/* ── Wizard de descripción (filtrado cruzado desde el catálogo) ── */}
         <div className="flex flex-col gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Wizard de descripción
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Elegí las 5 dimensiones en cascada — solo se muestran las combinaciones cargadas en
-              el catálogo maestro. La descripción y la categoría salen del catálogo.
+              Elegí las 5 dimensiones en el orden que quieras — cada una filtra a las demás y
+              solo se ofrecen las combinaciones cargadas en el catálogo maestro. La descripción
+              y la categoría salen del catálogo.
             </p>
           </div>
 
@@ -351,121 +397,72 @@ export function PendienteForm({
               <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
                 Este pendiente tiene una combinación de dimensiones que ya no existe en el catálogo actual.
-                Al cambiar cualquiera de los 5 valores se te pedirá elegir dentro del catálogo.
+                Podés dejarla como está o reiniciar el wizard para elegir dentro del catálogo.
+              </span>
+              <button
+                type="button"
+                className="ml-auto shrink-0 underline underline-offset-2 font-medium cursor-pointer"
+                onClick={reiniciarWizard}
+              >
+                Reiniciar
+              </button>
+            </div>
+          )}
+
+          {especialidadSinCatalogo && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                El elemento elegido es de una especialidad que todavía no tiene combinaciones cargadas
+                en el catálogo maestro. Dejamos el wizard como estaba — elegí las 5 dimensiones a mano.
+              </span>
+            </div>
+          )}
+
+          {ajusteWizard.length > 0 && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Ajustamos la especialidad según el elemento elegido. Volvé a elegir:{" "}
+                {ajusteWizard.map((d) => LABEL_DIMENSION[d]).join(", ")}.
               </span>
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <FormField
-              control={form.control}
-              name="nivelId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nivel *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={nivelOptions.map((o) => ({ value: o.id, label: o.label }))}
-                      value={field.value ?? ""}
-                      onChange={(v) => field.onChange(v || "")}
-                      placeholder="Elegí nivel"
-                      searchPlaceholder="Buscar..."
-                      emptyMessage="Sin niveles en el catálogo"
-                      disabled={isPending || arbol.length === 0}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="especialidadId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Especialidad *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={especialidadOptions.map((o) => ({ value: o.id, label: o.label }))}
-                      value={field.value ?? ""}
-                      onChange={(v) => field.onChange(v || "")}
-                      placeholder={nivelId ? "Elegí especialidad" : "Elegí nivel primero"}
-                      searchPlaceholder="Buscar..."
-                      emptyMessage="Sin opciones para este nivel"
-                      disabled={isPending || !nivelId}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="tipoId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={tipoOptions.map((o) => ({ value: o.id, label: o.label }))}
-                      value={field.value ?? ""}
-                      onChange={(v) => field.onChange(v || "")}
-                      placeholder={especialidadId ? "Elegí tipo" : "Elegí especialidad primero"}
-                      searchPlaceholder="Buscar..."
-                      emptyMessage="Sin opciones para esta especialidad"
-                      disabled={isPending || !especialidadId}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="accionId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Acción *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={accionOptions.map((o) => ({ value: o.id, label: o.label }))}
-                      value={field.value ?? ""}
-                      onChange={(v) => field.onChange(v || "")}
-                      placeholder={tipoId ? "Elegí acción" : "Elegí tipo primero"}
-                      searchPlaceholder="Buscar..."
-                      emptyMessage="Sin opciones para este tipo"
-                      disabled={isPending || !tipoId}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="motivoId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Motivo *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={motivoOptions.map((o) => ({ value: o.id, label: o.label }))}
-                      value={field.value ?? ""}
-                      onChange={(v) => field.onChange(v || "")}
-                      placeholder={accionId ? "Elegí motivo" : "Elegí acción primero"}
-                      searchPlaceholder="Buscar..."
-                      emptyMessage="Sin opciones para esta acción"
-                      disabled={isPending || !accionId}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {DIMENSIONES.map((dim) => {
+              // Distinguimos "el catálogo no tiene nada" de "no queda nada compatible
+              // con lo ya elegido" — el segundo caso se resuelve destildando otro select.
+              const hayOtrasElegidas = DIMENSIONES.some((d) => d !== dim && seleccion[d])
+              return (
+                <FormField
+                  key={dim}
+                  control={form.control}
+                  name={CAMPO_DIMENSION[dim]}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{LABEL_DIMENSION[dim]} *</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          options={opciones[dim].map((o) => ({ value: o.id, label: o.label }))}
+                          value={field.value ?? ""}
+                          onChange={(v) => field.onChange(v || "")}
+                          placeholder={`Elegí ${LABEL_DIMENSION[dim].toLowerCase()}`}
+                          searchPlaceholder="Buscar..."
+                          emptyMessage={
+                            hayOtrasElegidas
+                              ? "Sin opciones para la combinación elegida"
+                              : "Sin datos en el catálogo"
+                          }
+                          disabled={isPending || filas.length === 0}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )
+            })}
           </div>
         </div>
 
@@ -501,10 +498,10 @@ export function PendienteForm({
                     readOnly={!descripcionManual}
                     rows={3}
                     className={!descripcionManual ? "bg-muted/40" : ""}
-                    placeholder={motivoNode ? undefined : "Elegí las 5 dimensiones — la descripción viene del catálogo."}
+                    placeholder={filaSeleccionada ? undefined : "Elegí las 5 dimensiones — la descripción viene del catálogo."}
                   />
                 </FormControl>
-                {!descripcionManual && motivoNode && (
+                {!descripcionManual && filaSeleccionada && (
                   <p className="text-[11px] text-muted-foreground mt-1">
                     Texto sugerido por el catálogo. Tildá "Modificar descripción manualmente" para editarlo.
                   </p>
@@ -523,7 +520,7 @@ export function PendienteForm({
                 <FormControl>
                   <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-gray-700">
                     {categorias.find((c) => c.id === field.value)?.nombre
-                      ?? (motivoNode ? motivoNode.categoriaNombre : <span className="text-muted-foreground">Sale del catálogo al completar el wizard</span>)}
+                      ?? (filaSeleccionada ? filaSeleccionada.categoriaNombre : <span className="text-muted-foreground">Sale del catálogo al completar el wizard</span>)}
                   </div>
                 </FormControl>
                 <FormMessage />
