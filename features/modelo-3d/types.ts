@@ -121,6 +121,12 @@ export interface FiltroVisor {
    * asignados a alguno de los packs indicados (via TestGroupElemento activa).
    */
   testGroupIds: string[]
+  /**
+   * Solo Elementos con al menos un Pendiente ABIERTO (ni cerrado ni cancelado).
+   * Complemento del coloreado por pendientes: pintar muestra dónde están,
+   * este filtro deja únicamente esos.
+   */
+  soloConPendientesAbiertos: boolean
 }
 
 /** Valores del enum EstadoVisualElemento del backend. Sin "Rechazado": una tarea
@@ -179,6 +185,7 @@ export function isFiltroVacio(f: FiltroVisor): boolean {
     && f.estadosVisuales.length === 0
     && !f.ocultarNoVinculadas
     && f.testGroupIds.length === 0
+    && !f.soloConPendientesAbiertos
 }
 
 export function filtroVacio(): FiltroVisor {
@@ -190,6 +197,7 @@ export function filtroVacio(): FiltroVisor {
     estadosVisuales: [],
     ocultarNoVinculadas: false,
     testGroupIds: [],
+    soloConPendientesAbiertos: false,
   }
 }
 
@@ -234,6 +242,8 @@ export interface ColoresPorTestGroupBucket {
   tipo: number
   tipoTexto: string
   guids: string[]
+  /** dbIds (ApsObjectId) paralelos a guids — evitan construir el índice del visor. */
+  ids: number[]
   cantidadElementos: number
 }
 
@@ -241,8 +251,42 @@ export interface ColoresPorTestGroup {
   buckets: ColoresPorTestGroupBucket[]
   /** GUIDs de elementos sin pack asignado. Vacío cuando se filtra por TestGroupIds. */
   sinTestGroup: string[]
+  sinTestGroupIds: number[]
   sinTestGroupElementos: number
 }
+
+/**
+ * Coloreado por PENDIENTES, agrupado por categoría del punch (A/B/C/D).
+ * Cada Elemento cae en el bucket de la categoría más crítica entre sus
+ * pendientes abiertos. Los buckets vienen ordenados de más a menos crítica;
+ * el color se asigna por posición, así funciona con cualquier nomenclatura.
+ */
+export interface ColoresPorPendienteBucket {
+  categoriaId: string | null
+  categoriaNombre: string
+  cantidadElementos: number
+  cantidadPendientes: number
+  guids: string[]
+  ids: number[]
+}
+
+export interface ColoresPorPendiente {
+  buckets: ColoresPorPendienteBucket[]
+  /** Tuvieron pendientes y no les queda ninguno abierto. */
+  resueltos: ColoresPorPendienteBucket
+  /** Nunca tuvieron pendientes (o solo cancelados). No se pintan. */
+  sinPendientesElementos: number
+  totalPendientesAbiertos: number
+}
+
+/** Modos de coloreado del visor. Excluyentes — los maneja un solo selector. */
+export const MODO_COLOR = {
+  ninguno: "ninguno",
+  estado: "estado",
+  pendientes: "pendientes",
+  testgroup: "testgroup",
+} as const
+export type ModoColor = (typeof MODO_COLOR)[keyof typeof MODO_COLOR]
 
 export interface CrearProyectoDesdeIfcInput {
   nombre: string

@@ -241,6 +241,26 @@ export function FiltrosVisorPanel({
           />
         </Seccion>
 
+        <Seccion titulo="Pendientes" defaultOpen>
+          {/* Complemento del modo de color "Pendientes": pintar muestra dónde
+              están, esto deja solo esos. Abierto = ni cerrado ni cancelado. */}
+          <label className="flex items-start gap-2 cursor-pointer px-1 py-1 rounded hover:bg-gray-50">
+            <input
+              type="checkbox"
+              className="mt-0.5 cursor-pointer"
+              checked={filtro.soloConPendientesAbiertos}
+              onChange={(e) => onChange({ ...filtro, soloConPendientesAbiertos: e.target.checked })}
+              disabled={loading}
+            />
+            <span className="min-w-0">
+              <span className="block text-xs text-gray-700">Solo con pendientes abiertos</span>
+              <span className="block text-[10px] text-muted-foreground">
+                Deja los elementos que tienen al menos una observación sin cerrar
+              </span>
+            </span>
+          </label>
+        </Seccion>
+
         <Seccion titulo="Entidades sin vincular" defaultOpen>
           <RadioNoVinculadas
             modo={resolverModoNoVinculadas(filtro)}

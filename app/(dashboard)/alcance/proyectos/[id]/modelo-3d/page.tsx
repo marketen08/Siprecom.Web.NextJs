@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Link2, Loader2, Palette, RefreshCw, ScanSearch, Star, Trash2, Wrench,
+  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Link2, Loader2, RefreshCw, ScanSearch, Star, Trash2, Wrench,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -33,11 +33,16 @@ import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor
 import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-colores-estado"
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
+import { useColoresPorPendienteToggle } from "@/features/modelo-3d/hooks/use-colores-por-pendiente"
+import { LeyendaColoresPendiente } from "@/features/modelo-3d/components/leyenda-colores-pendiente"
+import { SelectorModoColor } from "@/features/modelo-3d/components/selector-modo-color"
 import {
   ApsTranslationStatus,
   EstadoProcesamientoIfc,
   FormatoArchivo3d,
+  MODO_COLOR,
   type ColoresPorEstado,
+  type ModoColor,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
@@ -46,6 +51,8 @@ import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+
+import type { GrupoColor } from "@/features/modelo-3d/unified-viewer"
 
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
@@ -58,6 +65,8 @@ interface ViewerHandle {
     opts?: { hide?: boolean; dbIds?: number[] },
   ) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
+  /** Pintado genérico por grupos — lo usa el modo "Pendientes". */
+  applyColorPorGrupos: (grupos: GrupoColor[] | null) => Promise<void>
   resize: () => void
   dispose: () => void
 }
@@ -138,6 +147,27 @@ function ModeloPageContent() {
     applyColorPorEstado: (b) => viewerRef.current?.applyColorPorEstado(b) ?? Promise.resolve(),
     filtro: filtroVisor.filtro,
   })
+
+  const coloresPendiente = useColoresPorPendienteToggle({
+    proyectoId: id,
+    archivoId: actualId,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === actualId,
+    applyColorPorGrupos: (g) => viewerRef.current?.applyColorPorGrupos(g) ?? Promise.resolve(),
+    filtro: filtroVisor.filtro,
+  })
+
+  // Un solo modo de color a la vez; cada toggle se deriva del valor elegido.
+  const [modoColor, setModoColor] = useState<ModoColor>(MODO_COLOR.ninguno)
+  useEffect(() => {
+    // Limpiar antes de activar: ver el comentario del mismo efecto en
+    // /ejecucion/modelo-3d sobre el orden de los efectos entre modos.
+    coloresEstado.limpiar()
+    coloresPendiente.limpiar()
+    coloresEstado.setActivo(modoColor === MODO_COLOR.estado)
+    coloresPendiente.setActivo(modoColor === MODO_COLOR.pendientes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoColor])
+  useEffect(() => { setModoColor(MODO_COLOR.ninguno) }, [actualId])
 
   const archivoActual = actualId
     ? archivos.find((a) => a.id === actualId) ?? null
@@ -323,15 +353,7 @@ function ModeloPageContent() {
             </Button>
           )}
           {actualId && (
-            <Button
-              variant={coloresEstado.activo ? "default" : "outline"}
-              onClick={() => coloresEstado.setActivo((v) => !v)}
-              className="gap-2"
-              title="Pintar entidades con color según el estado del Elemento vinculado"
-            >
-              <Palette className="h-4 w-4" />
-              Colores por estado
-            </Button>
+            <SelectorModoColor valor={modoColor} onChange={setModoColor} />
           )}
           <Button onClick={() => setOpenImportJson(true)} variant="outline" className="gap-2">
             <FileJson className="h-4 w-4" />
@@ -423,6 +445,11 @@ function ModeloPageContent() {
           {coloresEstado.activo && (
             <div className="absolute top-3 left-3 z-10">
               <LeyendaColoresEstado buckets={coloresEstado.buckets} loading={coloresEstado.loading} />
+            </div>
+          )}
+          {coloresPendiente.activo && (
+            <div className="absolute top-3 left-3 z-10">
+              <LeyendaColoresPendiente datos={coloresPendiente.datos} loading={coloresPendiente.loading} />
             </div>
           )}
           {!actualId && (

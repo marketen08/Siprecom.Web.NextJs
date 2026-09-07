@@ -29,19 +29,21 @@ export function useColoresPorTestGroupToggle({
   const query = useGetColoresPorTestGroup(proyectoId, archivoId, habilitado, filtro)
   const buckets = query.data?.data ?? null
 
+  // Solo PINTA — ver el comentario en use-colores-por-estado sobre por qué la
+  // limpieza vive en la página y no acá.
   useEffect(() => {
     if (!archivoCargado) return
-    if (activo && buckets) {
-      void applyColorPorTestGroup(buckets)
-    } else if (!activo) {
-      void applyColorPorTestGroup(null)
-    }
+    if (!activo || !buckets) return
+    void applyColorPorTestGroup(buckets)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activo, buckets, archivoCargado])
+
+  const limpiar = () => { void applyColorPorTestGroup(null) }
 
   return {
     activo,
     setActivo,
+    limpiar,
     buckets,
     loading: query.isFetching && activo,
     error: query.error as Error | null,

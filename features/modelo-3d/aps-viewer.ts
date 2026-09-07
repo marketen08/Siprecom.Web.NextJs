@@ -104,6 +104,12 @@ export interface ApsViewerHandle {
    */
   applyColorPorTestGroup: (buckets: BucketsPorTestGroup | null) => Promise<void>
   /**
+   * Pintado genérico: cada grupo lleva sus piezas y su color. Los modos de
+   * coloreado nuevos (pendientes por categoría, y los que vengan) usan esto en
+   * vez de sumar un método por modo.
+   */
+  applyColorPorGrupos: (grupos: GrupoColor[] | null) => Promise<void>
+  /**
    * Notifica al viewer que su contenedor cambió de tamaño. Recalcula offset y
    * dimensiones internas — sin esto, los clicks se desfasan cuando el panel
    * de filtros u otro elemento del layout empuja el canvas.
@@ -128,8 +134,21 @@ export interface BucketsPorEstado {
 
 /** F7: buckets de IfcGuids agrupados por TestGroup para el modo APS/NWD. */
 export interface BucketsPorTestGroup {
-  buckets: Array<{ testGroupId: string; guids: string[] }>
+  buckets: Array<{ testGroupId: string; guids: string[]; ids?: number[] }>
   sinTestGroup: string[]
+  sinTestGroupIds?: number[]
+}
+
+/**
+ * Grupo de piezas a pintar de un color. `ids` son dbIds (ApsObjectId): si vienen,
+ * el visor pinta directo; si no, cae al índice externalId → dbId, que en maquetas
+ * grandes son minutos.
+ */
+export interface GrupoColor {
+  guids: string[]
+  ids?: number[]
+  /** Color en 0xRRGGBB. */
+  hex: number
 }
 
 /** Paleta cíclica para F7 — misma que viewer.ts (IFC) para consistencia. */
@@ -878,13 +897,48 @@ export async function createApsViewer(
     m.clearThemingColors?.()
     for (let i = 0; i < buckets.buckets.length; i++) {
       const b = buckets.buckets[i]
-      const ids = guidsToIds(b.guids)
+      const ids = b.ids?.length ? b.ids : guidsToIds(b.guids)
       if (ids.length === 0) continue
       const hex = TESTGROUP_PALETTE_APS[i % TESTGROUP_PALETTE_APS.length]
       setColorHex(ids, hex)
     }
-    const idsSinPack = guidsToIds(buckets.sinTestGroup)
+    const idsSinPack = buckets.sinTestGroupIds?.length
+      ? buckets.sinTestGroupIds
+      : guidsToIds(buckets.sinTestGroup)
     if (idsSinPack.length > 0) setColorHex(idsSinPack, TESTGROUP_SIN_PACK_COLOR_APS)
+    viewer.impl.invalidate(true, true, true)
+  }
+
+  /**
+   * Pintado genérico por grupos. Solo espera el índice si ALGÚN grupo llegó sin
+   * dbIds — con `ApsObjectId` poblado no hace falta y el pintado es inmediato.
+   */
+  async function applyColorPorGrupos(grupos: GrupoColor[] | null): Promise<void> {
+    if (!currentModel) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = currentModel
+
+    if (grupos === null) {
+      m.clearThemingColors?.()
+      viewer.impl.invalidate(true, true, true)
+      return
+    }
+
+    const faltanIds = grupos.some((g) => !g.ids?.length && g.guids.length > 0)
+    if (faltanIds) await conIndice()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
+    m.clearThemingColors?.()
+    for (const g of grupos) {
+      const ids = g.ids?.length ? g.ids : guidsToIds(g.guids)
+      if (ids.length === 0) continue
+      const r = ((g.hex >> 16) & 0xff) / 255
+      const gg = ((g.hex >> 8) & 0xff) / 255
+      const b = (g.hex & 0xff) / 255
+      const v4 = new THREE.Vector4(r, gg, b, 1)
+      for (const id of ids) m.setThemingColor(id, v4, true)
+    }
     viewer.impl.invalidate(true, true, true)
   }
 
@@ -919,7 +973,7 @@ export async function createApsViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadModel, esperarArbol: conArbol, highlightByGuid, selectByGuids, selectByDbIds, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
+  return { loadModel, esperarArbol: conArbol, highlightByGuid, selectByGuids, selectByDbIds, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, applyColorPorGrupos, resize, dispose }
 }
 
 /** Convierte un GUID sintético "aps-{dbId}" a dbId numérico. Si no matchea, null. */

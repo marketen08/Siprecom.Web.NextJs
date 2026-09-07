@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Link as LinkIcon, Loader2, Menu, Palette, Settings, Star,
+  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Link as LinkIcon, Loader2, Menu, Settings, Star,
 } from "lucide-react"
 
 import { useSidebar } from "@/components/sidebar-context"
@@ -25,17 +25,24 @@ import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-co
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
 import { useColoresPorTestGroupToggle } from "@/features/modelo-3d/hooks/use-colores-por-testgroup"
+import { useColoresPorPendienteToggle } from "@/features/modelo-3d/hooks/use-colores-por-pendiente"
+import { LeyendaColoresPendiente } from "@/features/modelo-3d/components/leyenda-colores-pendiente"
+import { SelectorModoColor } from "@/features/modelo-3d/components/selector-modo-color"
 import { LeyendaColoresTestGroup } from "@/features/modelo-3d/components/leyenda-colores-testgroup"
 import {
   ApsTranslationStatus,
   EstadoProcesamientoIfc,
   FormatoArchivo3d,
   type ColoresPorEstado,
+  MODO_COLOR,
   type ColoresPorTestGroup,
   type ElementoEnMaqueta,
+  type ModoColor,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
+
+import type { GrupoColor } from "@/features/modelo-3d/unified-viewer"
 
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
@@ -46,6 +53,8 @@ interface ViewerHandle {
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
   applyColorPorTestGroup: (buckets: ColoresPorTestGroup | null) => Promise<void>
+  /** Pintado genérico por grupos — lo usa el modo "Pendientes". */
+  applyColorPorGrupos: (grupos: GrupoColor[] | null) => Promise<void>
   resize: () => void
   dispose: () => void
 }
@@ -128,8 +137,16 @@ function ModeloEjecucionContent() {
     filtro: filtroVisor.filtro,
   })
 
-  // F7 del roadmap TestGroups: colorización por pack. Mutuamente excluyente con
-  // Colores por estado — al prender uno, se apaga el otro (useEffect abajo).
+  // Pendientes por categoría del punch (A/B/C/D) del pendiente abierto más crítico.
+  const coloresPendiente = useColoresPorPendienteToggle({
+    proyectoId: proyectoActivo?.id ?? null,
+    archivoId: archivo?.id ?? null,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
+    applyColorPorGrupos: (g) => viewerRef.current?.applyColorPorGrupos(g) ?? Promise.resolve(),
+    filtro: filtroVisor.filtro,
+  })
+
+  // F7 del roadmap TestGroups: colorización por pack.
   const coloresTestGroup = useColoresPorTestGroupToggle({
     proyectoId: proyectoActivo?.id ?? null,
     archivoId: archivo?.id ?? null,
@@ -138,15 +155,25 @@ function ModeloEjecucionContent() {
     filtro: filtroVisor.filtro,
   })
 
-  // Mutex: solo un modo de colorización activo a la vez.
+  // Los modos de color son excluyentes. Antes eran toggles independientes con un
+  // mutex por useEffect; ahora un solo valor manda y cada toggle se deriva de él,
+  // así no hay estados intermedios con dos modos prendidos.
+  const [modoColor, setModoColor] = useState<ModoColor>(MODO_COLOR.ninguno)
   useEffect(() => {
-    if (coloresEstado.activo && coloresTestGroup.activo) coloresTestGroup.setActivo(false)
+    // Limpiamos ACÁ, antes de activar el modo nuevo. Si cada hook limpiara al
+    // desactivarse, el orden de los efectos (por declaración de hooks) podía
+    // hacer que el saliente borrara lo que el entrante ya pintó — pasa cuando la
+    // query del entrante viene de caché y pinta en el mismo flush.
+    coloresEstado.limpiar()
+    coloresPendiente.limpiar()
+    coloresTestGroup.limpiar()
+    coloresEstado.setActivo(modoColor === MODO_COLOR.estado)
+    coloresPendiente.setActivo(modoColor === MODO_COLOR.pendientes)
+    coloresTestGroup.setActivo(modoColor === MODO_COLOR.testgroup)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coloresEstado.activo])
-  useEffect(() => {
-    if (coloresTestGroup.activo && coloresEstado.activo) coloresEstado.setActivo(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coloresTestGroup.activo])
+  }, [modoColor])
+  // Al cambiar de archivo cada toggle se resetea solo; el selector también.
+  useEffect(() => { setModoColor(MODO_COLOR.ninguno) }, [archivo?.id])
 
   const archivoActualIdRef = useRef<string | null>(null)
   archivoActualIdRef.current = archivo?.id ?? null
@@ -487,32 +514,7 @@ function ModeloEjecucionContent() {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => coloresEstado.setActivo((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
-              coloresEstado.activo
-                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-            title="Pintar entidades con color según el estado del Elemento"
-          >
-            <Palette className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Colores por estado</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => coloresTestGroup.setActivo((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
-              coloresTestGroup.activo
-                ? "text-sky-700 bg-sky-50 border-sky-200"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-            title="Pintar entidades con color según el TestGroup al que pertenecen"
-          >
-            <Palette className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Colores por pack</span>
-          </button>
+          <SelectorModoColor valor={modoColor} onChange={setModoColor} compacto />
           <button
             type="button"
             onClick={() => {
@@ -588,6 +590,11 @@ function ModeloEjecucionContent() {
           {coloresEstado.activo && (
             <div className="absolute top-3 left-3 z-10">
               <LeyendaColoresEstado buckets={coloresEstado.buckets} loading={coloresEstado.loading} />
+            </div>
+          )}
+          {coloresPendiente.activo && (
+            <div className="pointer-events-none">
+              <LeyendaColoresPendiente datos={coloresPendiente.datos} loading={coloresPendiente.loading} />
             </div>
           )}
           {coloresTestGroup.activo && (

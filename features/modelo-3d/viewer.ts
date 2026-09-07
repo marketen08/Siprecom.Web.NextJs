@@ -58,6 +58,8 @@ export interface ViewerHandle {
    * sinTestGroup). Pasá null para volver a los colores IFC originales.
    */
   applyColorPorTestGroup: (buckets: BucketsPorTestGroup | null) => Promise<void>
+  /** Pintado genérico por grupos — lo usan los modos de coloreado nuevos. */
+  applyColorPorGrupos: (grupos: GrupoColorIfc[] | null) => Promise<void>
   /**
    * Notifica al viewer que su contenedor cambió de tamaño. En @thatopen +
    * three.js esto fuerza al renderer/camera a re-leer las dimensiones del
@@ -78,6 +80,16 @@ export interface BucketsPorEstado {
 export interface BucketsPorTestGroup {
   buckets: Array<{ testGroupId: string; guids: string[] }>
   sinTestGroup: string[]
+}
+
+/**
+ * Grupo de piezas a pintar de un color. El motor IFC resuelve por guid (no tiene
+ * dbIds de APS), así que ignora `ids` — está en el tipo para compartir la firma.
+ */
+export interface GrupoColorIfc {
+  guids: string[]
+  ids?: number[]
+  hex: number
 }
 
 /**
@@ -378,6 +390,40 @@ export async function createViewer(
     colorPorTestGroupActive = true
   }
 
+  /**
+   * Pintado genérico por grupos. Comparte el flag de "hay color aplicado" con
+   * el modo TestGroup: son excluyentes (los maneja un solo selector), así que
+   * alcanza con un reset común.
+   */
+  async function applyColorPorGrupos(grupos: GrupoColorIfc[] | null): Promise<void> {
+    if (!currentModel || disposed) return
+
+    if (grupos === null) {
+      if (colorPorTestGroupActive) {
+        await currentModel.resetColor(undefined)
+        colorPorTestGroupActive = false
+      }
+      return
+    }
+
+    const idsPorGrupo = await Promise.all(
+      grupos.map(async (g) => {
+        if (g.guids.length === 0) return []
+        const ids = await currentModel!.getLocalIdsByGuids(g.guids)
+        return ids.filter((id): id is number => typeof id === "number")
+      }),
+    )
+
+    if (colorPorTestGroupActive) await currentModel.resetColor(undefined)
+
+    for (let i = 0; i < grupos.length; i++) {
+      const ids = idsPorGrupo[i]
+      if (ids.length === 0) continue
+      await currentModel.setColor(ids, new THREE.Color(grupos[i].hex))
+    }
+    colorPorTestGroupActive = true
+  }
+
   async function applyGhost(
     visibleGuids: string[] | null,
     _opts?: { hide?: boolean },  // IFC ignora — siempre atenúa con gris+opacidad
@@ -483,5 +529,5 @@ export async function createViewer(
     } catch { /* best-effort */ }
   }
 
-  return { loadIfc, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, resize, dispose }
+  return { loadIfc, highlightByGuid, selectByGuids, fitToGuids, applyGhost, applyColorPorEstado, applyColorPorTestGroup, applyColorPorGrupos, resize, dispose }
 }

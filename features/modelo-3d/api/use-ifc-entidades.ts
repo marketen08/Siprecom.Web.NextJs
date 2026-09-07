@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   ColoresPorEstado,
+  ColoresPorPendiente,
   ColoresPorTestGroup,
   ElementosEnMaquetaPage,
   EntidadFiltro,
@@ -254,6 +255,45 @@ export function useColoresPorEstado(
  * los TestGroupIds seleccionados (solo esos packs aparecen).
  * NivelIds no aplica: un TestGroup no tiene "nivel" semánticamente.
  */
+/**
+ * Coloreado por PENDIENTES, agrupado por categoría del punch (A/B/C/D).
+ * Respeta todas las dimensiones del filtro visual — a diferencia del de packs,
+ * acá el nivel sí tiene sentido (un pendiente cuelga de un elemento, y el
+ * elemento se filtra por nivel como en el resto del visor).
+ */
+export function useColoresPorPendiente(
+  proyectoId: string | null,
+  archivoId: string | null,
+  activo: boolean,
+  filtro?: FiltroVisor | null,
+) {
+  const body = {
+    sistemaIds:      filtro?.sistemaIds      ?? [],
+    subSistemaIds:   filtro?.subSistemaIds   ?? [],
+    especialidadIds: filtro?.especialidadIds ?? [],
+    nivelIds:        filtro?.nivelIds        ?? [],
+    testGroupIds:    filtro?.testGroupIds    ?? [],
+    soloConPendientesAbiertos: filtro?.soloConPendientesAbiertos ?? false,
+  }
+  return useQuery({
+    queryKey: [
+      "ifc", archivoId, "colores-por-pendiente",
+      body.sistemaIds.join(","),
+      body.subSistemaIds.join(","),
+      body.especialidadIds.join(","),
+      body.nivelIds.join(","),
+      body.testGroupIds.join(","),
+      body.soloConPendientesAbiertos,
+    ],
+    enabled: activo && !!proyectoId && !!archivoId,
+    queryFn: () =>
+      apiClient.post<ApiResponse<ColoresPorPendiente>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-pendiente`,
+        body,
+      ),
+  })
+}
+
 export function useColoresPorTestGroup(
   proyectoId: string | null,
   archivoId: string | null,

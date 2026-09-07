@@ -58,6 +58,11 @@ export interface UnifiedViewerHandle {
    */
   applyColorPorTestGroup: (buckets: BucketsPorTestGroup | null) => Promise<void>
   /**
+   * Pintado genérico: cada grupo lleva sus piezas y su color. Lo usan los modos
+   * de coloreado que no tienen buckets fijos — hoy, pendientes por categoría.
+   */
+  applyColorPorGrupos: (grupos: GrupoColor[] | null) => Promise<void>
+  /**
    * Notifica al viewer que su contenedor cambió de tamaño. Lo llaman las
    * páginas vía ResizeObserver para evitar que el click se desfase cuando
    * un panel lateral empuja el canvas.
@@ -77,8 +82,16 @@ export interface BucketsPorEstado {
 }
 
 export interface BucketsPorTestGroup {
-  buckets: Array<{ testGroupId: string; guids: string[] }>
+  buckets: Array<{ testGroupId: string; guids: string[]; ids?: number[] }>
   sinTestGroup: string[]
+  sinTestGroupIds?: number[]
+}
+
+/** Piezas + color. `ids` (dbIds APS) evita construir el índice; el motor IFC los ignora. */
+export interface GrupoColor {
+  guids: string[]
+  ids?: number[]
+  hex: number
 }
 
 export interface CreateUnifiedViewerOptions {
