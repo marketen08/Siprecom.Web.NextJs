@@ -1,47 +1,79 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, Search, X } from "lucide-react"
+import { Filter, Loader2, Search, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
-import type { Elemento } from "@/features/elementos/types"
+
+import { useGetElementosEnMaqueta } from "../api/use-ifc-entidades"
+import { isFiltroVacio, type ElementoEnMaqueta, type FiltroVisor } from "../types"
 
 interface Props {
+  proyectoId: string | null
+  archivoId: string | null
   /** Disparado al clickear una fila — el caller resalta/encuadra el elemento en el visor 3D. */
-  onSeleccionar?: (elemento: Elemento) => void
+  onSeleccionar?: (elemento: ElementoEnMaqueta) => void
   /** Id del elemento actualmente resaltado (para feedback visual en la fila). */
   elementoSeleccionadoId?: string | null
+  /**
+   * Filtro visual del visor. La lista se restringe a lo que está resaltado en
+   * pantalla — si el usuario filtró por subsistema o estado, el panel muestra
+   * ese subconjunto y no todo el proyecto.
+   */
+  filtroVisor?: FiltroVisor | null
 }
 
 /**
- * Panel de Elementos del proyecto. Permite buscar y, al clickear, ubicar/resaltar
- * TODAS las piezas 3D vinculadas a ese elemento en la maqueta. Es la vista por
- * defecto (los elementos son la unidad de negocio; las entidades IFC son piezas).
+ * Panel de Elementos de la maqueta. Permite buscar y, al clickear, ubicar/resaltar
+ * TODAS las piezas 3D vinculadas a ese elemento. Es la vista por defecto (los
+ * elementos son la unidad de negocio; las entidades IFC son piezas).
+ *
+ * Lista solo elementos CON geometría en el archivo y respeta el filtro del visor,
+ * para que la tabla y la maqueta muestren siempre el mismo subconjunto.
  */
-export function ElementosPanel({ onSeleccionar, elementoSeleccionadoId }: Props) {
+export function ElementosPanel({
+  proyectoId, archivoId, onSeleccionar, elementoSeleccionadoId, filtroVisor,
+}: Props) {
   const [busqueda, setBusqueda] = useState("")
   const [page, setPage] = useState(1)
   const pageSize = 50
 
   function handleBusqueda(v: string) { setBusqueda(v); setPage(1) }
 
-  const { data, isLoading, isFetching } = useGetElementos({
-    nombre: busqueda || undefined,
-    page,
-    pageSize,
-  })
+  const filtroActivo = Boolean(filtroVisor && !isFiltroVacio(filtroVisor))
 
-  const items = data?.data ?? []
-  const total = data?.total ?? 0
+  // Al cambiar el filtro del visor la paginación queda desfasada: volvemos a 1
+  // para no caer en una página vacía. Se ajusta DURANTE el render (patrón de
+  // "estado derivado") y no en un efecto: así no hay un render intermedio
+  // pidiendo una página que ya no existe.
+  const filtroKey = JSON.stringify(filtroVisor ?? null)
+  const [filtroKeyPrevia, setFiltroKeyPrevia] = useState(filtroKey)
+  if (filtroKeyPrevia !== filtroKey) {
+    setFiltroKeyPrevia(filtroKey)
+    setPage(1)
+  }
+
+  const { data, isLoading, isFetching } = useGetElementosEnMaqueta(
+    proyectoId, archivoId, filtroActivo ? filtroVisor! : null, busqueda, page, pageSize,
+  )
+
+  const items = data?.data?.items ?? []
+  const total = data?.data?.total ?? 0
   const lastPage = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-sm font-semibold text-gray-800">Elementos del proyecto</h2>
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            Elementos de la maqueta
+            {filtroActivo && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
+                <Filter className="h-2.5 w-2.5" /> filtrados
+              </span>
+            )}
+          </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             {total.toLocaleString("es-AR")} elementos · click para ubicar y resaltar sus piezas en la maqueta.
           </p>
@@ -74,7 +106,9 @@ export function ElementosPanel({ onSeleccionar, elementoSeleccionadoId }: Props)
           </div>
         ) : items.length === 0 ? (
           <div className="text-sm text-muted-foreground py-6 text-center italic">
-            Sin resultados.
+            {filtroActivo
+              ? "Ningún elemento del filtro actual tiene piezas en la maqueta."
+              : "Sin resultados."}
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -83,6 +117,7 @@ export function ElementosPanel({ onSeleccionar, elementoSeleccionadoId }: Props)
                 <th className="text-left px-3 py-2 font-medium">TAG</th>
                 <th className="text-left px-3 py-2 font-medium">Subsistema</th>
                 <th className="text-left px-3 py-2 font-medium">Nombre</th>
+                <th className="text-right px-3 py-2 font-medium">Piezas</th>
               </tr>
             </thead>
             <tbody>
@@ -108,6 +143,10 @@ export function ElementosPanel({ onSeleccionar, elementoSeleccionadoId }: Props)
                   </td>
                   <td className="px-3 py-1.5 text-gray-600 truncate max-w-xs" title={el.nombre ?? undefined}>
                     {el.nombre ?? <span className="text-gray-400">—</span>}
+                  </td>
+                  {/* Cuántas piezas 3D se van a resaltar al clickear la fila. */}
+                  <td className="px-3 py-1.5 text-right text-xs text-gray-500 tabular-nums">
+                    {el.piezas.toLocaleString("es-AR")}
                   </td>
                 </tr>
               ))}

@@ -311,9 +311,13 @@ function ModeloPageContent() {
             >
               <Filter className="h-4 w-4" />
               Filtros
+              {/* Elementos, no piezas 3D — mismo criterio que el panel y la leyenda. */}
               {filtroVisor.activo && filtroVisor.resultado && (
-                <span className="rounded-full bg-white/30 text-current px-1.5 text-[10px] font-bold">
-                  {filtroVisor.resultado.totalCoinciden}
+                <span
+                  className="rounded-full bg-white/30 text-current px-1.5 text-[10px] font-bold tabular-nums"
+                  title={`${filtroVisor.resultado.elementosCoinciden.toLocaleString("es-AR")} elementos en el filtro`}
+                >
+                  {filtroVisor.resultado.elementosCoinciden}
                 </span>
               )}
             </Button>
@@ -404,8 +408,8 @@ function ModeloPageContent() {
           <FiltrosVisorPanel
             filtro={filtroVisor.filtro}
             onChange={filtroVisor.setFiltro}
-            totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
-            totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
+            elementosCoinciden={filtroVisor.resultado?.elementosCoinciden ?? null}
+            totalElementos={filtroVisor.resultado?.totalElementos ?? null}
             loading={filtroVisor.loading}
             onClose={() => setMostrarFiltros(false)}
             proyectoId={id}

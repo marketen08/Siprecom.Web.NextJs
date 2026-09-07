@@ -23,8 +23,9 @@ interface Props {
   filtro: FiltroVisor
   onChange: (f: FiltroVisor) => void
   /** Resultado del backend, para mostrar "X de Y visibles". */
-  totalCoinciden: number | null
-  totalEntidades: number | null
+  /** Elementos que pasan el filtro y total con geometría en la maqueta. */
+  elementosCoinciden: number | null
+  totalElementos: number | null
   loading?: boolean
   onClose: () => void
   /**
@@ -42,7 +43,7 @@ interface Props {
  * fetch al backend para resolver los GUIDs visibles → el viewer aplica ghost.
  */
 export function FiltrosVisorPanel({
-  filtro, onChange, totalCoinciden, totalEntidades, loading, onClose,
+  filtro, onChange, elementosCoinciden, totalElementos, loading, onClose,
   proyectoId, archivoId,
 }: Props) {
   const { data: sistemasData } = useGetSistemasSelect()
@@ -116,9 +117,12 @@ export function FiltrosVisorPanel({
         <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-800">
           <Filter className="h-4 w-4 text-blue-600" />
           Filtros
-          {!vacio && totalCoinciden !== null && totalEntidades !== null && (
-            <span className="text-xs font-medium text-gray-500 ml-1">
-              · {totalCoinciden.toLocaleString("es-AR")} / {totalEntidades.toLocaleString("es-AR")}
+          {/* Contamos ELEMENTOS, no piezas 3D: un Elemento agrupa N entidades y
+              el número de piezas no le dice nada al usuario. Mismo criterio que
+              la leyenda de estado y que /alcance/elementos. */}
+          {!vacio && elementosCoinciden !== null && totalElementos !== null && (
+            <span className="text-xs font-medium text-gray-500 ml-1 tabular-nums">
+              · {elementosCoinciden.toLocaleString("es-AR")} / {totalElementos.toLocaleString("es-AR")} elementos
             </span>
           )}
         </div>

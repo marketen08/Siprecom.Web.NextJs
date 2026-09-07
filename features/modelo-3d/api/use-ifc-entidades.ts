@@ -4,6 +4,7 @@ import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   ColoresPorEstado,
   ColoresPorTestGroup,
+  ElementosEnMaquetaPage,
   EntidadFiltro,
   FiltroResultado,
   FiltroVisor,
@@ -22,6 +23,34 @@ const QK_PAGE = (
 
 const QK_ARCHIVO = (proyectoId: string | null) =>
   ["proyectos", proyectoId, "ifc"] as const
+
+/**
+ * Elementos de la maqueta que pasan el filtro del visor. El panel "Ver elementos"
+ * usa esto en vez del listado general de /api/elementos: así muestra exactamente
+ * el mismo subconjunto que está resaltado en pantalla, incluidas las dimensiones
+ * que el listado general no sabe expresar (nivel, estado visual, testgroup).
+ */
+export function useGetElementosEnMaqueta(
+  proyectoId: string | null,
+  archivoId: string | null,
+  filtro: FiltroVisor | null,
+  busqueda: string,
+  page: number,
+  pageSize = 50,
+) {
+  return useQuery({
+    queryKey: ["ifc-elementos", archivoId, filtro, busqueda, page, pageSize],
+    enabled: !!proyectoId && !!archivoId,
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+      if (busqueda.trim()) params.set("busqueda", busqueda.trim())
+      return apiClient.post<ApiResponse<ElementosEnMaquetaPage>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/elementos-filtrados?${params.toString()}`,
+        filtro ?? {},
+      )
+    },
+  })
+}
 
 export function useGetIfcEntidades(
   proyectoId: string,
@@ -268,7 +297,10 @@ export async function filtrarEntidades(
     `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/filtrar`,
     filtro,
   )
-  return resp?.data ?? { guidsCoinciden: [], totalCoinciden: 0, totalEntidades: 0 }
+  return resp?.data ?? {
+    guidsCoinciden: [], totalCoinciden: 0, totalEntidades: 0,
+    elementosCoinciden: 0, totalElementos: 0,
+  }
 }
 
 /**

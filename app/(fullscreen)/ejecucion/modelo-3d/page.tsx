@@ -32,6 +32,7 @@ import {
   FormatoArchivo3d,
   type ColoresPorEstado,
   type ColoresPorTestGroup,
+  type ElementoEnMaqueta,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
@@ -309,7 +310,7 @@ function ModeloEjecucionContent() {
   // Seleccionar un Elemento desde el listado: resaltamos TODAS sus piezas en la
   // maqueta, las encuadramos, y abrimos el detalle reutilizando el sidebar (con
   // una entidad del elemento). Si el elemento no tiene piezas vinculadas, avisamos.
-  async function seleccionarElementoDesdeListado(elemento: Elemento) {
+  async function seleccionarElementoDesdeListado(elemento: ElementoEnMaqueta) {
     if (!proyectoActivo || !archivo) return
     setSheetExpanded(false)
     setAvisoMaqueta(null)
@@ -476,9 +477,13 @@ function ModeloEjecucionContent() {
           >
             <Filter className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Filtros</span>
+            {/* Elementos, no piezas 3D — mismo criterio que el panel y la leyenda. */}
             {filtroVisor.activo && filtroVisor.resultado && (
-              <span className="ml-1 rounded-full bg-blue-600 text-white px-1.5 text-[10px] font-bold">
-                {filtroVisor.resultado.totalCoinciden}
+              <span
+                className="ml-1 rounded-full bg-blue-600 text-white px-1.5 text-[10px] font-bold tabular-nums"
+                title={`${filtroVisor.resultado.elementosCoinciden.toLocaleString("es-AR")} elementos en el filtro`}
+              >
+                {filtroVisor.resultado.elementosCoinciden}
               </span>
             )}
           </button>
@@ -569,8 +574,8 @@ function ModeloEjecucionContent() {
             <FiltrosVisorPanel
               filtro={filtroVisor.filtro}
               onChange={filtroVisor.setFiltro}
-              totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
-              totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
+              elementosCoinciden={filtroVisor.resultado?.elementosCoinciden ?? null}
+              totalElementos={filtroVisor.resultado?.totalElementos ?? null}
               loading={filtroVisor.loading}
               onClose={() => setMostrarFiltros(false)}
               proyectoId={proyectoActivo?.id ?? null}
@@ -637,8 +642,11 @@ function ModeloEjecucionContent() {
       {mostrarPanelElementos && (
         <div className="border-t border-gray-200 bg-white p-4 max-h-[40vh] overflow-y-auto">
           <ElementosPanel
+            proyectoId={proyectoActivo.id}
+            archivoId={archivo.id}
             onSeleccionar={seleccionarElementoDesdeListado}
             elementoSeleccionadoId={entidadSeleccionada?.elementoId ?? null}
+            filtroVisor={filtroVisor.filtro}
           />
         </div>
       )}

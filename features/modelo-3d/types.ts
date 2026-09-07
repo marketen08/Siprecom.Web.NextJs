@@ -131,6 +131,27 @@ export const EstadoVisualIds = {
   Completado: 3,
 } as const
 
+/**
+ * Elemento con geometría en la maqueta. Lo devuelve el endpoint que aplica el
+ * filtro del visor sobre ELEMENTOS (no sobre piezas 3D).
+ */
+export interface ElementoEnMaqueta {
+  id: string
+  tag: string | null
+  nombre: string | null
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
+  /** Piezas 3D vinculadas a este elemento en el archivo. */
+  piezas: number
+}
+
+export interface ElementosEnMaquetaPage {
+  items: ElementoEnMaqueta[]
+  page: number
+  pageSize: number
+  total: number
+}
+
 export interface FiltroResultado {
   guidsCoinciden: string[]
   /**
@@ -141,6 +162,13 @@ export interface FiltroResultado {
   idsCoinciden?: number[]
   totalCoinciden: number
   totalEntidades: number
+  /**
+   * Elementos distintos que pasan el filtro, y total con geometría en la
+   * maqueta. Un Elemento agrupa N piezas 3D: el usuario razona en elementos,
+   * así que el contador del panel muestra esto y no las piezas.
+   */
+  elementosCoinciden: number
+  totalElementos: number
 }
 
 export function isFiltroVacio(f: FiltroVisor): boolean {

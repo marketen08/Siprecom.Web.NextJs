@@ -12,6 +12,7 @@ import { useGetPendienteCatalogoArbol } from "../api/use-catalogo-maestro"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
+import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
@@ -245,15 +246,15 @@ export function PendienteForm({
   })
   const elementos = elementosRaw?.data ?? []
 
-  // Si el elemento actual ya no matchea la lista filtrada, lo limpiamos.
-  useEffect(() => {
-    if (!elementoIdActual) return
-    if (elementos.length === 0) return
-    if (!elementos.some((e) => e.id === elementoIdActual)) {
-      form.setValue("elementoId", null, { shouldDirty: true, shouldValidate: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [especialidadId, subSistemaIdActual, elementos])
+  // El elemento elegido puede quedar fuera de la lista filtrada (típico al venir
+  // pre-cargado desde la maqueta 3D y después tocar la especialidad del wizard).
+  // NO lo limpiamos: era el dato de partida del usuario. Lo resolvemos aparte
+  // para poder seguir mostrándolo y avisamos que no matchea el filtro.
+  const elementoElegidoQuery = useGetElemento(elementoIdActual ?? null)
+  const elementoElegido = elementoElegidoQuery.data?.data ?? null
+  const elementoFueraDelFiltro = Boolean(
+    elementoIdActual && elementos.length > 0 && !elementos.some((e) => e.id === elementoIdActual),
+  )
 
   // Al elegir un elemento con especialidad definida a nivel de ElementoTipo,
   // la imponemos sobre el wizard: el elemento es el dato más concreto que dio
@@ -264,6 +265,18 @@ export function PendienteForm({
   // queda pegado aunque el user ya haya elegido uno.
   const [ajusteWizard, setAjusteWizard] = useState<Dimension[]>([])
   const [especialidadSinCatalogo, setEspecialidadSinCatalogo] = useState(false)
+
+  // La especialidad puede llegar PRE-CARGADA (prefill desde la maqueta 3D) apuntando
+  // a una que el catálogo maestro no cubre — hoy solo Cañerías y CIVIL tienen filas.
+  // Ahí el select no puede ofrecerla y el valor quedaría seteado pero invisible.
+  // La soltamos y avisamos, en vez de dejar un valor fantasma filtrando elementos.
+  useEffect(() => {
+    if (filas.length === 0 || !especialidadId) return
+    if (filas.some((f) => f.especialidadId === especialidadId)) return
+    form.setValue("especialidadId", "", { shouldDirty: false, shouldValidate: false })
+    setEspecialidadSinCatalogo(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filas.length, especialidadId])
 
   const onElementoChange = (nuevoElementoId: string | null) => {
     form.setValue("elementoId", nuevoElementoId, { shouldDirty: true, shouldValidate: true })
@@ -314,13 +327,18 @@ export function PendienteForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subSistemas.length])
-  const elementoOptions = useMemo(
-    () => [
+  const elementoOptions = useMemo(() => {
+    const opts = [
       { value: "", label: "Sin elemento asignado" },
       ...elementos.map((e) => ({ value: e.id, label: `${e.tag} — ${e.nombre}` })),
-    ],
-    [elementos],
-  )
+    ]
+    // El elegido va sí o sí, aunque el filtro por especialidad lo deje afuera:
+    // sin la opción, el Combobox mostraría vacío y parecería que se perdió.
+    if (elementoElegido && !opts.some((o) => o.value === elementoElegido.id)) {
+      opts.push({ value: elementoElegido.id, label: `${elementoElegido.tag} — ${elementoElegido.nombre}` })
+    }
+    return opts
+  }, [elementos, elementoElegido])
 
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false)
 
@@ -413,8 +431,9 @@ export function PendienteForm({
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
               <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                El elemento elegido es de una especialidad que todavía no tiene combinaciones cargadas
-                en el catálogo maestro. Dejamos el wizard como estaba — elegí las 5 dimensiones a mano.
+                La especialidad del elemento no tiene combinaciones cargadas en el catálogo maestro
+                de pendientes, así que el wizard no puede ofrecerla. Elegí las 5 dimensiones a mano —
+                el elemento queda seleccionado igual.
               </span>
             </div>
           )}
@@ -785,6 +804,12 @@ export function PendienteForm({
                     </span>
                   )}
                 </FormLabel>
+                {elementoFueraDelFiltro && (
+                  <p className="text-[11px] text-amber-700">
+                    Este elemento es de otra especialidad que la elegida en el wizard. Se mantiene
+                    seleccionado; cambiá la especialidad si querés ver los elementos que sí matchean.
+                  </p>
+                )}
                 <FormControl>
                   <Combobox
                     options={elementoOptions}
