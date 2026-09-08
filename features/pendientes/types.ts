@@ -29,6 +29,28 @@ export const ESTADO_COLOR: Record<string, string> = {
   CANCELADO: "bg-red-100 text-red-700",
 }
 
+/**
+ * Color por categoría del punch. Es la dimensión que define la criticidad —
+ * A bloquea el arranque, D es documental — y la que usa el visor 3D para pintar
+ * la maqueta, así que conviene que el badge del pendiente hable el mismo idioma
+ * visual que el modelo.
+ *
+ * Las categorías son datos, no un enum: si un tenant las nombra distinto, cae al
+ * neutro de `CATEGORIA_COLOR_FALLBACK` en vez de romper.
+ */
+export const CATEGORIA_COLOR: Record<string, string> = {
+  A: "bg-red-100 text-red-800 border-red-300",
+  B: "bg-orange-100 text-orange-800 border-orange-300",
+  C: "bg-yellow-100 text-yellow-800 border-yellow-300",
+  D: "bg-blue-100 text-blue-800 border-blue-300",
+}
+export const CATEGORIA_COLOR_FALLBACK = "bg-gray-100 text-gray-700 border-gray-300"
+
+export function categoriaColor(nombre: string | null | undefined): string {
+  if (!nombre) return CATEGORIA_COLOR_FALLBACK
+  return CATEGORIA_COLOR[nombre.trim().toUpperCase()] ?? CATEGORIA_COLOR_FALLBACK
+}
+
 export const ESTADO_LABEL: Record<string, string> = {
   ABIERTO: "Abierto",
   EN_PROCESO: "En proceso",

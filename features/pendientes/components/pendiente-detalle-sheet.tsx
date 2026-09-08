@@ -23,7 +23,7 @@ import { useUpdatePendiente } from "../api/use-update-pendiente"
 import { PendienteForm } from "./pendiente-form"
 import type { PendienteFormValues } from "../schema"
 import {
-  ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR,
+  ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR, categoriaColor,
 } from "../types"
 
 import { Button } from "@/components/ui/button"
@@ -104,6 +104,18 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
             <>
               <SheetTitle className="text-base sm:text-lg font-bold flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className="font-mono text-blue-700">{p.codigoFormateado}</span>
+                {/* Categoría primero y con más peso que el resto: es la criticidad
+                    del punch (A bloquea el arranque, D es documental) y el criterio
+                    con el que se pinta la maqueta 3D. Antes iba como chip gris al
+                    final de la tira del catálogo, donde no se veía. */}
+                {p.categoriaNombre && (
+                  <span
+                    className={`text-[11px] sm:text-sm px-2.5 py-0.5 rounded-md font-bold border ${categoriaColor(p.categoriaNombre)}`}
+                    title="Categoría del pendiente — define la criticidad"
+                  >
+                    Categoría {p.categoriaNombre}
+                  </span>
+                )}
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
                   {ESTADO_LABEL[p.estadoNombre ?? ""] ?? p.estadoNombre}
                 </span>
@@ -136,7 +148,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                   {/* Contexto del catálogo — misma info que "Datos principales" pero
                       visible sin scrollear. Tira compacta con separadores. */}
                   {(p.nivelNombre || p.especialidadNombre || p.tipoNombre
-                    || p.accionNombre || p.motivoNombre || p.categoriaNombre) && (
+                    || p.accionNombre || p.motivoNombre) && (
                     <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1">
                       {[
                         p.nivelNombre,
@@ -152,11 +164,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                             {i < arr.length - 1 && <span className="text-gray-300">·</span>}
                           </span>
                         ))}
-                      {p.categoriaNombre && (
-                        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">
-                          {p.categoriaNombre}
-                        </span>
-                      )}
+                      {/* La categoría ya no va acá: subió al título como badge. */}
                     </div>
                   )}
                   {/* Barra de acciones compacta — solo íconos en mobile con
@@ -312,7 +320,18 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
               <DataItem label="Tipo"        value={p.tipoNombre} />
               <DataItem label="Acción"      value={p.accionNombre} />
               <DataItem label="Motivo"      value={p.motivoNombre} />
-              <DataItem label="Categoría"   value={p.categoriaNombre} />
+              {/* Coloreada igual que el badge del título y que la maqueta 3D:
+                  que el mismo dato se vea del mismo color en todos lados. */}
+              {p.categoriaNombre && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">Categoría</dt>
+                  <dd className="mt-0.5">
+                    <span className={`inline-block rounded-md border px-2 py-0.5 text-xs font-bold ${categoriaColor(p.categoriaNombre)}`}>
+                      {p.categoriaNombre}
+                    </span>
+                  </dd>
+                </div>
+              )}
               <DataItem label="Detectado por" value={p.detectadoPorNombre} />
               <DataItem label="Responsable" value={p.responsableNombre} />
               <DataItem label="Grupo responsable" value={p.grupoResponsableNombre} />

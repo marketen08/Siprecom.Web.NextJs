@@ -384,6 +384,10 @@ export async function createApsViewer(
   // poder re-aplicarlo cuando el filtro (isolate) cambia — sino los colores
   // pintados antes del filtro se pierden o quedan en dbIds incorrectos.
   let lastBuckets: BucketsPorEstado | null = null
+  // Último pintado genérico (pendientes / packs). applyGhost lo re-aplica igual
+  // que lastBuckets: sin esto, cambiar el filtro borraba los colores de esos
+  // modos porque el ghost solo sabía del modo Estado.
+  let lastGrupos: GrupoColor[] | null = null
   // Marca si el isolate actual lo causamos al activar "colores por estado"
   // (sin filtro). Sirve para limpiarlo al desactivar colores y NO romper un
   // isolate que pudo haber causado el filtro de forma independiente.
@@ -652,6 +656,8 @@ export async function createApsViewer(
       // actualizando isolatedByColors = true.
       if (lastBuckets) {
         await aplicarBucketsRespetandoIsolate(lastBuckets)
+      } else if (lastGrupos) {
+        await applyColorPorGrupos(lastGrupos)
       } else {
         viewer.impl.invalidate(true, true, true)
       }
@@ -699,6 +705,7 @@ export async function createApsViewer(
       filterIsolatedIds = dbIds
       isolatedByColors = false
       if (lastBuckets) await aplicarBucketsRespetandoIsolate(lastBuckets)
+      else if (lastGrupos) await applyColorPorGrupos(lastGrupos)
       return
     }
     try {
@@ -719,6 +726,10 @@ export async function createApsViewer(
     //      para que destaquen en modelos grandes (muchísimas primitivas CAD).
     if (lastBuckets) {
       await aplicarBucketsRespetandoIsolate(lastBuckets)
+    } else if (lastGrupos) {
+      // Modo pendientes / packs: re-pintar con sus colores. Sin esto el filtro
+      // los borraba y resaltaba todo en amarillo.
+      await applyColorPorGrupos(lastGrupos)
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
@@ -868,45 +879,26 @@ export async function createApsViewer(
   // entidades sin pack queden con su color original es un feedback visual válido
   // (o gris si el backend las devolvió en sinTestGroup).
   async function applyColorPorTestGroup(buckets: BucketsPorTestGroup | null): Promise<void> {
-    if (!currentModel) return
-    // Los buckets por TestGroup todavía viajan solo con guids (el backend no manda
-    // sus dbIds), así que este camino sigue necesitando el índice para pintar. Pero
-    // APAGARLO no: con buckets null no hay nada que traducir y esperar dejaba el
-    // apagado colgado varios minutos.
-    if (buckets !== null) await conIndice()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const m: any = currentModel
-
+    // Delega en el pintado genérico: así los packs también sobreviven a los
+    // cambios de filtro y respetan el isolate, en vez de tener su propia copia
+    // de la lógica (que era donde vivía el bug de "el filtro borra los colores").
     if (buckets === null) {
-      m.clearThemingColors?.()
-      viewer.impl.invalidate(true, true, true)
+      await applyColorPorGrupos(null)
       return
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
-    const setColorHex = (ids: number[], hex: number) => {
-      const r = ((hex >> 16) & 0xff) / 255
-      const g = ((hex >> 8) & 0xff) / 255
-      const b = (hex & 0xff) / 255
-      const v4 = new THREE.Vector4(r, g, b, 1)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const id of ids) m.setThemingColor(id, v4, true)
+    const grupos: GrupoColor[] = buckets.buckets.map((b, i) => ({
+      guids: b.guids,
+      ids: b.ids,
+      hex: TESTGROUP_PALETTE_APS[i % TESTGROUP_PALETTE_APS.length],
+    }))
+    if (buckets.sinTestGroup.length > 0 || buckets.sinTestGroupIds?.length) {
+      grupos.push({
+        guids: buckets.sinTestGroup,
+        ids: buckets.sinTestGroupIds,
+        hex: TESTGROUP_SIN_PACK_COLOR_APS,
+      })
     }
-
-    m.clearThemingColors?.()
-    for (let i = 0; i < buckets.buckets.length; i++) {
-      const b = buckets.buckets[i]
-      const ids = b.ids?.length ? b.ids : guidsToIds(b.guids)
-      if (ids.length === 0) continue
-      const hex = TESTGROUP_PALETTE_APS[i % TESTGROUP_PALETTE_APS.length]
-      setColorHex(ids, hex)
-    }
-    const idsSinPack = buckets.sinTestGroupIds?.length
-      ? buckets.sinTestGroupIds
-      : guidsToIds(buckets.sinTestGroup)
-    if (idsSinPack.length > 0) setColorHex(idsSinPack, TESTGROUP_SIN_PACK_COLOR_APS)
-    viewer.impl.invalidate(true, true, true)
+    await applyColorPorGrupos(grupos)
   }
 
   /**
@@ -917,9 +909,19 @@ export async function createApsViewer(
     if (!currentModel) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = currentModel
+    lastGrupos = grupos
 
     if (grupos === null) {
       m.clearThemingColors?.()
+      // Deshacer el atenuado por fragmento (camino sin árbol) y el auto-isolate,
+      // igual que al apagar los colores por estado. Sin esto, apagar el modo
+      // dejaba la maqueta atenuada para siempre.
+      restaurarFragmentos()
+      if (isolatedByColors) {
+        try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
+        viewer.showAll()
+        isolatedByColors = false
+      }
       viewer.impl.invalidate(true, true, true)
       return
     }
@@ -927,11 +929,46 @@ export async function createApsViewer(
     const faltanIds = grupos.some((g) => !g.ids?.length && g.guids.length > 0)
     if (faltanIds) await conIndice()
 
+    // Con filtro activo pintamos SOLO lo que está dentro del isolate: si no,
+    // el color se ve a través de las piezas atenuadas y el filtro parece no
+    // aplicar. Mismo criterio que aplicarBucketsRespetandoIsolate.
+    // `[]` = "filtro activo sin resultados", distinto de null = "sin filtro".
+    let isolatedSet: Set<number> | null =
+      filterIsolatedIds !== null ? new Set(filterIsolatedIds) : null
+
+    // Sin filtro: auto-aislamos lo pintado para que el resto quede atenuado —
+    // misma UX que los colores por estado. Sin esto los colores se pierden
+    // entre los de la propia maqueta, que son parecidos, y no se lee nada.
+    // Resolvemos los dbIds UNA vez por grupo: traducir guid → dbId cuesta y
+    // los necesitamos dos veces (auto-isolate y pintado).
+    const idsPorGrupo = grupos.map((g) => (g.ids?.length ? g.ids : guidsToIds(g.guids)))
+    const pintables = idsPorGrupo.flat()
+    if (isolatedSet === null && pintables.length > 0) {
+      if (arbolListo) {
+        try { (viewer as { setGhosting?: (b: boolean) => void }).setGhosting?.(true) } catch { /* ignore */ }
+        viewer.isolate(pintables)
+        isolatedByColors = true
+        isolatedSet = new Set(pintables)
+      } else if (atenuarPorFragmentos(new Set(pintables))) {
+        // Sin árbol, isolate() no hace nada: atenuamos por fragmento, que solo
+        // necesita la geometría (disponible a los ~110 ms).
+        isolatedByColors = true
+        isolatedSet = new Set(pintables)
+      } else {
+        // Ni árbol ni fragmentos: pintamos igual y re-aplicamos cuando llegue.
+        void conArbol().then(() => {
+          if (lastGrupos) void applyColorPorGrupos(lastGrupos)
+        })
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const THREE = Autodesk.Viewing.Private?.THREE || (window as any).THREE
     m.clearThemingColors?.()
-    for (const g of grupos) {
-      const ids = g.ids?.length ? g.ids : guidsToIds(g.guids)
+    const visibles = isolatedSet
+    for (let i = 0; i < grupos.length; i++) {
+      const g = grupos[i]
+      const ids = visibles ? idsPorGrupo[i].filter((id) => visibles.has(id)) : idsPorGrupo[i]
       if (ids.length === 0) continue
       const r = ((g.hex >> 16) & 0xff) / 255
       const gg = ((g.hex >> 8) & 0xff) / 255
@@ -955,6 +992,7 @@ export async function createApsViewer(
     if (disposed) return
     disposed = true
     lastBuckets = null
+    lastGrupos = null
     isolatedByColors = false
     filterIsolatedIds = null
     try {
