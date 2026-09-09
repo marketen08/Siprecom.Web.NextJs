@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { useMsal } from "@azure/msal-react"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
@@ -56,11 +56,54 @@ async function loginRequest(data: LoginRequest): Promise<LoginApiResponse> {
   return res.json()
 }
 
+/**
+ * El BFF vuelve al login con ?error=<code> cuando el ingreso federado falla. Los
+ * codes los emite la API (/auth/ypf) o el propio callback; traducirlos acá evita
+ * mostrar jerga del protocolo al usuario.
+ *
+ * Cualquier code que no esté en el mapa cae en el mensaje genérico: es preferible
+ * a filtrar detalle interno en la pantalla de login.
+ */
+const ERRORES_FEDERADOS: Record<string, string> = {
+  ACCESS_NOT_PROVISIONED:
+    "Tu cuenta no está habilitada en la plataforma. Solicitá el acceso a un administrador.",
+  NOT_IN_ALLOWED_GROUP:
+    "Tu usuario no tiene asignado el grupo de acceso a SIPRECOM. Solicitalo a tu administrador de YPF.",
+  WRONG_LOGIN_METHOD:
+    "Tu cuenta ingresa con mail y contraseña, no con el login de YPF.",
+  MISSING_EMAIL_CLAIM:
+    "El proveedor de identidad no envió tu email. Contactá a un administrador.",
+  INVALID_STATE: "La sesión de login expiró. Volvé a intentar.",
+  INVALID_NONCE: "La sesión de login no es válida. Volvé a intentar.",
+  INVALID_ID_TOKEN: "La sesión de login no es válida. Volvé a intentar.",
+  INVALID_ACCESS_TOKEN: "La sesión de login no es válida. Volvé a intentar.",
+  IDP_ERROR: "No se pudo completar el ingreso con YPF.",
+  IDP_UNREACHABLE:
+    "No se pudo contactar al proveedor de identidad. Reintentá en unos minutos.",
+  API_UNREACHABLE: "No se pudo contactar al servidor. Reintentá en unos minutos.",
+  TOKEN_EXCHANGE_FAILED: "No se pudo completar el ingreso con YPF.",
+  FEDERATION_NOT_CONFIGURED:
+    "El ingreso federado no está configurado en este sitio.",
+}
+
 export default function LoginPage() {
   const setUser = useAuthStore((s) => s.setUser)
   const clearUser = useAuthStore((s) => s.clearUser)
   const [showPassword, setShowPassword] = useState(false)
   const { instance: msalInstance } = useMsal()
+
+  // ypfEnabled sale del server: depende de las App Settings del sitio, así que un
+  // mismo build muestra u oculta el botón según el cliente.
+  const { data: authConfig } = useQuery({
+    queryKey: ["config", "auth"],
+    queryFn: async () => {
+      const res = await fetch("/api/config/auth", { cache: "no-store" })
+      if (!res.ok) throw new Error("No se pudo leer la config de auth")
+      return (await res.json()) as { ypfEnabled?: boolean }
+    },
+    staleTime: Infinity,
+    retry: 1,
+  })
 
   // Aviso por sesión reemplazada (login en otro dispositivo). Se calcula en
   // render (no setState-in-effect) y solo tras montar (hydration-safe), leyendo
@@ -70,6 +113,15 @@ export default function LoginPage() {
     mounted && new URLSearchParams(window.location.search).get("reason") === "session_superseded"
       ? "Tu sesión se cerró porque iniciaste sesión en otro dispositivo."
       : null
+
+  // Mismo criterio que "aviso": se calcula en render y solo tras montar, leyendo
+  // window.location en vez de useSearchParams (evita envolver la página en Suspense).
+  const codigoError = mounted
+    ? new URLSearchParams(window.location.search).get("error")
+    : null
+  const errorFederado = codigoError
+    ? (ERRORES_FEDERADOS[codigoError] ?? "No se pudo iniciar sesión.")
+    : null
 
   const form = useForm<FormValues>({
     mode: "onSubmit",
@@ -92,6 +144,16 @@ export default function LoginPage() {
   })
 
   const [redirectingToMicrosoft, setRedirectingToMicrosoft] = useState(false)
+  const [redirectingToYpf, setRedirectingToYpf] = useState(false)
+
+  /**
+   * Navegación real (no fetch): el flujo entero vive server-side y arranca con un
+   * redirect al IDP. Con fetch, el 302 al dominio de YPF no navegaría el browser.
+   */
+  const handleYpfLogin = () => {
+    setRedirectingToYpf(true)
+    window.location.href = "/api/auth/ypf/login"
+  }
 
   // Si llegamos por sesión reemplazada, limpiamos el user persistido (logout
   // total). clearUser es una acción de zustand (no setState de React), así que
@@ -122,7 +184,7 @@ export default function LoginPage() {
     mutation.mutate(values)
   }
 
-  const isAnyPending = mutation.isPending || redirectingToMicrosoft
+  const isAnyPending = mutation.isPending || redirectingToMicrosoft || redirectingToYpf
 
   return (
     <Card className="grid w-full max-w-4xl gap-0 overflow-hidden border-0 p-0 shadow-2xl lg:grid-cols-5">
@@ -260,6 +322,12 @@ export default function LoginPage() {
               </div>
             )}
 
+            {errorFederado && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {errorFederado}
+              </div>
+            )}
+
             {form.formState.errors.root?.serverError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 {form.formState.errors.root.serverError.message}
@@ -298,6 +366,20 @@ export default function LoginPage() {
             : <MicrosoftIcon className="h-4 w-4" />}
           {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Continuar con Microsoft"}
         </Button>
+
+        {/* Solo en los sitios con federación configurada (App Settings del SWA). */}
+        {authConfig?.ypfEnabled && (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 w-full gap-2"
+            disabled={isAnyPending}
+            onClick={handleYpfLogin}
+          >
+            {redirectingToYpf && <Loader2 className="h-4 w-4 animate-spin" />}
+            {redirectingToYpf ? "Redirigiendo a YPF..." : "Continuar con YPF"}
+          </Button>
+        )}
 
         <p className="mt-6 text-center text-xs text-muted-foreground lg:hidden">
           © Siprecom

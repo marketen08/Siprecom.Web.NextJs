@@ -16,8 +16,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-async function logoutRequest() {
-  await fetch("/api/auth/logout", { method: "POST" })
+/**
+ * En los sitios federados el endpoint devuelve logoutUrl: la URL de end_session
+ * del IDP. Hay que navegar ahí, porque borrar solo nuestras cookies deja abierta
+ * la sesión del proveedor y el próximo "Continuar con YPF" entra sin pedir nada.
+ * El IDP después vuelve a /api/auth/logout/callback.
+ */
+async function logoutRequest(): Promise<{ logoutUrl: string | null }> {
+  const res = await fetch("/api/auth/logout", { method: "POST" })
+  const data = await res.json().catch(() => ({}) as { logoutUrl?: string | null })
+  return { logoutUrl: (data as { logoutUrl?: string | null }).logoutUrl ?? null }
 }
 
 function buildIniciales(nombre?: string, apellido?: string, email?: string): string {
@@ -37,9 +45,11 @@ export function UserMenu() {
 
   const mutation = useMutation({
     mutationFn: logoutRequest,
-    onSuccess: () => {
+    onSuccess: ({ logoutUrl }) => {
       clearUser()
-      window.location.href = "/login"
+      // Con federación vamos al IDP a cerrar la sesión de allá; él nos devuelve a
+      // /api/auth/logout/callback y de ahí al login. Sin federación, directo.
+      window.location.href = logoutUrl ?? "/login"
     },
   })
 
