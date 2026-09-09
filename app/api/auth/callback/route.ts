@@ -5,6 +5,7 @@ import {
   COOKIE_NONCE,
   COOKIE_STATE,
   COOKIE_VERIFIER,
+  COOKIE_SESION_YPF,
   authDelCliente,
   getDiscovery,
   origenPublico,
@@ -162,6 +163,12 @@ export async function GET(request: NextRequest) {
   response.cookies.set("refreshToken", data.refreshToken, {
     ...COOKIE_SESION,
     maxAge: 60 * 60 * 24 * 15, // 15 días
+  })
+  // Deja constancia de que esta sesión entró por el IDP: el logout la mira para
+  // decidir si además hay que cerrar la sesión federada.
+  response.cookies.set(COOKIE_SESION_YPF, "1", {
+    ...COOKIE_SESION,
+    maxAge: 60 * 60 * 24 * 15,
   })
   response.cookies.set(COOKIE_STATE, "", COOKIE_BORRAR)
   response.cookies.set(COOKIE_NONCE, "", COOKIE_BORRAR)

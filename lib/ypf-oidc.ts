@@ -47,8 +47,25 @@ export function ypfHabilitada(): boolean {
  * como último recurso (sirve en desarrollo local, donde no hay proxy).
  */
 export function origenPublico(origenRequest: string): string {
-  const configurado = process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_URL
-  return (configurado || origenRequest).replace(/\/+$/, "")
+  const configurado = (process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_URL || "").trim()
+  if (!configurado) return origenRequest.replace(/\/+$/, "")
+
+  const sinBarraFinal = configurado.replace(/\/+$/, "")
+
+  // Un hostname pelado ("test-ypf.siprecom.com" en vez de "https://test-ypf...")
+  // produce URLs invalidas sin que nada falle a la vista: el redirect_uri no
+  // matchea el registrado en el IDP y los NextResponse.redirect apuntan a
+  // cualquier lado. Es un error de config facil de cometer y molesto de
+  // diagnosticar, asi que lo normalizamos y dejamos rastro en el log.
+  if (!/^https?:\/\//i.test(sinBarraFinal)) {
+    console.warn(
+      `[ypf-oidc] APP_ORIGIN/NEXT_PUBLIC_APP_URL sin esquema ("${sinBarraFinal}"). ` +
+        "Asumo https://. Corregilo en la config del servicio."
+    )
+    return `https://${sinBarraFinal}`
+  }
+
+  return sinBarraFinal
 }
 
 /** Tiene que coincidir EXACTO con la URI registrada en el IDP. */
@@ -113,6 +130,16 @@ export const nuevoRandom = () => b64url(crypto.randomBytes(16))
 export const COOKIE_STATE = "ypf_state"
 export const COOKIE_VERIFIER = "ypf_verifier"
 export const COOKIE_NONCE = "ypf_nonce"
+
+/**
+ * Marca que ESTA sesión entró por el IDP federado.
+ *
+ * Sin esto, el logout mandaba al end_session del IDP a cualquiera que cerrara
+ * sesión en un sitio con federación habilitada — incluido quien había entrado con
+ * mail y contraseña, que no tiene ninguna sesión que cerrar allá. Vive lo mismo
+ * que el refreshToken.
+ */
+export const COOKIE_SESION_YPF = "ypf_sesion"
 
 /**
  * sameSite "lax" es obligatorio acá: el callback llega como navegación top-level

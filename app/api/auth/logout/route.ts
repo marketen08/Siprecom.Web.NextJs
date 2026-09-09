@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
   YPF_CLIENT_ID,
+  COOKIE_SESION_YPF,
   getDiscovery,
   postLogoutRedirectUri,
   ypfHabilitada,
@@ -27,8 +28,14 @@ export async function POST(request: NextRequest) {
   // desde el cliente: el navegador tiene que ir al IDP con una navegación real.
   // El cliente que no la use sigue funcionando igual — solo queda la sesión del
   // IDP abierta.
+  // Solo si ESTA sesión entró por el IDP. Antes alcanzaba con que el sitio tuviera
+  // la federación habilitada, así que un usuario de mail y contraseña también
+  // terminaba rebotando por el end_session de YPF — donde no tiene ninguna sesión
+  // que cerrar.
+  const vinoPorYpf = request.cookies.get(COOKIE_SESION_YPF)?.value === "1"
+
   let logoutUrl: string | null = null
-  if (ypfHabilitada()) {
+  if (vinoPorYpf && ypfHabilitada()) {
     try {
       const disc = await getDiscovery()
       if (disc.end_session_endpoint) {
@@ -50,5 +57,6 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json({ ok: true, logoutUrl })
   response.cookies.set("accessToken", "", EXPIRE_COOKIE)
   response.cookies.set("refreshToken", "", EXPIRE_COOKIE)
+  response.cookies.set(COOKIE_SESION_YPF, "", EXPIRE_COOKIE)
   return response
 }
