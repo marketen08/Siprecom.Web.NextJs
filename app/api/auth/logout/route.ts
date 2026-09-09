@@ -1,4 +1,10 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import {
+  YPF_CLIENT_ID,
+  getDiscovery,
+  postLogoutRedirectUri,
+  ypfHabilitada,
+} from "@/lib/ypf-oidc"
 
 // Para borrar una cookie hay que matchear el path con el que se seteó ("/" en el
 // login). Si se borra sin path, el Set-Cookie toma el default-path del request
@@ -12,8 +18,36 @@ const EXPIRE_COOKIE = {
   maxAge: 0,
 }
 
-export async function POST() {
-  const response = NextResponse.json({ ok: true })
+export async function POST(request: NextRequest) {
+  // En los sitios federados no alcanza con borrar nuestras cookies: si no se
+  // cierra también la sesión del IDP, el próximo "Ingresar con YPF" vuelve a
+  // entrar sin pedir credenciales (single sign-on sigue activo).
+  //
+  // Devolvemos la URL en vez de redirigir porque este endpoint se llama por fetch
+  // desde el cliente: el navegador tiene que ir al IDP con una navegación real.
+  // El cliente que no la use sigue funcionando igual — solo queda la sesión del
+  // IDP abierta.
+  let logoutUrl: string | null = null
+  if (ypfHabilitada()) {
+    try {
+      const disc = await getDiscovery()
+      if (disc.end_session_endpoint) {
+        const url = new URL(disc.end_session_endpoint)
+        url.searchParams.set("client_id", YPF_CLIENT_ID)
+        url.searchParams.set(
+          "post_logout_redirect_uri",
+          postLogoutRedirectUri(request.nextUrl.origin)
+        )
+        logoutUrl = url.toString()
+      }
+    } catch (e) {
+      // Que no se pueda cerrar la sesión federada no puede impedir el logout
+      // local: seguimos y borramos igual.
+      console.error("[logout] no se pudo armar el logout federado:", e)
+    }
+  }
+
+  const response = NextResponse.json({ ok: true, logoutUrl })
   response.cookies.set("accessToken", "", EXPIRE_COOKIE)
   response.cookies.set("refreshToken", "", EXPIRE_COOKIE)
   return response
