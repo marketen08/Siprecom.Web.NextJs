@@ -35,17 +35,34 @@ export function ypfHabilitada(): boolean {
 }
 
 /**
- * Tiene que coincidir EXACTO con la URI registrada en el IDP. Configurable porque
- * detrás de un proxy el origin que ve Next puede no ser el público.
+ * Origen público de la app.
+ *
+ * En Railway (y detrás de cualquier proxy) el origin que Next deriva de la request
+ * puede ser el interno del contenedor, no el que ve el usuario. Eso rompe dos cosas
+ * distintas: el redirect_uri que mandamos al IDP —que tiene que coincidir EXACTO
+ * con el registrado— y los redirects a /dashboard y /login, que terminarían
+ * apuntando a un host que el browser no puede resolver.
+ *
+ * Por eso preferimos siempre la URL configurada y dejamos el origin de la request
+ * como último recurso (sirve en desarrollo local, donde no hay proxy).
  */
-export function redirectUri(origin: string): string {
-  return process.env.YPF_REDIRECT_URI || `${origin}/api/auth/callback`
+export function origenPublico(origenRequest: string): string {
+  const configurado = process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_URL
+  return (configurado || origenRequest).replace(/\/+$/, "")
 }
 
-export function postLogoutRedirectUri(origin: string): string {
+/** Tiene que coincidir EXACTO con la URI registrada en el IDP. */
+export function redirectUri(origenRequest: string): string {
+  return (
+    process.env.YPF_REDIRECT_URI ||
+    `${origenPublico(origenRequest)}/api/auth/callback`
+  )
+}
+
+export function postLogoutRedirectUri(origenRequest: string): string {
   return (
     process.env.YPF_POST_LOGOUT_REDIRECT_URI ||
-    `${origin}/api/auth/logout/callback`
+    `${origenPublico(origenRequest)}/api/auth/logout/callback`
   )
 }
 

@@ -7,6 +7,7 @@ import {
   COOKIE_VERIFIER,
   authDelCliente,
   getDiscovery,
+  origenPublico,
   redirectUri,
   ypfHabilitada,
 } from "@/lib/ypf-oidc"
@@ -31,7 +32,7 @@ const COOKIE_SESION = {
 }
 
 function volverAlLogin(request: NextRequest, code: string) {
-  const url = new URL("/login", request.nextUrl.origin)
+  const url = new URL("/login", origenPublico(request.nextUrl.origin))
   url.searchParams.set("error", code)
   const res = NextResponse.redirect(url)
   // Las cookies del flujo son de un solo uso: si algo falló, que no queden dando
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
 
   const data: BackendAuthResponse = await backendRes.json()
 
-  const response = NextResponse.redirect(new URL(DESTINO_OK, request.nextUrl.origin))
+  const response = NextResponse.redirect(new URL(DESTINO_OK, origenPublico(request.nextUrl.origin)))
   response.cookies.set("accessToken", data.accessToken, {
     ...COOKIE_SESION,
     maxAge: 60 * 60, // 1 hora

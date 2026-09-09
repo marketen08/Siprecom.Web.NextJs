@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { origenPublico } from "@/lib/ypf-oidc"
 
 export const dynamic = "force-dynamic"
 
@@ -25,7 +26,7 @@ const EXPIRE_COOKIE = {
 }
 
 export async function GET(request: NextRequest) {
-  const response = NextResponse.redirect(new URL("/login", request.nextUrl.origin))
+  const response = NextResponse.redirect(new URL("/login", origenPublico(request.nextUrl.origin)))
   response.cookies.set("accessToken", "", EXPIRE_COOKIE)
   response.cookies.set("refreshToken", "", EXPIRE_COOKIE)
   return response

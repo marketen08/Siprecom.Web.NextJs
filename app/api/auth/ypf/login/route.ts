@@ -10,6 +10,7 @@ import {
   getDiscovery,
   nuevoCodeVerifier,
   nuevoRandom,
+  origenPublico,
   redirectUri,
   ypfHabilitada,
 } from "@/lib/ypf-oidc"
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error("[ypf-login] no se pudo leer el well-known:", e)
     return NextResponse.redirect(
-      new URL("/login?error=IDP_UNREACHABLE", request.nextUrl.origin)
+      new URL("/login?error=IDP_UNREACHABLE", origenPublico(request.nextUrl.origin))
     )
   }
 
