@@ -92,18 +92,30 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const { instance: msalInstance } = useMsal()
 
-  // ypfEnabled sale del server: depende de las App Settings del sitio, así que un
-  // mismo build muestra u oculta el botón según el cliente.
-  const { data: authConfig } = useQuery({
-    queryKey: ["config", "auth"],
+  // Qué métodos de ingreso ofrece este ambiente. El backend combina el toggle del
+  // SuperAdmin (Licenciamiento → Funcionalidades) con si el IDP está configurado,
+  // así que acá solo hay que dibujar lo que venga.
+  //
+  // Mientras carga no mostramos nada: pintar los botones y sacarlos medio segundo
+  // después es peor que esperar. El proxy degrada a solo-password si la API no
+  // responde, así que la pantalla nunca queda sin ninguna vía de entrada.
+  const { data: metodos } = useQuery({
+    queryKey: ["auth", "metodos"],
     queryFn: async () => {
-      const res = await fetch("/api/config/auth", { cache: "no-store" })
-      if (!res.ok) throw new Error("No se pudo leer la config de auth")
-      return (await res.json()) as { ypfEnabled?: boolean }
+      const res = await fetch("/api/auth/metodos", { cache: "no-store" })
+      if (!res.ok) throw new Error("No se pudieron leer los métodos de ingreso")
+      return (await res.json()) as {
+        password?: boolean
+        microsoft?: boolean
+        ypf?: boolean
+        google?: boolean
+      }
     },
     staleTime: Infinity,
     retry: 1,
   })
+
+  const hayFederado = Boolean(metodos?.microsoft || metodos?.ypf)
 
   // Aviso por sesión reemplazada (login en otro dispositivo). Se calcula en
   // render (no setState-in-effect) y solo tras montar (hydration-safe), leyendo
@@ -253,6 +265,22 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Fuera del form: si el ingreso con contraseña está apagado, el form no se
+            renderiza y estos avisos igual tienen que verse — el error federado
+            justamente llega cuando el único método es el federado. */}
+        {aviso && (
+          <div className="mt-6 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {aviso}
+          </div>
+        )}
+
+        {errorFederado && (
+          <div className="mt-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {errorFederado}
+          </div>
+        )}
+
+        {metodos?.password && (
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
@@ -316,18 +344,6 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {aviso && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                {aviso}
-              </div>
-            )}
-
-            {errorFederado && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {errorFederado}
-              </div>
-            )}
-
             {form.formState.errors.root?.serverError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 {form.formState.errors.root.serverError.message}
@@ -344,35 +360,40 @@ export default function LoginPage() {
             </Button>
           </form>
         </Form>
+        )}
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+        {/* El separador solo tiene sentido si hay algo a ambos lados. */}
+        {metodos?.password && hayFederado && (
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">o</span>
+            </div>
           </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">o</span>
-          </div>
-        </div>
+        )}
 
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full gap-2"
-          disabled={isAnyPending}
-          onClick={handleMicrosoftLogin}
-        >
-          {redirectingToMicrosoft
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <MicrosoftIcon className="h-4 w-4" />}
-          {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Continuar con Microsoft"}
-        </Button>
-
-        {/* Solo en los sitios con federación configurada (App Settings del SWA). */}
-        {authConfig?.ypfEnabled && (
+        {metodos?.microsoft && (
           <Button
             type="button"
             variant="outline"
-            className="mt-3 w-full gap-2"
+            className={`w-full gap-2 ${metodos?.password && hayFederado ? "" : "mt-6"}`}
+            disabled={isAnyPending}
+            onClick={handleMicrosoftLogin}
+          >
+            {redirectingToMicrosoft
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <MicrosoftIcon className="h-4 w-4" />}
+            {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Continuar con Microsoft"}
+          </Button>
+        )}
+
+        {metodos?.ypf && (
+          <Button
+            type="button"
+            variant="outline"
+            className={`w-full gap-2 ${metodos?.microsoft ? "mt-3" : metodos?.password && hayFederado ? "" : "mt-6"}`}
             disabled={isAnyPending}
             onClick={handleYpfLogin}
           >
