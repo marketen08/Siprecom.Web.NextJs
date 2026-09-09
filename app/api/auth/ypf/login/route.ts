@@ -28,14 +28,16 @@ export const dynamic = "force-dynamic"
  * para verificar que la respuesta corresponde a este mismo browser.
  */
 export async function GET(request: NextRequest) {
+  // Esta ruta se alcanza por navegación del browser, así que un JSON de error se
+  // vería como texto crudo en pantalla. Volvemos al login con el code y que ahí se
+  // muestre el mensaje. No debería pasar (el botón no se dibuja si falta config),
+  // pero alguien puede llegar por un link viejo o escribiendo la URL.
   if (!ypfHabilitada()) {
-    return NextResponse.json(
-      {
-        message:
-          "La federación con YPF no está configurada en este sitio.",
-        code: "FEDERATION_NOT_CONFIGURED",
-      },
-      { status: 503 }
+    return NextResponse.redirect(
+      new URL(
+        "/login?error=FEDERATION_NOT_CONFIGURED",
+        origenPublico(request.nextUrl.origin)
+      )
     )
   }
 

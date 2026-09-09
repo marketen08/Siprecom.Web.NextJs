@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { ypfHabilitada } from "@/lib/ypf-oidc"
 
 export const dynamic = "force-dynamic"
 
@@ -24,7 +25,17 @@ export async function GET() {
       console.error("[auth/metodos] backend respondió", res.status)
       return NextResponse.json(FALLBACK)
     }
-    return NextResponse.json(await res.json())
+
+    const datos = (await res.json()) as Record<string, boolean>
+
+    // El backend sabe si LA API tiene la federación configurada, pero el canje del
+    // code lo hace ESTE proceso con el client secret. Si el secret falta acá, el
+    // botón aparecería y el flujo moriría al primer clic. Cerramos con un AND: el
+    // método se ofrece solo cuando las dos mitades están listas.
+    return NextResponse.json({
+      ...datos,
+      ypf: Boolean(datos.ypf) && ypfHabilitada(),
+    })
   } catch (e) {
     console.error("[auth/metodos] no se pudo contactar a la API:", e)
     return NextResponse.json(FALLBACK)
