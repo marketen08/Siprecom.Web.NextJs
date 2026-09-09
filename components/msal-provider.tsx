@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import {
   PublicClientApplication,
   EventType,
@@ -56,10 +56,11 @@ function getInitPromise(): Promise<void> {
       clientId?: string
       tenantId?: string
     }
-    if (!clientId)
-      throw new Error(
-        "MICROSOFT_CLIENT_ID no está configurado en el servidor (App Settings del SWA).",
-      )
+    // Sin clientId, el sitio simplemente no ofrece ingreso con Microsoft. Es un
+    // modo válido, no un error: los sitios federados con el IDP del cliente (o los
+    // que solo usan mail y contraseña) no tienen por qué configurar una App
+    // Registration que no usan. Dejamos msalInstance en null y salimos.
+    if (!clientId) return
 
     msalInstance = new PublicClientApplication(buildMsalConfig(clientId, tenantId ?? "common"))
     await msalInstance.initialize()
@@ -87,32 +88,56 @@ function getInitPromise(): Promise<void> {
   return initPromise
 }
 
+/**
+ * Estado de MSAL para los consumidores.
+ *
+ * `disponible` false significa que NO hay contexto de MSAL montado, así que en ese
+ * caso nadie puede llamar `useMsal()` — tiraría. Los componentes que lo usan
+ * (el botón de Microsoft, la página de auth-callback) tienen que renderizarse solo
+ * cuando esto es true; como los hooks no se pueden llamar condicionalmente, la
+ * llamada vive en un componente hijo que se monta o no.
+ */
+export interface MsalEstado {
+  /** Hay una PCA inicializada y el provider de MSAL está montado. */
+  disponible: boolean
+  /**
+   * Mensaje cuando la inicialización falló de verdad (config rota, red). Null si
+   * el sitio simplemente no tiene Microsoft configurado — ese caso no es un error.
+   */
+  error: string | null
+}
+
+const MsalEstadoContext = createContext<MsalEstado>({ disponible: false, error: null })
+
+export function useMsalEstado(): MsalEstado {
+  return useContext(MsalEstadoContext)
+}
+
 export function MsalProviderClient({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false)
-  const [initError, setInitError] = useState<string | null>(null)
+  const [estado, setEstado] = useState<{ listo: boolean } & MsalEstado>({
+    listo: false,
+    disponible: false,
+    error: null,
+  })
 
   useEffect(() => {
     getInitPromise()
-      .then(() => setReady(true))
+      .then(() => setEstado({ listo: true, disponible: Boolean(msalInstance), error: null }))
       .catch((err) => {
+        // Antes esto pintaba una pantalla de error a página completa y bloqueaba
+        // TODO el route group (auth): login, auth-callback, recuperar-contraseña y
+        // establecer-contraseña. O sea que un problema con Microsoft dejaba al sitio
+        // sin ninguna vía de entrada, incluida la de recuperación.
+        //
+        // Ahora degradamos: Microsoft queda no disponible y el resto de los métodos
+        // sigue funcionando. El detalle va a la consola y al contexto, para que la
+        // pantalla de login pueda avisarlo sin bloquear.
         console.error("[msal-provider] init falló:", err)
-        setInitError(String(err?.message ?? err))
-        setReady(true)
+        setEstado({ listo: true, disponible: false, error: String(err?.message ?? err) })
       })
   }, [])
 
-  if (initError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-8">
-        <div className="max-w-md rounded border border-destructive bg-destructive/10 p-4 text-sm">
-          <p className="font-semibold mb-2">MSAL init falló:</p>
-          <pre className="whitespace-pre-wrap">{initError}</pre>
-        </div>
-      </div>
-    )
-  }
-
-  if (!ready || !msalInstance) {
+  if (!estado.listo) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Iniciando...
@@ -120,5 +145,17 @@ export function MsalProviderClient({ children }: { children: React.ReactNode }) 
     )
   }
 
-  return <MsalProviderLib instance={msalInstance}>{children}</MsalProviderLib>
+  const valor: MsalEstado = { disponible: estado.disponible, error: estado.error }
+
+  // Sin PCA no montamos el provider de MSAL: montarlo con instance null rompe a
+  // cualquier useMsal() que se ejecute abajo.
+  if (!estado.disponible || !msalInstance) {
+    return <MsalEstadoContext.Provider value={valor}>{children}</MsalEstadoContext.Provider>
+  }
+
+  return (
+    <MsalEstadoContext.Provider value={valor}>
+      <MsalProviderLib instance={msalInstance}>{children}</MsalProviderLib>
+    </MsalEstadoContext.Provider>
+  )
 }

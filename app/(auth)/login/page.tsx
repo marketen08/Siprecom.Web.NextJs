@@ -7,28 +7,17 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { useMsal } from "@azure/msal-react"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
+import { useMsalEstado } from "@/components/msal-provider"
+import { BotonLoginMicrosoft } from "@/components/boton-login-microsoft"
 import type { LoginRequest, LoginApiResponse } from "@/types/auth"
-import { loginRequest as msalLoginRequest } from "@/lib/msal-config"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-
-function MicrosoftIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 23 23" className={className} xmlns="http://www.w3.org/2000/svg">
-      <path fill="#f25022" d="M1 1h10v10H1z" />
-      <path fill="#7fba00" d="M12 1h10v10H12z" />
-      <path fill="#00a4ef" d="M1 12h10v10H1z" />
-      <path fill="#ffb900" d="M12 12h10v10H12z" />
-    </svg>
-  )
-}
 
 const formSchema = z.object({
   email: z
@@ -90,7 +79,7 @@ export default function LoginPage() {
   const setUser = useAuthStore((s) => s.setUser)
   const clearUser = useAuthStore((s) => s.clearUser)
   const [showPassword, setShowPassword] = useState(false)
-  const { instance: msalInstance } = useMsal()
+  const { disponible: msalDisponible } = useMsalEstado()
 
   // Qué métodos de ingreso ofrece este ambiente. El backend combina el toggle del
   // SuperAdmin (Licenciamiento → Funcionalidades) con si el IDP está configurado,
@@ -115,7 +104,11 @@ export default function LoginPage() {
     retry: 1,
   })
 
-  const hayFederado = Boolean(metodos?.microsoft || metodos?.ypf)
+  // Cuenta solo los botones que REALMENTE se van a dibujar: Microsoft puede estar
+  // encendido en el toggle pero sin MSAL montado. De esto depende si mostramos el
+  // separador "o", que no tiene sentido con un solo lado.
+  const mostrarMicrosoft = Boolean(metodos?.microsoft && msalDisponible)
+  const hayFederado = mostrarMicrosoft || Boolean(metodos?.ypf)
 
   // Aviso por sesión reemplazada (login en otro dispositivo). Se calcula en
   // render (no setState-in-effect) y solo tras montar (hydration-safe), leyendo
@@ -173,23 +166,6 @@ export default function LoginPage() {
   useEffect(() => {
     if (aviso) clearUser()
   }, [aviso, clearUser])
-
-  const handleMicrosoftLogin = async () => {
-    form.clearErrors("root.serverError")
-    setRedirectingToMicrosoft(true)
-    try {
-      // Redirect flow: la página se va a Microsoft. El callback procesa el response.
-      await msalInstance.loginRedirect(msalLoginRequest)
-    } catch (err: unknown) {
-      setRedirectingToMicrosoft(false)
-      const e = err as { errorCode?: string; message?: string }
-      if (e?.errorCode === "user_cancelled") return
-      form.setError("root.serverError", {
-        type: "server",
-        message: e?.message ?? "No se pudo iniciar sesión con Microsoft",
-      })
-    }
-  }
 
   const onSubmit = (values: FormValues) => {
     form.clearErrors("root.serverError")
@@ -374,26 +350,26 @@ export default function LoginPage() {
           </div>
         )}
 
-        {metodos?.microsoft && (
-          <Button
-            type="button"
-            variant="outline"
-            className={`w-full gap-2 ${metodos?.password && hayFederado ? "" : "mt-6"}`}
+        {/* msalDisponible además del toggle: si el sitio no tiene Microsoft
+            configurado no hay contexto de MSAL montado, y el useMsal() de adentro
+            del botón tiraría. */}
+        {mostrarMicrosoft && (
+          <BotonLoginMicrosoft
+            className={metodos?.password && hayFederado ? "" : "mt-6"}
             disabled={isAnyPending}
-            onClick={handleMicrosoftLogin}
-          >
-            {redirectingToMicrosoft
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <MicrosoftIcon className="h-4 w-4" />}
-            {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Continuar con Microsoft"}
-          </Button>
+            redirigiendo={redirectingToMicrosoft}
+            onRedirigiendoChange={setRedirectingToMicrosoft}
+            onError={(mensaje) =>
+              form.setError("root.serverError", { type: "server", message: mensaje })
+            }
+          />
         )}
 
         {metodos?.ypf && (
           <Button
             type="button"
             variant="outline"
-            className={`w-full gap-2 ${metodos?.microsoft ? "mt-3" : metodos?.password && hayFederado ? "" : "mt-6"}`}
+            className={`w-full gap-2 ${mostrarMicrosoft ? "mt-3" : metodos?.password && hayFederado ? "" : "mt-6"}`}
             disabled={isAnyPending}
             onClick={handleYpfLogin}
           >
