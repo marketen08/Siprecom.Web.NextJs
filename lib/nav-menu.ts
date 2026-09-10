@@ -87,6 +87,15 @@ export const menu: MenuItem[] = [
       },
     ],
   },
+  // Calidad — QA/QC del proyecto. El item se oculta salvo que el proyecto tenga
+  // habilitada la funcionalidad: el módulo arranca apagado y se prende por
+  // proyecto, así que sin el flag no hay nada que mostrar.
+  {
+    label: "Calidad",
+    minRole: "Consultor",
+    requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES",
+    children: [{ label: "No Conformidades", href: "/calidad/no-conformidades" }],
+  },
   {
     label: "Análisis",
     minRole: "Consultor",
