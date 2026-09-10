@@ -1,6 +1,8 @@
 "use client"
 
 import { Suspense, useMemo, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { AlertTriangle, Plus, Search } from "lucide-react"
 
 import { useSearchNoConformidades } from "@/features/no-conformidades/api/use-no-conformidades"
@@ -16,7 +18,6 @@ import {
   NC_SEVERIDAD,
   NC_SEVERIDAD_COLOR,
 } from "@/features/no-conformidades/types"
-import { NoConformidadDetalleSheet } from "@/features/no-conformidades/components/nc-detalle-sheet"
 import { NewNoConformidadSheet } from "@/features/no-conformidades/components/new-nc-sheet"
 import { useCanWrite } from "@/lib/use-roles"
 
@@ -54,6 +55,7 @@ export default function NoConformidadesPage() {
 
 function NoConformidadesPageContent() {
   const canWrite = useCanWrite()
+  const router = useRouter()
 
   const [search, setSearch] = useState("")
   const [tipoId, setTipoId] = useState("")
@@ -65,7 +67,6 @@ function NoConformidadesPageContent() {
   const [soloVencidas, setSoloVencidas] = useState(false)
   const [page, setPage] = useState(1)
 
-  const [detalleId, setDetalleId] = useState<string | null>(null)
   const [nuevoAbierto, setNuevoAbierto] = useState(false)
 
   const tipos = useGetNcTipos()
@@ -294,10 +295,16 @@ function NoConformidadesPageContent() {
               <TableRow
                 key={n.id}
                 className="cursor-pointer"
-                onClick={() => setDetalleId(n.id)}
+                onClick={() => router.push(`/calidad/no-conformidades/${n.id}`)}
               >
                 <TableCell className="font-mono text-xs font-semibold">
-                  {n.codigoFormateado}
+                  <Link
+                    href={`/calidad/no-conformidades/${n.id}`}
+                    className="hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {n.codigoFormateado}
+                  </Link>
                 </TableCell>
                 <TableCell>
                   <div className="font-medium">{n.titulo}</div>
@@ -371,18 +378,12 @@ function NoConformidadesPageContent() {
         </div>
       </div>
 
-      <NoConformidadDetalleSheet
-        id={detalleId}
-        open={Boolean(detalleId)}
-        onOpenChange={(o) => !o && setDetalleId(null)}
-      />
-
       <NewNoConformidadSheet
         open={nuevoAbierto}
         onOpenChange={setNuevoAbierto}
         onCreada={(id) => {
           setNuevoAbierto(false)
-          setDetalleId(id)
+          router.push(`/calidad/no-conformidades/${id}`)
         }}
       />
     </div>

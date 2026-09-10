@@ -120,7 +120,7 @@ export function NewNoConformidadSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
         <SheetHeader>
           <SheetTitle>Nuevo informe de calidad</SheetTitle>
           <SheetDescription>
@@ -129,144 +129,161 @@ export function NewNoConformidadSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-3 p-4">
-          {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+        <div className="p-4">
+          {error && (
+            <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
+          )}
 
-          <div>
-            <Label>Tipo *</Label>
-            <Select value={tipoId} onValueChange={(v) => setTipoId(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccioná el tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {(tipos.data?.data ?? []).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.codigo} — {t.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Dos columnas: la clasificacion a la izquierda, el contexto tecnico a
+              la derecha. El titulo y la descripcion cruzan las dos porque son
+              texto largo y quedan mal en media pantalla. */}
+          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Label>Título *</Label>
+              <Input
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                maxLength={300}
+                placeholder="Resumen en una línea"
+              />
+            </div>
 
-          <div>
-            <Label>Título *</Label>
-            <Input
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              maxLength={300}
-              placeholder="Resumen en una línea"
-            />
-          </div>
-
-          <div>
-            <Label>Severidad</Label>
-            <Select value={severidad} onValueChange={(v) => setSeveridad(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">Menor</SelectItem>
-                <SelectItem value="2">Mayor</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Área afectada *</Label>
-            <Select value={grupoAfectadoId} onValueChange={(v) => setGrupoAfectadoId(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Quién tiene que resolver" />
-              </SelectTrigger>
-              <SelectContent>
-                {gruposCalidad.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Área de seguimiento *</Label>
-            <Select value={grupoSeguimientoId} onValueChange={(v) => setGrupoSeguimientoId(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Quién controla y valida" />
-              </SelectTrigger>
-              <SelectContent>
-                {gruposCalidad.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {mismasAreas && (
-              <p className="mt-1 text-xs text-destructive">
-                El área de seguimiento debe ser distinta de la afectada: una ejecuta y la
-                otra controla.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <Label>Motivo</Label>
-            <Select value={motivoId} onValueChange={(v) => setMotivoId(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Opcional" />
-              </SelectTrigger>
-              <SelectContent>
-                {(motivos.data?.data ?? []).map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Subsistema</Label>
-            <Select value={subSistemaId} onValueChange={(v) => setSubSistemaId(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Opcional" />
-              </SelectTrigger>
-              <SelectContent>
-                {((subsistemas.data?.data ?? []) as { id: string; codigo: string; nombre: string }[]).map(
-                  (s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.codigo} — {s.nombre}
+            <div>
+              <Label>Tipo *</Label>
+              <Select value={tipoId} onValueChange={(v) => setTipoId(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccioná el tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(tipos.data?.data ?? []).map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.codigo} - {t.nombre}
                     </SelectItem>
-                  ),
-                )}
-              </SelectContent>
-            </Select>
-            {!subSistemaId && (
-              <p className="mt-1 text-xs text-amber-700">
-                Sin subsistema, el informe no bloquea la emisión de certificados.
-              </p>
-            )}
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Severidad</Label>
+              <Select value={severidad} onValueChange={(v) => setSeveridad(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Menor</SelectItem>
+                  <SelectItem value="2">Mayor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Área afectada *</Label>
+              <Select
+                value={grupoAfectadoId}
+                onValueChange={(v) => setGrupoAfectadoId(v ?? "")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Quién tiene que resolver" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gruposCalidad.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Área de seguimiento *</Label>
+              <Select
+                value={grupoSeguimientoId}
+                onValueChange={(v) => setGrupoSeguimientoId(v ?? "")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Quién controla y valida" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gruposCalidad.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {mismasAreas && (
+                <p className="mt-1 text-xs text-destructive">
+                  Debe ser distinta de la afectada: una ejecuta y la otra controla.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label>Motivo</Label>
+              <Select value={motivoId} onValueChange={(v) => setMotivoId(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Opcional" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(motivos.data?.data ?? []).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Fecha de compromiso</Label>
+              <Input
+                type="date"
+                value={fechaCompromiso}
+                onChange={(e) => setFechaCompromiso(e.target.value)}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label>Subsistema</Label>
+              <Select value={subSistemaId} onValueChange={(v) => setSubSistemaId(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Opcional" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    (subsistemas.data?.data ?? []) as {
+                      id: string
+                      codigo: string
+                      nombre: string
+                    }[]
+                  ).map((sub) => (
+                    <SelectItem key={sub.id} value={sub.id}>
+                      {sub.codigo} - {sub.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!subSistemaId && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Sin subsistema, el informe no bloquea la emisión de certificados.
+                </p>
+              )}
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label>Descripción del hallazgo *</Label>
+              <Textarea
+                rows={4}
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Qué se detectó y en qué contexto."
+              />
+            </div>
           </div>
 
-          <div>
-            <Label>Fecha de compromiso</Label>
-            <Input
-              type="date"
-              value={fechaCompromiso}
-              onChange={(e) => setFechaCompromiso(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label>Descripción del hallazgo *</Label>
-            <Textarea
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Qué se detectó y en qué contexto."
-            />
-          </div>
-
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-4">
             <Button disabled={!puedeGuardar} onClick={guardar}>
               {crear.isPending ? "Creando…" : "Crear informe"}
             </Button>
