@@ -120,7 +120,7 @@ export function NewNoConformidadSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl!">
         <SheetHeader>
           <SheetTitle>Nuevo informe de calidad</SheetTitle>
           <SheetDescription>
