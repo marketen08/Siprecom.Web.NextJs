@@ -77,7 +77,7 @@ export function NewNoConformidadSheet({
 }: Props) {
   const tipos = useGetNcTipos()
   const motivos = useGetNcMotivos()
-  const grupos = useGetUsuariosGrupos()
+  const grupos = useGetUsuariosGrupos("calidad")
   const subsistemas = useGetSubSistemasSelect()
   const crear = useCreateNoConformidad()
 
@@ -94,9 +94,7 @@ export function NewNoConformidadSheet({
 
   const listaTipos = tipos.data?.data ?? []
   const listaMotivos = motivos.data?.data ?? []
-  // El flag UsoCalidad existe en la base pero el API todavía no lo expone (el ABM
-  // es del paso 6). Por ahora se ofrecen todos los grupos activos: el default de
-  // la columna es true, así que el resultado es el mismo.
+  // Solo los grupos marcados para uso en Calidad (?uso=calidad).
   const gruposCalidad = grupos.data?.data ?? []
   const listaSubsistemas = (subsistemas.data?.data ?? []) as {
     id: string

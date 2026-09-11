@@ -72,7 +72,7 @@ function NoConformidadesPageContent() {
   const tipos = useGetNcTipos()
   const estados = useGetNcEstados()
   const motivos = useGetNcMotivos()
-  const grupos = useGetUsuariosGrupos()
+  const grupos = useGetUsuariosGrupos("calidad")
 
   const filter = useMemo(
     () => ({

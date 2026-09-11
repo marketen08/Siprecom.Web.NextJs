@@ -34,6 +34,7 @@ interface EditSheetState {
   descripcion: string
   usoPendientes: boolean
   usoAccesoProyecto: boolean
+  usoCalidad: boolean
 }
 
 export default function GruposUsuariosPage() {
@@ -52,7 +53,7 @@ export default function GruposUsuariosPage() {
     if (!editSheet || !editSheet.nombre.trim()) return
     // Guard local — al menos un uso declarado. El backend también valida,
     // pero acá lo cortamos antes para no gastar el request.
-    if (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto) {
+    if (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto && !editSheet.usoCalidad) {
       setError("Seleccioná al menos un caso de uso.")
       return
     }
@@ -63,6 +64,7 @@ export default function GruposUsuariosPage() {
         descripcion: editSheet.descripcion.trim() || undefined,
         usoPendientes: editSheet.usoPendientes,
         usoAccesoProyecto: editSheet.usoAccesoProyecto,
+        usoCalidad: editSheet.usoCalidad,
       }
       if (editSheet.mode === "new") await create.mutateAsync(payload)
       else await update.mutateAsync({ id: editSheet.id!, ...payload })
@@ -101,6 +103,7 @@ export default function GruposUsuariosPage() {
             // backend exige al menos uno antes de guardar.
             usoPendientes: false,
             usoAccesoProyecto: false,
+            usoCalidad: false,
           }) }}
           className="gap-2"
         >
@@ -148,11 +151,16 @@ export default function GruposUsuariosPage() {
                           Acceso a proyecto
                         </span>
                       )}
+                      {g.usoCalidad && (
+                        <span className="inline-flex items-center rounded bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 text-[11px] font-medium">
+                          Calidad
+                        </span>
+                      )}
                       {/* Grupos activos nuevos siempre tienen al menos un uso
                           (regla de validación). Los que no aparecen acá son
                           legacy de antes de la regla — quedan silenciados y se
                           arreglan al primer edit. */}
-                      {!g.usoPendientes && !g.usoAccesoProyecto && (
+                      {!g.usoPendientes && !g.usoAccesoProyecto && !g.usoCalidad && (
                         <span
                           className="inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[11px] font-medium"
                           title="Grupo legacy sin uso declarado. Editalo y marcá al menos uno."
@@ -200,6 +208,7 @@ export default function GruposUsuariosPage() {
                         descripcion: g.descripcion ?? "",
                         usoPendientes: g.usoPendientes,
                         usoAccesoProyecto: g.usoAccesoProyecto,
+                        usoCalidad: g.usoCalidad,
                       }) }}
                     >
                       <Pencil className="h-4 w-4" />
@@ -280,13 +289,23 @@ export default function GruposUsuariosPage() {
                   />
                   Acceso a proyecto <span className="text-xs text-muted-foreground">(bulk-add desde grupo)</span>
                 </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                    checked={editSheet?.usoCalidad ?? true}
+                    onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoCalidad: e.target.checked } : editSheet)}
+                  />
+                  Calidad <span className="text-xs text-muted-foreground">(área afectada/seguimiento + matriz de autorización)</span>
+                </label>
                 {/* (Checkbox "Visibilidad de pendientes" eliminado 2026-09 —
                     el modelo de "grupo de visibilidad" separable se reemplazó
                     por el toggle EsInterno del pendiente.) */}
               </div>
               {editSheet
                 && !editSheet.usoPendientes
-                && !editSheet.usoAccesoProyecto && (
+                && !editSheet.usoAccesoProyecto
+                && !editSheet.usoCalidad && (
                 <p className="mt-2 text-[11px] text-amber-700">
                   Marcá al menos uno — sino el grupo no aparecerá en ningún selector.
                 </p>
@@ -301,7 +320,7 @@ export default function GruposUsuariosPage() {
                   !editSheet?.nombre.trim()
                   || create.isPending
                   || update.isPending
-                  || (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto)
+                  || (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto && !editSheet.usoCalidad)
                 }
                 className="flex-1"
               >
