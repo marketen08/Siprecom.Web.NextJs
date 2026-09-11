@@ -29,7 +29,7 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Se llama con el id del informe creado, para abrir su detalle. */
+  /** Se llama con el id del informe creado, para navegar a su detalle. */
   onCreada?: (id: string) => void
   /** Cuando se escala desde un pendiente, queda vinculado como origen. */
   pendienteOrigenId?: string
@@ -41,6 +41,31 @@ interface Props {
     especialidadId?: string
     descripcion?: string
   }
+}
+
+/**
+ * Campo del formulario. El wrapper con `space-y-1.5` es lo que separa la
+ * etiqueta del control — sin eso quedan pegados. Es la misma separación que usa
+ * FilterField en la barra de filtros.
+ */
+function Campo({
+  label,
+  children,
+  className,
+  hint,
+}: {
+  label: string
+  children: React.ReactNode
+  className?: string
+  hint?: React.ReactNode
+}) {
+  return (
+    <div className={`space-y-1.5 ${className ?? ""}`}>
+      <Label>{label}</Label>
+      {children}
+      {hint}
+    </div>
+  )
 }
 
 export function NewNoConformidadSheet({
@@ -67,10 +92,17 @@ export function NewNoConformidadSheet({
   const [fechaCompromiso, setFechaCompromiso] = useState("")
   const [descripcion, setDescripcion] = useState(defaults?.descripcion ?? "")
 
-  // El flag UsoCalidad existe en la base pero el API todavia no lo expone (el ABM
+  const listaTipos = tipos.data?.data ?? []
+  const listaMotivos = motivos.data?.data ?? []
+  // El flag UsoCalidad existe en la base pero el API todavía no lo expone (el ABM
   // es del paso 6). Por ahora se ofrecen todos los grupos activos: el default de
-  // la columna es true, asi que el resultado es el mismo.
+  // la columna es true, así que el resultado es el mismo.
   const gruposCalidad = grupos.data?.data ?? []
+  const listaSubsistemas = (subsistemas.data?.data ?? []) as {
+    id: string
+    codigo: string
+    nombre: string
+  }[]
 
   const mismasAreas =
     Boolean(grupoAfectadoId) && grupoAfectadoId === grupoSeguimientoId
@@ -134,57 +166,62 @@ export function NewNoConformidadSheet({
             <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
           )}
 
-          {/* Dos columnas: la clasificacion a la izquierda, el contexto tecnico a
-              la derecha. El titulo y la descripcion cruzan las dos porque son
-              texto largo y quedan mal en media pantalla. */}
-          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Label>Título *</Label>
+          {/* Dos columnas: la clasificación a la izquierda, el contexto a la
+              derecha. Título y descripción cruzan ambas porque son texto largo. */}
+          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <Campo label="Título *" className="sm:col-span-2">
               <Input
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
                 maxLength={300}
                 placeholder="Resumen en una línea"
               />
-            </div>
+            </Campo>
 
-            <div>
-              <Label>Tipo *</Label>
+            <Campo label="Tipo *">
               <Select value={tipoId} onValueChange={(v) => setTipoId(v ?? "")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccioná el tipo" />
+                <SelectTrigger className="w-full">
+                  {/* Sin children, SelectValue muestra el value crudo — o sea el
+                      GUID. Hay que resolver la etiqueta a mano. */}
+                  <SelectValue>
+                    {(() => {
+                      const t = listaTipos.find((x) => x.id === tipoId)
+                      return t ? `${t.codigo} — ${t.nombre}` : "Seleccioná el tipo"
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(tipos.data?.data ?? []).map((t) => (
+                  {listaTipos.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.codigo} - {t.nombre}
+                      {t.codigo} — {t.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Campo>
 
-            <div>
-              <Label>Severidad</Label>
-              <Select value={severidad} onValueChange={(v) => setSeveridad(v ?? "")}>
-                <SelectTrigger>
-                  <SelectValue />
+            <Campo label="Severidad">
+              <Select value={severidad} onValueChange={(v) => setSeveridad(v ?? "1")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>{severidad === "2" ? "Mayor" : "Menor"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">Menor</SelectItem>
                   <SelectItem value="2">Mayor</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Campo>
 
-            <div>
-              <Label>Área afectada *</Label>
+            <Campo label="Área afectada *">
               <Select
                 value={grupoAfectadoId}
                 onValueChange={(v) => setGrupoAfectadoId(v ?? "")}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Quién tiene que resolver" />
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {gruposCalidad.find((g) => g.id === grupoAfectadoId)?.nombre ??
+                      "Quién tiene que resolver"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {gruposCalidad.map((g) => (
@@ -194,16 +231,27 @@ export function NewNoConformidadSheet({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Campo>
 
-            <div>
-              <Label>Área de seguimiento *</Label>
+            <Campo
+              label="Área de seguimiento *"
+              hint={
+                mismasAreas ? (
+                  <p className="text-xs text-destructive">
+                    Debe ser distinta de la afectada: una ejecuta y la otra controla.
+                  </p>
+                ) : null
+              }
+            >
               <Select
                 value={grupoSeguimientoId}
                 onValueChange={(v) => setGrupoSeguimientoId(v ?? "")}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Quién controla y valida" />
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {gruposCalidad.find((g) => g.id === grupoSeguimientoId)?.nombre ??
+                      "Quién controla y valida"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {gruposCalidad.map((g) => (
@@ -213,77 +261,77 @@ export function NewNoConformidadSheet({
                   ))}
                 </SelectContent>
               </Select>
-              {mismasAreas && (
-                <p className="mt-1 text-xs text-destructive">
-                  Debe ser distinta de la afectada: una ejecuta y la otra controla.
-                </p>
-              )}
-            </div>
+            </Campo>
 
-            <div>
-              <Label>Motivo</Label>
+            <Campo label="Motivo">
               <Select value={motivoId} onValueChange={(v) => setMotivoId(v ?? "")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Opcional" />
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {listaMotivos.find((m) => m.id === motivoId)?.nombre ?? "Opcional"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(motivos.data?.data ?? []).map((m) => (
+                  {listaMotivos.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Campo>
 
-            <div>
-              <Label>Fecha de compromiso</Label>
+            <Campo label="Fecha de compromiso">
               <Input
                 type="date"
                 value={fechaCompromiso}
                 onChange={(e) => setFechaCompromiso(e.target.value)}
               />
-            </div>
+            </Campo>
 
-            <div className="sm:col-span-2">
-              <Label>Subsistema</Label>
-              <Select value={subSistemaId} onValueChange={(v) => setSubSistemaId(v ?? "")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Opcional" />
+            <Campo
+              label="Subsistema"
+              className="sm:col-span-2"
+              hint={
+                !subSistemaId ? (
+                  <p className="text-xs text-amber-700">
+                    Sin subsistema, el informe no bloquea la emisión de certificados.
+                  </p>
+                ) : null
+              }
+            >
+              <Select
+                value={subSistemaId}
+                onValueChange={(v) => setSubSistemaId(v ?? "")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(() => {
+                      const s = listaSubsistemas.find((x) => x.id === subSistemaId)
+                      return s ? `${s.codigo} — ${s.nombre}` : "Opcional"
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(
-                    (subsistemas.data?.data ?? []) as {
-                      id: string
-                      codigo: string
-                      nombre: string
-                    }[]
-                  ).map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id}>
-                      {sub.codigo} - {sub.nombre}
+                  {listaSubsistemas.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.codigo} — {s.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {!subSistemaId && (
-                <p className="mt-1 text-xs text-amber-700">
-                  Sin subsistema, el informe no bloquea la emisión de certificados.
-                </p>
-              )}
-            </div>
+            </Campo>
 
-            <div className="sm:col-span-2">
-              <Label>Descripción del hallazgo *</Label>
+            <Campo label="Descripción del hallazgo *" className="sm:col-span-2">
               <Textarea
                 rows={4}
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 placeholder="Qué se detectó y en qué contexto."
               />
-            </div>
+            </Campo>
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2 pt-5">
             <Button disabled={!puedeGuardar} onClick={guardar}>
               {crear.isPending ? "Creando…" : "Crear informe"}
             </Button>

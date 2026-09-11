@@ -139,7 +139,15 @@ function NoConformidadesPageContent() {
           }}
         >
           <SelectTrigger className="w-[210px]">
-            <SelectValue placeholder="Estado" />
+            {/* Sin children, SelectValue muestra el value crudo (el GUID). */}
+            <SelectValue>
+              {(() => {
+                if (estadoSel === OPEN) return "Todos los abiertos"
+                if (estadoSel === ALL) return "Todos los estados"
+                const e = (estados.data?.data ?? []).find((x) => x.id === estadoSel)
+                return NC_ESTADO_LABEL[e?.estado ?? ""] ?? e?.estado ?? "Estado"
+              })()}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={OPEN}>Todos los abiertos</SelectItem>
@@ -160,7 +168,12 @@ function NoConformidadesPageContent() {
           }}
         >
           <SelectTrigger className="w-[170px]">
-            <SelectValue placeholder="Tipo" />
+            <SelectValue>
+              {(() => {
+                const t = (tipos.data?.data ?? []).find((x) => x.id === tipoId)
+                return t ? `${t.codigo} — ${t.nombre}` : "Todos los tipos"
+              })()}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Todos los tipos</SelectItem>
@@ -180,7 +193,9 @@ function NoConformidadesPageContent() {
           }}
         >
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Severidad" />
+            <SelectValue>
+              {severidad ? NC_SEVERIDAD[Number(severidad)] : "Toda severidad"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Toda severidad</SelectItem>
@@ -197,7 +212,10 @@ function NoConformidadesPageContent() {
           }}
         >
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Motivo" />
+            <SelectValue>
+              {(motivos.data?.data ?? []).find((m) => m.id === motivoId)?.nombre ??
+                "Todos los motivos"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Todos los motivos</SelectItem>
@@ -217,7 +235,10 @@ function NoConformidadesPageContent() {
           }}
         >
           <SelectTrigger className="w-[210px]">
-            <SelectValue placeholder="Área afectada" />
+            <SelectValue>
+              {(grupos.data?.data ?? []).find((g) => g.id === grupoAfectadoId)?.nombre ??
+                "Todas las áreas"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Todas las áreas</SelectItem>
