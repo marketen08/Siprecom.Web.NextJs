@@ -412,91 +412,87 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
     }
   }
 
+  // Filtro local del lado derecho. El de la izquierda va contra el server
+  // (useGetUsuarios); acá alcanza con filtrar en memoria porque los miembros ya
+  // están todos cargados en el detalle del grupo.
+  const [filtroMiembros, setFiltroMiembros] = useState("")
+  const miembrosFiltrados = useMemo(() => {
+    const q = filtroMiembros.trim().toLowerCase()
+    if (!q) return miembros
+    return miembros.filter((m) =>
+      [m.apellido, m.nombre, m.email].filter(Boolean).join(" ").toLowerCase().includes(q),
+    )
+  }, [miembros, filtroMiembros])
+
+  // El backend devuelve como mucho 50: si se llega al tope, puede haber usuarios
+  // que no se ven y conviene avisarlo en vez de que parezca que no existen.
+  const hayMasCandidatos = (usuariosData?.data ?? []).length >= 50
+
   return (
     <Sheet open={grupoId !== null} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-4xl!">
         <SheetHeader>
           <SheetTitle>Miembros — {grupo?.nombre ?? ""}</SheetTitle>
           <SheetDescription>
-            {miembros.length} miembro{miembros.length !== 1 ? "s" : ""} activo{miembros.length !== 1 ? "s" : ""}.
+            {miembros.length} miembro{miembros.length !== 1 ? "s" : ""} activo
+            {miembros.length !== 1 ? "s" : ""}. Agregá desde la izquierda, quitá desde la
+            derecha.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 px-4 space-y-6">
-          {/* Miembros actuales */}
-          <div>
-            <h3 className="text-sm font-semibold mb-2">En el grupo</h3>
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground">Cargando...</p>
-            ) : miembros.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Sin miembros todavía.</p>
-            ) : (
-              <ul className="space-y-1">
-                {miembros.map((m) => (
-                  <li
-                    key={m.usuarioId}
-                    className="flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1.5 text-sm"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        {[m.apellido, m.nombre].filter(Boolean).join(", ") || m.email || m.usuarioId}
-                      </p>
-                      {m.email && (
-                        <p className="text-xs text-muted-foreground truncate">{m.email}</p>
-                      )}
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-red-600"
-                      title="Quitar del grupo"
-                      disabled={quitar.isPending}
-                      onClick={() => quitarUsuario(m.usuarioId)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        {/* Dos columnas de alto fijo con scroll independiente: mover gente entre
+            listas sin que se mueva el layout es lo que hace usable el transfer. */}
+        <div className="grid min-h-0 flex-1 gap-4 px-4 pb-4 md:grid-cols-2">
+          {/* ── Disponibles ── */}
+          <section className="flex min-h-0 flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">Disponibles</h3>
+              <p className="text-xs text-muted-foreground">
+                Usuarios activos que no están en el grupo.
+              </p>
+            </header>
 
-          {/* Buscar y agregar */}
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Agregar usuario</h3>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre o email..."
-                className="pl-8"
-              />
+            <div className="border-b p-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar por nombre o email…"
+                  className="pl-8"
+                />
+              </div>
+              {hayMasCandidatos && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Mostrando los primeros 50. Refiná la búsqueda si no encontrás a alguien.
+                </p>
+              )}
             </div>
 
-            <ul className="mt-3 space-y-1 max-h-72 overflow-y-auto">
+            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
               {candidatos.length === 0 ? (
-                <li className="text-sm text-muted-foreground italic">
-                  {busqueda ? "Sin coincidencias." : "Escribí para buscar usuarios."}
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  {busqueda ? "Sin coincidencias." : "No hay usuarios disponibles."}
                 </li>
               ) : (
                 candidatos.map((u) => (
                   <li
                     key={u.id}
-                    className="flex items-center gap-2 rounded-md border border-gray-100 hover:bg-gray-50 px-2 py-1.5 text-sm"
+                    className="flex items-center gap-2 rounded-md border border-gray-100 px-2 py-1.5 text-sm hover:bg-gray-50"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
                         {[u.apellido, u.nombre].filter(Boolean).join(", ") || u.email}
                       </p>
                       {u.email && (
-                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                        <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                       )}
                     </div>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="gap-1"
+                      className="shrink-0 gap-1"
+                      title="Agregar al grupo"
                       disabled={agregar.isPending}
                       onClick={() => agregarUsuario(u.id)}
                     >
@@ -507,7 +503,77 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
                 ))
               )}
             </ul>
-          </div>
+          </section>
+
+          {/* ── En el grupo ── */}
+          <section className="flex min-h-0 flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">
+                En el grupo{" "}
+                <span className="font-normal tabular-nums text-muted-foreground">
+                  ({miembros.length})
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Quitar a alguien no lo da de baja, solo lo saca del grupo.
+              </p>
+            </header>
+
+            <div className="border-b p-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={filtroMiembros}
+                  onChange={(e) => setFiltroMiembros(e.target.value)}
+                  placeholder="Filtrar miembros…"
+                  className="pl-8"
+                  disabled={miembros.length === 0}
+                />
+              </div>
+            </div>
+
+            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+              {isLoading ? (
+                <li className="p-2 text-sm text-muted-foreground">Cargando…</li>
+              ) : miembros.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  Sin miembros todavía.
+                </li>
+              ) : miembrosFiltrados.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  Sin coincidencias.
+                </li>
+              ) : (
+                miembrosFiltrados.map((m) => (
+                  <li
+                    key={m.usuarioId}
+                    className="flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1.5 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {[m.apellido, m.nombre].filter(Boolean).join(", ") ||
+                          m.email ||
+                          m.usuarioId}
+                      </p>
+                      {m.email && (
+                        <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+                      )}
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0 text-red-600"
+                      title="Quitar del grupo"
+                      disabled={quitar.isPending}
+                      onClick={() => quitarUsuario(m.usuarioId)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
         </div>
       </SheetContent>
     </Sheet>
