@@ -59,8 +59,14 @@ const ERRORES_FEDERADOS: Record<string, string> = {
     "Tu cuenta no está habilitada en la plataforma. Solicitá el acceso a un administrador.",
   NOT_IN_ALLOWED_GROUP:
     "Tu usuario no tiene asignado el grupo de acceso a SIPRECOM. Solicitalo a tu administrador de YPF.",
+  // La API arma un texto segun el metodo real del usuario ("ingresa con
+  // Microsoft" / "con mail y contraseña"), pero ese texto no llega hasta aca: el
+  // callback propaga solo el code, a proposito. Por eso el mensaje tiene que ser
+  // correcto para cualquier metodo — el anterior afirmaba "mail y contraseña" y
+  // mentia con un usuario de Microsoft. El detalle exacto no le sirve a quien
+  // esta loguandose (la accion es la misma); queda del lado del admin.
   WRONG_LOGIN_METHOD:
-    "Tu cuenta ingresa con mail y contraseña, no con el login de YPF.",
+    "Tu cuenta no está habilitada para ingresar con YPF. Pedile a un administrador que cambie tu método de ingreso.",
   MISSING_EMAIL_CLAIM:
     "El proveedor de identidad no envió tu email. Contactá a un administrador.",
   INVALID_STATE: "La sesión de login expiró. Volvé a intentar.",
