@@ -6,10 +6,11 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
 import { useMsalEstado } from "@/components/msal-provider"
+import { useMetodosLogin } from "@/features/auth/api/use-metodos-login"
 import { BotonLoginMicrosoft } from "@/components/boton-login-microsoft"
 import type { LoginRequest, LoginApiResponse } from "@/types/auth"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
@@ -88,21 +89,7 @@ export default function LoginPage() {
   // Mientras carga no mostramos nada: pintar los botones y sacarlos medio segundo
   // después es peor que esperar. El proxy degrada a solo-password si la API no
   // responde, así que la pantalla nunca queda sin ninguna vía de entrada.
-  const { data: metodos } = useQuery({
-    queryKey: ["auth", "metodos"],
-    queryFn: async () => {
-      const res = await fetch("/api/auth/metodos", { cache: "no-store" })
-      if (!res.ok) throw new Error("No se pudieron leer los métodos de ingreso")
-      return (await res.json()) as {
-        password?: boolean
-        microsoft?: boolean
-        ypf?: boolean
-        google?: boolean
-      }
-    },
-    staleTime: Infinity,
-    retry: 1,
-  })
+  const { data: metodos } = useMetodosLogin()
 
   // Cuenta solo los botones que REALMENTE se van a dibujar: Microsoft puede estar
   // encendido en el toggle pero sin MSAL montado. De esto depende si mostramos el

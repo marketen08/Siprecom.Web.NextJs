@@ -1,15 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2, AlertTriangle, Mail, KeyRound } from "lucide-react"
+import { Loader2, AlertTriangle, Mail, KeyRound, Building2 } from "lucide-react"
 
 import { useCreateUsuario } from "../api/use-create-usuario"
 import { useGetProyectosSelect } from "@/features/proyectos/api/use-get-proyectos-select"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
+import { useMetodosLogin } from "@/features/auth/api/use-metodos-login"
 
 import {
   Sheet,
@@ -25,12 +26,15 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
-// LoginMethod: 0 = Mail+contraseña (invitación), 1 = Microsoft.
+// LoginMethod: 0 = Mail+contraseña (invitación), 1 = Microsoft, 2 = YPF (IBM Verify).
+// El backend exige que coincida con la vía por la que el usuario después intenta
+// entrar: un usuario creado como 0 que llega por el login federado recibe un 403
+// WRONG_LOGIN_METHOD. Por eso el metodo se elige en el alta y no se infiere.
 const schema = z.object({
   email: z.string().email("Email inválido"),
   nombre: z.string().min(1, "Requerido").max(100),
   apellido: z.string().min(1, "Requerido").max(100),
-  loginMethod: z.number().int().min(0).max(1),
+  loginMethod: z.number().int().min(0).max(2),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -49,10 +53,27 @@ function MetodoLoginSelector({
   onChange: (v: number) => void
   disabled?: boolean
 }) {
+  // Sólo ofrecemos los métodos que este sitio tiene habilitados. Un sitio sin
+  // federación no debería mostrar "YPF": el alta quedaría creada con un método
+  // por el que nadie puede entrar. Mientras carga asumimos el caso base.
+  const { data: metodos } = useMetodosLogin()
+
   const opciones = [
-    { v: 0, label: "Mail + contraseña", desc: "Recibe una invitación para definir su contraseña", icon: KeyRound },
-    { v: 1, label: "Microsoft", desc: "Ingresa con su cuenta de Microsoft (SSO)", icon: Mail },
-  ]
+    { v: 0, label: "Mail + contraseña", desc: "Recibe una invitación para definir su contraseña", icon: KeyRound, visible: metodos?.password !== false },
+    { v: 1, label: "Microsoft", desc: "Ingresa con su cuenta de Microsoft (SSO)", icon: Mail, visible: Boolean(metodos?.microsoft) },
+    { v: 2, label: "YPF (IBM Verify)", desc: "Ingresa con su usuario de YPF. Requiere tener asignado el grupo de acceso.", icon: Building2, visible: Boolean(metodos?.ypf) },
+  ].filter((o) => o.visible)
+
+  // Un sitio puede no tener password (caso YPF-only), y ahi el default 0 del form
+  // apunta a un metodo que no se ofrece: se crearia el usuario con una via por la
+  // que no puede entrar. Si el valor elegido no esta disponible, caemos al primero.
+  const disponibles = opciones.map((o) => o.v).join(",")
+  useEffect(() => {
+    if (!disponibles) return
+    const vals = disponibles.split(",").map(Number)
+    if (!vals.includes(value)) onChange(vals[0])
+  }, [disponibles, value, onChange])
+
   return (
     <div className="grid grid-cols-1 gap-2">
       {opciones.map((o) => {
