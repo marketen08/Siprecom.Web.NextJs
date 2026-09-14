@@ -97,8 +97,14 @@ function SidebarItem({
   // Proyecto solo pre-firmados → no hay firmas electrónicas: ocultar "Mis firmas".
   if (item.requiereFirmas && ocultarFirmas) return null
 
-  // Funcionalidad (feature flag) requerida y no habilitada en el proyecto activo.
-  if (item.requiereFuncionalidad && funcionalidades[item.requiereFuncionalidad] === false) return null
+  // Funcionalidad (feature flag) requerida. Se muestra sólo si está explícitamente
+  // en true: si la clave falta —mapa todavía cargando, o una versión del front que
+  // conoce una funcionalidad que el backend no— el item queda oculto.
+  //
+  // Antes el criterio era `=== false`, que falla abierto: una clave ausente dejaba
+  // el item a la vista. Para un flag que arranca apagado eso es exactamente al
+  // revés de lo que se quiere.
+  if (item.requiereFuncionalidad && funcionalidades[item.requiereFuncionalidad] !== true) return null
 
   // Rol mínimo efectivo: el propio o el heredado del ancestro. Lo calculamos
   // siempre porque además de gatear el render, se pasa a los hijos como
@@ -224,11 +230,11 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   const activo = proyectos?.find((p) => p.esActivo)
   const ocultarFirmas = !!activo && !activo.permitirRegistroDigital && activo.registrosFisicosPreFirmados
 
-  // Funcionalidades efectivas del proyecto activo (feature flags). Si no hay
-  // proyecto activo todavía, no ocultamos nada (mapa vacío → sin filtro).
-  const funcionalidades: Record<string, boolean> = activo
-    ? { MAQUETA_3D: activo.maqueta3d }
-    : {}
+  // Funcionalidades efectivas del proyecto activo (feature flags), mapa completo
+  // del catálogo. Antes acá se armaba a mano con una sola clave (MAQUETA_3D), así
+  // que cualquier item gateado por otra funcionalidad —Preservación, Paro de
+  // planta— se mostraba siempre, con el flag apagado.
+  const funcionalidades: Record<string, boolean> = activo?.funcionalidades ?? {}
 
   return (
     <>

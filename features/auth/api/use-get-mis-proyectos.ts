@@ -22,6 +22,13 @@ export interface ProyectoOpcion {
    * materializarlas desde /alcance/tareas/generacion.
    */
   generacionTareasManual: boolean
+  /**
+   * Estado efectivo (global AND proyecto) de TODAS las funcionalidades del
+   * catálogo, por clave. Los booleanos sueltos de arriba quedan por los
+   * consumidores que ya los usan, pero para gatear algo nuevo conviene este mapa:
+   * no hay que tocar el backend por cada funcionalidad.
+   */
+  funcionalidades: Record<string, boolean>
 }
 
 export function useGetMisProyectos() {
