@@ -16,7 +16,7 @@ export interface Usuario {
   sociedadId?: string
   terminalId?: string
   color?: string
-  /** Método de ingreso: 0 = mail+contraseña, 1 = Microsoft (SSO). */
+  /** Método de ingreso: 0 = mail+contraseña, 1 = Microsoft (SSO), 2 = YPF (IBM Verify). */
   loginMethod?: number
   /** Roles asignados al usuario. Viene en los listados. */
   roles?: string[]
