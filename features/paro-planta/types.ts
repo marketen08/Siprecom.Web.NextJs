@@ -22,6 +22,15 @@ export interface ParadaConfig {
   usarImpacto: boolean
   estado: EstadoParada
   horasPlan: number | null
+
+  enviarMails: boolean
+  mailsDestinatarios: string | null
+  mailsCadaHoras: number
+  mailsHasta: string | null
+  /** Solo lectura. */
+  ultimoMailEnviado: string | null
+  /** Cuántas direcciones se entendieron de la lista cargada. */
+  mailsDestinatariosValidos: number
 }
 
 export interface ParadaConfigUpdate {
@@ -32,6 +41,11 @@ export interface ParadaConfigUpdate {
   umbralSemaforo: number
   umbralCobertura: number
   usarImpacto: boolean
+
+  enviarMails: boolean
+  mailsDestinatarios: string | null
+  mailsCadaHoras: number
+  mailsHasta: string | null
 }
 
 export interface ParadaKpi {
