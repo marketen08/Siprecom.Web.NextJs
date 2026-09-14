@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
-// PUT /api/usuarios/[id]/login-method  Body: { loginMethod: 0|1 }
+// PUT /api/usuarios/[id]/login-method  Body: { loginMethod: 0|1|2 }
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
