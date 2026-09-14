@@ -21,6 +21,7 @@ import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyect
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useUpdatePendiente } from "../api/use-update-pendiente"
 import { PendienteForm } from "./pendiente-form"
+import { PendienteCalidadPanel } from "@/features/no-conformidades/components/pendiente-calidad-panel"
 import type { PendienteFormValues } from "../schema"
 import {
   ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR, categoriaColor,
@@ -310,6 +311,17 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
             )}
 
             {puedeVerWorkflow && <Separator className="hidden sm:block" />}
+
+            {/* Puente con Calidad: informes generados a partir de este
+                pendiente + boton para escalarlo. Se auto-oculta si el
+                proyecto no tiene habilitado el modulo. */}
+            <PendienteCalidadPanel
+              pendienteId={p.id}
+              descripcion={p.descripcion}
+              subSistemaId={p.subSistemaId}
+              elementoId={p.elementoId}
+              especialidadId={p.especialidadId}
+            />
 
             {/* Datos principales — 1 columna en mobile (más legible con valores
                 largos como TAG-1234 — Nombre), 2 columnas en sm+. `sm:col-span-2`
