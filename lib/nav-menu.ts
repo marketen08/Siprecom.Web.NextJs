@@ -74,6 +74,7 @@ export const menu: MenuItem[] = [
       { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true, minRole: "User" },
       { label: "Paquetes de prueba",      href: "/ejecucion/test-groups" },
       { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
+      { label: "Paro de planta",         href: "/ejecucion/paro-planta", requiereFuncionalidad: "PARO_PLANTA" },
       // Herramientas — carga masiva por QR / app de escritorio offline. Vivían
       // en un top-level "Herramientas"; ahora quedan como submenu de Ejecución
       // porque son herramientas de ejecución.
