@@ -6,6 +6,13 @@ import { BreadcrumbProvider } from "@/components/breadcrumb-context"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 /**
+ * Hallazgo #2 del pentest: estas rutas se prerenderizaban en build y quedaban
+ * como HTML estatico cacheable. Puesto en el layout, el segment config alcanza
+ * a todas las paginas del grupo — 94 rutas — sin tocar cada archivo.
+ */
+export const dynamic = "force-dynamic"
+
+/**
  * Layout para páginas que aprovechan todo el ancho del viewport — visor 3D
  * principalmente. Misma navbar superior que el dashboard. El sidebar se monta
  * en modo `drawer`: overlay oculto por defecto que el usuario abre con un botón
