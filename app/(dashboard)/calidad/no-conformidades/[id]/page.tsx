@@ -2,7 +2,7 @@
 
 import { use, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Link2, MessageSquare } from "lucide-react"
+import { ArrowLeft, FileDown, Link2, MessageSquare } from "lucide-react"
 
 import {
   useAgregarComentario,
@@ -100,6 +100,19 @@ export default function NoConformidadDetallePage({
             {NC_ESTADO_NARRATIVA[nc.estadoNombre] ?? ""}
           </p>
         </div>
+
+        {/* Descarga directa: el proxy reenvia el blob con su Content-Disposition,
+            asi que un <a> alcanza y el archivo sale con el codigo como nombre. */}
+        <Button asChild variant="outline">
+          <a
+            href={`/api/no-conformidades/${nc.id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FileDown className="mr-2 h-4 w-4" />
+            Descargar PDF
+          </a>
+        </Button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
