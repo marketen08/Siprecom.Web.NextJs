@@ -4,7 +4,7 @@ import { use, useState, useMemo, Suspense } from "react"
 import {
   Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
-  UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight, Link as LinkIcon, Copy,
+  UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight, Link as LinkIcon, Copy, Building2,
 } from "lucide-react"
 import { useEffect } from "react"
 
@@ -23,6 +23,7 @@ import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-passwor
 import { useGetPasswordLink } from "@/features/usuarios/api/use-get-password-link"
 import { useResendInvite } from "@/features/usuarios/api/use-resend-invite"
 import { useCambiarLoginMethod } from "@/features/usuarios/api/use-cambiar-login-method"
+import { useMetodosLogin } from "@/features/auth/api/use-metodos-login"
 import { useSetProyectoActivoAdmin } from "@/features/usuarios/api/use-set-proyecto-activo-admin"
 import { useDeactivateUsuario } from "@/features/usuarios/api/use-deactivate-usuario"
 import { useDeactivateUsuarioPermanent } from "@/features/usuarios/api/use-deactivate-usuario-permanent"
@@ -151,7 +152,8 @@ function TabDatos({ usuario }: { usuario: any }) {
   const [passwordSaved, setPasswordSaved] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
 
-  const esMicrosoft = (usuario.loginMethod ?? 0) === 1
+  // Microsoft (1) e YPF (2) son vias federadas: ninguna tiene contrasena local.
+  const sinPasswordLocal = (usuario.loginMethod ?? 0) !== 0
   // El reset directo de contraseña (admin escribe una nueva) queda restringido a
   // SuperAdmin — para el resto la forma canónica es "Generar link" (más seguro,
   // el admin nunca conoce la contraseña del user).
@@ -272,17 +274,17 @@ function TabDatos({ usuario }: { usuario: any }) {
         </CardContent>
       </Card>
 
-      {/* Método de ingreso (Microsoft ↔ mail+contraseña) */}
+      {/* Método de ingreso (mail+contraseña / Microsoft / YPF) */}
       <MetodoIngresoSection usuario={usuario} />
 
       {/* ── Columna derecha: Acceso ────────────────────────────────────────── */}
 
       {/* Restablecer contraseña + link para definir (misma card, mismo tema).
-          Se oculta cuando el usuario ingresa por SSO Microsoft — no tiene
-          contraseña local y las 2 acciones (reset directo + link) no aplican.
-          Si el admin necesita habilitarla, primero tiene que cambiar el método
-          de ingreso a mail+contraseña desde la card "Método de ingreso" arriba. */}
-      {!esMicrosoft && (
+          Se oculta cuando el usuario ingresa por una via federada (Microsoft o
+          YPF) — no tiene contraseña local y las 2 acciones (reset directo +
+          link) no aplican. Si el admin necesita habilitarla, primero tiene que
+          cambiar el método de ingreso a mail+contraseña desde la card arriba. */}
+      {!sinPasswordLocal && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -471,39 +473,75 @@ function TabDatos({ usuario }: { usuario: any }) {
   )
 }
 
-// ─── Método de ingreso (Microsoft ↔ mail+contraseña) ─────────────────────────
+// ─── Método de ingreso (mail+contraseña / Microsoft / YPF) ───────────────────
+
+// Los tres métodos que soporta el backend (LoginMethod). El login federado exige
+// que el método del usuario coincida con la vía por la que entra: si no, devuelve
+// 403 WRONG_LOGIN_METHOD. Por eso esto es un cambio explícito del admin.
+const METODOS = [
+  {
+    v: 0,
+    label: "Mail + contraseña",
+    icon: KeyRound,
+    badge: "bg-gray-100 text-gray-700",
+    consecuencia: "El usuario pasará a ingresar con mail y contraseña. Le vamos a enviar un email para que defina su contraseña.",
+  },
+  {
+    v: 1,
+    label: "Microsoft (SSO)",
+    icon: Mail,
+    badge: "bg-blue-50 text-blue-700",
+    consecuencia: "El usuario pasará a ingresar con su cuenta de Microsoft (SSO).",
+  },
+  {
+    v: 2,
+    label: "YPF (IBM Verify)",
+    icon: Building2,
+    badge: "bg-emerald-50 text-emerald-700",
+    consecuencia: "El usuario pasará a ingresar con su usuario de YPF. Además del cambio acá, necesita tener asignado el grupo de acceso a SIPRECOM en YPF.",
+  },
+] as const
 
 function MetodoIngresoSection({ usuario }: { usuario: any }) {
   const cambiar = useCambiarLoginMethod(usuario.id)
-  const [confirming, setConfirming] = useState(false)
+  const { data: metodos } = useMetodosLogin()
+  const [destino, setDestino] = useState<number | null>(null)
   const [mensaje, setMensaje] = useState<string | null>(null)
 
-  // 0 = mail+contraseña, 1 = Microsoft
-  const esMicrosoft = (usuario.loginMethod ?? 0) === 1
-  const destino = esMicrosoft ? 0 : 1
+  const actual = (usuario.loginMethod ?? 0) as number
+  const metodoActual = METODOS.find((m) => m.v === actual) ?? METODOS[0]
+
+  // Sólo ofrecemos cambiar a un método habilitado en este sitio. El actual se
+  // muestra siempre, aunque esté deshabilitado: si no, la card mentiría sobre
+  // cómo entra hoy el usuario.
+  const habilitado = (v: number) =>
+    v === 0 ? metodos?.password !== false : v === 1 ? Boolean(metodos?.microsoft) : Boolean(metodos?.ypf)
+  const alternativas = METODOS.filter((m) => m.v !== actual && habilitado(m.v))
 
   async function handleConfirm() {
+    if (destino === null) return
     setMensaje(null)
     const resp = (await cambiar.mutateAsync(destino)) as any
     setMensaje(resp?.message ?? "Método de ingreso actualizado.")
-    setConfirming(false)
+    setDestino(null)
   }
+
+  const metodoDestino = METODOS.find((m) => m.v === destino)
+  const IconActual = metodoActual.icon
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          {esMicrosoft
-            ? <Mail className="h-4 w-4 text-muted-foreground" />
-            : <KeyRound className="h-4 w-4 text-muted-foreground" />}
+          <IconActual className="h-4 w-4 text-muted-foreground" />
           Método de ingreso
         </CardTitle>
-        <CardDescription>Elegí cómo el usuario accede al sistema: SSO de Microsoft o mail + contraseña.</CardDescription>
+        <CardDescription>Elegí cómo el usuario accede al sistema. Sólo puede usar uno.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${esMicrosoft ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-            {esMicrosoft ? "Microsoft (SSO)" : "Mail + contraseña"}
+          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${metodoActual.badge}`}>
+            {metodoActual.label}
           </span>
           <span className="text-xs text-muted-foreground">método actual</span>
         </div>
@@ -514,25 +552,40 @@ function MetodoIngresoSection({ usuario }: { usuario: any }) {
           </div>
         )}
 
-        {!confirming ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => { setConfirming(true); setMensaje(null) }}
-            disabled={cambiar.isPending}
-          >
-            {esMicrosoft ? <KeyRound className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
-            {esMicrosoft ? "Cambiar a mail + contraseña" : "Cambiar a Microsoft"}
-          </Button>
+        {destino === null ? (
+          alternativas.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No hay otro método de ingreso habilitado en este sitio.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {alternativas.map((m) => {
+                const Icon = m.icon
+                return (
+                  <Button
+                    key={m.v}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => { setDestino(m.v); setMensaje(null) }}
+                    disabled={cambiar.isPending}
+                  >
+                    <Icon className="h-4 w-4" />
+                    Cambiar a {m.label}
+                  </Button>
+                )
+              })}
+            </div>
+          )
         ) : (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
               <p className="text-sm">
-                {esMicrosoft
-                  ? "El usuario pasará a ingresar con mail y contraseña. Le vamos a enviar un email para que defina su contraseña, y dejará de poder entrar con Microsoft."
-                  : "El usuario pasará a ingresar con su cuenta de Microsoft (SSO). Se le quitará la contraseña local: ya no podrá entrar con mail y contraseña."}
+                {metodoDestino?.consecuencia}{" "}
+                {actual === 0
+                  ? "Se le quitará la contraseña local: ya no podrá entrar con mail y contraseña."
+                  : `Dejará de poder entrar con ${metodoActual.label}.`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -540,7 +593,7 @@ function MetodoIngresoSection({ usuario }: { usuario: any }) {
                 {cambiar.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {cambiar.isPending ? "Cambiando..." : "Sí, cambiar"}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={cambiar.isPending}>
+              <Button variant="outline" size="sm" onClick={() => setDestino(null)} disabled={cambiar.isPending}>
                 Cancelar
               </Button>
             </div>

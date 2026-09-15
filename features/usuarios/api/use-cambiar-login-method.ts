@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 
-/** Cambia el método de ingreso del usuario. loginMethod: 0 = mail+contraseña, 1 = Microsoft. */
+/** Cambia el método de ingreso del usuario. loginMethod: 0 = mail+contraseña, 1 = Microsoft, 2 = YPF (IBM Verify). */
 export function useCambiarLoginMethod(usuarioId: string) {
   const qc = useQueryClient()
   return useMutation({
