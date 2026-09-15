@@ -8,6 +8,13 @@ import { ProyectoActivoHeader } from "@/components/proyecto-activo-header"
 import { RouteGuard } from "@/components/route-guard"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
+/**
+ * Hallazgo #2 del pentest: estas rutas se prerenderizaban en build y quedaban
+ * como HTML estatico cacheable. Puesto en el layout, el segment config alcanza
+ * a todas las paginas del grupo — 94 rutas — sin tocar cada archivo.
+ */
+export const dynamic = "force-dynamic"
+
 export default function DashboardLayout({
   children,
 }: {
