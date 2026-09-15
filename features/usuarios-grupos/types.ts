@@ -4,6 +4,8 @@ export interface UsuarioGrupo {
   descripcion: string | null
   /** Se muestra como opción al configurar la matriz de autorización del workflow de Pendientes. */
   usoPendientes: boolean
+  /** Se muestra al elegir area afectada/seguimiento de una No Conformidad y en su matriz de autorizacion. */
+  usoCalidad: boolean
   /** Se muestra como opción al asignar usuarios a un proyecto ("Agregar desde grupo"). */
   usoAccesoProyecto: boolean
   cantidadMiembros: number
@@ -20,7 +22,7 @@ export interface UsuarioGrupo {
 }
 
 /** Filtro opcional para el listado de grupos, usado por contextos específicos. */
-export type UsoGrupoFiltro = "pendientes" | "acceso-proyecto"
+export type UsoGrupoFiltro = "pendientes" | "acceso-proyecto" | "calidad"
 
 export interface UsuarioGrupoMiembro {
   membresiaId: string
@@ -39,5 +41,7 @@ export interface UsuarioGrupoInput {
   nombre: string
   descripcion?: string
   usoPendientes: boolean
+  /** Se muestra al elegir area afectada/seguimiento de una No Conformidad y en su matriz de autorizacion. */
+  usoCalidad: boolean
   usoAccesoProyecto: boolean
 }

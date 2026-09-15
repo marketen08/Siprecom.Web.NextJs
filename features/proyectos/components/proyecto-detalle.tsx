@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
-  Users, CalendarRange, Box,
+  Users, CalendarRange, Box, ClipboardCheck,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -45,6 +45,7 @@ import { TIPO_FIRMA_CONFIG, TIPO_FIRMA_CONFIG_LABEL, type EstadoProyecto, type F
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { PendientesAutorizacionSection } from "@/features/pendientes-autorizacion/components/pendientes-autorizacion-section"
+import { NcAutorizacionSection } from "@/features/no-conformidades-autorizacion/components/nc-autorizacion-section"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -56,7 +57,7 @@ import {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "general" | "configuracion" | "usuarios" | "firmas" | "pendientes" | "modelo3d"
+type Tab = "general" | "configuracion" | "usuarios" | "firmas" | "pendientes" | "calidad" | "modelo3d"
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "general",       label: "Datos generales", icon: <Settings       className="h-4 w-4" /> },
@@ -64,6 +65,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "usuarios",      label: "Usuarios",        icon: <Users          className="h-4 w-4" /> },
   { id: "firmas",        label: "Firmas",          icon: <PenLine        className="h-4 w-4" /> },
   { id: "pendientes",    label: "Pendientes",      icon: <AlertTriangle  className="h-4 w-4" /> },
+  { id: "calidad",       label: "Calidad",         icon: <ClipboardCheck className="h-4 w-4" /> },
   { id: "modelo3d",      label: "Modelo 3D",       icon: <Box            className="h-4 w-4" /> },
 ]
 
@@ -145,6 +147,7 @@ function ProyectoDetailContent({ id, contexto }: { id: string; contexto: Proyect
         {tab === "usuarios"      && <TabUsuarios      proyectoId={id} />}
         {tab === "firmas"        && <TabFirmas        proyectoId={id} />}
         {tab === "pendientes"    && <TabPendientes    proyectoId={id} />}
+        {tab === "calidad"       && <TabCalidad       proyectoId={id} />}
         {tab === "modelo3d"      && <TabModelo3D      proyecto={proyecto} />}
       </div>
     </div>
@@ -1352,6 +1355,12 @@ function TabModelo3D({ proyecto }: { proyecto: Proyecto }) {
 
 function TabPendientes({ proyectoId }: { proyectoId: string }) {
   return <PendientesAutorizacionSection proyectoId={proyectoId} />
+}
+
+// ─── Tab Calidad: quién firma cada etapa del informe ───────────────────
+
+function TabCalidad({ proyectoId }: { proyectoId: string }) {
+  return <NcAutorizacionSection proyectoId={proyectoId} />
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
