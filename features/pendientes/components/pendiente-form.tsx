@@ -342,10 +342,11 @@ export function PendienteForm({
 
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false)
 
-  // Toggle "🔒 Interno" — el modelo es un simple boolean `esInterno`. Cuando
-  // es true, solo los asignatarios (creador, responsable, grupo responsable,
-  // Admin+) ven el pendiente. Sin selectores, sin overrides.
-  const esInterno = form.watch("esInterno") ?? false
+  // Toggle "🔒 Interno" — el modelo es un simple boolean `esInterno` (se lee
+  // del propio FormField). Cuando es true, solo los asignatarios (creador,
+  // responsable, grupo responsable, Admin+) ven el pendiente. No tiene grupo
+  // propio: reusa el grupo responsable, por eso el box de interno ofrece el
+  // atajo para asignarlo cuando no hay ninguno.
 
   // Toggle "Asignar al grupo responsable por defecto" — mismo patrón simple.
   // Compone el estado de grupoResponsableId: on con default del proyecto lo
@@ -382,14 +383,14 @@ export function PendienteForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((values) => {
-          // Guard local: si "Asignar al grupo responsable por defecto" está
+          // Guard local: si "Asignar al grupo responsable" está
           // activo pero no hay grupo elegido (proyecto sin default), pedimos
           // al usuario que elija uno en avanzado.
           if (asignarGrupoResp && !values.grupoResponsableId) {
             setAvanzadoAbierto(true)
             form.setError("grupoResponsableId", {
               type: "manual",
-              message: "Elegí un grupo o desactivá 'Asignar al grupo responsable por defecto'.",
+              message: "Elegí un grupo o desactivá 'Asignar al grupo responsable'.",
             })
             return
           }
@@ -574,131 +575,167 @@ export function PendienteForm({
         <Separator />
 
         {/* ── Responsable + Fecha ── */}
-        {/* El grupo responsable (co-responsable, opcional) se maneja con el
-            toggle de abajo — el select con override vive en Opciones avanzadas. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField
-            control={form.control}
-            name="responsableId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Responsable *</FormLabel>
-                <FormControl>
-                  <Combobox
-                    options={usuarios.map((u) => {
-                      const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
-                      // En SIPRECOM el userName suele ser el email — evitamos duplicarlo.
-                      const identificador = u.userName && u.userName !== u.email ? u.userName : u.email
-                      const label = nombreCompleto
-                        ? `${nombreCompleto} — ${identificador}`
-                        : identificador
-                      return { value: u.usuarioId, label }
-                    })}
-                    value={field.value ?? ""}
-                    onChange={(v) => field.onChange(v || "")}
-                    placeholder="Asignar a un usuario"
-                    searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
-                    emptyMessage="Sin usuarios en el proyecto"
-                    disabled={isPending || readonlyResponsable}
-                  />
-                </FormControl>
-                {readonlyResponsable && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Para reasignar, usá la acción de workflow en el detalle del pendiente.
-                  </p>
-                )}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="fechaCierreEstimado"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cierre estimado *</FormLabel>
-                <FormControl>
-                  <Input type="date" disabled={isPending} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {/* Toggles de visibilidad y asignación grupal. Ambos son simples:
-            "Interno" es un boolean del pendiente; "Asignar al grupo
-            responsable por defecto" compone el estado de grupoResponsableId
-            (el select para override vive en Opciones avanzadas). */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Toggle "Pendiente interno" — boolean simple. La audiencia la
-              define la asignación operativa (creador + responsable + grupo
-              responsable + Admin+). */}
-          <FormField
-            control={form.control}
-            name="esInterno"
-            render={({ field }) => (
-              <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-blue-900"
-                    checked={!!field.value}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                    disabled={isPending}
-                  />
-                  <span className="text-sm font-medium">🔒 Pendiente interno</span>
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  {field.value
-                    ? "Solo lo ven el creador, el responsable, los miembros del grupo responsable y roles Admin+."
-                    : "Visible para todos los que acceden al proyecto."}
-                </p>
-              </FormItem>
-            )}
-          />
-
-          {/* Toggle "Grupo responsable por defecto" — compone
-              grupoResponsableId. No otorga permisos, solo hace que el
-              pendiente aparezca en "Míos" a todos los miembros del grupo. */}
-          <div className="rounded-md border bg-white px-3 py-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-blue-900"
-                checked={asignarGrupoResp}
-                onChange={(e) => handleToggleGrupoResp(e.target.checked)}
-                disabled={isPending || readonlyResponsable}
-              />
-              <span className="text-sm font-medium">👥 Asignar al grupo responsable por defecto</span>
-            </label>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {!asignarGrupoResp
-                ? 'Solo el responsable nominal verá este pendiente en "Míos".'
-                : grupoResponsableIdActual
-                  ? (
-                      <>
-                        Grupo:{" "}
-                        <span className="font-medium text-gray-800">
-                          {grupoResponsableActualNombre ?? "…"}
-                        </span>
-                        {esOverrideResp && (
-                          <span className="ml-2 inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
-                            override
+        {/* Cada columna agrupa el dato con el toggle que lo modula: el
+            responsable con "asignar al grupo responsable" (que extiende el
+            "Míos" a todo el grupo), la fecha con "pendiente interno". El
+            select de grupo con override vive en Opciones avanzadas. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          <div className="flex flex-col gap-3">
+            <FormField
+              control={form.control}
+              name="responsableId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Responsable *</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={usuarios.map((u) => {
+                        const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
+                        // En SIPRECOM el userName suele ser el email — evitamos duplicarlo.
+                        const identificador = u.userName && u.userName !== u.email ? u.userName : u.email
+                        const label = nombreCompleto
+                          ? `${nombreCompleto} — ${identificador}`
+                          : identificador
+                        return { value: u.usuarioId, label }
+                      })}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || "")}
+                      placeholder="Asignar a un usuario"
+                      searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
+                      emptyMessage="Sin usuarios en el proyecto"
+                      disabled={isPending || readonlyResponsable}
+                    />
+                  </FormControl>
+                  {readonlyResponsable && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Para reasignar, usá la acción de workflow en el detalle del pendiente.
+                    </p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+  
+            {/* Toggle "Grupo responsable por defecto" — compone
+                grupoResponsableId. No otorga permisos, solo hace que el
+                pendiente aparezca en "Míos" a todos los miembros del grupo.
+                Va pegado al responsable porque extiende esa misma asignación. */}
+            <div className="rounded-md border bg-white px-3 py-3">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-blue-900"
+                  checked={asignarGrupoResp}
+                  onChange={(e) => handleToggleGrupoResp(e.target.checked)}
+                  disabled={isPending || readonlyResponsable}
+                />
+                <span className="text-sm font-medium">👥 Asignar al grupo responsable</span>
+              </label>
+              {/* El texto describe siempre el efecto de tildarlo (estado OFF) o
+                  el efecto ya aplicado (estado ON) — nunca la limitación actual,
+                  que se leía como si el grupo no fuera a ver el pendiente. */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {!asignarGrupoResp
+                  ? 'Marcá para asignar este pendiente a todo el grupo responsable, además del responsable.'
+                  : grupoResponsableIdActual
+                    ? (
+                        <>
+                          Lo verán en &quot;Míos&quot; todos los miembros de{" "}
+                          <span className="font-medium text-gray-800">
+                            {grupoResponsableActualNombre ?? "…"}
                           </span>
-                        )}
-                        {!esOverrideResp && grupoRespDefaultId && (
-                          <span className="ml-1 text-[10px] text-muted-foreground">(default del proyecto)</span>
-                        )}
-                      </>
-                    )
-                  : (
-                      <span className="text-amber-700">
-                        ⚠️ Este proyecto no tiene grupo responsable por defecto. Elegí uno en Opciones avanzadas.
-                      </span>
-                    )}
-            </p>
+                          {esOverrideResp && (
+                            <span className="ml-2 inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
+                              override
+                            </span>
+                          )}
+                          {!esOverrideResp && grupoRespDefaultId && (
+                            <span className="ml-1 text-[10px] text-muted-foreground">(default del proyecto)</span>
+                          )}
+                        </>
+                      )
+                    : (
+                        <span className="text-amber-700">
+                          ⚠️ Este proyecto no tiene grupo responsable por defecto. Elegí uno en Opciones avanzadas.
+                        </span>
+                      )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <FormField
+              control={form.control}
+              name="fechaCierreEstimado"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cierre estimado *</FormLabel>
+                  <FormControl>
+                    <Input type="date" disabled={isPending} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Toggle "Pendiente interno" — boolean simple. La audiencia la
+                define la asignación operativa (creador + responsable + grupo
+                responsable + Admin+). Mismo criterio de texto que el toggle de
+                grupo: en OFF se describe qué pasa si se tilda. */}
+            <FormField
+              control={form.control}
+              name="esInterno"
+              render={({ field }) => (
+                <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-blue-900"
+                      checked={!!field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      disabled={isPending}
+                    />
+                    <span className="text-sm font-medium">🔒 Pendiente interno</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {!field.value
+                      ? "Marcá para ocultarlo al resto del proyecto: solo lo verán el creador, el responsable y el grupo responsable."
+                      : grupoResponsableIdActual
+                        ? (
+                            <>
+                              Solo lo ven el creador, el responsable y los miembros de{" "}
+                              <span className="font-medium text-gray-800">
+                                {grupoResponsableActualNombre ?? "…"}
+                              </span>
+                              .
+                            </>
+                          )
+                        : "Solo lo ven el creador y el responsable."}
+                  </p>
+                  {/* Sin grupo asignado, un pendiente interno queda casi invisible.
+                      El select de grupo vive detrás del toggle de al lado, así que
+                      acá damos el atajo en vez de duplicar el selector. */}
+                  {field.value && !grupoResponsableIdActual && (
+                    <p className="text-xs text-amber-700">
+                      ⚠️ Ningún grupo asignado.
+                      {!readonlyResponsable && (
+                        <>
+                          {" "}
+                          <button
+                            type="button"
+                            className="underline underline-offset-2 font-medium hover:text-amber-900 disabled:opacity-50"
+                            onClick={() => handleToggleGrupoResp(true)}
+                            disabled={isPending}
+                          >
+                            Asignar al grupo responsable
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  )}
+                </FormItem>
+              )}
+            />
           </div>
         </div>
 
