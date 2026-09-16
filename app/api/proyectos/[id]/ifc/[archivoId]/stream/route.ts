@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { BackendAuthResponse } from "@/types/auth"
+import { headersIpCliente } from "@/lib/server/ip-cliente"
 
 const BACKEND_URL = process.env.API_URL
 
@@ -45,7 +46,7 @@ export async function GET(
 
     const refreshRes = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headersIpCliente(request) },
       body: JSON.stringify({ accessToken, refreshToken }),
     })
 

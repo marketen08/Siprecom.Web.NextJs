@@ -26,7 +26,15 @@ export function useBulkAssignProyectosUsuario(usuarioId: string) {
   })
 }
 
-/** Desasigna varios proyectos en batch. */
+/**
+ * Desasigna varios proyectos en batch.
+ *
+ * Si entre ellos está el proyecto activo del usuario, también se lo quita y su
+ * activo queda en null — antes se omitía en silencio y la desasignación salía
+ * parcial. El usuario elige otro desde el switcher, que muestra "Sin proyecto".
+ * Por eso se invalida además el detalle del usuario y, si es el propio, la lista
+ * de sus proyectos.
+ */
 export function useBulkUnassignProyectosUsuario(usuarioId: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -34,6 +42,8 @@ export function useBulkUnassignProyectosUsuario(usuarioId: string) {
       apiClient.post<BulkResponse>(`/api/usuarios/${usuarioId}/proyectos/bulk-remove`, { proyectoIds }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["usuario-proyectos", usuarioId] })
+      qc.invalidateQueries({ queryKey: ["usuarios", usuarioId] })
+      qc.invalidateQueries({ queryKey: ["mis-proyectos"] })
     },
   })
 }

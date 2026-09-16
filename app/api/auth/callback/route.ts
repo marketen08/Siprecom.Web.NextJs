@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { BackendAuthResponse } from "@/types/auth"
+import { headersIpCliente } from "@/lib/server/ip-cliente"
 import {
   COOKIE_BORRAR,
   COOKIE_NONCE,
@@ -130,7 +131,7 @@ export async function GET(request: NextRequest) {
   try {
     backendRes = await fetch(`${API_URL}/auth/ypf`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headersIpCliente(request) },
       body: JSON.stringify({
         idToken: tokens.id_token,
         accessToken: tokens.access_token,
