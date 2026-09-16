@@ -22,7 +22,6 @@
     "@tanstack/react-table": "^8.21.3",
     "@thatopen/components": "^3.4.6",
     "@thatopen/fragments": "^3.4.5",
-    "axios": "^1.13.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jsqr": "^1.4.0",
