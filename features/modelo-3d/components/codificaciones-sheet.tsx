@@ -39,6 +39,8 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
 
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [copiado, setCopiado] = useState(false)
+  const [exportando, setExportando] = useState(false)
+  const [exportError, setExportError] = useState("")
 
   // Pre-seleccionar las que parecen TAG cuando llegan los datos.
   useEffect(() => {
@@ -109,6 +111,12 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
             </div>
           )}
 
+          {exportError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              {exportError}
+            </div>
+          )}
+
           {query.isError && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
               {(query.error as Error)?.message ?? "No se pudo analizar el modelo."}
@@ -138,10 +146,24 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
                     size="sm"
                     variant="outline"
                     className="gap-1.5"
-                    onClick={() => exportCodificacionesExcel(codis, seleccion, archivoNombre)}
+                    disabled={exportando}
+                    onClick={async () => {
+                      // El Excel ahora lo genera el backend, así que puede fallar
+                      // por red o por sesión. Sin este catch el error quedaría en
+                      // una promesa sin manejar y el usuario vería que no pasa nada.
+                      setExportError("")
+                      setExportando(true)
+                      try {
+                        await exportCodificacionesExcel(codis, seleccion, archivoNombre)
+                      } catch (e) {
+                        setExportError(e instanceof Error ? e.message : "No se pudo generar el Excel.")
+                      } finally {
+                        setExportando(false)
+                      }
+                    }}
                   >
                     <FileSpreadsheet className="h-3.5 w-3.5" />
-                    Excel
+                    {exportando ? "Generando..." : "Excel"}
                   </Button>
                   <Button
                     size="sm"

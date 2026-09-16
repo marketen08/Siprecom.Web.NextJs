@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import * as XLSX from "xlsx"
 import Link from "next/link"
 import { FileSpreadsheet, Trash2, ChevronDown, ChevronRight, Loader2, Upload, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react"
 
@@ -119,14 +118,25 @@ export function ImportExcelSheet({ open, onClose }: Props) {
     setErrorMsg("")
 
     try {
-      const buffer = await file.arrayBuffer()
-      const wb = XLSX.read(buffer, { type: "array" })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const filas: string[][] = XLSX.utils.sheet_to_json(ws, {
-        header: 1,
-        defval: "",
-        raw: false,
-      }) as string[][]
+      // El .xlsx lo parsea el backend, no el navegador. Antes esto era
+      // XLSX.read + sheet_to_json de la librería `xlsx` (SheetJS), que tiene dos
+      // vulnerabilidades HIGH sin fix en npm —prototype pollution y ReDoS— y las
+      // dos se disparan justamente al parsear. Parsear un archivo que entra de
+      // afuera acá, en el origen de la app y con la sesión a mano, era el riesgo.
+      //
+      // El backend devuelve la misma matriz: se comparó celda por celda contra la
+      // que producía SheetJS sobre el mismo archivo (ver ExcelMatrizParser).
+      const fd = new FormData()
+      fd.append("archivo", file)
+      const resMatriz = await fetch("/api/planillas/excel-matriz", { method: "POST", body: fd })
+      const bodyMatriz = await resMatriz.json().catch(() => null)
+      if (!resMatriz.ok) {
+        throw new Error(bodyMatriz?.message ?? `No se pudo leer el archivo (${resMatriz.status})`)
+      }
+      const filas: string[][] = bodyMatriz?.data?.filas ?? []
+      if (filas.length === 0) {
+        throw new Error("El archivo no tiene filas para analizar.")
+      }
 
       // Armar el catálogo compacto para minimizar tokens (mismo formato que
       // el flujo "Generar con IA desde descripción").
