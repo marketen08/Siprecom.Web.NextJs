@@ -104,7 +104,7 @@ function TareasListadoPageContent() {
   const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   const permiteAdjuntosProyecto = true
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
-  const permitirAvanceSinRegistro = proyecto?.permitirAvanceSinRegistro ?? false
+  const permitirAvanceSinRegistro = proyecto?.funcionalidadesEfectivas?.AVANCE_SIN_REGISTRO ?? false
 
   // Tab de scope (Mías / Todas). Default: Mías (tareas asignadas al user).
   // `?scope=mine|all` en URL habilita deep-link.

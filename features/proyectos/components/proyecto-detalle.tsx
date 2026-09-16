@@ -292,16 +292,12 @@ const FLAGS: {
   // aceptados siempre en cualquier proyecto/planilla. La columna DB y el campo
   // del DTO se preservan por si en el futuro hace falta re-gate, pero hoy no
   // gatean nada y no se muestran en la UI para no confundir al Admin.
-  {
-    campo: "PermitirAvanceSinRegistro",
-    label: "Avance sin registro",
-    descripcion: "Habilita en el menú de la tarea la acción 'Marcar completada sin registro'. Cierra la tarea sin completar planilla física ni digital; la configuración de firmas del proyecto sigue aplicando. Si el usuario tiene rol de firma en el proyecto y firma guardada en su perfil, esos slots se firman automáticamente.",
-  },
   // Nota: PermitirDescargarPlanillas, PermitirDescargarRegistros y PermitirTestFuncional
   // existen en la entidad/DTO pero no gatean ningún comportamiento todavía, así que no se
   // muestran acá. La columna se conserva en la DB por si se reactivan.
-  // NivelesSecuenciales y PermitirDescargarProcedimientos migraron a Funcionalidades
-  // (se toggean en la sección Funcionalidades del mismo tab).
+  // NivelesSecuenciales, PermitirDescargarProcedimientos y PermitirAvanceSinRegistro
+  // migraron a Funcionalidades (se toggean en la sección Funcionalidades del mismo tab,
+  // y quedan ocultas si el SuperAdmin las apagó globalmente).
 ]
 
 const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
@@ -310,7 +306,6 @@ const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   RegistrosFisicosPreFirmados:     "registrosFisicosPreFirmados",
   RenderizarFirmasDigitalesEnRecuadro: "renderizarFirmasDigitalesEnRecuadro",
   PermiteAdjuntos:                 "permiteAdjuntos",
-  PermitirAvanceSinRegistro:       "permitirAvanceSinRegistro",
 }
 
 function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
@@ -713,24 +708,27 @@ function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
     }
   }
 
-  if (isLoading || !data || data.length === 0) return null
+  // Las que el SuperAdmin apagó globalmente no se listan: para este proyecto no
+  // existen — no se pueden activar ni tienen efecto, así que mostrarlas grisadas
+  // solo agregaba ruido a una lista que ya pasa las veinte filas.
+  const visibles = data?.filter((f) => f.habilitadaGlobal) ?? []
+
+  if (isLoading || visibles.length === 0) return null
 
   return (
     <section className="space-y-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funcionalidades</p>
-      {data.map((f) => {
-        // Si el SuperAdmin la apagó globalmente, no se puede activar por proyecto.
-        const bloqueadaGlobal = !f.habilitadaGlobal
+      {visibles.map((f) => {
         // Funcionalidades "solo global": el proyecto no puede overridear. El toggle
         // se muestra igual (para que el Admin vea el estado efectivo) pero deshabilitado.
         const soloGlobal = !f.permiteOverrideProyecto
-        const disabled = saving !== null || bloqueadaGlobal || soloGlobal
+        const disabled = saving !== null || soloGlobal
         // Cuando es solo-global, el toggle refleja el estado global (no el "proyecto").
         const checked = soloGlobal ? f.habilitadaGlobal : f.habilitadaProyecto
         return (
           <div
             key={f.clave}
-            className={`flex items-center justify-between gap-4 rounded-lg border bg-white p-4 ${bloqueadaGlobal ? "opacity-60" : ""}`}
+            className="flex items-center justify-between gap-4 rounded-lg border bg-white p-4"
           >
             <div className="space-y-0.5 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -742,12 +740,7 @@ function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">{f.descripcion}</p>
-              {bloqueadaGlobal && (
-                <p className="text-xs text-amber-600">
-                  Deshabilitada globalmente por el administrador del sistema.
-                </p>
-              )}
-              {soloGlobal && !bloqueadaGlobal && (
+              {soloGlobal && (
                 <p className="text-xs text-muted-foreground">
                   Esta funcionalidad se controla únicamente a nivel global. Los proyectos no pueden overridearla.
                 </p>

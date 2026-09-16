@@ -20,10 +20,14 @@ export interface Proyecto {
   estado: EstadoProyecto
   estadoTexto: string
   observaciones: string
+  /** @deprecated Espejo de `funcionalidadesEfectivas.AVANCE_SIN_REGISTRO`, que es la
+   *  fuente de verdad. Lo sigue mandando el backend solo para las builds instaladas
+   *  de la app mobile; en la web leé el mapa. Viene en false en los listados. */
   permitirAvanceSinRegistro: boolean
   permitirDescargarPlanillas: boolean
-  // permitirDescargarProcedimientos y nivelesSecuenciales viven en `funcionalidadesEfectivas`
-  // (claves DESCARGAR_PROCEDIMIENTOS y NIVELES_SECUENCIALES).
+  // permitirDescargarProcedimientos, nivelesSecuenciales y avanceSinRegistro viven en
+  // `funcionalidadesEfectivas` (claves DESCARGAR_PROCEDIMIENTOS, NIVELES_SECUENCIALES
+  // y AVANCE_SIN_REGISTRO).
   permitirDescargarRegistros: boolean
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean

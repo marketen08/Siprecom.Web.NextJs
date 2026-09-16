@@ -95,7 +95,7 @@ export function ElementoPreservacionSheet({ elementoId, open, onClose }: Props) 
   // Adjuntos: siempre permitidos. El flag PermiteAdjuntos se dejó de gatear.
   const permiteAdjuntosProyecto = true
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
-  const permitirAvanceSinRegistro = proyecto?.permitirAvanceSinRegistro ?? false
+  const permitirAvanceSinRegistro = proyecto?.funcionalidadesEfectivas?.AVANCE_SIN_REGISTRO ?? false
 
   const canWrite = useCanWrite()
 
