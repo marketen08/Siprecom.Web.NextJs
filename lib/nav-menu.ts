@@ -210,6 +210,7 @@ export const menu: MenuItem[] = [
         label: "Pendientes",
         minRole: "AdminGlobal",
         children: [
+          { label: "Ámbitos",             href: "/configuracion/pendientes-ambitos" },
           { label: "Categorías",          href: "/configuracion/pendientes-categorias" },
           { label: "Tipos",               href: "/configuracion/pendientes-tipos" },
           { label: "Acciones",            href: "/configuracion/pendientes-acciones" },

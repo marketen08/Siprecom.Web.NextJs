@@ -123,21 +123,15 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
-                {/* Badge de pendiente interno — visible cuando esInterno=true.
-                    Muestra el nombre del grupo responsable cuando lo hay
-                    (es el grupo que naturalmente ve el pendiente). */}
-                {p.esInterno && (
+                {/* Chip del ámbito — solo en los restringidos. El principal es el
+                    caso normal y marcarlo sería ruido en todas las filas. */}
+                {!p.ambitoEsPrincipal && (
                   <span
                     className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1"
-                    title={p.grupoResponsableNombre
-                      ? `Solo visible al creador, responsable, grupo ${p.grupoResponsableNombre} y roles Admin+`
-                      : "Solo visible al creador, responsable y roles Admin+"}
+                    title={`Ámbito ${p.ambitoNombre ?? "restringido"}: lo ven los grupos de su audiencia, el creador, el responsable y roles Admin+`}
                   >
                     <Lock className="h-3 w-3" />
-                    <span>
-                      Interno
-                      {p.grupoResponsableNombre ? ` · ${p.grupoResponsableNombre}` : ""}
-                    </span>
+                    <span>{p.ambitoNombre ?? "Restringido"}</span>
                   </span>
                 )}
               </SheetTitle>
@@ -964,7 +958,7 @@ function EditarPendiente({
     tipoId: string
     responsableId: string
     grupoResponsableId?: string | null
-    esInterno?: boolean
+    ambitoId?: string | null
     descripcion: string
     descripcionManual?: boolean
     ubicacion?: string | null
@@ -1003,7 +997,7 @@ function EditarPendiente({
       nivelId: values.nivelId,
       accionId: values.accionId,
       motivoId: values.motivoId,
-      esInterno: values.esInterno ?? false,
+      ambitoId: values.ambitoId ?? null,
     })
     onDone()
   }
@@ -1019,7 +1013,7 @@ function EditarPendiente({
           tipoId: pendiente.tipoId,
           responsableId: pendiente.responsableId,
           grupoResponsableId: pendiente.grupoResponsableId ?? null,
-          esInterno: pendiente.esInterno ?? false,
+          ambitoId: pendiente.ambitoId ?? null,
           descripcion: pendiente.descripcion,
           descripcionManual: pendiente.descripcionManual ?? false,
           ubicacion: pendiente.ubicacion ?? null,

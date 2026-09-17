@@ -218,12 +218,14 @@ export interface Pendiente {
    */
   grupoResponsableId?: string | null
   grupoResponsableNombre?: string | null
+  /** Ámbito del pendiente: la clase de información a la que pertenece. */
+  ambitoId: string
+  ambitoNombre: string | null
   /**
-   * True cuando el pendiente es INTERNO — solo visible al creador,
-   * responsable, miembros del grupo responsable y roles Admin+. Cuando es
-   * false (default), es público (visible a todos los que acceden al proyecto).
+   * True cuando el ámbito es el principal del tenant. Sirve para no dibujar el
+   * chip: marcar todo con "General" es ruido, lo que informa es el restringido.
    */
-  esInterno: boolean
+  ambitoEsPrincipal: boolean
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean
@@ -311,12 +313,8 @@ export interface PendienteCreateInput {
   responsableId: string
   /** Grupo co-responsable (opcional). Solo afecta la visibilidad en "Míos". */
   grupoResponsableId?: string | null
-  /**
-   * Marca el pendiente como INTERNO. Cuando es true, solo lo ven el creador,
-   * responsable, miembros del grupo responsable y roles Admin+. Cuando es
-   * false, es público (visible a todos los que acceden al proyecto).
-   */
-  esInterno?: boolean
+  /** Ámbito donde se clasifica. Vacío = el principal del tenant. */
+  ambitoId?: string | null
   descripcion: string
   /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
   descripcionManual?: boolean
@@ -364,8 +362,8 @@ export interface PendienteUpdateInput {
   nivelId?: string | null
   accionId?: string | null
   motivoId?: string | null
-  /** True = interno (solo asignatarios + Admin+). False = público. */
-  esInterno?: boolean
+  /** Ámbito destino. Vacío = no se reclasifica. Cambiarlo cambia quién lo ve. */
+  ambitoId?: string | null
 }
 
 export interface PendienteFilterInput {

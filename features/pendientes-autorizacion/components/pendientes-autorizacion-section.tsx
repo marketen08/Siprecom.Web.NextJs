@@ -5,6 +5,8 @@ import { AlertTriangle, CheckCircle2, Loader2, Save } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useGetPendientesAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
+import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
 import {
   useGetPendientesAutorizacion,
   useSetPendientesAutorizacion,
@@ -19,10 +21,29 @@ import { ACCIONES_LIST, AccionPendiente } from "../types"
 export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: string }) {
   // Solo grupos declarados para uso en Pendientes — evita ofrecer grupos irrelevantes.
   const { data: gruposResp, isLoading: cargandoGrupos } = useGetUsuariosGrupos("pendientes")
-  const { data: authResp, isLoading: cargandoAuth } = useGetPendientesAutorizacion(proyectoId)
-  const save = useSetPendientesAutorizacion(proyectoId)
+  const { data: ambitosResp, isLoading: cargandoAmbitos } = useGetPendientesAmbitos()
 
-  const grupos = gruposResp?.data ?? []
+  // La matriz es por ámbito: primero se elige cuál se está configurando.
+  const ambitos = ambitosResp?.data ?? []
+  const [ambitoId, setAmbitoId] = useState<string>("")
+  const ambitoActual = ambitos.find((a) => a.id === ambitoId) ?? null
+  useEffect(() => {
+    if (!ambitoId && ambitos.length > 0) {
+      setAmbitoId((ambitos.find((a) => a.esPrincipal) ?? ambitos[0]).id)
+    }
+  }, [ambitos, ambitoId])
+
+  const { data: authResp, isLoading: cargandoAuth } = useGetPendientesAutorizacion(proyectoId, ambitoId)
+  const save = useSetPendientesAutorizacion(proyectoId, ambitoId)
+
+  // En un ámbito restringido las columnas son SOLO los grupos de su audiencia: el
+  // backend rechaza dar una acción a un grupo que no ve el ámbito, así que acá el
+  // invariante se cumple por construcción en vez de por un mensaje de error.
+  const todosLosGrupos = gruposResp?.data ?? []
+  const grupos =
+    ambitoActual && ambitoActual.audiencia === AudienciaAmbito.SoloGrupos
+      ? todosLosGrupos.filter((g) => ambitoActual.grupos.some((ag) => ag.grupoId === g.id))
+      : todosLosGrupos
   // Estado local: por acción, un Set de grupoIds tildados.
   const [seleccion, setSeleccion] = useState<Record<number, Set<string>>>({})
   const [savedFlash, setSavedFlash] = useState(false)
@@ -78,7 +99,7 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
     }
   }
 
-  if (cargandoGrupos || cargandoAuth) {
+  if (cargandoGrupos || cargandoAuth || cargandoAmbitos) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
         <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
@@ -88,23 +109,71 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
 
   return (
     <div className="space-y-4 max-w-4xl">
+      {/* Selector de ámbito: la matriz es una por ámbito, no una por proyecto. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Ámbito</span>
+        {ambitos.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => setAmbitoId(a.id)}
+            className={`rounded-md border px-3 py-1.5 text-sm transition ${
+              a.id === ambitoId
+                ? "border-blue-600 bg-blue-50 font-medium text-blue-900"
+                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            {a.nombre}
+            {a.esPrincipal && (
+              <span className="ml-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                principal
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
         <div>
-          <p className="font-medium">Autorización del workflow por grupo</p>
-          <p className="text-xs mt-0.5">
-            Si dejás una acción sin ningún grupo tildado, opera el permiso por rol
-            del sistema (comportamiento por defecto). Con al menos un grupo tildado, solo los
-            miembros de esos grupos pueden ejecutar la acción. Admin siempre puede.
+          <p className="font-medium">
+            Autorización del workflow por grupo
+            {ambitoActual ? ` — ámbito ${ambitoActual.nombre}` : ""}
           </p>
+          {ambitoActual?.audiencia === AudienciaAmbito.SoloGrupos ? (
+            <p className="text-xs mt-0.5">
+              Es un ámbito restringido: <span className="font-medium">no hay permiso por rol</span>.
+              Solo los grupos tildados acá pueden ejecutar cada acción — si dejás una acción vacía,
+              nadie puede ejecutarla salvo Admin. Las columnas son los grupos de la audiencia del
+              ámbito; para sumar otro, agregalo primero a la audiencia en Configuración → Pendientes
+              → Ámbitos.
+            </p>
+          ) : (
+            <p className="text-xs mt-0.5">
+              Si dejás una acción sin ningún grupo tildado, opera el permiso por rol del sistema
+              (comportamiento por defecto). Con al menos un grupo tildado, los miembros de esos
+              grupos pueden ejecutar la acción además de quienes ya podían por rol. Admin siempre
+              puede.
+            </p>
+          )}
         </div>
       </div>
 
       {grupos.length === 0 ? (
         <p className="text-sm text-muted-foreground italic py-6">
-          No hay grupos de usuarios cargados. Creá grupos en{" "}
-          <span className="font-medium">Configuración → Grupos de usuarios</span> y volvé a esta
-          pantalla para asignarlos.
+          {ambitoActual?.audiencia === AudienciaAmbito.SoloGrupos ? (
+            <>
+              El ámbito <span className="font-medium">{ambitoActual.nombre}</span> todavía no tiene
+              grupos en su audiencia, así que no hay a quién autorizar. Configurala en{" "}
+              <span className="font-medium">Configuración → Pendientes → Ámbitos</span>.
+            </>
+          ) : (
+            <>
+              No hay grupos de usuarios cargados. Creá grupos en{" "}
+              <span className="font-medium">Configuración → Grupos de usuarios</span> y volvé a esta
+              pantalla para asignarlos.
+            </>
+          )}
         </p>
       ) : (
         <div className="rounded-lg border bg-white overflow-hidden">

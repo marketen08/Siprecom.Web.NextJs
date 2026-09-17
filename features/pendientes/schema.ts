@@ -36,9 +36,9 @@ export function makePendienteCreateSchema(elementoRequerido: boolean) {
     responsableId: z.string().min(1, "Responsable requerido"),
     // Grupo co-responsable — opcional. El responsable nominal sigue siendo obligatorio.
     grupoResponsableId: z.string().optional().nullable(),
-    // Toggle "Pendiente interno" — cuando es true, solo lo ven el creador,
-    // responsable, grupo responsable y roles Admin+.
-    esInterno: z.boolean().optional(),
+    // Ámbito: define quién ve el pendiente. Opcional en el form — vacío cae al
+    // ámbito principal, que es lo que resuelve el backend.
+    ambitoId: z.string().optional().nullable(),
     fechaCierreEstimado: z.string().min(1, "Fecha de cierre estimada requerida"),
 
     // Avanzado (colapsable).

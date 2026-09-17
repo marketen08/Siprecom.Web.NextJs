@@ -16,6 +16,7 @@ import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
 import { PRIORIDAD } from "../types"
 import {
   CAMPO_DIMENSION,
@@ -118,7 +119,7 @@ export function PendienteForm({
       ubicacion: defaultValues?.ubicacion ?? null,
       responsableId: defaultValues?.responsableId ?? "",
       grupoResponsableId: defaultValues?.grupoResponsableId ?? null,
-      esInterno: defaultValues?.esInterno ?? false,
+      ambitoId: defaultValues?.ambitoId ?? null,
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
       // Sistema se infiere del subsistema del defaultValues (edición) o queda vacío
@@ -342,11 +343,28 @@ export function PendienteForm({
 
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false)
 
-  // Toggle "🔒 Interno" — el modelo es un simple boolean `esInterno` (se lee
-  // del propio FormField). Cuando es true, solo los asignatarios (creador,
-  // responsable, grupo responsable, Admin+) ven el pendiente. No tiene grupo
-  // propio: reusa el grupo responsable, por eso el box de interno ofrece el
-  // atajo para asignarlo cuando no hay ninguno.
+  // Ámbito — la primera decisión del formulario: define quién va a ver el
+  // pendiente. El selector ofrece solo los ámbitos donde este usuario puede
+  // clasificar (endpoint /mios), así que nadie manda un pendiente a un lugar
+  // donde después no lo va a ver.
+  //
+  // Con dos ámbitos se dibuja como un checkbox —igual que el viejo "interno"—
+  // y el selector aparece recién cuando hay tres o más. La generalidad del
+  // modelo no se le cobra al usuario hasta que la necesita.
+  const { data: ambitosResp } = useGetMisAmbitos()
+  const misAmbitos = ambitosResp?.data ?? []
+  const ambitoIdActual = form.watch("ambitoId")
+  const ambitoPrincipal = misAmbitos.find((a) => a.esPrincipal) ?? null
+  const ambitoRestringido = misAmbitos.find((a) => !a.esPrincipal) ?? null
+  const ambitoActual = misAmbitos.find((a) => a.id === ambitoIdActual) ?? null
+  const modoCheckbox = misAmbitos.length === 2 && !!ambitoPrincipal && !!ambitoRestringido
+
+  // Sin elección explícita, el pendiente nace en el principal.
+  useEffect(() => {
+    if (!ambitoIdActual && ambitoPrincipal) {
+      form.setValue("ambitoId", ambitoPrincipal.id)
+    }
+  }, [ambitoIdActual, ambitoPrincipal, form])
 
   // Toggle "Asignar al grupo responsable por defecto" — mismo patrón simple.
   // Compone el estado de grupoResponsableId: on con default del proyecto lo
@@ -678,61 +696,65 @@ export function PendienteForm({
               )}
             />
 
-            {/* Toggle "Pendiente interno" — boolean simple. La audiencia la
-                define la asignación operativa (creador + responsable + grupo
-                responsable + Admin+). Mismo criterio de texto que el toggle de
-                grupo: en OFF se describe qué pasa si se tilda. */}
+            {/* Ámbito — define quién ve el pendiente. El selector ofrece solo los
+                ámbitos donde este usuario puede clasificar, así que no se puede
+                mandar un pendiente a un lugar donde después no lo vería.
+
+                Con exactamente dos ámbitos se dibuja como el checkbox de siempre;
+                el selector aparece recién con tres o más. La generalidad del modelo
+                no se le cobra al usuario hasta que la necesita. */}
             <FormField
               control={form.control}
-              name="esInterno"
+              name="ambitoId"
               render={({ field }) => (
                 <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-blue-900"
-                      checked={!!field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
-                      disabled={isPending}
-                    />
-                    <span className="text-sm font-medium">🔒 Pendiente interno</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    {!field.value
-                      ? "Marcá para ocultarlo al resto del proyecto: solo lo verán el creador, el responsable y el grupo responsable."
-                      : grupoResponsableIdActual
-                        ? (
-                            <>
-                              Solo lo ven el creador, el responsable y los miembros de{" "}
-                              <span className="font-medium text-gray-800">
-                                {grupoResponsableActualNombre ?? "…"}
-                              </span>
-                              .
-                            </>
-                          )
-                        : "Solo lo ven el creador y el responsable."}
-                  </p>
-                  {/* Sin grupo asignado, un pendiente interno queda casi invisible.
-                      El select de grupo vive detrás del toggle de al lado, así que
-                      acá damos el atajo en vez de duplicar el selector. */}
-                  {field.value && !grupoResponsableIdActual && (
-                    <p className="text-xs text-amber-700">
-                      ⚠️ Ningún grupo asignado.
-                      {!readonlyResponsable && (
-                        <>
-                          {" "}
-                          <button
-                            type="button"
-                            className="underline underline-offset-2 font-medium hover:text-amber-900 disabled:opacity-50"
-                            onClick={() => handleToggleGrupoResp(true)}
-                            disabled={isPending}
-                          >
-                            Asignar al grupo responsable
-                          </button>
-                        </>
-                      )}
-                    </p>
+                  {modoCheckbox && ambitoPrincipal && ambitoRestringido ? (
+                    <>
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-blue-900"
+                          checked={field.value === ambitoRestringido.id}
+                          onChange={(e) =>
+                            field.onChange(e.target.checked ? ambitoRestringido.id : ambitoPrincipal.id)
+                          }
+                          disabled={isPending}
+                        />
+                        <span className="text-sm font-medium">🔒 {ambitoRestringido.nombre}</span>
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        {field.value === ambitoRestringido.id
+                          ? ambitoRestringido.descripcion
+                          : "Marcá para restringir quién lo ve. " + (ambitoRestringido.descripcion ?? "")}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <FormLabel>Ámbito</FormLabel>
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={field.onChange}
+                        disabled={isPending || misAmbitos.length === 0}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue>{ambitoActual?.nombre ?? "Elegí un ámbito"}</SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {misAmbitos.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {ambitoActual?.descripcion ?? "Define quién puede ver este pendiente."}
+                      </p>
+                    </>
                   )}
+                  <FormMessage />
                 </FormItem>
               )}
             />
