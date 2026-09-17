@@ -377,6 +377,12 @@ export interface PendienteFilterInput {
   responsableId?: string
   /** Pendientes asignados a este grupo co-responsable. Independiente de responsableId. */
   grupoResponsableId?: string
+  /**
+   * Filtra por ámbito. Vacío = todos los que el usuario ve, que es el default del
+   * listado: esconder por omisión un pendiente asignado es peor que mostrarlo.
+   * (En el PDF el criterio se invierte y el default es el ámbito principal.)
+   */
+  ambitoId?: string
   detectadoPorId?: string
   prioridad?: number
   especialidadId?: string

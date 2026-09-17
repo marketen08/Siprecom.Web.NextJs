@@ -942,8 +942,9 @@ export function PendienteForm({
                 )}
               />
 
-              {/* (Select de grupo de visibilidad eliminado 2026-09 — EsInterno
-                  es un simple boolean, no requiere elegir grupo.) */}
+              {/* (Acá no hay select de visibilidad: quién ve el pendiente lo define
+                  su ÁMBITO, que se elige arriba. Este grupo responsable es otra cosa
+                  — asignación operativa, y el pendiente aparece en su tab "Míos".) */}
 
               {/* Grupo responsable — solo se muestra con el toggle activo.
                   Permite override del default del proyecto por pendiente. */}

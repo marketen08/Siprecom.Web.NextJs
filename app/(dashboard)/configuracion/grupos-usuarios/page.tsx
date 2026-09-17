@@ -300,7 +300,7 @@ export default function GruposUsuariosPage() {
                 </label>
                 {/* (Checkbox "Visibilidad de pendientes" eliminado 2026-09 —
                     el modelo de "grupo de visibilidad" separable se reemplazó
-                    por el toggle EsInterno del pendiente.) */}
+                    por el ámbito del pendiente: la audiencia vive en el catálogo de ámbitos.) */}
               </div>
               {editSheet
                 && !editSheet.usoPendientes
