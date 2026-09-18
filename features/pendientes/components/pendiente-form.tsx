@@ -26,6 +26,7 @@ import {
   aplanarArbol,
   filaCoincide,
   reconciliarSeleccion,
+  SACRIFICIO_CON_ESPECIALIDAD,
   seleccionAlcanzable,
   type Dimension,
   type FilaCatalogo,
@@ -150,9 +151,12 @@ export function PendienteForm({
   // Esto vale por dos motivos concretos:
   //  - El usuario puede empezar por donde quiera (típicamente por Especialidad,
   //    cuando ésta viene del Elemento).
-  //  - Como las opciones de cada dimensión se calculan excluyéndose a sí misma,
-  //    elegir cualquier opción ofrecida deja SIEMPRE una tupla que existe en el
-  //    catálogo. Es decir: no hace falta limpiar hijos al cambiar un select.
+  //  - Mientras falte alguna dimensión, elegir dentro de lo ofrecido deja SIEMPRE
+  //    una tupla que existe en el catálogo, así que no hay que limpiar nada.
+  //
+  // La excepción es tener las 5 completas: ahí el filtrado se muerde la cola y los
+  // selects pasan a ofrecer el catálogo entero, con reconciliación al elegir. Ver
+  // `opciones` y `onDimensionChange`.
   const filas = useMemo<FilaCatalogo[]>(() => aplanarArbol(arbolRaw?.data ?? []), [arbolRaw])
 
   const seleccion = useMemo<SeleccionDimensiones>(
@@ -169,7 +173,15 @@ export function PendienteForm({
   )
 
   const opciones = useMemo(() => {
-    const base = seleccionValida ? seleccion : SELECCION_VACIA
+    // Con las 5 dimensiones cargadas, el filtrado cruzado se muerde la cola: cada
+    // eje queda determinado por los otros cuatro y el select ofrece una sola opción
+    // — la actual. Pasa siempre al editar, y también en el alta si te equivocaste en
+    // el último select. Ahí abrimos el catálogo completo: elegir algo incompatible
+    // no rompe nada porque `onDimensionChange` reconcilia el resto.
+    //
+    // Mientras falte alguna, el filtrado cruzado sigue guiando como hasta ahora.
+    const completas = DIMENSIONES.every((d) => Boolean(seleccion[d]))
+    const base = seleccionValida && !completas ? seleccion : SELECCION_VACIA
     const out = {} as Record<Dimension, OpcionDimension[]>
     for (const dim of DIMENSIONES) {
       const vistos = new Set<string>()
@@ -224,6 +236,60 @@ export function PendienteForm({
     for (const d of DIMENSIONES) {
       form.setValue(CAMPO_DIMENSION[d], "", { shouldDirty: true, shouldValidate: true })
     }
+    setAjusteWizard([])
+    setAjusteOrigen(null)
+  }
+
+  /**
+   * Cambio de una de las 5 dimensiones desde su select.
+   *
+   * Con las 5 completas el select ofrece todo el catálogo (ver `opciones`), así que
+   * el valor elegido puede no convivir con el resto. Reconciliamos: anclamos lo que
+   * el usuario acaba de elegir y soltamos las mínimas dimensiones necesarias para
+   * que la combinación vuelva a existir, en el orden Motivo → Acción → Tipo → Nivel.
+   *
+   * Después intentamos recompletar solas las que quedaron sueltas cuando les queda
+   * una única opción compatible. En la práctica cambiás el Tipo y te queda uno o dos
+   * campos para elegir, no cuatro — que es la diferencia entre ajustar y rehacer.
+   */
+  const onDimensionChange = (dim: Dimension, valor: string) => {
+    form.setValue(CAMPO_DIMENSION[dim], valor, { shouldDirty: true, shouldValidate: true })
+    setEspecialidadSinCatalogo(false)
+
+    if (!valor || filas.length === 0) {
+      setAjusteWizard([])
+      setAjusteOrigen(null)
+      return
+    }
+
+    const { seleccion: saneada, soltadas } = reconciliarSeleccion(
+      filas,
+      { ...seleccion, [dim]: valor },
+      [dim],
+      SACRIFICIO_CON_ESPECIALIDAD,
+    )
+
+    // Recompletar lo que quedó con una sola alternativa. Se recalcula en cada
+    // vuelta porque fijar una dimensión puede dejar la siguiente también en una.
+    const final = { ...saneada }
+    const pendientesDeElegir: Dimension[] = []
+    for (const d of soltadas) {
+      const compatibles = new Set<string>()
+      for (const fila of filas) {
+        if (filaCoincide(fila, final, d)) compatibles.add(fila[`${d}Id`])
+      }
+      if (compatibles.size === 1) final[d] = [...compatibles][0]
+      else pendientesDeElegir.push(d)
+    }
+
+    for (const d of DIMENSIONES) {
+      if (final[d] !== seleccion[d]) {
+        form.setValue(CAMPO_DIMENSION[d], final[d], { shouldDirty: true, shouldValidate: true })
+      }
+    }
+
+    setAjusteWizard(pendientesDeElegir)
+    setAjusteOrigen(pendientesDeElegir.length > 0 ? "wizard" : null)
   }
 
   // Toggle del checkbox "Modificar descripción manualmente":
@@ -265,6 +331,10 @@ export function PendienteForm({
   // shouldValidate: true es crítico — sin él, el error "Elemento requerido"
   // queda pegado aunque el user ya haya elegido uno.
   const [ajusteWizard, setAjusteWizard] = useState<Dimension[]>([])
+  // Quién disparó el ajuste: el elemento imponiendo su especialidad, o el propio
+  // usuario cambiando una dimensión. El aviso dice cosas distintas en cada caso —
+  // uno explica algo que pasó solo, el otro confirma lo que el usuario pidió.
+  const [ajusteOrigen, setAjusteOrigen] = useState<"elemento" | "wizard" | null>(null)
   const [especialidadSinCatalogo, setEspecialidadSinCatalogo] = useState(false)
 
   // La especialidad puede llegar PRE-CARGADA (prefill desde la maqueta 3D) apuntando
@@ -282,6 +352,7 @@ export function PendienteForm({
   const onElementoChange = (nuevoElementoId: string | null) => {
     form.setValue("elementoId", nuevoElementoId, { shouldDirty: true, shouldValidate: true })
     setAjusteWizard([])
+    setAjusteOrigen(null)
     setEspecialidadSinCatalogo(false)
     if (!nuevoElementoId) return
     const el = elementos.find((e) => e.id === nuevoElementoId)
@@ -306,6 +377,7 @@ export function PendienteForm({
       }
     }
     setAjusteWizard(soltadas)
+    setAjusteOrigen(soltadas.length > 0 ? "elemento" : null)
   }
 
   // Sistema y Subsistema viven en el form (para tener validación uniforme).
@@ -429,6 +501,23 @@ export function PendienteForm({
             </p>
           </div>
 
+          {/* Con las 5 completas los selects abren el catálogo entero, así que cambiar
+              una es posible sin rehacer todo. El reinicio queda como salida para el que
+              prefiere empezar de cero en vez de pelear con la reconciliación. */}
+          {dimensionesCompletas && !comboFueraDeCatalogo && (
+            <p className="text-xs text-muted-foreground">
+              Las cinco están completas: los selects muestran el catálogo entero. Si cambiás una y
+              la combinación deja de existir, soltamos las mínimas necesarias y te avisamos.{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 font-medium cursor-pointer"
+                onClick={reiniciarWizard}
+              >
+                Reiniciar las cinco
+              </button>
+            </p>
+          )}
+
           {comboFueraDeCatalogo && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
               <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
@@ -461,8 +550,10 @@ export function PendienteForm({
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start gap-2">
               <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                Ajustamos la especialidad según el elemento elegido. Volvé a elegir:{" "}
-                {ajusteWizard.map((d) => LABEL_DIMENSION[d]).join(", ")}.
+                {ajusteOrigen === "elemento"
+                  ? "Ajustamos la especialidad según el elemento elegido."
+                  : "El cambio no convive con el resto de la combinación, así que soltamos lo mínimo necesario."}{" "}
+                Volvé a elegir: {ajusteWizard.map((d) => LABEL_DIMENSION[d]).join(", ")}.
               </span>
             </div>
           )}
@@ -484,7 +575,7 @@ export function PendienteForm({
                         <Combobox
                           options={opciones[dim].map((o) => ({ value: o.id, label: o.label }))}
                           value={field.value ?? ""}
-                          onChange={(v) => field.onChange(v || "")}
+                          onChange={(v) => onDimensionChange(dim, v || "")}
                           placeholder={`Elegí ${LABEL_DIMENSION[dim].toLowerCase()}`}
                           searchPlaceholder="Buscar..."
                           emptyMessage={

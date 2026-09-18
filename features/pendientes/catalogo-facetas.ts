@@ -132,10 +132,28 @@ export const SELECCION_VACIA: SeleccionDimensiones = {
 }
 
 /**
- * Reconcilia una selección que quedó inconsistente por una escritura EXTERNA —
- * hoy, el Elemento imponiendo su Especialidad. Suelta dimensiones hasta que la
- * combinación vuelva a existir en el catálogo, empezando por las más específicas
- * (Motivo → Acción → Tipo → Nivel) y sin tocar las ancladas.
+ * Orden en que se sueltan dimensiones al reconciliar: de la más específica a la
+ * más general. Especialidad queda afuera a propósito en el caso del Elemento,
+ * que es justamente quien la impone — por eso el orden es un parámetro.
+ */
+export const SACRIFICIO_DEFAULT: Dimension[] = ["motivo", "accion", "tipo", "nivel"]
+
+/**
+ * Incluye Especialidad. Es el orden para cuando el usuario cambia una dimensión a
+ * mano: ahí no hay nada que la proteja, y sin soltarla hay combinaciones que no se
+ * pueden reconciliar (si el valor nuevo no convive con la especialidad actual, dar
+ * de baja el resto no alcanza).
+ */
+export const SACRIFICIO_CON_ESPECIALIDAD: Dimension[] =
+  ["motivo", "accion", "tipo", "especialidad", "nivel"]
+
+/**
+ * Reconcilia una selección que quedó inconsistente. Suelta dimensiones hasta que
+ * la combinación vuelva a existir en el catálogo, en el orden de `sacrificio` y
+ * sin tocar las ancladas.
+ *
+ * Dos usos hoy: el Elemento imponiendo su Especialidad, y el usuario cambiando
+ * una de las 5 dimensiones cuando las cinco ya estaban completas.
  *
  * Devuelve la selección saneada y qué dimensiones se soltaron, para poder
  * avisarle al usuario en vez de limpiar en silencio.
@@ -144,6 +162,7 @@ export function reconciliarSeleccion(
   filas: FilaCatalogo[],
   deseada: SeleccionDimensiones,
   ancladas: Dimension[] = [],
+  sacrificio: Dimension[] = SACRIFICIO_DEFAULT,
 ): { seleccion: SeleccionDimensiones; soltadas: Dimension[] } {
   // Sin catálogo cargado no hay nada que validar: devolver tal cual evita
   // vaciar el formulario mientras la query está en vuelo.
@@ -151,7 +170,6 @@ export function reconciliarSeleccion(
 
   let actual = { ...deseada }
   const soltadas: Dimension[] = []
-  const sacrificio: Dimension[] = ["motivo", "accion", "tipo", "nivel"]
 
   for (const d of sacrificio) {
     if (seleccionAlcanzable(filas, actual)) break
