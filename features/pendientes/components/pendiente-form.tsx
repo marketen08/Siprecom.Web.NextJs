@@ -17,6 +17,7 @@ import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
+import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
 import { PRIORIDAD } from "../types"
 import {
   CAMPO_DIMENSION,
@@ -96,7 +97,9 @@ export function PendienteForm({
   // Solo grupos declarados para uso en Pendientes — mismo criterio que la matriz
   // de autorización, para no ofrecer grupos irrelevantes al asignar.
   const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
-  const gruposResponsables = gruposResp?.data ?? []
+  // Ojo: la lista completa. La que se OFRECE se filtra más abajo por la audiencia
+  // del ámbito elegido — ver `gruposResponsables`.
+  const todosLosGrupos = gruposResp?.data ?? []
 
   const categorias = categoriasRaw?.data ?? []
   const sistemas = sistemasRaw?.data ?? []
@@ -453,6 +456,43 @@ export function PendienteForm({
     }
   }, [ambitoIdActual, ambitoPorDefecto, form])
 
+  // Grupos que se pueden asignar como co-responsables: solo los que están en la
+  // audiencia del ámbito elegido.
+  //
+  // Asignarle un pendiente a un grupo que no ve ese ámbito deja la asignación
+  // inerte — el filtro de "Míos" lo incluye y el de visibilidad lo saca un paso
+  // después, así que no aparece en el listado de nadie. El backend lo rechaza;
+  // acá directamente no se ofrece, que es el mismo criterio que usan las columnas
+  // de la matriz de autorización.
+  const ambitoElegido = ambitoActual ?? ambitoPorDefecto
+  const gruposResponsables = useMemo(() => {
+    if (!ambitoElegido || ambitoElegido.audiencia === AudienciaAmbito.TodoElProyecto) {
+      return todosLosGrupos
+    }
+    return todosLosGrupos.filter((g) => ambitoElegido.grupos.some((ag) => ag.grupoId === g.id))
+  }, [todosLosGrupos, ambitoElegido])
+
+  // Cambiar el ámbito puede dejar al grupo co-responsable fuera de la audiencia
+  // nueva. Se limpia y se avisa, en vez de mandarlo y que el backend rebote con un
+  // error sobre un campo que el usuario no tocó.
+  const [grupoSoltadoPorAmbito, setGrupoSoltadoPorAmbito] = useState<string | null>(null)
+
+  function onAmbitoChange(nuevoAmbitoId: string) {
+    form.setValue("ambitoId", nuevoAmbitoId, { shouldDirty: true, shouldValidate: true })
+    setGrupoSoltadoPorAmbito(null)
+
+    const grupoActual = form.getValues("grupoResponsableId")
+    if (!grupoActual) return
+
+    const destino = misAmbitos.find((a) => a.id === nuevoAmbitoId)
+    if (!destino || destino.audiencia === AudienciaAmbito.TodoElProyecto) return
+    if (destino.grupos.some((ag) => ag.grupoId === grupoActual)) return
+
+    setGrupoSoltadoPorAmbito(todosLosGrupos.find((g) => g.id === grupoActual)?.nombre ?? null)
+    form.setValue("grupoResponsableId", null, { shouldDirty: true })
+    setAsignarGrupoResp(false)
+  }
+
   // Toggle "Asignar al grupo responsable por defecto" — mismo patrón simple.
   // Compone el estado de grupoResponsableId: on con default del proyecto lo
   // aplica; on sin default abre avanzado para elegir; off limpia el grupo.
@@ -464,7 +504,11 @@ export function PendienteForm({
   function handleToggleGrupoResp(nuevo: boolean) {
     setAsignarGrupoResp(nuevo)
     if (nuevo) {
-      if (grupoRespDefaultId) {
+      // El default del proyecto puede no estar en la audiencia del ámbito elegido;
+      // en ese caso no se aplica y se manda a elegir uno válido en avanzado.
+      const defaultValido = grupoRespDefaultId
+        && gruposResponsables.some((g) => g.id === grupoRespDefaultId)
+      if (defaultValido) {
         form.setValue("grupoResponsableId", grupoRespDefaultId, { shouldDirty: true })
       } else {
         setAvanzadoAbierto(true)
@@ -530,7 +574,7 @@ export function PendienteForm({
                       className="h-4 w-4 accent-blue-900"
                       checked={field.value === ambitoRestringido.id}
                       onChange={(e) =>
-                        field.onChange(e.target.checked ? ambitoRestringido.id : ambitoPorDefecto.id)
+                        onAmbitoChange(e.target.checked ? ambitoRestringido.id : ambitoPorDefecto.id)
                       }
                       disabled={isPending}
                     />
@@ -547,7 +591,7 @@ export function PendienteForm({
                   <FormLabel>Ámbito</FormLabel>
                   <Select
                     value={field.value ?? ""}
-                    onValueChange={field.onChange}
+                    onValueChange={(v) => onAmbitoChange(v ?? "")}
                     disabled={isPending || misAmbitos.length === 0}
                   >
                     <FormControl>
@@ -572,6 +616,17 @@ export function PendienteForm({
             </FormItem>
           )}
         />
+        )}
+
+        {grupoSoltadoPorAmbito && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start gap-2">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              Quitamos el grupo <span className="font-medium">{grupoSoltadoPorAmbito}</span>: no está
+              en la audiencia de este ámbito, así que no vería el pendiente. Elegí otro en Opciones
+              avanzadas si querés asignarlo a un grupo.
+            </span>
+          </div>
         )}
 
         {/* ── Wizard de descripción (filtrado cruzado desde el catálogo) ── */}
