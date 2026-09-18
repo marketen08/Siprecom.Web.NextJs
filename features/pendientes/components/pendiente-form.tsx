@@ -490,59 +490,12 @@ export function PendienteForm({
 
     setGrupoSoltadoPorAmbito(todosLosGrupos.find((g) => g.id === grupoActual)?.nombre ?? null)
     form.setValue("grupoResponsableId", null, { shouldDirty: true })
-    setAsignarGrupoResp(false)
   }
-
-  // Toggle "Asignar al grupo responsable por defecto" — mismo patrón simple.
-  // Compone el estado de grupoResponsableId: on con default del proyecto lo
-  // aplica; on sin default abre avanzado para elegir; off limpia el grupo.
-  const grupoRespDefaultId = proyectoRaw?.data?.grupoResponsablePorDefectoId ?? null
-  const grupoRespDefaultNombre = proyectoRaw?.data?.grupoResponsablePorDefectoNombre ?? null
-  const [asignarGrupoResp, setAsignarGrupoResp] = useState<boolean>(() => !!defaultValues?.grupoResponsableId)
-  const grupoResponsableIdActual = form.watch("grupoResponsableId")
-
-  function handleToggleGrupoResp(nuevo: boolean) {
-    setAsignarGrupoResp(nuevo)
-    if (nuevo) {
-      // El default del proyecto puede no estar en la audiencia del ámbito elegido;
-      // en ese caso no se aplica y se manda a elegir uno válido en avanzado.
-      const defaultValido = grupoRespDefaultId
-        && gruposResponsables.some((g) => g.id === grupoRespDefaultId)
-      if (defaultValido) {
-        form.setValue("grupoResponsableId", grupoRespDefaultId, { shouldDirty: true })
-      } else {
-        setAvanzadoAbierto(true)
-      }
-    } else {
-      form.setValue("grupoResponsableId", null, { shouldDirty: true })
-    }
-  }
-
-  const esOverrideResp = Boolean(
-    asignarGrupoResp
-    && grupoResponsableIdActual
-    && grupoRespDefaultId
-    && grupoResponsableIdActual !== grupoRespDefaultId,
-  )
-  const grupoResponsableActualNombre = grupoResponsableIdActual
-    ? gruposResponsables.find((g) => g.id === grupoResponsableIdActual)?.nombre ?? null
-    : null
 
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((values) => {
-          // Guard local: si "Asignar al grupo responsable" está
-          // activo pero no hay grupo elegido (proyecto sin default), pedimos
-          // al usuario que elija uno en avanzado.
-          if (esAlta && asignarGrupoResp && !values.grupoResponsableId) {
-            setAvanzadoAbierto(true)
-            form.setError("grupoResponsableId", {
-              type: "manual",
-              message: "Elegí un grupo o desactivá 'Asignar al grupo responsable'.",
-            })
-            return
-          }
           onSubmit(values)
         })}
         className="flex flex-col gap-6 pb-24 sm:pb-4"
@@ -862,51 +815,38 @@ export function PendienteForm({
               )}
             />
   
-            {/* Toggle "Grupo responsable por defecto" — compone
-                grupoResponsableId. No otorga permisos, solo hace que el
-                pendiente aparezca en "Míos" a todos los miembros del grupo.
-                Va pegado al responsable porque extiende esa misma asignación. */}
-            <div className="rounded-md border bg-white px-3 py-3">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-blue-900"
-                  checked={asignarGrupoResp}
-                  onChange={(e) => handleToggleGrupoResp(e.target.checked)}
-                  disabled={isPending}
-                />
-                <span className="text-sm font-medium">👥 Asignar al grupo responsable</span>
-              </label>
-              {/* El texto describe siempre el efecto de tildarlo (estado OFF) o
-                  el efecto ya aplicado (estado ON) — nunca la limitación actual,
-                  que se leía como si el grupo no fuera a ver el pendiente. */}
-              <p className="mt-1 text-xs text-muted-foreground">
-                {!asignarGrupoResp
-                  ? 'Marcá para asignar este pendiente a todo el grupo responsable, además del responsable.'
-                  : grupoResponsableIdActual
-                    ? (
-                        <>
-                          Lo verán en &quot;Míos&quot; todos los miembros de{" "}
-                          <span className="font-medium text-gray-800">
-                            {grupoResponsableActualNombre ?? "…"}
-                          </span>
-                          {esOverrideResp && (
-                            <span className="ml-2 inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
-                              override
-                            </span>
-                          )}
-                          {!esOverrideResp && grupoRespDefaultId && (
-                            <span className="ml-1 text-[10px] text-muted-foreground">(default del proyecto)</span>
-                          )}
-                        </>
-                      )
-                    : (
-                        <span className="text-amber-700">
-                          ⚠️ Este proyecto no tiene grupo responsable por defecto. Elegí uno en Opciones avanzadas.
-                        </span>
-                      )}
-              </p>
-            </div>
+            {/* Grupo responsable (opcional). No otorga permisos: solo hace que el
+                pendiente aparezca en "Míos" a todos los miembros del grupo. Va
+                pegado al responsable porque extiende esa misma asignación.
+
+                La lista ya viene acotada a la audiencia del ámbito elegido — un
+                grupo fuera de esa audiencia no vería el pendiente que se le
+                asigna, así que el backend lo rechaza. */}
+            <FormField
+              control={form.control}
+              name="grupoResponsableId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>👥 Grupo responsable</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={gruposResponsables.map((g) => ({ value: g.id, label: g.nombre }))}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || null)}
+                      placeholder="Sin grupo"
+                      searchPlaceholder="Buscar grupo..."
+                      emptyMessage="No hay grupos habilitados para Pendientes en este ámbito"
+                      disabled={isPending}
+                    />
+                  </FormControl>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Opcional. Si elegís uno, el pendiente aparece en &quot;Míos&quot; a todo el
+                    grupo, además del responsable. No cambia permisos.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
           )}
 
@@ -1108,50 +1048,6 @@ export function PendienteForm({
                   </FormItem>
                 )}
               />
-
-              {/* (Acá no hay select de visibilidad: quién ve el pendiente lo define
-                  su ÁMBITO, que se elige arriba. Este grupo responsable es otra cosa
-                  — asignación operativa, y el pendiente aparece en su tab "Míos".) */}
-
-              {/* Grupo responsable — solo se muestra con el toggle activo.
-                  Permite override del default del proyecto por pendiente. */}
-              {esAlta && asignarGrupoResp && (
-                <FormField
-                  control={form.control}
-                  name="grupoResponsableId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        Grupo responsable
-                        {esOverrideResp && (
-                          <span className="inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
-                            override
-                          </span>
-                        )}
-                      </FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={gruposResponsables.map((g) => ({ value: g.id, label: g.nombre }))}
-                          value={field.value ?? ""}
-                          onChange={(v) => field.onChange(v || null)}
-                          placeholder={grupoRespDefaultId ? `Default: ${grupoRespDefaultNombre ?? "…"}` : "Elegí un grupo"}
-                          searchPlaceholder="Buscar grupo..."
-                          emptyMessage="No hay grupos habilitados para Pendientes"
-                          disabled={isPending}
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {grupoRespDefaultId
-                          ? esOverrideResp
-                            ? `El default del proyecto es "${grupoRespDefaultNombre ?? "…"}". Estás usando otro.`
-                            : 'El pendiente aparece en "Míos" a todo el grupo. No cambia permisos.'
-                          : "El proyecto no tiene default configurado — es obligatorio elegir uno."}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
             </div>
           )}
         </div>
