@@ -451,19 +451,33 @@ function Workflow({
   const { data: ambitosResp } = useGetMisAmbitos()
   const misAmbitos = ambitosResp?.data ?? []
 
+  // Los botones se dibujan por estado, no por permiso: el backend es el que
+  // decide y puede rechazar la acción (p. ej. "Enviar a aprobación" es de la
+  // auditoría interna, no de quien ejecutó el trabajo). Sin este catch la promesa
+  // quedaba colgada y el clic no producía nada visible — el error se muestra
+  // abajo, tomado de transicion.error.
   async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "aprobar", comentario?: string) {
-    await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
+    try {
+      await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
+    } catch { /* el mensaje queda en transicion.error */ }
   }
 
   async function ejecutarConMotivo() {
     if (!dialog) return
     if (!motivo.trim()) return
-    await transicion.mutateAsync({ id: pendienteId, accion: dialog.accion, comentario: motivo })
+    try {
+      await transicion.mutateAsync({ id: pendienteId, accion: dialog.accion, comentario: motivo })
+    } catch {
+      // El diálogo queda abierto: el error se muestra adentro y el motivo escrito
+      // no se pierde.
+      return
+    }
     setDialog(null)
     setMotivo("")
   }
 
   const busy = transicion.isPending
+  const errorAccion = transicion.error instanceof Error ? transicion.error.message : null
 
   // Estados terminales — no hay ninguna transición posible. Salimos temprano
   // para no renderizar la sección "Acciones" vacía (ni el fragment vacío en
@@ -561,7 +575,10 @@ function Workflow({
     return (
       <>
         {botones}
-        {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy)}
+        {errorAccion && (
+          <p className="w-full text-xs text-red-600 whitespace-pre-line">{errorAccion}</p>
+        )}
+        {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy, errorAccion)}
         <ReasignarDialog
           open={reasignarOpen}
           onOpenChange={setReasignarOpen}
@@ -586,8 +603,11 @@ function Workflow({
         Acciones
       </h3>
       <div className="flex flex-wrap gap-2">{botones}</div>
+      {errorAccion && (
+        <p className="text-xs text-red-600 whitespace-pre-line">{errorAccion}</p>
+      )}
 
-      {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy)}
+      {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy, errorAccion)}
       <ReasignarDialog
         open={reasignarOpen}
         onOpenChange={setReasignarOpen}
@@ -868,6 +888,7 @@ function renderDialog(
   ejecutarConMotivo: () => void,
   setDialog: (v: null) => void,
   busy: boolean,
+  error: string | null,
 ) {
   return (
     <AlertDialog open={dialog !== null} onOpenChange={(v) => !v && setDialog(null)}>
@@ -882,6 +903,9 @@ function renderDialog(
           value={motivo}
           onChange={(e) => setMotivo(e.target.value)}
         />
+        {error && (
+          <p className="text-xs text-red-600 whitespace-pre-line">{error}</p>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
