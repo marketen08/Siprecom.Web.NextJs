@@ -15,8 +15,11 @@ import { ACCIONES_LIST, AccionPendiente } from "../types"
 
 /**
  * Matriz de autorización del workflow de Pendiente por proyecto: filas = acciones,
- * columnas = grupos disponibles. Fallback: si no hay ningún grupo tildado para una
- * acción, opera el rol global (compatible con el estado actual del sistema).
+ * columnas = grupos disponibles.
+ *
+ * Una acción sin ningún grupo tildado queda librada al rol del sistema. Con al menos
+ * uno, esos grupos son los únicos que pueden ejecutarla: el rol deja de alcanzar. Es
+ * lo que permite separar ejecución, revisión interna y aprobación del cliente.
  */
 export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: string }) {
   // Solo grupos declarados para uso en Pendientes — evita ofrecer grupos irrelevantes.
@@ -84,6 +87,18 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
     })
   }
 
+  // Ahora que los grupos tildados son los ÚNICOS que pueden ejecutar la acción,
+  // tildar sólo grupos vacíos la deja sin nadie salvo Admin. Es fácil de hacer sin
+  // darse cuenta —la columna dice los miembros, pero nadie los suma— así que lo
+  // avisamos antes de guardar en vez de que aparezca como un permiso perdido.
+  const accionesSinNadie = ACCIONES_LIST.filter((a) => {
+    const ids = seleccion[a.value]
+    if (!ids || ids.size === 0) return false
+    return grupos
+      .filter((g) => ids.has(g.id))
+      .every((g) => g.cantidadMiembros === 0)
+  })
+
   async function guardar() {
     setError(null)
     try {
@@ -146,14 +161,18 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
               Solo los grupos tildados acá pueden ejecutar cada acción — si dejás una acción vacía,
               nadie puede ejecutarla salvo Admin. Las columnas son los grupos de la audiencia del
               ámbito; para sumar otro, agregalo primero a la audiencia en Configuración → Pendientes
-              → Ámbitos.
+              → Ámbitos. En <span className="font-medium">Iniciar</span>, además, el responsable y
+              el grupo responsable del pendiente pueden hacerlo siempre.
             </p>
           ) : (
             <p className="text-xs mt-0.5">
               Si dejás una acción sin ningún grupo tildado, opera el permiso por rol del sistema
-              (comportamiento por defecto). Con al menos un grupo tildado, los miembros de esos
-              grupos pueden ejecutar la acción además de quienes ya podían por rol. Admin siempre
-              puede.
+              (comportamiento por defecto). Con al menos un grupo tildado,{" "}
+              <span className="font-medium">esos grupos son los únicos que pueden ejecutarla</span>:
+              el rol deja de alcanzar para esa acción. Es lo que permite separar quién ejecuta,
+              quién revisa internamente y quién aprueba. En <span className="font-medium">Iniciar</span>,
+              además, el responsable y el grupo responsable del pendiente pueden hacerlo siempre.
+              Admin siempre puede.
             </p>
           )}
         </div>
@@ -221,6 +240,15 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
             </tbody>
           </table>
         </div>
+      )}
+
+      {accionesSinNadie.length > 0 && (
+        <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          Los grupos tildados en{" "}
+          <span className="font-medium">{accionesSinNadie.map((a) => a.label).join(", ")}</span>{" "}
+          no tienen miembros, así que nadie va a poder ejecutar {accionesSinNadie.length === 1 ? "esa acción" : "esas acciones"} salvo Admin.
+          Agregá usuarios al grupo en Configuración → Grupos de usuarios, o tildá otro grupo.
+        </p>
       )}
 
       {error && (
