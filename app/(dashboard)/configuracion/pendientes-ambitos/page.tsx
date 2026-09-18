@@ -289,17 +289,28 @@ export default function PendientesAmbitosPage() {
                       </span>
                     </span>
                   </label>
-                  <label className="flex items-start gap-2 rounded-md border bg-white px-3 py-2 cursor-pointer">
+                  {/* El principal no puede restringirse: es el ámbito al que llega
+                      cualquiera que no esté en ningún grupo, y sin ese piso hay
+                      usuarios que se quedan sin poder crear pendientes. Se deshabilita
+                      la opción en vez de dejar que el guardado rebote. */}
+                  <label
+                    className={`flex items-start gap-2 rounded-md border px-3 py-2 ${
+                      form.esPrincipal ? "bg-gray-50 cursor-not-allowed" : "bg-white cursor-pointer"
+                    }`}
+                  >
                     <input
                       type="radio"
                       className="mt-1 accent-blue-900"
+                      disabled={form.esPrincipal}
                       checked={form.audiencia === AudienciaAmbito.SoloGrupos}
                       onChange={() => setForm({ ...form, audiencia: AudienciaAmbito.SoloGrupos })}
                     />
                     <span>
                       <span className="text-sm font-medium">Solo estos grupos</span>
                       <span className="block text-xs text-muted-foreground">
-                        Además del creador, el responsable y los roles Admin+, que siempre ven.
+                        {form.esPrincipal
+                          ? "El ámbito principal no se puede restringir: es el que usa quien no pertenece a ningún grupo. Marcá otro como principal primero."
+                          : "Además del creador, el responsable y los roles Admin+, que siempre ven."}
                       </span>
                     </span>
                   </label>
@@ -409,7 +420,14 @@ export default function PendientesAmbitosPage() {
                       className="h-4 w-4 accent-blue-900"
                       checked={form.esPrincipal}
                       disabled={form.mode === "edit" && form.esPrincipal}
-                      onChange={(e) => setForm({ ...form, esPrincipal: e.target.checked })}
+                      // Marcarlo como principal fuerza la audiencia abierta: es el
+                      // piso al que llega todo el proyecto. Se aplica acá en vez de
+                      // rechazarlo al guardar, así el cambio se ve al instante.
+                      onChange={(e) => setForm({
+                        ...form,
+                        esPrincipal: e.target.checked,
+                        audiencia: e.target.checked ? AudienciaAmbito.TodoElProyecto : form.audiencia,
+                      })}
                     />
                     <span className="text-xs text-muted-foreground">
                       Ámbito por defecto al crear y en reportes.

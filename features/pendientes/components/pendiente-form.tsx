@@ -435,14 +435,23 @@ export function PendienteForm({
   const ambitoPrincipal = misAmbitos.find((a) => a.esPrincipal) ?? null
   const ambitoRestringido = misAmbitos.find((a) => !a.esPrincipal) ?? null
   const ambitoActual = misAmbitos.find((a) => a.id === ambitoIdActual) ?? null
-  const modoCheckbox = misAmbitos.length === 2 && !!ambitoPrincipal && !!ambitoRestringido
 
-  // Sin elección explícita, el pendiente nace en el principal.
+  // Ámbito por defecto DEL USUARIO: el principal cuando lo tiene —que es siempre,
+  // porque su audiencia es abierta por invariante— y si no, el primero de su lista.
+  // `/mios` ya devuelve el principal primero, así que `misAmbitos[0]` cubre los dos
+  // casos y espeja lo que hace el backend cuando el alta no manda ámbito. Elegir el
+  // principal a ciegas dejaba al usuario sin acceso rebotando contra un default que
+  // él no había elegido.
+  const ambitoPorDefecto = ambitoPrincipal ?? misAmbitos[0] ?? null
+
+  const modoCheckbox = misAmbitos.length === 2 && !!ambitoPorDefecto && !!ambitoRestringido
+    && ambitoPorDefecto.id !== ambitoRestringido.id
+
   useEffect(() => {
-    if (!ambitoIdActual && ambitoPrincipal) {
-      form.setValue("ambitoId", ambitoPrincipal.id)
+    if (!ambitoIdActual && ambitoPorDefecto) {
+      form.setValue("ambitoId", ambitoPorDefecto.id)
     }
-  }, [ambitoIdActual, ambitoPrincipal, form])
+  }, [ambitoIdActual, ambitoPorDefecto, form])
 
   // Toggle "Asignar al grupo responsable por defecto" — mismo patrón simple.
   // Compone el estado de grupoResponsableId: on con default del proyecto lo
@@ -513,7 +522,7 @@ export function PendienteForm({
           name="ambitoId"
           render={({ field }) => (
             <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
-              {modoCheckbox && ambitoPrincipal && ambitoRestringido ? (
+              {modoCheckbox && ambitoPorDefecto && ambitoRestringido ? (
                 <>
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
@@ -521,7 +530,7 @@ export function PendienteForm({
                       className="h-4 w-4 accent-blue-900"
                       checked={field.value === ambitoRestringido.id}
                       onChange={(e) =>
-                        field.onChange(e.target.checked ? ambitoRestringido.id : ambitoPrincipal.id)
+                        field.onChange(e.target.checked ? ambitoRestringido.id : ambitoPorDefecto.id)
                       }
                       disabled={isPending}
                     />
