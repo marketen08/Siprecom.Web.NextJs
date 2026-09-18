@@ -35,6 +35,12 @@ interface FormState {
   audiencia: AudienciaAmbito
   orden: number
   esPrincipal: boolean
+  /**
+   * Si el ámbito YA era principal al abrir el formulario. Distinto de esPrincipal,
+   * que es lo que el usuario tiene tildado ahora: sin esta distinción, tildar el
+   * check lo deshabilitaba en el acto y no había forma de destildarlo.
+   */
+  eraPrincipal: boolean
   icono: string | null
   color: string | null
   grupoIds: string[]
@@ -47,6 +53,7 @@ const VACIO: FormState = {
   audiencia: AudienciaAmbito.SoloGrupos,
   orden: 10,
   esPrincipal: false,
+  eraPrincipal: false,
   icono: null,
   color: "ambar",
   grupoIds: [],
@@ -75,6 +82,7 @@ export default function PendientesAmbitosPage() {
       audiencia: a.audiencia,
       orden: a.orden,
       esPrincipal: a.esPrincipal,
+      eraPrincipal: a.esPrincipal,
       icono: a.icono,
       color: a.color ?? "ambar",
       grupoIds: a.grupos.map((g) => g.grupoId),
@@ -308,9 +316,11 @@ export default function PendientesAmbitosPage() {
                     <span>
                       <span className="text-sm font-medium">Solo estos grupos</span>
                       <span className="block text-xs text-muted-foreground">
-                        {form.esPrincipal
-                          ? "El ámbito principal no se puede restringir: es el que usa quien no pertenece a ningún grupo. Marcá otro como principal primero."
-                          : "Además del creador, el responsable y los roles Admin+, que siempre ven."}
+                        {!form.esPrincipal
+                          ? "Además del creador, el responsable y los roles Admin+, que siempre ven."
+                          : form.eraPrincipal
+                            ? "El ámbito principal no se puede restringir: es el que usa quien no pertenece a ningún grupo. Marcá otro como principal primero."
+                            : "Destildá «Principal» para poder restringir la audiencia."}
                       </span>
                     </span>
                   </label>
@@ -414,23 +424,25 @@ export default function PendientesAmbitosPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium">Principal</label>
+                  {/* La dependencia va en un solo sentido: la audiencia habilita al
+                      principal, no al revés. Tildar acá no toca la audiencia — cambiar
+                      en silencio un campo que el usuario no tocó es peor que tener el
+                      check bloqueado con el motivo a la vista. */}
                   <label className="flex items-center gap-2 h-9">
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-blue-900"
                       checked={form.esPrincipal}
-                      disabled={form.mode === "edit" && form.esPrincipal}
-                      // Marcarlo como principal fuerza la audiencia abierta: es el
-                      // piso al que llega todo el proyecto. Se aplica acá en vez de
-                      // rechazarlo al guardar, así el cambio se ve al instante.
-                      onChange={(e) => setForm({
-                        ...form,
-                        esPrincipal: e.target.checked,
-                        audiencia: e.target.checked ? AudienciaAmbito.TodoElProyecto : form.audiencia,
-                      })}
+                      disabled={
+                        form.eraPrincipal
+                        || form.audiencia !== AudienciaAmbito.TodoElProyecto
+                      }
+                      onChange={(e) => setForm({ ...form, esPrincipal: e.target.checked })}
                     />
                     <span className="text-xs text-muted-foreground">
-                      Ámbito por defecto al crear y en reportes.
+                      {form.audiencia !== AudienciaAmbito.TodoElProyecto
+                        ? "Para que sea el principal, la audiencia tiene que ser «Todos los del proyecto»."
+                        : "Ámbito por defecto al crear y en reportes."}
                     </span>
                   </label>
                 </div>
