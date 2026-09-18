@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
-  FileDown, FileUp, MapPin, ListChecks, UserCog, Lock,
+  FileDown, FileUp, MapPin, ListChecks, UserCog,
 } from "lucide-react"
 
 import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
@@ -26,6 +26,7 @@ import type { PendienteFormValues } from "../schema"
 import {
   ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR, categoriaColor,
 } from "../types"
+import { colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
 
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
@@ -123,17 +124,10 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
-                {/* Chip del ámbito — solo en los restringidos. El principal es el
-                    caso normal y marcarlo sería ruido en todas las filas. */}
-                {!p.ambitoEsPrincipal && (
-                  <span
-                    className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1"
-                    title={`Ámbito ${p.ambitoNombre ?? "restringido"}: lo ven los grupos de su audiencia, el creador, el responsable y roles Admin+`}
-                  >
-                    <Lock className="h-3 w-3" />
-                    <span>{p.ambitoNombre ?? "Restringido"}</span>
-                  </span>
-                )}
+                {/* Chip del ámbito. Se dibuja solo si el ámbito tiene ícono elegido:
+                    el principal se siembra sin uno porque marcarlo en todos lados es
+                    ruido, pero eso es configuración y no una regla del código. */}
+                <MarcaAmbitoChip pendiente={p} />
               </SheetTitle>
               {!isEditing && (
                 <>
@@ -893,6 +887,29 @@ function Adjuntos({
         </label>
       )}
     </section>
+  )
+}
+
+/**
+ * Chip del ámbito en la cabecera del detalle. Ícono y color los elige el admin
+ * por ámbito y viajan con el pendiente ya resueltos.
+ */
+function MarcaAmbitoChip({
+  pendiente,
+}: {
+  pendiente: { ambitoIcono: string | null; ambitoColor: string | null; ambitoNombre: string | null }
+}) {
+  const Icon = iconoDeAmbito(pendiente.ambitoIcono)
+  if (!Icon) return null
+  const color = colorDeAmbito(pendiente.ambitoColor)
+  return (
+    <span
+      className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium border inline-flex items-center gap-1 ${color.chip}`}
+      title={`Ámbito ${pendiente.ambitoNombre ?? "restringido"}: lo ven los grupos de su audiencia, el creador, el responsable y roles Admin+`}
+    >
+      <Icon className="h-3 w-3" />
+      <span>{pendiente.ambitoNombre ?? "Restringido"}</span>
+    </span>
   )
 }
 

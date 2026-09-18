@@ -26,6 +26,14 @@ export interface PendienteAmbito {
   orden: number
   /** Ámbito por defecto al crear, filtro por defecto de reportes, y no borrable. */
   esPrincipal: boolean
+  /**
+   * Clave del ícono con que se marca el ámbito en los listados, y token de color.
+   * Claves semánticas, no nombres de lucide: el mobile dibuja lo mismo con Ionicons.
+   * Ver `presentacion.ts` para el mapeo, y `AmbitoPresentacion` en el backend para
+   * el conjunto válido. Sin ícono, el ámbito no se marca.
+   */
+  icono: string | null
+  color: string | null
   isActive: boolean
   grupos: PendienteAmbitoGrupo[]
   /**
@@ -42,5 +50,7 @@ export interface PendienteAmbitoSet {
   audiencia: AudienciaAmbito
   orden: number
   esPrincipal: boolean
+  icono?: string | null
+  color?: string | null
   grupoIds: string[]
 }

@@ -226,6 +226,9 @@ export interface Pendiente {
    * chip: marcar todo con "General" es ruido, lo que informa es el restringido.
    */
   ambitoEsPrincipal: boolean
+  /** Ícono y color con que el ámbito se marca en el listado. Sin ícono, no se marca. */
+  ambitoIcono: string | null
+  ambitoColor: string | null
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean

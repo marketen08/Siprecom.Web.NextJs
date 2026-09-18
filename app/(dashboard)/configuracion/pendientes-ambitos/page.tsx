@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AlertTriangle, Lock, Pencil, Plus, Trash2, Users } from "lucide-react"
+import { AlertTriangle, Pencil, Plus, Trash2, Users } from "lucide-react"
 
 import {
   useActualizarAmbito,
@@ -10,6 +10,7 @@ import {
   useGetPendientesAmbitos,
 } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
 import { AudienciaAmbito, type PendienteAmbito } from "@/features/pendientes-ambitos/types"
+import { COLORES_AMBITO, ICONOS_AMBITO, colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,8 @@ interface FormState {
   audiencia: AudienciaAmbito
   orden: number
   esPrincipal: boolean
+  icono: string | null
+  color: string | null
   grupoIds: string[]
 }
 
@@ -44,6 +47,8 @@ const VACIO: FormState = {
   audiencia: AudienciaAmbito.SoloGrupos,
   orden: 10,
   esPrincipal: false,
+  icono: null,
+  color: "ambar",
   grupoIds: [],
 }
 
@@ -70,6 +75,8 @@ export default function PendientesAmbitosPage() {
       audiencia: a.audiencia,
       orden: a.orden,
       esPrincipal: a.esPrincipal,
+      icono: a.icono,
+      color: a.color ?? "ambar",
       grupoIds: a.grupos.map((g) => g.grupoId),
     })
   }
@@ -83,6 +90,8 @@ export default function PendientesAmbitosPage() {
       audiencia: form.audiencia,
       orden: form.orden,
       esPrincipal: form.esPrincipal,
+      icono: form.icono,
+      color: form.icono ? form.color : null,
       grupoIds: form.audiencia === AudienciaAmbito.SoloGrupos ? form.grupoIds : [],
     }
     try {
@@ -166,9 +175,15 @@ export default function PendientesAmbitosPage() {
               <TableRow key={a.id}>
                 <TableCell className="align-top">
                   <div className="flex items-center gap-2">
-                    {a.audiencia === AudienciaAmbito.SoloGrupos && (
-                      <Lock className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                    )}
+                    {/* La marca real con la que se va a ver en los listados — no un
+                        ícono decorativo. Sin ícono configurado no se muestra nada,
+                        que es exactamente lo que va a pasar en el listado. */}
+                    {(() => {
+                      const Icon = iconoDeAmbito(a.icono)
+                      return Icon ? (
+                        <Icon className={`h-3.5 w-3.5 shrink-0 ${colorDeAmbito(a.color).text}`} />
+                      ) : null
+                    })()}
                     <span className="font-medium">{a.nombre}</span>
                     {a.esPrincipal && (
                       <span className="text-[10px] uppercase tracking-wide bg-blue-50 text-blue-800 border border-blue-200 rounded px-1.5 py-0.5">
@@ -324,6 +339,58 @@ export default function PendientesAmbitosPage() {
                   )}
                 </div>
               )}
+
+              {/* Marca del ámbito en los listados. Sin ícono no se dibuja nada —
+                  así el principal no mancha todas las filas, pero es decisión del
+                  admin y no una regla clavada en el código. */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Marca en los listados</label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, icono: null })}
+                    className={`rounded-md border px-2.5 py-1.5 text-xs ${
+                      !form.icono ? "border-blue-600 bg-blue-50 font-medium" : "bg-white"
+                    }`}
+                  >
+                    Sin marca
+                  </button>
+                  {ICONOS_AMBITO.map(({ clave, label, Icon }) => (
+                    <button
+                      key={clave}
+                      type="button"
+                      title={label}
+                      aria-label={label}
+                      onClick={() => setForm({ ...form, icono: clave })}
+                      className={`rounded-md border p-2 ${
+                        form.icono === clave ? "border-blue-600 bg-blue-50" : "bg-white"
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 ${colorDeAmbito(form.color).text}`} />
+                    </button>
+                  ))}
+                </div>
+
+                {form.icono && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-xs text-muted-foreground mr-1">Color:</span>
+                    {COLORES_AMBITO.map((c) => (
+                      <button
+                        key={c.clave}
+                        type="button"
+                        title={c.label}
+                        aria-label={c.label}
+                        onClick={() => setForm({ ...form, color: c.clave })}
+                        className={`h-6 w-6 rounded-full ${c.swatch} ${
+                          (form.color ?? "ambar") === c.clave
+                            ? "ring-2 ring-offset-2 ring-blue-600"
+                            : ""
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
