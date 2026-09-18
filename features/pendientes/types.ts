@@ -365,8 +365,8 @@ export interface PendienteUpdateInput {
   nivelId?: string | null
   accionId?: string | null
   motivoId?: string | null
-  /** Ámbito destino. Vacío = no se reclasifica. Cambiarlo cambia quién lo ve. */
-  ambitoId?: string | null
+  // El ámbito NO va en el update: se cambia con PUT /pendientes/{id}/ambito,
+  // que valida el permiso de reclasificación. Igual que el responsable.
 }
 
 export interface PendienteFilterInput {

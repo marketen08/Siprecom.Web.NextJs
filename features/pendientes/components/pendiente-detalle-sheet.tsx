@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
   Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
-  FileDown, FileUp, MapPin, ListChecks, UserCog,
+  FileDown, FileUp, MapPin, ListChecks, UserCog, Tags,
 } from "lucide-react"
 
 import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
@@ -27,11 +27,17 @@ import {
   ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR, categoriaColor,
 } from "../types"
 import { colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
+import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
+import { AudienciaAmbito, type PendienteAmbito } from "@/features/pendientes-ambitos/types"
+import { useReclasificarPendiente } from "../api/use-reclasificar-pendiente"
 
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
@@ -260,6 +266,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                           estadoId={p.estadoId}
                           responsableId={p.responsableId}
                           grupoResponsableId={p.grupoResponsableId}
+                          ambitoId={p.ambitoId}
                           compact
                         />
                       </div>
@@ -294,6 +301,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                   estadoId={p.estadoId}
                   responsableId={p.responsableId}
                   grupoResponsableId={p.grupoResponsableId}
+                  ambitoId={p.ambitoId}
                 />
               </div>
             )}
@@ -420,6 +428,7 @@ function Workflow({
   estadoId,
   responsableId,
   grupoResponsableId,
+  ambitoId,
   compact = false,
 }: {
   pendienteId: string
@@ -428,6 +437,8 @@ function Workflow({
   responsableId: string
   /** Grupo co-responsable actual (null = sin grupo). */
   grupoResponsableId?: string | null
+  /** Ámbito actual — se excluye de las opciones al reclasificar. */
+  ambitoId: string
   /** Variante compacta para embeber en el header sticky: sin título "Acciones" y botones más chicos. */
   compact?: boolean
 }) {
@@ -435,6 +446,10 @@ function Workflow({
   const [dialog, setDialog] = useState<null | { accion: "rechazar" | "cancelar"; titulo: string; descripcion: string }>(null)
   const [motivo, setMotivo] = useState("")
   const [reasignarOpen, setReasignarOpen] = useState(false)
+  const [ambitoOpen, setAmbitoOpen] = useState(false)
+  // Los ámbitos que este usuario puede usar. Con uno solo, el botón no se dibuja.
+  const { data: ambitosResp } = useGetMisAmbitos()
+  const misAmbitos = ambitosResp?.data ?? []
 
   async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "aprobar", comentario?: string) {
     await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
@@ -512,6 +527,16 @@ function Workflow({
       >
         <UserCog className={iconSize} /> Reasignar
       </Button>
+      {/* Cambiar ámbito: solo si el usuario tiene más de uno disponible. Con uno
+          solo no hay nada que elegir, y el botón seria una promesa vacía. */}
+      {misAmbitos.length > 1 && (
+        <Button
+          size="sm" variant="outline" disabled={busy} className={btnBase}
+          onClick={() => setAmbitoOpen(true)}
+        >
+          <Tags className={iconSize} /> Cambiar ámbito
+        </Button>
+      )}
       {estadoId !== PENDIENTE_ESTADO_IDS.CERRADO && estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
         <Button
           size="sm" variant="outline" disabled={busy}
@@ -544,6 +569,13 @@ function Workflow({
           responsableActualId={responsableId}
           grupoActualId={grupoResponsableId ?? null}
         />
+        <CambiarAmbitoDialog
+          open={ambitoOpen}
+          onOpenChange={setAmbitoOpen}
+          pendienteId={pendienteId}
+          ambitoActualId={ambitoId}
+          ambitosDisponibles={misAmbitos}
+        />
       </>
     )
   }
@@ -563,7 +595,133 @@ function Workflow({
         responsableActualId={responsableId}
         grupoActualId={grupoResponsableId ?? null}
       />
+      <CambiarAmbitoDialog
+        open={ambitoOpen}
+        onOpenChange={setAmbitoOpen}
+        pendienteId={pendienteId}
+        ambitoActualId={ambitoId}
+        ambitosDisponibles={misAmbitos}
+      />
     </section>
+  )
+}
+
+// ─── Cambiar ámbito (reclasificación) ────────────────────────────────────
+
+/**
+ * Mueve el pendiente a otro ámbito. Endpoint propio —no el update— porque cambia
+ * quién ve el pendiente, sus comentarios y sus adjuntos, y de forma retroactiva.
+ *
+ * El diálogo nombra la audiencia del destino antes de confirmar: es lo que
+ * convierte un clic distraído en una decisión. Y avisa si el propio usuario va a
+ * perder de vista el pendiente, que es el efecto que más sorprende.
+ *
+ * Como el resto de las acciones de workflow, no hace gating por rol en el cliente:
+ * el backend valida (mandar sobre el ámbito origen + pertenecer al destino) y el
+ * error se muestra acá adentro, que es donde el usuario lo va a leer.
+ */
+function CambiarAmbitoDialog({
+  open,
+  onOpenChange,
+  pendienteId,
+  ambitoActualId,
+  ambitosDisponibles,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  pendienteId: string
+  ambitoActualId: string
+  ambitosDisponibles: PendienteAmbito[]
+}) {
+  const reclasificar = useReclasificarPendiente()
+  const [destinoId, setDestinoId] = useState("")
+  const [comentario, setComentario] = useState("")
+
+  useEffect(() => {
+    if (open) {
+      setDestinoId("")
+      setComentario("")
+      reclasificar.reset()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const destino = ambitosDisponibles.find((a) => a.id === destinoId) ?? null
+  const opciones = ambitosDisponibles.filter((a) => a.id !== ambitoActualId)
+
+  async function confirmar() {
+    if (!destinoId) return
+    try {
+      await reclasificar.mutateAsync({ id: pendienteId, ambitoId: destinoId, comentario })
+      onOpenChange(false)
+    } catch {
+      // El error queda en la mutation y se muestra abajo.
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cambiar ámbito</AlertDialogTitle>
+          <AlertDialogDescription>
+            El ámbito define quién puede ver este pendiente. Cambiarlo también cambia quién ve
+            sus comentarios y sus adjuntos, incluidos los que ya están cargados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Nuevo ámbito</label>
+            <Select value={destinoId} onValueChange={(v) => setDestinoId(v ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue>{destino?.nombre ?? "Elegí un ámbito"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {opciones.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {destino && (
+            <p className="text-xs rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+              Va a pasar a <span className="font-medium">{destino.nombre}</span>:{" "}
+              {destino.audiencia === AudienciaAmbito.TodoElProyecto
+                ? "lo va a ver cualquiera con acceso al proyecto."
+                : `lo van a ver ${destino.grupos.map((g) => g.grupoNombre).join(", ") || "los grupos de su audiencia"}.`}
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Motivo (opcional)</label>
+            <Textarea
+              rows={2}
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              placeholder="Queda en el historial junto al cambio."
+            />
+          </div>
+
+          {reclasificar.isError && (
+            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+              {(reclasificar.error as Error).message}
+            </p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={reclasificar.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!destinoId || reclasificar.isPending}
+            onClick={(e) => { e.preventDefault(); confirmar() }}
+          >
+            {reclasificar.isPending ? "Cambiando…" : "Cambiar ámbito"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
@@ -1014,7 +1172,6 @@ function EditarPendiente({
       nivelId: values.nivelId,
       accionId: values.accionId,
       motivoId: values.motivoId,
-      ambitoId: values.ambitoId ?? null,
     })
     onDone()
   }
@@ -1044,7 +1201,7 @@ function EditarPendiente({
         onSubmit={onSubmit}
         isPending={update.isPending}
         onCancel={onDone}
-        readonlyResponsable
+        modo="edicion"
       />
     </div>
   )

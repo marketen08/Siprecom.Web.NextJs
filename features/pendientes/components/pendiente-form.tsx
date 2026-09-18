@@ -61,11 +61,16 @@ interface PendienteFormProps {
   isPending: boolean
   onCancel: () => void
   /**
-   * En modo edición el responsable no se puede cambiar desde este formulario
-   * (va por el workflow "Asignar responsable"). Cuando es true, el campo
-   * queda visible pero deshabilitado y con una nota aclaratoria.
+   * Alta o edición. La diferencia no es cosmética: en edición el formulario NO
+   * muestra responsable, grupo responsable ni ámbito.
+   *
+   * Los tres se cambian con acciones propias del detalle —Reasignar y Cambiar
+   * ámbito— porque tienen permisos más altos que editar: cualquiera con permiso
+   * de escritura puede corregir una descripción, pero reasignar comparte permiso
+   * con Aprobar y reclasificar exige pertenecer al ámbito destino. Tenerlos acá
+   * deshabilitados era ruido: ocupaban lugar sin poder usarse.
    */
-  readonlyResponsable?: boolean
+  modo?: "alta" | "edicion"
 }
 
 export function PendienteForm({
@@ -73,8 +78,9 @@ export function PendienteForm({
   onSubmit,
   isPending,
   onCancel,
-  readonlyResponsable = false,
+  modo = "alta",
 }: PendienteFormProps) {
+  const esAlta = modo === "alta"
   const { data: perfil } = useGetPerfil()
   const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
   const elementoRequerido = proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTE_ELEMENTO_REQUERIDO === true
@@ -476,7 +482,7 @@ export function PendienteForm({
           // Guard local: si "Asignar al grupo responsable" está
           // activo pero no hay grupo elegido (proyecto sin default), pedimos
           // al usuario que elija uno en avanzado.
-          if (asignarGrupoResp && !values.grupoResponsableId) {
+          if (esAlta && asignarGrupoResp && !values.grupoResponsableId) {
             setAvanzadoAbierto(true)
             form.setError("grupoResponsableId", {
               type: "manual",
@@ -683,12 +689,12 @@ export function PendienteForm({
 
         <Separator />
 
-        {/* ── Responsable + Fecha ── */}
-        {/* Cada columna agrupa el dato con el toggle que lo modula: el
-            responsable con "asignar al grupo responsable" (que extiende el
-            "Míos" a todo el grupo), la fecha con "pendiente interno". El
-            select de grupo con override vive en Opciones avanzadas. */}
+        {/* ── Asignación + Fecha ── */}
+        {/* En ALTA: responsable + grupo a la izquierda, fecha + ámbito a la derecha.
+            En EDICIÓN queda solo la fecha: los otros tres se cambian con acciones
+            propias del detalle, que piden permisos más altos que editar. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          {esAlta && (
           <div className="flex flex-col gap-3">
             <FormField
               control={form.control}
@@ -712,14 +718,9 @@ export function PendienteForm({
                       placeholder="Asignar a un usuario"
                       searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
                       emptyMessage="Sin usuarios en el proyecto"
-                      disabled={isPending || readonlyResponsable}
+                      disabled={isPending}
                     />
                   </FormControl>
-                  {readonlyResponsable && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Para reasignar, usá la acción de workflow en el detalle del pendiente.
-                    </p>
-                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -736,7 +737,7 @@ export function PendienteForm({
                   className="h-4 w-4 accent-blue-900"
                   checked={asignarGrupoResp}
                   onChange={(e) => handleToggleGrupoResp(e.target.checked)}
-                  disabled={isPending || readonlyResponsable}
+                  disabled={isPending}
                 />
                 <span className="text-sm font-medium">👥 Asignar al grupo responsable</span>
               </label>
@@ -771,6 +772,7 @@ export function PendienteForm({
               </p>
             </div>
           </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <FormField
@@ -793,7 +795,11 @@ export function PendienteForm({
 
                 Con exactamente dos ámbitos se dibuja como el checkbox de siempre;
                 el selector aparece recién con tres o más. La generalidad del modelo
-                no se le cobra al usuario hasta que la necesita. */}
+                no se le cobra al usuario hasta que la necesita.
+
+                Solo en el alta: reclasificar un pendiente que ya existe cambia quién
+                lo ve retroactivamente, y eso va por su propia acción en el detalle. */}
+            {esAlta && (
             <FormField
               control={form.control}
               name="ambitoId"
@@ -849,6 +855,7 @@ export function PendienteForm({
                 </FormItem>
               )}
             />
+            )}
           </div>
         </div>
 
@@ -1039,7 +1046,7 @@ export function PendienteForm({
 
               {/* Grupo responsable — solo se muestra con el toggle activo.
                   Permite override del default del proyecto por pendiente. */}
-              {asignarGrupoResp && (
+              {esAlta && asignarGrupoResp && (
                 <FormField
                   control={form.control}
                   name="grupoResponsableId"
@@ -1061,7 +1068,7 @@ export function PendienteForm({
                           placeholder={grupoRespDefaultId ? `Default: ${grupoRespDefaultNombre ?? "…"}` : "Elegí un grupo"}
                           searchPlaceholder="Buscar grupo..."
                           emptyMessage="No hay grupos habilitados para Pendientes"
-                          disabled={isPending || readonlyResponsable}
+                          disabled={isPending}
                         />
                       </FormControl>
                       <p className="text-xs text-muted-foreground mt-1">
