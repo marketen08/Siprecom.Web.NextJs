@@ -494,6 +494,77 @@ export function PendienteForm({
         })}
         className="flex flex-col gap-6 pb-24 sm:pb-4"
       >
+        {/* Ámbito — primera decisión del alta: define quién va a ver el pendiente.
+
+            Se dibuja SOLO si el usuario tiene más de un ámbito disponible. Con uno
+            solo no hay nada que elegir y un control de una opción es ruido: el
+            pendiente nace igual en el principal, que es lo que el efecto de arriba
+            deja seteado.
+
+            Con exactamente dos se dibuja como el checkbox de siempre; el selector
+            aparece recién con tres o más. La generalidad del modelo no se le cobra
+            al usuario hasta que la necesita.
+
+            Solo en el alta: reclasificar un pendiente que ya existe cambia quién lo
+            ve retroactivamente, y eso va por su propia acción en el detalle. */}
+        {esAlta && misAmbitos.length > 1 && (
+        <FormField
+          control={form.control}
+          name="ambitoId"
+          render={({ field }) => (
+            <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
+              {modoCheckbox && ambitoPrincipal && ambitoRestringido ? (
+                <>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-blue-900"
+                      checked={field.value === ambitoRestringido.id}
+                      onChange={(e) =>
+                        field.onChange(e.target.checked ? ambitoRestringido.id : ambitoPrincipal.id)
+                      }
+                      disabled={isPending}
+                    />
+                    <span className="text-sm font-medium">🔒 {ambitoRestringido.nombre}</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {field.value === ambitoRestringido.id
+                      ? ambitoRestringido.descripcion
+                      : "Marcá para restringir quién lo ve. " + (ambitoRestringido.descripcion ?? "")}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <FormLabel>Ámbito</FormLabel>
+                  <Select
+                    value={field.value ?? ""}
+                    onValueChange={field.onChange}
+                    disabled={isPending || misAmbitos.length === 0}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue>{ambitoActual?.nombre ?? "Elegí un ámbito"}</SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {misAmbitos.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {ambitoActual?.descripcion ?? "Define quién puede ver este pendiente."}
+                  </p>
+                </>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        )}
+
         {/* ── Wizard de descripción (filtrado cruzado desde el catálogo) ── */}
         <div className="flex flex-col gap-4">
           <div>
@@ -690,9 +761,10 @@ export function PendienteForm({
         <Separator />
 
         {/* ── Asignación + Fecha ── */}
-        {/* En ALTA: responsable + grupo a la izquierda, fecha + ámbito a la derecha.
-            En EDICIÓN queda solo la fecha: los otros tres se cambian con acciones
-            propias del detalle, que piden permisos más altos que editar. */}
+        {/* En ALTA: responsable + grupo a la izquierda, fecha a la derecha.
+            En EDICIÓN queda solo la fecha — responsable y grupo se cambian con
+            Reasignar, que pide permisos más altos que editar.
+            (El ámbito vive arriba de todo: es la primera decisión del alta.) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
           {esAlta && (
           <div className="flex flex-col gap-3">
@@ -789,73 +861,6 @@ export function PendienteForm({
               )}
             />
 
-            {/* Ámbito — define quién ve el pendiente. El selector ofrece solo los
-                ámbitos donde este usuario puede clasificar, así que no se puede
-                mandar un pendiente a un lugar donde después no lo vería.
-
-                Con exactamente dos ámbitos se dibuja como el checkbox de siempre;
-                el selector aparece recién con tres o más. La generalidad del modelo
-                no se le cobra al usuario hasta que la necesita.
-
-                Solo en el alta: reclasificar un pendiente que ya existe cambia quién
-                lo ve retroactivamente, y eso va por su propia acción en el detalle. */}
-            {esAlta && (
-            <FormField
-              control={form.control}
-              name="ambitoId"
-              render={({ field }) => (
-                <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
-                  {modoCheckbox && ambitoPrincipal && ambitoRestringido ? (
-                    <>
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-blue-900"
-                          checked={field.value === ambitoRestringido.id}
-                          onChange={(e) =>
-                            field.onChange(e.target.checked ? ambitoRestringido.id : ambitoPrincipal.id)
-                          }
-                          disabled={isPending}
-                        />
-                        <span className="text-sm font-medium">🔒 {ambitoRestringido.nombre}</span>
-                      </label>
-                      <p className="text-xs text-muted-foreground">
-                        {field.value === ambitoRestringido.id
-                          ? ambitoRestringido.descripcion
-                          : "Marcá para restringir quién lo ve. " + (ambitoRestringido.descripcion ?? "")}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <FormLabel>Ámbito</FormLabel>
-                      <Select
-                        value={field.value ?? ""}
-                        onValueChange={field.onChange}
-                        disabled={isPending || misAmbitos.length === 0}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue>{ambitoActual?.nombre ?? "Elegí un ámbito"}</SelectValue>
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {misAmbitos.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                              {a.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        {ambitoActual?.descripcion ?? "Define quién puede ver este pendiente."}
-                      </p>
-                    </>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            )}
           </div>
         </div>
 
