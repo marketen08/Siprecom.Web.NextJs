@@ -16,6 +16,8 @@ import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
+import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
 import { PRIORIDAD } from "../types"
 import {
   CAMPO_DIMENSION,
@@ -25,6 +27,7 @@ import {
   aplanarArbol,
   filaCoincide,
   reconciliarSeleccion,
+  SACRIFICIO_CON_ESPECIALIDAD,
   seleccionAlcanzable,
   type Dimension,
   type FilaCatalogo,
@@ -59,11 +62,16 @@ interface PendienteFormProps {
   isPending: boolean
   onCancel: () => void
   /**
-   * En modo edición el responsable no se puede cambiar desde este formulario
-   * (va por el workflow "Asignar responsable"). Cuando es true, el campo
-   * queda visible pero deshabilitado y con una nota aclaratoria.
+   * Alta o edición. La diferencia no es cosmética: en edición el formulario NO
+   * muestra responsable, grupo responsable ni ámbito.
+   *
+   * Los tres se cambian con acciones propias del detalle —Reasignar y Cambiar
+   * ámbito— porque tienen permisos más altos que editar: cualquiera con permiso
+   * de escritura puede corregir una descripción, pero reasignar comparte permiso
+   * con Aprobar y reclasificar exige pertenecer al ámbito destino. Tenerlos acá
+   * deshabilitados era ruido: ocupaban lugar sin poder usarse.
    */
-  readonlyResponsable?: boolean
+  modo?: "alta" | "edicion"
 }
 
 export function PendienteForm({
@@ -71,8 +79,9 @@ export function PendienteForm({
   onSubmit,
   isPending,
   onCancel,
-  readonlyResponsable = false,
+  modo = "alta",
 }: PendienteFormProps) {
+  const esAlta = modo === "alta"
   const { data: perfil } = useGetPerfil()
   const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
   const elementoRequerido = proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTE_ELEMENTO_REQUERIDO === true
@@ -88,7 +97,9 @@ export function PendienteForm({
   // Solo grupos declarados para uso en Pendientes — mismo criterio que la matriz
   // de autorización, para no ofrecer grupos irrelevantes al asignar.
   const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
-  const gruposResponsables = gruposResp?.data ?? []
+  // Ojo: la lista completa. La que se OFRECE se filtra más abajo por la audiencia
+  // del ámbito elegido — ver `gruposResponsables`.
+  const todosLosGrupos = gruposResp?.data ?? []
 
   const categorias = categoriasRaw?.data ?? []
   const sistemas = sistemasRaw?.data ?? []
@@ -118,7 +129,7 @@ export function PendienteForm({
       ubicacion: defaultValues?.ubicacion ?? null,
       responsableId: defaultValues?.responsableId ?? "",
       grupoResponsableId: defaultValues?.grupoResponsableId ?? null,
-      esInterno: defaultValues?.esInterno ?? false,
+      ambitoId: defaultValues?.ambitoId ?? null,
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
       prioridad: defaultValues?.prioridad ?? 2,
       // Sistema se infiere del subsistema del defaultValues (edición) o queda vacío
@@ -149,9 +160,12 @@ export function PendienteForm({
   // Esto vale por dos motivos concretos:
   //  - El usuario puede empezar por donde quiera (típicamente por Especialidad,
   //    cuando ésta viene del Elemento).
-  //  - Como las opciones de cada dimensión se calculan excluyéndose a sí misma,
-  //    elegir cualquier opción ofrecida deja SIEMPRE una tupla que existe en el
-  //    catálogo. Es decir: no hace falta limpiar hijos al cambiar un select.
+  //  - Mientras falte alguna dimensión, elegir dentro de lo ofrecido deja SIEMPRE
+  //    una tupla que existe en el catálogo, así que no hay que limpiar nada.
+  //
+  // La excepción es tener las 5 completas: ahí el filtrado se muerde la cola y los
+  // selects pasan a ofrecer el catálogo entero, con reconciliación al elegir. Ver
+  // `opciones` y `onDimensionChange`.
   const filas = useMemo<FilaCatalogo[]>(() => aplanarArbol(arbolRaw?.data ?? []), [arbolRaw])
 
   const seleccion = useMemo<SeleccionDimensiones>(
@@ -168,7 +182,15 @@ export function PendienteForm({
   )
 
   const opciones = useMemo(() => {
-    const base = seleccionValida ? seleccion : SELECCION_VACIA
+    // Con las 5 dimensiones cargadas, el filtrado cruzado se muerde la cola: cada
+    // eje queda determinado por los otros cuatro y el select ofrece una sola opción
+    // — la actual. Pasa siempre al editar, y también en el alta si te equivocaste en
+    // el último select. Ahí abrimos el catálogo completo: elegir algo incompatible
+    // no rompe nada porque `onDimensionChange` reconcilia el resto.
+    //
+    // Mientras falte alguna, el filtrado cruzado sigue guiando como hasta ahora.
+    const completas = DIMENSIONES.every((d) => Boolean(seleccion[d]))
+    const base = seleccionValida && !completas ? seleccion : SELECCION_VACIA
     const out = {} as Record<Dimension, OpcionDimension[]>
     for (const dim of DIMENSIONES) {
       const vistos = new Set<string>()
@@ -223,6 +245,60 @@ export function PendienteForm({
     for (const d of DIMENSIONES) {
       form.setValue(CAMPO_DIMENSION[d], "", { shouldDirty: true, shouldValidate: true })
     }
+    setAjusteWizard([])
+    setAjusteOrigen(null)
+  }
+
+  /**
+   * Cambio de una de las 5 dimensiones desde su select.
+   *
+   * Con las 5 completas el select ofrece todo el catálogo (ver `opciones`), así que
+   * el valor elegido puede no convivir con el resto. Reconciliamos: anclamos lo que
+   * el usuario acaba de elegir y soltamos las mínimas dimensiones necesarias para
+   * que la combinación vuelva a existir, en el orden Motivo → Acción → Tipo → Nivel.
+   *
+   * Después intentamos recompletar solas las que quedaron sueltas cuando les queda
+   * una única opción compatible. En la práctica cambiás el Tipo y te queda uno o dos
+   * campos para elegir, no cuatro — que es la diferencia entre ajustar y rehacer.
+   */
+  const onDimensionChange = (dim: Dimension, valor: string) => {
+    form.setValue(CAMPO_DIMENSION[dim], valor, { shouldDirty: true, shouldValidate: true })
+    setEspecialidadSinCatalogo(false)
+
+    if (!valor || filas.length === 0) {
+      setAjusteWizard([])
+      setAjusteOrigen(null)
+      return
+    }
+
+    const { seleccion: saneada, soltadas } = reconciliarSeleccion(
+      filas,
+      { ...seleccion, [dim]: valor },
+      [dim],
+      SACRIFICIO_CON_ESPECIALIDAD,
+    )
+
+    // Recompletar lo que quedó con una sola alternativa. Se recalcula en cada
+    // vuelta porque fijar una dimensión puede dejar la siguiente también en una.
+    const final = { ...saneada }
+    const pendientesDeElegir: Dimension[] = []
+    for (const d of soltadas) {
+      const compatibles = new Set<string>()
+      for (const fila of filas) {
+        if (filaCoincide(fila, final, d)) compatibles.add(fila[`${d}Id`])
+      }
+      if (compatibles.size === 1) final[d] = [...compatibles][0]
+      else pendientesDeElegir.push(d)
+    }
+
+    for (const d of DIMENSIONES) {
+      if (final[d] !== seleccion[d]) {
+        form.setValue(CAMPO_DIMENSION[d], final[d], { shouldDirty: true, shouldValidate: true })
+      }
+    }
+
+    setAjusteWizard(pendientesDeElegir)
+    setAjusteOrigen(pendientesDeElegir.length > 0 ? "wizard" : null)
   }
 
   // Toggle del checkbox "Modificar descripción manualmente":
@@ -264,6 +340,10 @@ export function PendienteForm({
   // shouldValidate: true es crítico — sin él, el error "Elemento requerido"
   // queda pegado aunque el user ya haya elegido uno.
   const [ajusteWizard, setAjusteWizard] = useState<Dimension[]>([])
+  // Quién disparó el ajuste: el elemento imponiendo su especialidad, o el propio
+  // usuario cambiando una dimensión. El aviso dice cosas distintas en cada caso —
+  // uno explica algo que pasó solo, el otro confirma lo que el usuario pidió.
+  const [ajusteOrigen, setAjusteOrigen] = useState<"elemento" | "wizard" | null>(null)
   const [especialidadSinCatalogo, setEspecialidadSinCatalogo] = useState(false)
 
   // La especialidad puede llegar PRE-CARGADA (prefill desde la maqueta 3D) apuntando
@@ -281,6 +361,7 @@ export function PendienteForm({
   const onElementoChange = (nuevoElementoId: string | null) => {
     form.setValue("elementoId", nuevoElementoId, { shouldDirty: true, shouldValidate: true })
     setAjusteWizard([])
+    setAjusteOrigen(null)
     setEspecialidadSinCatalogo(false)
     if (!nuevoElementoId) return
     const el = elementos.find((e) => e.id === nuevoElementoId)
@@ -305,6 +386,7 @@ export function PendienteForm({
       }
     }
     setAjusteWizard(soltadas)
+    setAjusteOrigen(soltadas.length > 0 ? "elemento" : null)
   }
 
   // Sistema y Subsistema viven en el form (para tener validación uniforme).
@@ -342,62 +424,164 @@ export function PendienteForm({
 
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false)
 
-  // Toggle "🔒 Interno" — el modelo es un simple boolean `esInterno` (se lee
-  // del propio FormField). Cuando es true, solo los asignatarios (creador,
-  // responsable, grupo responsable, Admin+) ven el pendiente. No tiene grupo
-  // propio: reusa el grupo responsable, por eso el box de interno ofrece el
-  // atajo para asignarlo cuando no hay ninguno.
+  // Ámbito — la primera decisión del formulario: define quién va a ver el
+  // pendiente. El selector ofrece solo los ámbitos donde este usuario puede
+  // clasificar (endpoint /mios), así que nadie manda un pendiente a un lugar
+  // donde después no lo va a ver.
+  //
+  // Con dos ámbitos se dibuja como un checkbox —igual que el viejo "interno"—
+  // y el selector aparece recién cuando hay tres o más. La generalidad del
+  // modelo no se le cobra al usuario hasta que la necesita.
+  const { data: ambitosResp } = useGetMisAmbitos()
+  const misAmbitos = ambitosResp?.data ?? []
+  const ambitoIdActual = form.watch("ambitoId")
+  const ambitoPrincipal = misAmbitos.find((a) => a.esPrincipal) ?? null
+  const ambitoRestringido = misAmbitos.find((a) => !a.esPrincipal) ?? null
+  const ambitoActual = misAmbitos.find((a) => a.id === ambitoIdActual) ?? null
 
-  // Toggle "Asignar al grupo responsable por defecto" — mismo patrón simple.
-  // Compone el estado de grupoResponsableId: on con default del proyecto lo
-  // aplica; on sin default abre avanzado para elegir; off limpia el grupo.
-  const grupoRespDefaultId = proyectoRaw?.data?.grupoResponsablePorDefectoId ?? null
-  const grupoRespDefaultNombre = proyectoRaw?.data?.grupoResponsablePorDefectoNombre ?? null
-  const [asignarGrupoResp, setAsignarGrupoResp] = useState<boolean>(() => !!defaultValues?.grupoResponsableId)
-  const grupoResponsableIdActual = form.watch("grupoResponsableId")
+  // Ámbito por defecto DEL USUARIO: el principal cuando lo tiene —que es siempre,
+  // porque su audiencia es abierta por invariante— y si no, el primero de su lista.
+  // `/mios` ya devuelve el principal primero, así que `misAmbitos[0]` cubre los dos
+  // casos y espeja lo que hace el backend cuando el alta no manda ámbito. Elegir el
+  // principal a ciegas dejaba al usuario sin acceso rebotando contra un default que
+  // él no había elegido.
+  const ambitoPorDefecto = ambitoPrincipal ?? misAmbitos[0] ?? null
 
-  function handleToggleGrupoResp(nuevo: boolean) {
-    setAsignarGrupoResp(nuevo)
-    if (nuevo) {
-      if (grupoRespDefaultId) {
-        form.setValue("grupoResponsableId", grupoRespDefaultId, { shouldDirty: true })
-      } else {
-        setAvanzadoAbierto(true)
-      }
-    } else {
-      form.setValue("grupoResponsableId", null, { shouldDirty: true })
+  const modoCheckbox = misAmbitos.length === 2 && !!ambitoPorDefecto && !!ambitoRestringido
+    && ambitoPorDefecto.id !== ambitoRestringido.id
+
+  useEffect(() => {
+    if (!ambitoIdActual && ambitoPorDefecto) {
+      form.setValue("ambitoId", ambitoPorDefecto.id)
     }
-  }
+  }, [ambitoIdActual, ambitoPorDefecto, form])
 
-  const esOverrideResp = Boolean(
-    asignarGrupoResp
-    && grupoResponsableIdActual
-    && grupoRespDefaultId
-    && grupoResponsableIdActual !== grupoRespDefaultId,
-  )
-  const grupoResponsableActualNombre = grupoResponsableIdActual
-    ? gruposResponsables.find((g) => g.id === grupoResponsableIdActual)?.nombre ?? null
-    : null
+  // Grupos que se pueden asignar como co-responsables: solo los que están en la
+  // audiencia del ámbito elegido.
+  //
+  // Asignarle un pendiente a un grupo que no ve ese ámbito deja la asignación
+  // inerte — el filtro de "Míos" lo incluye y el de visibilidad lo saca un paso
+  // después, así que no aparece en el listado de nadie. El backend lo rechaza;
+  // acá directamente no se ofrece, que es el mismo criterio que usan las columnas
+  // de la matriz de autorización.
+  const ambitoElegido = ambitoActual ?? ambitoPorDefecto
+  const gruposResponsables = useMemo(() => {
+    if (!ambitoElegido || ambitoElegido.audiencia === AudienciaAmbito.TodoElProyecto) {
+      return todosLosGrupos
+    }
+    return todosLosGrupos.filter((g) => ambitoElegido.grupos.some((ag) => ag.grupoId === g.id))
+  }, [todosLosGrupos, ambitoElegido])
+
+  // Cambiar el ámbito puede dejar al grupo co-responsable fuera de la audiencia
+  // nueva. Se limpia y se avisa, en vez de mandarlo y que el backend rebote con un
+  // error sobre un campo que el usuario no tocó.
+  const [grupoSoltadoPorAmbito, setGrupoSoltadoPorAmbito] = useState<string | null>(null)
+
+  function onAmbitoChange(nuevoAmbitoId: string) {
+    form.setValue("ambitoId", nuevoAmbitoId, { shouldDirty: true, shouldValidate: true })
+    setGrupoSoltadoPorAmbito(null)
+
+    const grupoActual = form.getValues("grupoResponsableId")
+    if (!grupoActual) return
+
+    const destino = misAmbitos.find((a) => a.id === nuevoAmbitoId)
+    if (!destino || destino.audiencia === AudienciaAmbito.TodoElProyecto) return
+    if (destino.grupos.some((ag) => ag.grupoId === grupoActual)) return
+
+    setGrupoSoltadoPorAmbito(todosLosGrupos.find((g) => g.id === grupoActual)?.nombre ?? null)
+    form.setValue("grupoResponsableId", null, { shouldDirty: true })
+  }
 
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((values) => {
-          // Guard local: si "Asignar al grupo responsable" está
-          // activo pero no hay grupo elegido (proyecto sin default), pedimos
-          // al usuario que elija uno en avanzado.
-          if (asignarGrupoResp && !values.grupoResponsableId) {
-            setAvanzadoAbierto(true)
-            form.setError("grupoResponsableId", {
-              type: "manual",
-              message: "Elegí un grupo o desactivá 'Asignar al grupo responsable'.",
-            })
-            return
-          }
           onSubmit(values)
         })}
         className="flex flex-col gap-6 pb-24 sm:pb-4"
       >
+        {/* Ámbito — primera decisión del alta: define quién va a ver el pendiente.
+
+            Se dibuja SOLO si el usuario tiene más de un ámbito disponible. Con uno
+            solo no hay nada que elegir y un control de una opción es ruido: el
+            pendiente nace igual en el principal, que es lo que el efecto de arriba
+            deja seteado.
+
+            Con exactamente dos se dibuja como el checkbox de siempre; el selector
+            aparece recién con tres o más. La generalidad del modelo no se le cobra
+            al usuario hasta que la necesita.
+
+            Solo en el alta: reclasificar un pendiente que ya existe cambia quién lo
+            ve retroactivamente, y eso va por su propia acción en el detalle. */}
+        {esAlta && misAmbitos.length > 1 && (
+        <FormField
+          control={form.control}
+          name="ambitoId"
+          render={({ field }) => (
+            <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
+              {modoCheckbox && ambitoPorDefecto && ambitoRestringido ? (
+                <>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-blue-900"
+                      checked={field.value === ambitoRestringido.id}
+                      onChange={(e) =>
+                        onAmbitoChange(e.target.checked ? ambitoRestringido.id : ambitoPorDefecto.id)
+                      }
+                      disabled={isPending}
+                    />
+                    <span className="text-sm font-medium">🔒 {ambitoRestringido.nombre}</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {field.value === ambitoRestringido.id
+                      ? ambitoRestringido.descripcion
+                      : "Marcá para restringir quién lo ve. " + (ambitoRestringido.descripcion ?? "")}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <FormLabel>Ámbito</FormLabel>
+                  <Select
+                    value={field.value ?? ""}
+                    onValueChange={(v) => onAmbitoChange(v ?? "")}
+                    disabled={isPending || misAmbitos.length === 0}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue>{ambitoActual?.nombre ?? "Elegí un ámbito"}</SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {misAmbitos.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {ambitoActual?.descripcion ?? "Define quién puede ver este pendiente."}
+                  </p>
+                </>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        )}
+
+        {grupoSoltadoPorAmbito && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start gap-2">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              Quitamos el grupo <span className="font-medium">{grupoSoltadoPorAmbito}</span>: no está
+              en la audiencia de este ámbito, así que no vería el pendiente. Elegí otro en Opciones
+              avanzadas si querés asignarlo a un grupo.
+            </span>
+          </div>
+        )}
+
         {/* ── Wizard de descripción (filtrado cruzado desde el catálogo) ── */}
         <div className="flex flex-col gap-4">
           <div>
@@ -410,6 +594,23 @@ export function PendienteForm({
               y la categoría salen del catálogo.
             </p>
           </div>
+
+          {/* Con las 5 completas los selects abren el catálogo entero, así que cambiar
+              una es posible sin rehacer todo. El reinicio queda como salida para el que
+              prefiere empezar de cero en vez de pelear con la reconciliación. */}
+          {dimensionesCompletas && !comboFueraDeCatalogo && (
+            <p className="text-xs text-muted-foreground">
+              Las cinco están completas: los selects muestran el catálogo entero. Si cambiás una y
+              la combinación deja de existir, soltamos las mínimas necesarias y te avisamos.{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 font-medium cursor-pointer"
+                onClick={reiniciarWizard}
+              >
+                Reiniciar las cinco
+              </button>
+            </p>
+          )}
 
           {comboFueraDeCatalogo && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
@@ -443,8 +644,10 @@ export function PendienteForm({
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start gap-2">
               <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                Ajustamos la especialidad según el elemento elegido. Volvé a elegir:{" "}
-                {ajusteWizard.map((d) => LABEL_DIMENSION[d]).join(", ")}.
+                {ajusteOrigen === "elemento"
+                  ? "Ajustamos la especialidad según el elemento elegido."
+                  : "El cambio no convive con el resto de la combinación, así que soltamos lo mínimo necesario."}{" "}
+                Volvé a elegir: {ajusteWizard.map((d) => LABEL_DIMENSION[d]).join(", ")}.
               </span>
             </div>
           )}
@@ -466,7 +669,7 @@ export function PendienteForm({
                         <Combobox
                           options={opciones[dim].map((o) => ({ value: o.id, label: o.label }))}
                           value={field.value ?? ""}
-                          onChange={(v) => field.onChange(v || "")}
+                          onChange={(v) => onDimensionChange(dim, v || "")}
                           placeholder={`Elegí ${LABEL_DIMENSION[dim].toLowerCase()}`}
                           searchPlaceholder="Buscar..."
                           emptyMessage={
@@ -574,12 +777,13 @@ export function PendienteForm({
 
         <Separator />
 
-        {/* ── Responsable + Fecha ── */}
-        {/* Cada columna agrupa el dato con el toggle que lo modula: el
-            responsable con "asignar al grupo responsable" (que extiende el
-            "Míos" a todo el grupo), la fecha con "pendiente interno". El
-            select de grupo con override vive en Opciones avanzadas. */}
+        {/* ── Asignación + Fecha ── */}
+        {/* En ALTA: responsable + grupo a la izquierda, fecha a la derecha.
+            En EDICIÓN queda solo la fecha — responsable y grupo se cambian con
+            Reasignar, que pide permisos más altos que editar.
+            (El ámbito vive arriba de todo: es la primera decisión del alta.) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          {esAlta && (
           <div className="flex flex-col gap-3">
             <FormField
               control={form.control}
@@ -603,65 +807,48 @@ export function PendienteForm({
                       placeholder="Asignar a un usuario"
                       searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
                       emptyMessage="Sin usuarios en el proyecto"
-                      disabled={isPending || readonlyResponsable}
+                      disabled={isPending}
                     />
                   </FormControl>
-                  {readonlyResponsable && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Para reasignar, usá la acción de workflow en el detalle del pendiente.
-                    </p>
-                  )}
                   <FormMessage />
                 </FormItem>
               )}
             />
   
-            {/* Toggle "Grupo responsable por defecto" — compone
-                grupoResponsableId. No otorga permisos, solo hace que el
-                pendiente aparezca en "Míos" a todos los miembros del grupo.
-                Va pegado al responsable porque extiende esa misma asignación. */}
-            <div className="rounded-md border bg-white px-3 py-3">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-blue-900"
-                  checked={asignarGrupoResp}
-                  onChange={(e) => handleToggleGrupoResp(e.target.checked)}
-                  disabled={isPending || readonlyResponsable}
-                />
-                <span className="text-sm font-medium">👥 Asignar al grupo responsable</span>
-              </label>
-              {/* El texto describe siempre el efecto de tildarlo (estado OFF) o
-                  el efecto ya aplicado (estado ON) — nunca la limitación actual,
-                  que se leía como si el grupo no fuera a ver el pendiente. */}
-              <p className="mt-1 text-xs text-muted-foreground">
-                {!asignarGrupoResp
-                  ? 'Marcá para asignar este pendiente a todo el grupo responsable, además del responsable.'
-                  : grupoResponsableIdActual
-                    ? (
-                        <>
-                          Lo verán en &quot;Míos&quot; todos los miembros de{" "}
-                          <span className="font-medium text-gray-800">
-                            {grupoResponsableActualNombre ?? "…"}
-                          </span>
-                          {esOverrideResp && (
-                            <span className="ml-2 inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
-                              override
-                            </span>
-                          )}
-                          {!esOverrideResp && grupoRespDefaultId && (
-                            <span className="ml-1 text-[10px] text-muted-foreground">(default del proyecto)</span>
-                          )}
-                        </>
-                      )
-                    : (
-                        <span className="text-amber-700">
-                          ⚠️ Este proyecto no tiene grupo responsable por defecto. Elegí uno en Opciones avanzadas.
-                        </span>
-                      )}
-              </p>
-            </div>
+            {/* Grupo responsable (opcional). No otorga permisos: solo hace que el
+                pendiente aparezca en "Míos" a todos los miembros del grupo. Va
+                pegado al responsable porque extiende esa misma asignación.
+
+                La lista ya viene acotada a la audiencia del ámbito elegido — un
+                grupo fuera de esa audiencia no vería el pendiente que se le
+                asigna, así que el backend lo rechaza. */}
+            <FormField
+              control={form.control}
+              name="grupoResponsableId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>👥 Grupo responsable</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={gruposResponsables.map((g) => ({ value: g.id, label: g.nombre }))}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || null)}
+                      placeholder="Sin grupo"
+                      searchPlaceholder="Buscar grupo..."
+                      emptyMessage="No hay grupos habilitados para Pendientes en este ámbito"
+                      disabled={isPending}
+                    />
+                  </FormControl>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Opcional. Si elegís uno, el pendiente aparece en &quot;Míos&quot; a todo el
+                    grupo, además del responsable. No cambia permisos.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <FormField
@@ -678,64 +865,6 @@ export function PendienteForm({
               )}
             />
 
-            {/* Toggle "Pendiente interno" — boolean simple. La audiencia la
-                define la asignación operativa (creador + responsable + grupo
-                responsable + Admin+). Mismo criterio de texto que el toggle de
-                grupo: en OFF se describe qué pasa si se tilda. */}
-            <FormField
-              control={form.control}
-              name="esInterno"
-              render={({ field }) => (
-                <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-blue-900"
-                      checked={!!field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
-                      disabled={isPending}
-                    />
-                    <span className="text-sm font-medium">🔒 Pendiente interno</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    {!field.value
-                      ? "Marcá para ocultarlo al resto del proyecto: solo lo verán el creador, el responsable y el grupo responsable."
-                      : grupoResponsableIdActual
-                        ? (
-                            <>
-                              Solo lo ven el creador, el responsable y los miembros de{" "}
-                              <span className="font-medium text-gray-800">
-                                {grupoResponsableActualNombre ?? "…"}
-                              </span>
-                              .
-                            </>
-                          )
-                        : "Solo lo ven el creador y el responsable."}
-                  </p>
-                  {/* Sin grupo asignado, un pendiente interno queda casi invisible.
-                      El select de grupo vive detrás del toggle de al lado, así que
-                      acá damos el atajo en vez de duplicar el selector. */}
-                  {field.value && !grupoResponsableIdActual && (
-                    <p className="text-xs text-amber-700">
-                      ⚠️ Ningún grupo asignado.
-                      {!readonlyResponsable && (
-                        <>
-                          {" "}
-                          <button
-                            type="button"
-                            className="underline underline-offset-2 font-medium hover:text-amber-900 disabled:opacity-50"
-                            onClick={() => handleToggleGrupoResp(true)}
-                            disabled={isPending}
-                          >
-                            Asignar al grupo responsable
-                          </button>
-                        </>
-                      )}
-                    </p>
-                  )}
-                </FormItem>
-              )}
-            />
           </div>
         </div>
 
@@ -919,49 +1048,6 @@ export function PendienteForm({
                   </FormItem>
                 )}
               />
-
-              {/* (Select de grupo de visibilidad eliminado 2026-09 — EsInterno
-                  es un simple boolean, no requiere elegir grupo.) */}
-
-              {/* Grupo responsable — solo se muestra con el toggle activo.
-                  Permite override del default del proyecto por pendiente. */}
-              {asignarGrupoResp && (
-                <FormField
-                  control={form.control}
-                  name="grupoResponsableId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        Grupo responsable
-                        {esOverrideResp && (
-                          <span className="inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium">
-                            override
-                          </span>
-                        )}
-                      </FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={gruposResponsables.map((g) => ({ value: g.id, label: g.nombre }))}
-                          value={field.value ?? ""}
-                          onChange={(v) => field.onChange(v || null)}
-                          placeholder={grupoRespDefaultId ? `Default: ${grupoRespDefaultNombre ?? "…"}` : "Elegí un grupo"}
-                          searchPlaceholder="Buscar grupo..."
-                          emptyMessage="No hay grupos habilitados para Pendientes"
-                          disabled={isPending || readonlyResponsable}
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {grupoRespDefaultId
-                          ? esOverrideResp
-                            ? `El default del proyecto es "${grupoRespDefaultNombre ?? "…"}". Estás usando otro.`
-                            : 'El pendiente aparece en "Míos" a todo el grupo. No cambia permisos.'
-                          : "El proyecto no tiene default configurado — es obligatorio elegir uno."}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
             </div>
           )}
         </div>

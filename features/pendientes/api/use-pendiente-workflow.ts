@@ -6,6 +6,7 @@ import type { Pendiente } from "../types"
 type TransicionAccion =
   | "iniciar"
   | "enviar-aprobacion"
+  | "pre-aprobar"
   | "aprobar"
   | "rechazar"
   | "cancelar"

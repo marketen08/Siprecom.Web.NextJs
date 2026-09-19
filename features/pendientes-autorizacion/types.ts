@@ -11,20 +11,38 @@ export enum AccionPendiente {
   Aprobar = 4,
   Rechazar = 5,
   Cancelar = 6,
+  PreAprobar = 7,
 }
 
 export const ACCIONES_LIST: { value: AccionPendiente; label: string; descripcion: string }[] = [
   { value: AccionPendiente.Crear, label: "Crear", descripcion: "Reportar un pendiente nuevo." },
-  { value: AccionPendiente.Iniciar, label: "Iniciar", descripcion: "Tomar el pendiente y ponerlo en proceso." },
+  {
+    value: AccionPendiente.Iniciar,
+    label: "Iniciar",
+    descripcion:
+      "Tomar el pendiente y ponerlo en proceso. El responsable y el grupo responsable del " +
+      "pendiente pueden iniciarlo siempre, estén o no en esta lista.",
+  },
   {
     value: AccionPendiente.EnviarAprobacion,
     label: "Enviar a aprobación",
-    descripcion: "Solicitar la aprobación del cierre del pendiente.",
+    descripcion:
+      "Revisión interna: el trabajo terminado se manda a la aprobación del cliente. Es un " +
+      "paso distinto del de quien ejecutó el pendiente.",
+  },
+  {
+    value: AccionPendiente.PreAprobar,
+    label: "Pre-aprobar",
+    descripcion:
+      "Revisión interna: confirma que el trabajo está bien hecho y recién ahí el " +
+      "pendiente pasa a la aprobación final. No tiene atajo por responsable — el punto " +
+      "del paso es que lo haga alguien distinto de quien ejecutó.",
   },
   {
     value: AccionPendiente.Aprobar,
     label: "Aprobar",
-    descripcion: "Aprobar el cierre del pendiente (queda CERRADO). Incluye reasignar responsable.",
+    descripcion:
+      "Aprobación final, del lado del cliente (queda CERRADO). Incluye reasignar responsable.",
   },
   {
     value: AccionPendiente.Rechazar,

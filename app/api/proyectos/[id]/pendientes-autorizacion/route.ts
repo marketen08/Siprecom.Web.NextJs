@@ -6,7 +6,8 @@ export async function GET(
   context: RouteContext<"/api/proyectos/[id]/pendientes-autorizacion">,
 ) {
   const { id } = await context.params
-  const res = await backendFetch(request, `/proyectos/${id}/pendientes-autorizacion`)
+  const ambitoId = request.nextUrl.searchParams.get("ambitoId") ?? ""
+  const res = await backendFetch(request, `/proyectos/${id}/pendientes-autorizacion?ambitoId=${encodeURIComponent(ambitoId)}`)
   const data = await res.json()
   return Response.json(data, { status: res.status })
 }
@@ -17,7 +18,8 @@ export async function PUT(
 ) {
   const { id } = await context.params
   const body = await request.json()
-  const res = await backendFetch(request, `/proyectos/${id}/pendientes-autorizacion`, {
+  const ambitoId = request.nextUrl.searchParams.get("ambitoId") ?? ""
+  const res = await backendFetch(request, `/proyectos/${id}/pendientes-autorizacion?ambitoId=${encodeURIComponent(ambitoId)}`, {
     method: "PUT",
     body: JSON.stringify(body),
   })

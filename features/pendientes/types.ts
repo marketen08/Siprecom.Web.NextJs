@@ -3,6 +3,7 @@ export const PENDIENTE_ESTADO_IDS = {
   ABIERTO: "estado-pend-abierto",
   EN_PROCESO: "estado-pend-en-proceso",
   PENDIENTE_APROBACION: "estado-pend-aprobacion",
+  PRE_APROBADO: "estado-pend-preaprobado",
   CERRADO: "estado-pend-cerrado",
   CANCELADO: "estado-pend-cancelado",
 } as const
@@ -25,6 +26,7 @@ export const ESTADO_COLOR: Record<string, string> = {
   ABIERTO: "bg-gray-100 text-gray-700",
   EN_PROCESO: "bg-blue-100 text-blue-700",
   PENDIENTE_APROBACION: "bg-amber-100 text-amber-800",
+  PRE_APROBADO: "bg-violet-100 text-violet-700",
   CERRADO: "bg-green-100 text-green-700",
   CANCELADO: "bg-red-100 text-red-700",
 }
@@ -55,6 +57,7 @@ export const ESTADO_LABEL: Record<string, string> = {
   ABIERTO: "Abierto",
   EN_PROCESO: "En proceso",
   PENDIENTE_APROBACION: "Esperando aprobación",
+  PRE_APROBADO: "Pre-aprobado",
   CERRADO: "Cerrado",
   CANCELADO: "Cancelado",
 }
@@ -218,12 +221,23 @@ export interface Pendiente {
    */
   grupoResponsableId?: string | null
   grupoResponsableNombre?: string | null
+  /** Ámbito del pendiente: la clase de información a la que pertenece. */
+  ambitoId: string
+  ambitoNombre: string | null
   /**
-   * True cuando el pendiente es INTERNO — solo visible al creador,
-   * responsable, miembros del grupo responsable y roles Admin+. Cuando es
-   * false (default), es público (visible a todos los que acceden al proyecto).
+   * True cuando el ámbito es el principal del tenant. Sirve para no dibujar el
+   * chip: marcar todo con "General" es ruido, lo que informa es el restringido.
    */
-  esInterno: boolean
+  ambitoEsPrincipal: boolean
+  /** Ícono y color con que el ámbito se marca en el listado. Sin ícono, no se marca. */
+  ambitoIcono: string | null
+  ambitoColor: string | null
+  /**
+   * Qué pasos del workflow existen en el ámbito de este pendiente. Definen qué botón
+   * ofrecer — no si este usuario puede ejecutarlo, que lo decide el backend.
+   */
+  ambitoPasoIniciar: boolean
+  ambitoPasoPreAprobar: boolean
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean
@@ -299,10 +313,35 @@ export interface PendienteHistorial {
   usuarioNombre: string | null
 }
 
+/**
+ * Qué puede hacer el usuario con ESTE pendiente. Lo calcula el backend: además de la
+ * matriz por ámbito entra el atajo del responsable, y para eso hay que saber a qué
+ * grupos pertenece el usuario — dato que el front no tiene.
+ *
+ * Son permisos, no estado: que puedas aprobar no significa que el pendiente esté en
+ * condiciones de aprobarse. El estado lo sigue decidiendo la pantalla.
+ */
+export interface PendientePermisos {
+  iniciar: boolean
+  enviarAprobacion: boolean
+  preAprobar: boolean
+  aprobar: boolean
+  rechazar: boolean
+  cancelar: boolean
+  /** Permiso para cerrar con el PDF firmado: el mismo que aprobar. */
+  cargarFisico: boolean
+  /**
+   * La funcionalidad está activa en el proyecto. Apagada, la acción no existe: se
+   * oculta el botón en vez de mostrarlo gris — no hay permiso que conseguir.
+   */
+  cargaFisicaHabilitada: boolean
+}
+
 export interface PendienteDetalle extends Pendiente {
   comentarios: PendienteComentario[]
   adjuntos: PendienteAdjunto[]
   historial: PendienteHistorial[]
+  permisos: PendientePermisos
 }
 
 export interface PendienteCreateInput {
@@ -311,12 +350,8 @@ export interface PendienteCreateInput {
   responsableId: string
   /** Grupo co-responsable (opcional). Solo afecta la visibilidad en "Míos". */
   grupoResponsableId?: string | null
-  /**
-   * Marca el pendiente como INTERNO. Cuando es true, solo lo ven el creador,
-   * responsable, miembros del grupo responsable y roles Admin+. Cuando es
-   * false, es público (visible a todos los que acceden al proyecto).
-   */
-  esInterno?: boolean
+  /** Ámbito donde se clasifica. Vacío = el principal del tenant. */
+  ambitoId?: string | null
   descripcion: string
   /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
   descripcionManual?: boolean
@@ -364,8 +399,8 @@ export interface PendienteUpdateInput {
   nivelId?: string | null
   accionId?: string | null
   motivoId?: string | null
-  /** True = interno (solo asignatarios + Admin+). False = público. */
-  esInterno?: boolean
+  // El ámbito NO va en el update: se cambia con PUT /pendientes/{id}/ambito,
+  // que valida el permiso de reclasificación. Igual que el responsable.
 }
 
 export interface PendienteFilterInput {
@@ -379,6 +414,12 @@ export interface PendienteFilterInput {
   responsableId?: string
   /** Pendientes asignados a este grupo co-responsable. Independiente de responsableId. */
   grupoResponsableId?: string
+  /**
+   * Filtra por ámbito. Vacío = todos los que el usuario ve, que es el default del
+   * listado: esconder por omisión un pendiente asignado es peor que mostrarlo.
+   * (En el PDF el criterio se invierte y el default es el ámbito principal.)
+   */
+  ambitoId?: string
   detectadoPorId?: string
   prioridad?: number
   especialidadId?: string

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Lock, MapPin, Plus, Search } from "lucide-react"
+import { MapPin, Plus, Search } from "lucide-react"
 
 import { useSearchPendientes } from "@/features/pendientes/api/use-search-pendientes"
 import {
@@ -19,8 +19,10 @@ import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import {
-  ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD, PRIORIDAD_COLOR,
+  ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD, PRIORIDAD_COLOR, type Pendiente,
 } from "@/features/pendientes/types"
+import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
+import { colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
 import { useNewPendiente } from "@/features/pendientes/hooks/use-new-pendiente"
 import { useCanWrite, useMeetsRole } from "@/lib/use-roles"
 import { useOpenPendiente } from "@/features/pendientes/hooks/use-open-pendiente"
@@ -34,7 +36,7 @@ import {
 } from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
 import {
-  FiltersTrigger, FiltersChips, FiltersSheet, FilterField, type FilterChip,
+  FiltersTrigger, FiltersChips, FiltersSheet, FilterField, FilterGroup, type FilterChip,
 } from "@/components/ui/filters-bar"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -73,6 +75,7 @@ function PendientesPageContent() {
   const [categoriaId, setCategoriaId] = useState(searchParams.get("categoriaId") ?? "")
   const [tipoId, setTipoId] = useState(searchParams.get("tipoId") ?? "")
   const [prioridad, setPrioridad] = useState(searchParams.get("prioridad") ?? "")
+  const [ambitoId, setAmbitoId] = useState(searchParams.get("ambitoId") ?? "")
   const [page, setPage] = useState(Number(searchParams.get("page") ?? "1") || 1)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const pageSize = 20
@@ -163,6 +166,7 @@ function PendientesPageContent() {
     setOrDelete(params, "categoriaId", categoriaId)
     setOrDelete(params, "tipoId", tipoId)
     setOrDelete(params, "prioridad", prioridad)
+    setOrDelete(params, "ambitoId", ambitoId)
     // Estado: OPEN es default → no lo serializamos.
     if (estadoSel === OPEN) params.delete("estado")
     else params.set("estado", estadoSel)
@@ -176,7 +180,7 @@ function PendientesPageContent() {
     const current = searchParams.toString()
     if (current !== qs) router.replace(target, { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sistemaId, subSistemaId, elementoId, especialidadId, pidArchivoId, estadoSel, responsableId, grupoResponsableId, categoriaId, tipoId, prioridad, page])
+  }, [search, sistemaId, subSistemaId, elementoId, especialidadId, pidArchivoId, estadoSel, responsableId, grupoResponsableId, categoriaId, tipoId, prioridad, ambitoId, page])
 
   const { data: perfil } = useGetPerfil()
   const { data: sistemasRaw } = useGetSistemasSelect()
@@ -225,6 +229,7 @@ function PendientesPageContent() {
       categoriaId: categoriaId || undefined,
       tipoId: tipoId || undefined,
       prioridad: prioridad ? Number(prioridad) : undefined,
+      ambitoId: ambitoId || undefined,
       soloAbiertos: soloAbiertosFilter,
       soloMios: scope === "mine" ? true : undefined,
     },
@@ -238,7 +243,7 @@ function PendientesPageContent() {
     setSistemaId(""); setSubSistemaId(""); setElementoId(""); setEspecialidadId("")
     setPidArchivoId("")
     setEstadoSel(OPEN); setResponsableId(""); setGrupoResponsableId("")
-    setCategoriaId(""); setTipoId(""); setPrioridad("")
+    setCategoriaId(""); setTipoId(""); setPrioridad(""); setAmbitoId("")
     setPage(1)
   }
 
@@ -251,6 +256,11 @@ function PendientesPageContent() {
   // Catálogos para los selects nuevos.
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
+
+  // Solo los ámbitos que este usuario puede ver: filtrar por uno ajeno no
+  // devolvería nada y ofrecerlo revelaría que existe.
+  const { data: ambitosResp } = useGetMisAmbitos()
+  const misAmbitos = ambitosResp?.data ?? []
 
   const { data: pidsRaw } = useGetPids()
   const pids = pidsRaw?.data ?? []
@@ -330,6 +340,14 @@ function PendientesPageContent() {
       id: "estado",
       label: `Estado: ${ESTADO_LABEL[e?.estado ?? ""] ?? e?.estado}`,
       onRemove: () => { setEstadoSel(OPEN); setPage(1) },
+    })
+  }
+  if (ambitoId) {
+    const a = misAmbitos.find((x) => x.id === ambitoId)
+    activeFilters.push({
+      id: "ambito",
+      label: `Ámbito: ${a?.nombre ?? "—"}`,
+      onRemove: () => { setAmbitoId(""); setPage(1) },
     })
   }
   if (responsableId) {
@@ -430,204 +448,238 @@ function PendientesPageContent() {
           onClearAll={clearFiltros}
           hasActiveFilters={activeFilters.length > 0}
         >
-          <FilterField label="Estado">
-            <Select
-              value={estadoSel}
-              onValueChange={(v) => { setEstadoSel(v ?? OPEN); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(() => {
-                    if (estadoSel === OPEN) return "Todos los abiertos"
-                    if (estadoSel === ALL) return "Todos (incluye cerrados)"
-                    const e = estados.find((x) => x.id === estadoSel)
-                    return ESTADO_LABEL[e?.estado ?? ""] ?? e?.estado ?? "Estado"
-                  })()}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={OPEN}>Todos los abiertos</SelectItem>
-                <SelectItem value={ALL}>Todos (incluye cerrados)</SelectItem>
-                {estados.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>{ESTADO_LABEL[e.estado] ?? e.estado}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+          <FilterGroup label="Seguimiento">
+            <FilterField label="Estado">
+              <Select
+                value={estadoSel}
+                onValueChange={(v) => { setEstadoSel(v ?? OPEN); setPage(1) }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(() => {
+                      if (estadoSel === OPEN) return "Todos los abiertos"
+                      if (estadoSel === ALL) return "Todos (incluye cerrados)"
+                      const e = estados.find((x) => x.id === estadoSel)
+                      return ESTADO_LABEL[e?.estado ?? ""] ?? e?.estado ?? "Estado"
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={OPEN}>Todos los abiertos</SelectItem>
+                  <SelectItem value={ALL}>Todos (incluye cerrados)</SelectItem>
+                  {estados.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{ESTADO_LABEL[e.estado] ?? e.estado}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="Responsable">
-            <Select value={responsableId || ALL} onValueChange={(v) => { const value = v ?? ALL; setResponsableId(value === ALL ? "" : value); setPage(1) }}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {responsableId
-                    ? usuarios.find((u) => u.usuarioId === responsableId)?.userName ?? "Responsable"
-                    : "Cualquiera"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Cualquiera</SelectItem>
-                {usuarios.map((u) => (
-                  <SelectItem key={u.usuarioId} value={u.usuarioId}>{u.userName}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+            <FilterField label="Prioridad">
+              <Select value={prioridad || ALL} onValueChange={(v) => { const value = v ?? ALL; setPrioridad(value === ALL ? "" : value); setPage(1) }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {prioridad ? PRIORIDAD[Number(prioridad)] : "Todas"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todas</SelectItem>
+                  {Object.entries(PRIORIDAD).map(([id, nombre]) => (
+                    <SelectItem key={id} value={id}>{nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="Grupo responsable">
-            <Select value={grupoResponsableId || ALL} onValueChange={(v) => { const value = v ?? ALL; setGrupoResponsableId(value === ALL ? "" : value); setPage(1) }}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {grupoResponsableId
-                    ? gruposResponsables.find((g) => g.id === grupoResponsableId)?.nombre ?? "Grupo"
-                    : "Cualquiera"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Cualquiera</SelectItem>
-                {gruposResponsables.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+            <FilterField label="Categoría">
+              <Select value={categoriaId || ALL} onValueChange={(v) => { const value = v ?? ALL; setCategoriaId(value === ALL ? "" : value); setPage(1) }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {categoriaId ? categorias.find((c) => c.id === categoriaId)?.nombre ?? "Categoría" : "Todas"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todas</SelectItem>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="Sistema">
-            <Select value={sistemaId || ALL} onValueChange={handleSistemaChange}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {sistemaId ? sistemas.find((s) => s.id === sistemaId)?.nombre ?? "Sistema" : "Todos"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos</SelectItem>
-                {sistemas.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+          </FilterGroup>
 
-          <FilterField label="Subsistema">
-            <Select
-              value={subSistemaId || ALL}
-              onValueChange={(v) => { setSubSistemaId(v === ALL ? "" : (v ?? "")); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {subSistemaId
-                    ? subSistemas.find((ss) => ss.id === subSistemaId)?.nombre ?? "Subsistema"
-                    : "Todos"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos</SelectItem>
-                {subSistemasFiltrados.map((ss) => (
-                  <SelectItem key={ss.id} value={ss.id}>{ss.codigo} — {ss.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+          <FilterGroup label="Asignación y visibilidad">
+            <FilterField label="Responsable">
+              <Select value={responsableId || ALL} onValueChange={(v) => { const value = v ?? ALL; setResponsableId(value === ALL ? "" : value); setPage(1) }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {responsableId
+                      ? usuarios.find((u) => u.usuarioId === responsableId)?.userName ?? "Responsable"
+                      : "Cualquiera"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Cualquiera</SelectItem>
+                  {usuarios.map((u) => (
+                    <SelectItem key={u.usuarioId} value={u.usuarioId}>{u.userName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="Elemento">
-            <Combobox
-              options={elementoOptions}
-              value={elementoId}
-              onChange={(v) => { setElementoId(v ?? ""); setPage(1) }}
-              placeholder="Cualquier elemento"
-              searchPlaceholder="Buscar por TAG o nombre..."
-              emptyMessage="Sin resultados"
-            />
-          </FilterField>
+            <FilterField label="Grupo responsable">
+              <Select value={grupoResponsableId || ALL} onValueChange={(v) => { const value = v ?? ALL; setGrupoResponsableId(value === ALL ? "" : value); setPage(1) }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {grupoResponsableId
+                      ? gruposResponsables.find((g) => g.id === grupoResponsableId)?.nombre ?? "Grupo"
+                      : "Cualquiera"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Cualquiera</SelectItem>
+                  {gruposResponsables.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="Especialidad">
-            <Select
-              value={especialidadId || ALL}
-              onValueChange={(v) => { const value = v ?? ALL; setEspecialidadId(value === ALL ? "" : value); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {especialidadId
-                    ? especialidades.find((x) => x.id === especialidadId)?.nombre ?? "Especialidad"
-                    : "Todas"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas</SelectItem>
-                {especialidades.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+            <FilterField label="Ámbito">
+              <Select
+                value={ambitoId || ALL}
+                onValueChange={(v) => { setAmbitoId(v === ALL ? "" : (v ?? "")); setPage(1) }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {ambitoId
+                      ? misAmbitos.find((a) => a.id === ambitoId)?.nombre ?? "—"
+                      : "Todos"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos</SelectItem>
+                  {misAmbitos.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="PID">
-            <Select
-              value={pidArchivoId || ALL}
-              onValueChange={(v) => { const value = v ?? ALL; setPidArchivoId(value === ALL ? "" : value); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {pidArchivoId
-                    ? pids.find((x) => x.id === pidArchivoId)?.codigo ?? "PID"
-                    : "Todos"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos</SelectItem>
-                {pids.map((pid) => (
-                  <SelectItem key={pid.id} value={pid.id}>{pid.codigo} — {pid.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+          </FilterGroup>
 
-          <FilterField label="Categoría">
-            <Select value={categoriaId || ALL} onValueChange={(v) => { const value = v ?? ALL; setCategoriaId(value === ALL ? "" : value); setPage(1) }}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {categoriaId ? categorias.find((c) => c.id === categoriaId)?.nombre ?? "Categoría" : "Todas"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas</SelectItem>
-                {categorias.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+          <FilterGroup label="Ubicación">
+            <FilterField label="Sistema">
+              <Select value={sistemaId || ALL} onValueChange={handleSistemaChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {sistemaId ? sistemas.find((s) => s.id === sistemaId)?.nombre ?? "Sistema" : "Todos"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos</SelectItem>
+                  {sistemas.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="Tipo">
-            <Select value={tipoId || ALL} onValueChange={(v) => { const value = v ?? ALL; setTipoId(value === ALL ? "" : value); setPage(1) }}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {tipoId ? tipos.find((t) => t.id === tipoId)?.tipo ?? "Tipo" : "Todos"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos</SelectItem>
-                {tipos.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.tipo}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+            <FilterField label="Subsistema">
+              <Select
+                value={subSistemaId || ALL}
+                onValueChange={(v) => { setSubSistemaId(v === ALL ? "" : (v ?? "")); setPage(1) }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {subSistemaId
+                      ? subSistemas.find((ss) => ss.id === subSistemaId)?.nombre ?? "Subsistema"
+                      : "Todos"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos</SelectItem>
+                  {subSistemasFiltrados.map((ss) => (
+                    <SelectItem key={ss.id} value={ss.id}>{ss.codigo} — {ss.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
 
-          <FilterField label="Prioridad">
-            <Select value={prioridad || ALL} onValueChange={(v) => { const value = v ?? ALL; setPrioridad(value === ALL ? "" : value); setPage(1) }}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {prioridad ? PRIORIDAD[Number(prioridad)] : "Todas"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas</SelectItem>
-                {Object.entries(PRIORIDAD).map(([id, nombre]) => (
-                  <SelectItem key={id} value={id}>{nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+            <FilterField label="Elemento">
+              <Combobox
+                options={elementoOptions}
+                value={elementoId}
+                onChange={(v) => { setElementoId(v ?? ""); setPage(1) }}
+                placeholder="Cualquier elemento"
+                searchPlaceholder="Buscar por TAG o nombre..."
+                emptyMessage="Sin resultados"
+              />
+            </FilterField>
+
+            <FilterField label="PID">
+              <Select
+                value={pidArchivoId || ALL}
+                onValueChange={(v) => { const value = v ?? ALL; setPidArchivoId(value === ALL ? "" : value); setPage(1) }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {pidArchivoId
+                      ? pids.find((x) => x.id === pidArchivoId)?.codigo ?? "PID"
+                      : "Todos"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos</SelectItem>
+                  {pids.map((pid) => (
+                    <SelectItem key={pid.id} value={pid.id}>{pid.codigo} — {pid.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+          </FilterGroup>
+
+          <FilterGroup label="Clasificación">
+            <FilterField label="Tipo">
+              <Select value={tipoId || ALL} onValueChange={(v) => { const value = v ?? ALL; setTipoId(value === ALL ? "" : value); setPage(1) }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {tipoId ? tipos.find((t) => t.id === tipoId)?.tipo ?? "Tipo" : "Todos"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos</SelectItem>
+                  {tipos.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.tipo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            <FilterField label="Especialidad">
+              <Select
+                value={especialidadId || ALL}
+                onValueChange={(v) => { const value = v ?? ALL; setEspecialidadId(value === ALL ? "" : value); setPage(1) }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {especialidadId
+                      ? especialidades.find((x) => x.id === especialidadId)?.nombre ?? "Especialidad"
+                      : "Todas"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todas</SelectItem>
+                  {especialidades.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+          </FilterGroup>
+
 
         </FiltersSheet>
 
@@ -651,12 +703,9 @@ function PendientesPageContent() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-xs text-blue-700 inline-flex items-center gap-1">
-                      {p.esInterno && (
-                        <Lock
-                          className="h-3 w-3 text-amber-700"
-                          aria-label="Pendiente interno"
-                        />
-                      )}
+                      {/* El chip solo aparece en ámbitos restringidos: marcar
+                          todo con "General" sería ruido. */}
+                      <MarcaAmbito pendiente={p} />
                       {p.codigoFormateado}
                     </p>
                     <p className="text-sm font-medium line-clamp-2">{p.descripcion}</p>
@@ -722,14 +771,7 @@ function PendientesPageContent() {
                   >
                     <TableCell className="font-mono text-sm text-blue-700">
                       <span className="inline-flex items-center gap-1">
-                        {p.esInterno && (
-                          <Lock
-                            className="h-3 w-3 text-amber-700"
-                            aria-label={p.grupoResponsableNombre
-                              ? `Interno · ${p.grupoResponsableNombre}`
-                              : "Interno"}
-                          />
-                        )}
+                        <MarcaAmbito pendiente={p} />
                         {p.codigoFormateado}
                       </span>
                     </TableCell>
@@ -795,6 +837,27 @@ function PendientesPageContent() {
 
 // Helper: setea el param si el valor está seteado, lo borra si es vacío.
 // Evita `?foo=` (query string con clave sin valor) que se ve feo.
+/**
+ * Marca del ámbito en la primera columna del listado.
+ *
+ * Hasta 2026-09 era un candado fijo para los pendientes internos. Ahora el ícono y
+ * el color los elige el admin por ámbito, y el pendiente los trae resueltos — el
+ * listado no cruza nada contra el catálogo.
+ *
+ * Sin ícono configurado no se dibuja nada: es lo que hace que el ámbito principal
+ * no manche todas las filas, sin que eso esté clavado en el código.
+ */
+function MarcaAmbito({ pendiente }: { pendiente: Pendiente }) {
+  const Icon = iconoDeAmbito(pendiente.ambitoIcono)
+  if (!Icon) return null
+  return (
+    <Icon
+      className={`h-3 w-3 shrink-0 ${colorDeAmbito(pendiente.ambitoColor).text}`}
+      aria-label={pendiente.ambitoNombre ?? "Ámbito restringido"}
+    />
+  )
+}
+
 function setOrDelete(params: URLSearchParams, key: string, value: string) {
   if (value) params.set(key, value)
   else params.delete(key)

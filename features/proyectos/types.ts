@@ -60,13 +60,6 @@ export interface Proyecto {
   nivelMcId: string | null
   nivelMcNombre: string | null
   /**
-   * Grupo aplicado por defecto al activar el toggle "Asignar al grupo
-   * responsable por defecto" al crear un pendiente en este proyecto. Null =
-   * el proyecto no ofrece default.
-   */
-  grupoResponsablePorDefectoId: string | null
-  grupoResponsablePorDefectoNombre: string | null
-  /**
    * Estado efectivo (global AND proyecto) de cada funcionalidad toggleable, por
    * clave del catálogo. Ej: { MAQUETA_3D: true }. Solo viene en el detalle del
    * proyecto (GET /proyectos/{id}).
