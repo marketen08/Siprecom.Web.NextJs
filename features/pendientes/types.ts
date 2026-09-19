@@ -313,10 +313,35 @@ export interface PendienteHistorial {
   usuarioNombre: string | null
 }
 
+/**
+ * Qué puede hacer el usuario con ESTE pendiente. Lo calcula el backend: además de la
+ * matriz por ámbito entra el atajo del responsable, y para eso hay que saber a qué
+ * grupos pertenece el usuario — dato que el front no tiene.
+ *
+ * Son permisos, no estado: que puedas aprobar no significa que el pendiente esté en
+ * condiciones de aprobarse. El estado lo sigue decidiendo la pantalla.
+ */
+export interface PendientePermisos {
+  iniciar: boolean
+  enviarAprobacion: boolean
+  preAprobar: boolean
+  aprobar: boolean
+  rechazar: boolean
+  cancelar: boolean
+  /** Permiso para cerrar con el PDF firmado: el mismo que aprobar. */
+  cargarFisico: boolean
+  /**
+   * La funcionalidad está activa en el proyecto. Apagada, la acción no existe: se
+   * oculta el botón en vez de mostrarlo gris — no hay permiso que conseguir.
+   */
+  cargaFisicaHabilitada: boolean
+}
+
 export interface PendienteDetalle extends Pendiente {
   comentarios: PendienteComentario[]
   adjuntos: PendienteAdjunto[]
   historial: PendienteHistorial[]
+  permisos: PendientePermisos
 }
 
 export interface PendienteCreateInput {

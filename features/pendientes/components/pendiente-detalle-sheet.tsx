@@ -26,6 +26,7 @@ import type { PendienteFormValues } from "../schema"
 import {
   ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR, categoriaColor,
 } from "../types"
+import type { PendientePermisos } from "../types"
 import { colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
 import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
 import { AudienciaAmbito, type PendienteAmbito } from "@/features/pendientes-ambitos/types"
@@ -198,17 +199,23 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                           </a>
                         </Button>
                       )}
-                      {/* Cargar después — es la acción "más pesada" (cierra el
-                          pendiente al confirmar). */}
+                      {/* Cargar — la acción más pesada: cierra el pendiente al confirmar,
+                          salteando el circuito. Por eso el proyecto puede desactivarla, y
+                          cuando lo hace el botón NO se dibuja: no es falta de permiso, la
+                          acción no existe ahí. Sin permiso sí se dibuja, gris y con motivo. */}
                       {canWrite
+                        && p.permisos.cargaFisicaHabilitada
                         && p.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
                         && p.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
                         <Button
                           size="sm"
                           variant="outline"
+                          disabled={!p.permisos.cargarFisico}
                           className="gap-1 h-8 px-2 sm:px-2.5 text-xs"
                           onClick={() => setCargaFisicaOpen(true)}
-                          title="Cargar PDF Firmado"
+                          title={p.permisos.cargarFisico
+                            ? "Cargar PDF Firmado"
+                            : "Sólo quien puede aprobar el cierre puede cargar el PDF firmado."}
                         >
                           <FileUp className="h-3.5 w-3.5" />
                           <span className="hidden sm:inline">Cargar</span>
@@ -268,6 +275,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                           grupoResponsableId={p.grupoResponsableId}
                           ambitoId={p.ambitoId}
                           pasoPreAprobar={p.ambitoPasoPreAprobar}
+                          permisos={p.permisos}
                           compact
                         />
                       </div>
@@ -304,6 +312,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                   grupoResponsableId={p.grupoResponsableId}
                   ambitoId={p.ambitoId}
                   pasoPreAprobar={p.ambitoPasoPreAprobar}
+                  permisos={p.permisos}
                 />
               </div>
             )}
@@ -432,6 +441,7 @@ function Workflow({
   grupoResponsableId,
   ambitoId,
   pasoPreAprobar,
+  permisos,
   compact = false,
 }: {
   pendienteId: string
@@ -448,6 +458,8 @@ function Workflow({
    * que mostrar los dos y dejar que el backend rechace uno.
    */
   pasoPreAprobar: boolean
+  /** Qué puede hacer el usuario con este pendiente. Lo calculó el backend. */
+  permisos: PendientePermisos
   /** Variante compacta para embeber en el header sticky: sin título "Acciones" y botones más chicos. */
   compact?: boolean
 }) {
@@ -460,11 +472,16 @@ function Workflow({
   const { data: ambitosResp } = useGetMisAmbitos()
   const misAmbitos = ambitosResp?.data ?? []
 
-  // Los botones se dibujan por estado, no por permiso: el backend es el que
-  // decide y puede rechazar la acción (p. ej. "Enviar a aprobación" es de la
-  // auditoría interna, no de quien ejecutó el trabajo). Sin este catch la promesa
-  // quedaba colgada y el clic no producía nada visible — el error se muestra
-  // abajo, tomado de transicion.error.
+  // Sin permiso el botón se DESHABILITA con el motivo, no se oculta: uno que
+  // desaparece deja al usuario sin entender por qué otro sí puede, y uno gris que
+  // explica es información. (Lo que sí se oculta es lo que directamente no existe:
+  // un paso apagado en el ámbito, o la carga física apagada en el proyecto.)
+  const SIN_PERMISO = "No tenés permiso para esta acción en este ámbito."
+
+  // El error del backend se sigue mostrando: los permisos cubren la autorización,
+  // pero una transición puede fallar por estado y esta pantalla no es la única
+  // fuente de verdad. Sin el catch la promesa quedaba colgada y el clic no producía
+  // nada visible.
   async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "pre-aprobar" | "aprobar", comentario?: string) {
     try {
       await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
@@ -503,20 +520,29 @@ function Workflow({
   const botones = (
     <>
       {estadoId === PENDIENTE_ESTADO_IDS.ABIERTO && (
-        <Button size="sm" disabled={busy} className={btnBase} onClick={() => ejecutar("iniciar")}>
+        <Button
+          size="sm" disabled={busy || !permisos.iniciar} className={btnBase}
+          title={permisos.iniciar ? undefined : SIN_PERMISO}
+          onClick={() => ejecutar("iniciar")}
+        >
           <Play className={iconSize} /> Iniciar
         </Button>
       )}
       {estadoId === PENDIENTE_ESTADO_IDS.EN_PROCESO && (
         <>
-          <Button size="sm" disabled={busy} className={btnBase} onClick={() => ejecutar("enviar-aprobacion")}>
+          <Button
+            size="sm" disabled={busy || !permisos.enviarAprobacion} className={btnBase}
+            title={permisos.enviarAprobacion ? undefined : SIN_PERMISO}
+            onClick={() => ejecutar("enviar-aprobacion")}
+          >
             <Send className={iconSize} /> {compact ? "Enviar" : "Enviar a aprobación"}
           </Button>
           {/* Rechazar desde EN_PROCESO — devuelve el pendiente a ABIERTO.
               Uso típico: el responsable devuelve porque no aplica, falta
               información, o se cargó a la persona equivocada. */}
           <Button
-            size="sm" variant="outline" disabled={busy} className={btnBase}
+            size="sm" variant="outline" disabled={busy || !permisos.rechazar} className={btnBase}
+            title={permisos.rechazar ? undefined : SIN_PERMISO}
             onClick={() => setDialog({
               accion: "rechazar",
               titulo: "Rechazar pendiente",
@@ -533,16 +559,27 @@ function Workflow({
       {estadoId === PENDIENTE_ESTADO_IDS.PENDIENTE_APROBACION && (
         <>
           {pasoPreAprobar ? (
-            <Button size="sm" disabled={busy} className={`${btnBase} bg-violet-700 hover:bg-violet-600`} onClick={() => ejecutar("pre-aprobar")}>
+            <Button
+              size="sm" disabled={busy || !permisos.preAprobar}
+              className={`${btnBase} bg-violet-700 hover:bg-violet-600`}
+              title={permisos.preAprobar ? undefined : SIN_PERMISO}
+              onClick={() => ejecutar("pre-aprobar")}
+            >
               <ClipboardCheck className={iconSize} /> {compact ? "Pre-aprobar" : "Pre-aprobar (revisión interna)"}
             </Button>
           ) : (
-            <Button size="sm" disabled={busy} className={`${btnBase} bg-green-700 hover:bg-green-600`} onClick={() => ejecutar("aprobar")}>
+            <Button
+              size="sm" disabled={busy || !permisos.aprobar}
+              className={`${btnBase} bg-green-700 hover:bg-green-600`}
+              title={permisos.aprobar ? undefined : SIN_PERMISO}
+              onClick={() => ejecutar("aprobar")}
+            >
               <ThumbsUp className={iconSize} /> {compact ? "Aprobar" : "Aprobar cierre"}
             </Button>
           )}
           <Button
-            size="sm" variant="outline" disabled={busy} className={btnBase}
+            size="sm" variant="outline" disabled={busy || !permisos.rechazar} className={btnBase}
+            title={permisos.rechazar ? undefined : SIN_PERMISO}
             onClick={() => setDialog({
               accion: "rechazar",
               titulo: "Rechazar cierre",
@@ -556,13 +593,19 @@ function Workflow({
       {/* Pre-aprobado: pasó la revisión interna y espera la aprobación final. */}
       {estadoId === PENDIENTE_ESTADO_IDS.PRE_APROBADO && (
         <>
-          <Button size="sm" disabled={busy} className={`${btnBase} bg-green-700 hover:bg-green-600`} onClick={() => ejecutar("aprobar")}>
+          <Button
+            size="sm" disabled={busy || !permisos.aprobar}
+            className={`${btnBase} bg-green-700 hover:bg-green-600`}
+            title={permisos.aprobar ? undefined : SIN_PERMISO}
+            onClick={() => ejecutar("aprobar")}
+          >
             <ThumbsUp className={iconSize} /> {compact ? "Aprobar" : "Aprobar cierre"}
           </Button>
           {/* Rechazar desde PRE_APROBADO vuelve a EN_PROCESO, no a la revisión: si hay
               que rehacer el trabajo, la revisión se repite sobre el trabajo nuevo. */}
           <Button
-            size="sm" variant="outline" disabled={busy} className={btnBase}
+            size="sm" variant="outline" disabled={busy || !permisos.rechazar} className={btnBase}
+            title={permisos.rechazar ? undefined : SIN_PERMISO}
             onClick={() => setDialog({
               accion: "rechazar",
               titulo: "Rechazar cierre",
@@ -573,8 +616,11 @@ function Workflow({
           </Button>
         </>
       )}
+      {/* Reasignar comparte permiso con Aprobar: el backend valida AsignarResponsable
+          contra esa misma acción. */}
       <Button
-        size="sm" variant="outline" disabled={busy} className={btnBase}
+        size="sm" variant="outline" disabled={busy || !permisos.aprobar} className={btnBase}
+        title={permisos.aprobar ? undefined : SIN_PERMISO}
         onClick={() => setReasignarOpen(true)}
       >
         <UserCog className={iconSize} /> Reasignar
@@ -591,8 +637,9 @@ function Workflow({
       )}
       {estadoId !== PENDIENTE_ESTADO_IDS.CERRADO && estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
         <Button
-          size="sm" variant="outline" disabled={busy}
+          size="sm" variant="outline" disabled={busy || !permisos.cancelar}
           className={`${btnBase} text-red-600 hover:text-red-700`}
+          title={permisos.cancelar ? undefined : SIN_PERMISO}
           onClick={() => setDialog({
             accion: "cancelar",
             titulo: "Cancelar pendiente",
