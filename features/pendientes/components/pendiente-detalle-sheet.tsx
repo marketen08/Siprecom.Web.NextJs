@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
-  Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X, Pencil,
+  Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, ClipboardCheck, X, Pencil,
   FileDown, FileUp, MapPin, ListChecks, UserCog, Tags,
 } from "lucide-react"
 
@@ -267,6 +267,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                           responsableId={p.responsableId}
                           grupoResponsableId={p.grupoResponsableId}
                           ambitoId={p.ambitoId}
+                          pasoPreAprobar={p.ambitoPasoPreAprobar}
                           compact
                         />
                       </div>
@@ -302,6 +303,7 @@ export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleShe
                   responsableId={p.responsableId}
                   grupoResponsableId={p.grupoResponsableId}
                   ambitoId={p.ambitoId}
+                  pasoPreAprobar={p.ambitoPasoPreAprobar}
                 />
               </div>
             )}
@@ -429,6 +431,7 @@ function Workflow({
   responsableId,
   grupoResponsableId,
   ambitoId,
+  pasoPreAprobar,
   compact = false,
 }: {
   pendienteId: string
@@ -439,6 +442,12 @@ function Workflow({
   grupoResponsableId?: string | null
   /** Ámbito actual — se excluye de las opciones al reclasificar. */
   ambitoId: string
+  /**
+   * El ámbito usa el paso de revisión interna. Define si desde "Esperando
+   * aprobación" se ofrece Pre-aprobar o directamente Aprobar — sin esto habría
+   * que mostrar los dos y dejar que el backend rechace uno.
+   */
+  pasoPreAprobar: boolean
   /** Variante compacta para embeber en el header sticky: sin título "Acciones" y botones más chicos. */
   compact?: boolean
 }) {
@@ -456,7 +465,7 @@ function Workflow({
   // auditoría interna, no de quien ejecutó el trabajo). Sin este catch la promesa
   // quedaba colgada y el clic no producía nada visible — el error se muestra
   // abajo, tomado de transicion.error.
-  async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "aprobar", comentario?: string) {
+  async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "pre-aprobar" | "aprobar", comentario?: string) {
     try {
       await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
     } catch { /* el mensaje queda en transicion.error */ }
@@ -518,11 +527,40 @@ function Workflow({
           </Button>
         </>
       )}
+      {/* Esperando aprobación. Con revisión interna en el ámbito, lo que sigue es
+          Pre-aprobar; sin ella, se aprueba el cierre directamente. Mostrar los dos y
+          dejar que el backend rechace uno sería ofrecer un botón que no hace nada. */}
       {estadoId === PENDIENTE_ESTADO_IDS.PENDIENTE_APROBACION && (
+        <>
+          {pasoPreAprobar ? (
+            <Button size="sm" disabled={busy} className={`${btnBase} bg-violet-700 hover:bg-violet-600`} onClick={() => ejecutar("pre-aprobar")}>
+              <ClipboardCheck className={iconSize} /> {compact ? "Pre-aprobar" : "Pre-aprobar (revisión interna)"}
+            </Button>
+          ) : (
+            <Button size="sm" disabled={busy} className={`${btnBase} bg-green-700 hover:bg-green-600`} onClick={() => ejecutar("aprobar")}>
+              <ThumbsUp className={iconSize} /> {compact ? "Aprobar" : "Aprobar cierre"}
+            </Button>
+          )}
+          <Button
+            size="sm" variant="outline" disabled={busy} className={btnBase}
+            onClick={() => setDialog({
+              accion: "rechazar",
+              titulo: "Rechazar cierre",
+              descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a EN_PROCESO.",
+            })}
+          >
+            <ThumbsDown className={iconSize} /> Rechazar
+          </Button>
+        </>
+      )}
+      {/* Pre-aprobado: pasó la revisión interna y espera la aprobación final. */}
+      {estadoId === PENDIENTE_ESTADO_IDS.PRE_APROBADO && (
         <>
           <Button size="sm" disabled={busy} className={`${btnBase} bg-green-700 hover:bg-green-600`} onClick={() => ejecutar("aprobar")}>
             <ThumbsUp className={iconSize} /> {compact ? "Aprobar" : "Aprobar cierre"}
           </Button>
+          {/* Rechazar desde PRE_APROBADO vuelve a EN_PROCESO, no a la revisión: si hay
+              que rehacer el trabajo, la revisión se repite sobre el trabajo nuevo. */}
           <Button
             size="sm" variant="outline" disabled={busy} className={btnBase}
             onClick={() => setDialog({

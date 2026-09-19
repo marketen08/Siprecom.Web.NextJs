@@ -43,6 +43,8 @@ interface FormState {
   eraPrincipal: boolean
   icono: string | null
   color: string | null
+  pasoIniciar: boolean
+  pasoPreAprobar: boolean
   grupoIds: string[]
 }
 
@@ -56,6 +58,9 @@ const VACIO: FormState = {
   eraPrincipal: false,
   icono: null,
   color: "ambar",
+  // El circuito nace completo: es el techo, y de acá se recorta.
+  pasoIniciar: true,
+  pasoPreAprobar: true,
   grupoIds: [],
 }
 
@@ -85,6 +90,8 @@ export default function PendientesAmbitosPage() {
       eraPrincipal: a.esPrincipal,
       icono: a.icono,
       color: a.color ?? "ambar",
+      pasoIniciar: a.pasoIniciar,
+      pasoPreAprobar: a.pasoPreAprobar,
       grupoIds: a.grupos.map((g) => g.grupoId),
     })
   }
@@ -100,6 +107,8 @@ export default function PendientesAmbitosPage() {
       esPrincipal: form.esPrincipal,
       icono: form.icono,
       color: form.icono ? form.color : null,
+      pasoIniciar: form.pasoIniciar,
+      pasoPreAprobar: form.pasoPreAprobar,
       grupoIds: form.audiencia === AudienciaAmbito.SoloGrupos ? form.grupoIds : [],
     }
     try {
@@ -446,6 +455,62 @@ export default function PendientesAmbitosPage() {
                     </span>
                   </label>
                 </div>
+              </div>
+
+              {/* ── Circuito del workflow ───────────────────────────────
+                  Qué pasos existen para los pendientes de este ámbito. Vive acá y no
+                  en el proyecto porque la variación que modela es entre TIPOS de
+                  pendiente: General lleva revisión interna, Directorio puede no
+                  llevarla. Apagar un paso no traba lo que ya pasó por él. */}
+              <div className="space-y-2 border-t pt-4">
+                <div>
+                  <p className="text-sm font-medium">Pasos del workflow</p>
+                  <p className="text-xs text-muted-foreground">
+                    Crear, Enviar a aprobación y Aprobar existen siempre. Estos dos son
+                    opcionales.
+                  </p>
+                </div>
+
+                <label className="flex items-start gap-2 cursor-pointer select-none rounded-md border bg-white px-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 mt-0.5 accent-blue-900"
+                    checked={form.pasoIniciar}
+                    onChange={(e) => setForm({ ...form, pasoIniciar: e.target.checked })}
+                  />
+                  <span className="text-xs">
+                    <span className="font-medium text-sm">Iniciar</span>
+                    <span className="block text-muted-foreground">
+                      {form.pasoIniciar
+                        ? "El responsable toma el pendiente y queda En proceso."
+                        : "Sin este paso, el responsable manda el pendiente a aprobación directamente desde Abierto."}
+                    </span>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-2 cursor-pointer select-none rounded-md border bg-white px-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 mt-0.5 accent-blue-900"
+                    checked={form.pasoPreAprobar}
+                    onChange={(e) => setForm({ ...form, pasoPreAprobar: e.target.checked })}
+                  />
+                  <span className="text-xs">
+                    <span className="font-medium text-sm">Pre-aprobar (revisión interna)</span>
+                    <span className="block text-muted-foreground">
+                      {form.pasoPreAprobar
+                        ? "Quien revisa confirma el trabajo antes de que pase a la aprobación final. Es el paso que separa a quien ejecuta de quien aprueba."
+                        : "Sin este paso, el cierre se aprueba directamente sobre Esperando aprobación."}
+                    </span>
+                  </span>
+                </label>
+
+                {!form.pasoIniciar && !form.pasoPreAprobar && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    Con los dos pasos apagados el circuito queda en Abierto → Esperando
+                    aprobación → Cerrado.
+                  </p>
+                )}
               </div>
 
               {error && (

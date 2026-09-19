@@ -11,6 +11,7 @@ export enum AccionPendiente {
   Aprobar = 4,
   Rechazar = 5,
   Cancelar = 6,
+  PreAprobar = 7,
 }
 
 export const ACCIONES_LIST: { value: AccionPendiente; label: string; descripcion: string }[] = [
@@ -28,6 +29,14 @@ export const ACCIONES_LIST: { value: AccionPendiente; label: string; descripcion
     descripcion:
       "Revisión interna: el trabajo terminado se manda a la aprobación del cliente. Es un " +
       "paso distinto del de quien ejecutó el pendiente.",
+  },
+  {
+    value: AccionPendiente.PreAprobar,
+    label: "Pre-aprobar",
+    descripcion:
+      "Revisión interna: confirma que el trabajo está bien hecho y recién ahí el " +
+      "pendiente pasa a la aprobación final. No tiene atajo por responsable — el punto " +
+      "del paso es que lo haga alguien distinto de quien ejecutó.",
   },
   {
     value: AccionPendiente.Aprobar,

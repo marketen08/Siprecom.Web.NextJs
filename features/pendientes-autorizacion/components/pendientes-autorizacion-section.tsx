@@ -87,11 +87,29 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
     })
   }
 
+  // Qué filas tiene sentido configurar en ESTE ámbito.
+  //
+  // Crear sale en los abiertos: es la puerta de entrada, no un paso del circuito, y
+  // ahí quién participa ya está definido —todo el proyecto—. Con los grupos ya
+  // exclusivos, tildarla dejaría al resto sin poder reportar pendientes. El backend
+  // también lo rechaza.
+  //
+  // Los pasos apagados del ámbito tampoco: si el paso no existe, no hay a quién
+  // autorizar.
+  const accionesVisibles = ACCIONES_LIST.filter((a) => {
+    if (!ambitoActual) return true
+    if (a.value === AccionPendiente.Crear
+        && ambitoActual.audiencia === AudienciaAmbito.TodoElProyecto) return false
+    if (a.value === AccionPendiente.Iniciar && !ambitoActual.pasoIniciar) return false
+    if (a.value === AccionPendiente.PreAprobar && !ambitoActual.pasoPreAprobar) return false
+    return true
+  })
+
   // Ahora que los grupos tildados son los ÚNICOS que pueden ejecutar la acción,
   // tildar sólo grupos vacíos la deja sin nadie salvo Admin. Es fácil de hacer sin
   // darse cuenta —la columna dice los miembros, pero nadie los suma— así que lo
   // avisamos antes de guardar en vez de que aparezca como un permiso perdido.
-  const accionesSinNadie = ACCIONES_LIST.filter((a) => {
+  const accionesSinNadie = accionesVisibles.filter((a) => {
     const ids = seleccion[a.value]
     if (!ids || ids.size === 0) return false
     return grupos
@@ -102,6 +120,9 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
   async function guardar() {
     setError(null)
     try {
+      // Se mandan TODAS, no sólo las visibles: una acción que dejó de aplicar
+      // —Crear en un ámbito que pasó a abierto, un paso que se apagó— viaja con la
+      // lista vacía y así se limpian sus filas viejas.
       const asignaciones = ACCIONES_LIST.map((a) => ({
         accion: a.value,
         grupoIds: Array.from(seleccion[a.value] ?? []),
@@ -215,7 +236,7 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
               </tr>
             </thead>
             <tbody>
-              {ACCIONES_LIST.map((a) => (
+              {accionesVisibles.map((a) => (
                 <tr key={a.value} className="border-b last:border-0">
                   <td className="px-3 py-2 align-top">
                     <div className="font-medium">{a.label}</div>

@@ -34,6 +34,14 @@ export interface PendienteAmbito {
    */
   icono: string | null
   color: string | null
+  /**
+   * Pasos del workflow que existen en este ámbito. Los dos arrancan en true: el
+   * circuito completo es el techo. Apagar "Iniciar" hace que el responsable mande el
+   * pendiente a aprobación directo desde Abierto; apagar "Pre-aprobar" saca el paso de
+   * revisión interna y el cierre se aprueba sobre Esperando aprobación.
+   */
+  pasoIniciar: boolean
+  pasoPreAprobar: boolean
   isActive: boolean
   grupos: PendienteAmbitoGrupo[]
   /**
@@ -52,5 +60,7 @@ export interface PendienteAmbitoSet {
   esPrincipal: boolean
   icono?: string | null
   color?: string | null
+  pasoIniciar: boolean
+  pasoPreAprobar: boolean
   grupoIds: string[]
 }

@@ -3,6 +3,7 @@ export const PENDIENTE_ESTADO_IDS = {
   ABIERTO: "estado-pend-abierto",
   EN_PROCESO: "estado-pend-en-proceso",
   PENDIENTE_APROBACION: "estado-pend-aprobacion",
+  PRE_APROBADO: "estado-pend-preaprobado",
   CERRADO: "estado-pend-cerrado",
   CANCELADO: "estado-pend-cancelado",
 } as const
@@ -25,6 +26,7 @@ export const ESTADO_COLOR: Record<string, string> = {
   ABIERTO: "bg-gray-100 text-gray-700",
   EN_PROCESO: "bg-blue-100 text-blue-700",
   PENDIENTE_APROBACION: "bg-amber-100 text-amber-800",
+  PRE_APROBADO: "bg-violet-100 text-violet-700",
   CERRADO: "bg-green-100 text-green-700",
   CANCELADO: "bg-red-100 text-red-700",
 }
@@ -55,6 +57,7 @@ export const ESTADO_LABEL: Record<string, string> = {
   ABIERTO: "Abierto",
   EN_PROCESO: "En proceso",
   PENDIENTE_APROBACION: "Esperando aprobación",
+  PRE_APROBADO: "Pre-aprobado",
   CERRADO: "Cerrado",
   CANCELADO: "Cancelado",
 }
@@ -229,6 +232,12 @@ export interface Pendiente {
   /** Ícono y color con que el ámbito se marca en el listado. Sin ícono, no se marca. */
   ambitoIcono: string | null
   ambitoColor: string | null
+  /**
+   * Qué pasos del workflow existen en el ámbito de este pendiente. Definen qué botón
+   * ofrecer — no si este usuario puede ejecutarlo, que lo decide el backend.
+   */
+  ambitoPasoIniciar: boolean
+  ambitoPasoPreAprobar: boolean
   descripcion: string
   /** True si el usuario editó la descripción manualmente (checkbox activo). */
   descripcionManual?: boolean
