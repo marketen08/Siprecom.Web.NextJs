@@ -21,6 +21,7 @@ import {
 } from "@/features/usuarios-grupos/etiqueta-responsable"
 import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
 import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
+import { colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
 import { PRIORIDAD } from "../types"
 import {
   CAMPO_DIMENSION,
@@ -441,7 +442,6 @@ export function PendienteForm({
   const misAmbitos = ambitosResp?.data ?? []
   const ambitoIdActual = form.watch("ambitoId")
   const ambitoPrincipal = misAmbitos.find((a) => a.esPrincipal) ?? null
-  const ambitoRestringido = misAmbitos.find((a) => !a.esPrincipal) ?? null
   const ambitoActual = misAmbitos.find((a) => a.id === ambitoIdActual) ?? null
 
   // Ámbito por defecto DEL USUARIO: el principal cuando lo tiene —que es siempre,
@@ -451,9 +451,6 @@ export function PendienteForm({
   // principal a ciegas dejaba al usuario sin acceso rebotando contra un default que
   // él no había elegido.
   const ambitoPorDefecto = ambitoPrincipal ?? misAmbitos[0] ?? null
-
-  const modoCheckbox = misAmbitos.length === 2 && !!ambitoPorDefecto && !!ambitoRestringido
-    && ambitoPorDefecto.id !== ambitoRestringido.id
 
   useEffect(() => {
     if (!ambitoIdActual && ambitoPorDefecto) {
@@ -505,70 +502,61 @@ export function PendienteForm({
         })}
         className="flex flex-col gap-6 pb-24 sm:pb-4"
       >
-        {/* Ámbito — primera decisión del alta: define quién va a ver el pendiente.
+        {/* Ámbito — define quién va a ver el pendiente. Va antes que el grupo
+            responsable porque lo filtra: elegirlo después soltaría el grupo ya elegido.
 
-            Se dibuja SOLO si el usuario tiene más de un ámbito disponible. Con uno
-            solo no hay nada que elegir y un control de una opción es ruido: el
-            pendiente nace igual en el principal, que es lo que el efecto de arriba
-            deja seteado.
+            Una sola fila de chips, con todas las opciones a la vista. Antes eran dos
+            controles distintos según la cantidad —checkbox con dos ámbitos, select con
+            tres o más—, así que el mismo concepto se veía distinto según la
+            configuración.
 
-            Con exactamente dos se dibuja como el checkbox de siempre; el selector
-            aparece recién con tres o más. La generalidad del modelo no se le cobra
-            al usuario hasta que la necesita.
+            Cada chip usa el ícono y el color que se eligieron en la pantalla de
+            ámbitos, igual que la marca del listado. El principal activo va en el acento
+            de la app y no en su color: el color queda para señalar lo restringido.
 
-            Solo en el alta: reclasificar un pendiente que ya existe cambia quién lo
-            ve retroactivamente, y eso va por su propia acción en el detalle. */}
+            Se dibuja sólo con más de un ámbito: con uno no hay nada que elegir, y el
+            pendiente nace en el principal, que el efecto de arriba deja seteado. Y sólo
+            en el alta: reclasificar cambia quién lo ve retroactivamente, y eso tiene su
+            propia acción en el detalle. */}
         {esAlta && misAmbitos.length > 1 && (
         <FormField
           control={form.control}
           name="ambitoId"
           render={({ field }) => (
-            <FormItem className="rounded-md border bg-white px-3 py-3 space-y-1 m-0">
-              {modoCheckbox && ambitoPorDefecto && ambitoRestringido ? (
-                <>
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-blue-900"
-                      checked={field.value === ambitoRestringido.id}
-                      onChange={(e) =>
-                        onAmbitoChange(e.target.checked ? ambitoRestringido.id : ambitoPorDefecto.id)
-                      }
+            <FormItem className="space-y-1.5 m-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">Visible para:</span>
+                {misAmbitos.map((a) => {
+                  const activo = field.value === a.id
+                  const Icono = iconoDeAmbito(a.icono)
+                  const estiloActivo = a.esPrincipal
+                    ? "bg-blue-50 text-blue-800 border-blue-300"
+                    : colorDeAmbito(a.color).chip
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => onAmbitoChange(a.id)}
                       disabled={isPending}
-                    />
-                    <span className="text-sm font-medium">🔒 {ambitoRestringido.nombre}</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    {field.value === ambitoRestringido.id
-                      ? ambitoRestringido.descripcion
-                      : "Marcá para restringir quién lo ve. " + (ambitoRestringido.descripcion ?? "")}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <FormLabel>Ámbito</FormLabel>
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={(v) => onAmbitoChange(v ?? "")}
-                    disabled={isPending || misAmbitos.length === 0}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue>{ambitoActual?.nombre ?? "Elegí un ámbito"}</SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {misAmbitos.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {ambitoActual?.descripcion ?? "Define quién puede ver este pendiente."}
-                  </p>
-                </>
+                      aria-pressed={activo}
+                      className={
+                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+                        (activo ? estiloActivo : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+                      }
+                    >
+                      {Icono && <Icono className="h-3.5 w-3.5" />}
+                      {a.nombre}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Sólo para los restringidos: el principal no necesita explicación, y
+                  repetirla en cada alta sería ruido que se aprende a no leer. */}
+              {ambitoActual && !ambitoActual.esPrincipal && (
+                <p className="text-xs text-muted-foreground">
+                  {ambitoActual.descripcion
+                    ?? `Sólo lo ven quienes están en la audiencia de ${ambitoActual.nombre}.`}
+                </p>
               )}
               <FormMessage />
             </FormItem>
@@ -581,8 +569,8 @@ export function PendienteForm({
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
               Quitamos el grupo <span className="font-medium">{grupoSoltadoPorAmbito}</span>: no está
-              en la audiencia de este ámbito, así que no vería el pendiente. Elegí otro en Opciones
-              avanzadas si querés asignarlo a un grupo.
+              en la audiencia de este ámbito, así que no vería el pendiente. Si querés asignarlo a un
+              grupo, elegí otro más abajo, junto al responsable.
             </span>
           </div>
         )}
