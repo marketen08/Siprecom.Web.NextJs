@@ -177,8 +177,10 @@ export default function GruposUsuariosPage() {
               type="button"
               onClick={() => toggleUso(chip.uso)}
               aria-pressed={activo}
+              // cursor-pointer explícito: en Tailwind 4 los <button> quedan con
+              // cursor:default, igual que hace el Button del proyecto.
               className={
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
                 (activo
                   ? chip.activo
                   : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
@@ -193,7 +195,7 @@ export default function GruposUsuariosPage() {
           <button
             type="button"
             onClick={() => setUsosFiltro(new Set())}
-            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
+            className="cursor-pointer px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
           >
             Limpiar
           </button>
