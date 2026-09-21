@@ -37,10 +37,22 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
   const addMutation = useAddUsuarioProyecto(proyectoId)
   const removeMutation = useRemoveUsuarioProyecto(proyectoId)
 
-  const asignados = Array.isArray(asignadosData) ? asignadosData : []
+  const asignados = useMemo(() => (Array.isArray(asignadosData) ? asignadosData : []), [asignadosData])
   const asignadosIds = useMemo(() => new Set(asignados.map((u) => u.usuarioId)), [asignados])
 
-  // Filtros del panel derecho
+  // Filtro local del panel derecho. El de disponibles va contra el server
+  // (useGetUsuarios); acá alcanza con filtrar en memoria porque los asignados ya
+  // vienen todos. Mismo criterio que los miembros de un grupo.
+  const [filtroAsignados, setFiltroAsignados] = useState("")
+  const asignadosFiltrados = useMemo(() => {
+    const q = filtroAsignados.trim().toLowerCase()
+    if (!q) return asignados
+    return asignados.filter((u) =>
+      [u.nombre, u.apellido, u.userName, u.email].filter(Boolean).join(" ").toLowerCase().includes(q),
+    )
+  }, [asignados, filtroAsignados])
+
+  // Filtros del panel izquierdo
   const [busqueda, setBusqueda] = useState("")
   const [empresaId, setEmpresaId] = useState<string>(TODOS)
   const [grupoId, setGrupoId] = useState<string>(TODOS)
@@ -191,6 +203,19 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
             </p>
           </div>
 
+          <div className="border-b p-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={filtroAsignados}
+                onChange={(e) => setFiltroAsignados(e.target.value)}
+                placeholder="Filtrar asignados…"
+                className="pl-8"
+                disabled={asignados.length === 0}
+              />
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
             {cargandoAsignados ? (
               <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
@@ -199,11 +224,13 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
                 <UserIcon className="h-8 w-8 mb-2 opacity-30" />
                 <p className="text-sm">Sin usuarios asignados.</p>
                 <p className="text-xs mt-1 max-w-45">
-                  Usá los filtros de la derecha para encontrar usuarios y agregarlos.
+                  Usá los filtros de la izquierda para encontrar usuarios y agregarlos.
                 </p>
               </div>
+            ) : asignadosFiltrados.length === 0 ? (
+              <p className="p-2 text-sm italic text-muted-foreground">Sin coincidencias.</p>
             ) : (
-              asignados.map((u) => {
+              asignadosFiltrados.map((u) => {
                 const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ")
                 return (
                   <div
