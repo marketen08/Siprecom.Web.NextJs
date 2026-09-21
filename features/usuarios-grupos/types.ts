@@ -45,3 +45,30 @@ export interface UsuarioGrupoInput {
   usoCalidad: boolean
   usoAccesoProyecto: boolean
 }
+
+/**
+ * Qué pierde una persona si se la saca de un grupo. Lo calcula el backend y alimenta la
+ * confirmación: los grupos son globales y sus efectos alcanzan proyectos que quien la
+ * quita puede no administrar.
+ *
+ * Todo viene NETO — si otro grupo del usuario le da lo mismo, no aparece.
+ */
+export interface QuitarMiembroImpacto {
+  /** Ámbitos restringidos que deja de ver. Es la pérdida más grave: ahí no hay fallback por rol. */
+  ambitosQueDejaDeVer: string[]
+  permisosQuePierde: PermisoPerdido[]
+  /** Pendientes que salen de su bandeja "Míos" porque el vínculo era el grupo. */
+  pendientesQueSalenDeMios: number
+  noConformidadesAfectadas: number
+  /** True cuando nada aplica: el cliente confirma directo en vez de abrir un diálogo vacío. */
+  sinImpacto: boolean
+}
+
+export interface PermisoPerdido {
+  proyectoId: string
+  proyectoNombre: string
+  ambitoNombre: string
+  acciones: string[]
+  /** False cuando el proyecto queda fuera del alcance de quien está quitando al miembro. */
+  esProyectoPropio: boolean
+}

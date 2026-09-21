@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
-import type { UsuarioGrupo, UsuarioGrupoDetalle, UsuarioGrupoInput, UsoGrupoFiltro } from "../types"
+import type {
+  UsuarioGrupo, UsuarioGrupoDetalle, UsuarioGrupoInput, UsoGrupoFiltro, QuitarMiembroImpacto,
+} from "../types"
 
 const QK = ["usuarios-grupos"] as const
 
@@ -83,5 +85,24 @@ export function useQuitarMiembro() {
       qc.invalidateQueries({ queryKey: QK })
       qc.invalidateQueries({ queryKey: [...QK, vars.grupoId] })
     },
+  })
+}
+
+/**
+ * Impacto de quitar a alguien del grupo. Se consulta al abrir la confirmación, no al
+ * cargar la lista: es una consulta por miembro y sólo interesa cuando alguien está por
+ * sacarlo.
+ */
+export function useImpactoQuitarMiembro(grupoId: string | null, usuarioId: string | null) {
+  return useQuery({
+    queryKey: [...QK, grupoId, "impacto-quitar", usuarioId],
+    queryFn: () =>
+      apiClient.get<ApiResponse<QuitarMiembroImpacto>>(
+        `/api/usuarios-grupos/${grupoId}/miembros/${usuarioId}/impacto-quitar`,
+      ),
+    enabled: !!grupoId && !!usuarioId,
+    // Sin cache: entre que se abre el diálogo y se confirma, la configuración pudo
+    // cambiar — y este dato existe justamente para que la decisión sea informada.
+    staleTime: 0,
   })
 }

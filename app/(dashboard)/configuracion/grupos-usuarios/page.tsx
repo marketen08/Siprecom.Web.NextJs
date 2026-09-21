@@ -11,6 +11,7 @@ import {
   useUpdateUsuarioGrupo,
   useAgregarMiembros,
   useQuitarMiembro,
+  useImpactoQuitarMiembro,
 } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 
@@ -403,10 +404,16 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
     }
   }
 
+  // Quitar a alguien pasa por confirmación porque los grupos son globales: la membresía
+  // puede estar sosteniendo visibilidad y permisos en proyectos que quien la quita no
+  // administra, y hasta ahora eso se hacía a ciegas. El diálogo consulta el impacto real.
+  const [confirmQuitar, setConfirmQuitar] = useState<{ usuarioId: string; nombre: string } | null>(null)
+
   async function quitarUsuario(usuarioId: string) {
     if (!grupoId) return
     try {
       await quitar.mutateAsync({ grupoId, usuarioId })
+      setConfirmQuitar(null)
     } catch {
       // idem
     }
@@ -565,7 +572,15 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
                       className="h-7 w-7 shrink-0 text-red-600"
                       title="Quitar del grupo"
                       disabled={quitar.isPending}
-                      onClick={() => quitarUsuario(m.usuarioId)}
+                      onClick={() =>
+                        setConfirmQuitar({
+                          usuarioId: m.usuarioId,
+                          nombre:
+                            [m.apellido, m.nombre].filter(Boolean).join(", ") ||
+                            m.email ||
+                            m.usuarioId,
+                        })
+                      }
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>
@@ -576,6 +591,137 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
           </section>
         </div>
       </SheetContent>
+
+      {/* Confirmación de quitar miembro, con el impacto real a la vista. */}
+      <ConfirmarQuitarMiembro
+        grupoId={grupoId}
+        target={confirmQuitar}
+        onCancel={() => setConfirmQuitar(null)}
+        onConfirm={() => confirmQuitar && quitarUsuario(confirmQuitar.usuarioId)}
+        quitando={quitar.isPending}
+      />
     </Sheet>
+  )
+}
+
+/**
+ * Confirmación de quitar a alguien de un grupo, mostrando qué pierde.
+ *
+ * Los grupos son globales pero sus efectos no: la membresía puede estar sosteniendo
+ * visibilidad y permisos en proyectos que quien la quita no administra. El impacto lo
+ * calcula el backend —el front no sabe en qué otros grupos está la persona— y viene neto:
+ * lo que otro grupo suyo cubre no se lista.
+ *
+ * No bloquea nada. Sacar a alguien de un grupo casi siempre es intencional; lo que
+ * faltaba era que la consecuencia estuviera a la vista antes de confirmar.
+ */
+function ConfirmarQuitarMiembro({
+  grupoId,
+  target,
+  onCancel,
+  onConfirm,
+  quitando,
+}: {
+  grupoId: string | null
+  target: { usuarioId: string; nombre: string } | null
+  onCancel: () => void
+  onConfirm: () => void
+  quitando: boolean
+}) {
+  const { data, isLoading } = useImpactoQuitarMiembro(grupoId, target?.usuarioId ?? null)
+  const impacto = data?.data
+
+  const ajenos = impacto?.permisosQuePierde.filter((p) => !p.esProyectoPropio) ?? []
+
+  return (
+    <AlertDialog open={target !== null} onOpenChange={(v) => { if (!v) onCancel() }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Quitar a {target?.nombre} del grupo</AlertDialogTitle>
+          <AlertDialogDescription>
+            No se da de baja al usuario, sólo se lo saca de este grupo.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Revisando qué depende de esta membresía…</p>
+        ) : impacto?.sinImpacto ? (
+          <p className="text-sm text-muted-foreground">
+            Esta membresía no sostiene visibilidad ni permisos en ningún proyecto.
+          </p>
+        ) : impacto ? (
+          <div className="space-y-3 text-sm">
+            {ajenos.length > 0 && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Parte de esto afecta a proyectos que no administrás.
+              </p>
+            )}
+
+            {impacto.ambitosQueDejaDeVer.length > 0 && (
+              <div>
+                <p className="font-medium">Deja de ver estos ámbitos de pendientes:</p>
+                <p className="text-muted-foreground">
+                  {impacto.ambitosQueDejaDeVer.join(", ")}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Sus pendientes le desaparecen del listado y no va a poder accionarlos.
+                </p>
+              </div>
+            )}
+
+            {impacto.permisosQuePierde.length > 0 && (
+              <div>
+                <p className="font-medium">Pierde estos permisos:</p>
+                <ul className="mt-1 space-y-1">
+                  {impacto.permisosQuePierde.map((p) => (
+                    <li
+                      key={`${p.proyectoId}-${p.ambitoNombre}`}
+                      className="rounded-md border px-2 py-1.5"
+                    >
+                      <span className="font-medium">{p.proyectoNombre}</span>
+                      {!p.esProyectoPropio && (
+                        <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                          otro proyecto
+                        </span>
+                      )}
+                      <span className="block text-xs text-muted-foreground">
+                        {p.ambitoNombre} · {p.acciones.join(", ")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {impacto.pendientesQueSalenDeMios > 0 && (
+              <p className="text-muted-foreground">
+                {impacto.pendientesQueSalenDeMios} pendiente
+                {impacto.pendientesQueSalenDeMios === 1 ? "" : "s"} sale
+                {impacto.pendientesQueSalenDeMios === 1 ? "" : "n"} de su bandeja
+                &quot;Míos&quot;.
+              </p>
+            )}
+
+            {impacto.noConformidadesAfectadas > 0 && (
+              <p className="text-muted-foreground">
+                {impacto.noConformidadesAfectadas} no conformidad
+                {impacto.noConformidadesAfectadas === 1 ? "" : "es"} tiene a este grupo como
+                área afectada o de seguimiento.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={quitando}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={quitando || isLoading}
+            onClick={(e) => { e.preventDefault(); onConfirm() }}
+          >
+            {quitando ? "Quitando…" : "Quitar del grupo"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
