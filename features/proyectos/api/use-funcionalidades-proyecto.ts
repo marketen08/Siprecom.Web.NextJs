@@ -5,6 +5,10 @@ export interface FuncionalidadProyecto {
   clave: string
   nombre: string
   descripcion: string
+  /** Grupo con el que se muestra, ya legible ("Certificados"). */
+  categoria: string
+  /** Orden de la sección: Módulos primero. */
+  categoriaOrden: number
   permiteOverrideProyecto: boolean
   /** Master switch global (SuperAdmin). */
   habilitadaGlobal: boolean

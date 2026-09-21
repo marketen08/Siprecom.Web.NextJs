@@ -40,6 +40,7 @@ import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario
 import { useGetFechaEstimadaFin } from "@/features/proyectos/api/use-fecha-estimada-fin"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
 import { TabUsuariosProyecto } from "@/features/proyectos/components/tab-usuarios-proyecto"
+import { SeccionesFuncionalidades } from "@/features/funcionalidades/components/secciones-funcionalidades"
 import { TIPO_FIRMA_CONFIG, TIPO_FIRMA_CONFIG_LABEL, type EstadoProyecto, type FirmaConfigItem, type Proyecto } from "@/features/proyectos/types"
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
@@ -645,55 +646,44 @@ function FuncionalidadesProyecto({ proyectoId }: { proyectoId: string }) {
     }
   }
 
-  // Las que el SuperAdmin apagó globalmente no se listan: para este proyecto no
-  // existen — no se pueden activar ni tienen efecto, así que mostrarlas grisadas
-  // solo agregaba ruido a una lista que ya pasa las veinte filas.
-  const visibles = data?.filter((f) => f.habilitadaGlobal) ?? []
+  // Dos filtros antes de mostrar:
+  //
+  // - Las que el SuperAdmin apagó globalmente: para este proyecto no existen — no se
+  //   pueden activar ni tienen efecto.
+  // - Las que sólo se controlan a nivel global (métodos de login, algunas de firmas):
+  //   antes se listaban deshabilitadas con una leyenda. No son accionables desde acá,
+  //   y los logins ni siquiera son del proyecto sino de la instalación entera. Eran un
+  //   cuarto de la pantalla sin nada que hacer en ellas.
+  const visibles = data?.filter((f) => f.habilitadaGlobal && f.permiteOverrideProyecto) ?? []
 
   if (isLoading || visibles.length === 0) return null
 
   return (
     <section className="space-y-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Funcionalidades</p>
-      {visibles.map((f) => {
-        // Funcionalidades "solo global": el proyecto no puede overridear. El toggle
-        // se muestra igual (para que el Admin vea el estado efectivo) pero deshabilitado.
-        const soloGlobal = !f.permiteOverrideProyecto
-        const disabled = saving !== null || soloGlobal
-        // Cuando es solo-global, el toggle refleja el estado global (no el "proyecto").
-        const checked = soloGlobal ? f.habilitadaGlobal : f.habilitadaProyecto
-        return (
-          <div
-            key={f.clave}
-            className="flex items-center justify-between gap-4 rounded-lg border bg-white p-4"
-          >
-            <div className="space-y-0.5 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
-                {soloGlobal && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                    Global
-                  </span>
-                )}
-              </div>
+      <SeccionesFuncionalidades
+        items={visibles}
+        // Para las visibles, efectiva == override del proyecto: el global ya está en
+        // true por el filtro de arriba.
+        estaActiva={(f) => f.efectiva}
+        storageKey="siprecom:funcionalidades-proyecto:abiertas"
+        renderFila={(f) => (
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
               <p className="text-xs text-muted-foreground">{f.descripcion}</p>
-              {soloGlobal && (
-                <p className="text-xs text-muted-foreground">
-                  Esta funcionalidad se controla únicamente a nivel global. Los proyectos no pueden overridearla.
-                </p>
-              )}
             </div>
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {saving === f.clave && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
               <Toggle
-                checked={checked}
+                checked={f.habilitadaProyecto}
                 onChange={(v) => handleToggle(f.clave, v)}
-                disabled={disabled}
+                disabled={saving !== null}
               />
             </div>
           </div>
-        )
-      })}
+        )}
+      />
     </section>
   )
 }

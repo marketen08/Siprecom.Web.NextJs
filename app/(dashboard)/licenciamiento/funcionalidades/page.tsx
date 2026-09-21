@@ -4,11 +4,14 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Loader2, ToggleRight } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { SeccionesFuncionalidades } from "@/features/funcionalidades/components/secciones-funcionalidades"
 
 interface FuncionalidadGlobal {
   clave: string
   nombre: string
   descripcion: string
+  categoria: string
+  categoriaOrden: number
   habilitada: boolean
   permiteOverrideProyecto: boolean
 }
@@ -66,25 +69,37 @@ export default function FuncionalidadesPage() {
         <p className="text-sm text-destructive">No se pudo cargar la configuración.</p>
       ) : (
         <div className="space-y-3">
-          {data?.map((f) => (
-            <div
-              key={f.clave}
-              className="flex items-center justify-between gap-4 rounded-lg border bg-white p-4"
-            >
-              <div className="space-y-0.5 min-w-0">
-                <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
-                <p className="text-xs text-muted-foreground">{f.descripcion}</p>
+          <SeccionesFuncionalidades
+            items={data ?? []}
+            estaActiva={(f) => f.habilitada}
+            storageKey="siprecom:funcionalidades-globales:abiertas"
+            renderFila={(f) => (
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-gray-900">{f.nombre}</p>
+                    {/* Acá sí se listan las que no se overridean por proyecto: es la
+                        pantalla donde se controlan. Se marcan para que se sepa que no
+                        las va a encontrar un Admin en su proyecto. */}
+                    {!f.permiteOverrideProyecto && (
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
+                        Sólo global
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{f.descripcion}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {saving === f.clave && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+                  <Toggle
+                    checked={f.habilitada}
+                    onChange={(v) => handleToggle(f.clave, v)}
+                    disabled={saving !== null}
+                  />
+                </div>
               </div>
-              <div className="shrink-0 flex items-center gap-2">
-                {saving === f.clave && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
-                <Toggle
-                  checked={f.habilitada}
-                  onChange={(v) => handleToggle(f.clave, v)}
-                  disabled={saving !== null}
-                />
-              </div>
-            </div>
-          ))}
+            )}
+          />
           {mutation.isError && (
             <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>
           )}
