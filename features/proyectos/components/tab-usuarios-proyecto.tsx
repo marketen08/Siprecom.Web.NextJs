@@ -25,9 +25,10 @@ import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuario
 const TODOS = "__all__"
 
 /**
- * Tab "Usuarios" del detalle del proyecto. Layout split-panel con filtros de
- * búsqueda + empresa + grupo en el panel derecho. Panel izquierdo lista los
- * asignados; el derecho lista los disponibles filtrados. Además el botón
+ * Tab "Usuarios" del detalle del proyecto. Layout split-panel: a la izquierda los
+ * disponibles, con búsqueda + filtros por empresa y grupo; a la derecha los asignados.
+ * Es el mismo orden que el resto de las pantallas de asignación de la app —de dónde se
+ * toma, a dónde va—, así el ojo no tiene que reaprenderlo en cada una. Además el botón
  * "Agregar desde grupo" mantiene el bulk-add para asignar toda la membresía
  * de un grupo de una vez.
  */
@@ -73,68 +74,7 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
 
       <div className="flex gap-4 h-[calc(100vh-260px)]">
 
-        {/* ─── Panel izquierdo: asignados ─────────────────────────── */}
-        <div className="w-80 shrink-0 border rounded-lg bg-white overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b">
-            <h3 className="text-sm font-semibold text-gray-700">Usuarios asignados</h3>
-            <p className="text-xs text-muted-foreground">
-              {asignados.length} usuario{asignados.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-            {cargandoAsignados ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
-            ) : asignados.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-8">
-                <UserIcon className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-sm">Sin usuarios asignados.</p>
-                <p className="text-xs mt-1 max-w-45">
-                  Usá los filtros de la derecha para encontrar usuarios y agregarlos.
-                </p>
-              </div>
-            ) : (
-              asignados.map((u) => {
-                const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ")
-                return (
-                  <div
-                    key={u.usuarioId}
-                    className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <UserIcon className="h-4 w-4 text-blue-900 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{fullName || u.userName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {u.esActivo && (
-                        <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Activo
-                        </span>
-                      )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        disabled={removeMutation.isPending}
-                        onClick={() => removeMutation.mutate(u.usuarioId)}
-                        aria-label="Quitar del proyecto"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        {/* ─── Panel derecho: disponibles + filtros ─────────────────── */}
+        {/* ─── Panel izquierdo: disponibles + filtros ─────────────────── */}
         <div className="flex-1 border rounded-lg bg-white overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -235,6 +175,67 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
                       <Plus className="h-3.5 w-3.5" />
                       Agregar
                     </Button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        {/* ─── Panel derecho: asignados ─────────────────────────── */}
+        <div className="w-80 shrink-0 border rounded-lg bg-white overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b">
+            <h3 className="text-sm font-semibold text-gray-700">Usuarios asignados</h3>
+            <p className="text-xs text-muted-foreground">
+              {asignados.length} usuario{asignados.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+            {cargandoAsignados ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
+            ) : asignados.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-8">
+                <UserIcon className="h-8 w-8 mb-2 opacity-30" />
+                <p className="text-sm">Sin usuarios asignados.</p>
+                <p className="text-xs mt-1 max-w-45">
+                  Usá los filtros de la derecha para encontrar usuarios y agregarlos.
+                </p>
+              </div>
+            ) : (
+              asignados.map((u) => {
+                const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ")
+                return (
+                  <div
+                    key={u.usuarioId}
+                    className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <UserIcon className="h-4 w-4 text-blue-900 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{fullName || u.userName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {u.esActivo && (
+                        <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Activo
+                        </span>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        disabled={removeMutation.isPending}
+                        onClick={() => removeMutation.mutate(u.usuarioId)}
+                        aria-label="Quitar del proyecto"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 )
               })
