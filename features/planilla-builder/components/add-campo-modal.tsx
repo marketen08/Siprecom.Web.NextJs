@@ -591,7 +591,7 @@ export function AddCampoModal({
           <div className="flex border-b">
             <button
               className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                "cursor-pointer px-4 py-2 text-sm font-medium border-b-2 transition-colors",
                 tab === "existing"
                   ? "border-blue-900 text-blue-900"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -602,7 +602,7 @@ export function AddCampoModal({
             </button>
             <button
               className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                "cursor-pointer px-4 py-2 text-sm font-medium border-b-2 transition-colors",
                 tab === "new"
                   ? "border-blue-900 text-blue-900"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -613,7 +613,7 @@ export function AddCampoModal({
             </button>
             <button
               className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                "cursor-pointer px-4 py-2 text-sm font-medium border-b-2 transition-colors",
                 tab === "bulk"
                   ? "border-blue-900 text-blue-900"
                   : "border-transparent text-muted-foreground hover:text-foreground"
