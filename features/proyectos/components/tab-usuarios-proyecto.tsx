@@ -80,7 +80,7 @@ export function TabUsuariosProyecto({ proyectoId }: { proyectoId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground max-w-2xl">
-        Usuarios con acceso a este proyecto. El indicador <span className="font-medium">"Activo"</span> significa
+        Usuarios con acceso a este proyecto. El indicador <span className="font-medium">“Activo”</span> significa
         que es el proyecto actualmente seleccionado por el usuario al iniciar sesión.
       </p>
 
@@ -325,7 +325,7 @@ function AgregarDesdeGrupoSheet({ proyectoId }: { proyectoId: string }) {
               <p className="text-sm text-muted-foreground">Cargando grupos...</p>
             ) : grupos.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">
-                No hay grupos con uso "Acceso a proyecto". Configuralo en{" "}
+                No hay grupos con uso “Acceso a proyecto”. Configuralo en{" "}
                 <span className="font-medium">Configuración → Grupos de usuarios</span>.
               </p>
             ) : (
