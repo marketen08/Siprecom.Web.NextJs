@@ -72,3 +72,20 @@ export interface PermisoPerdido {
   /** False cuando el proyecto queda fuera del alcance de quien está quitando al miembro. */
   esProyectoPropio: boolean
 }
+
+/**
+ * Un grupo tal como se ofrece al elegir el responsable de un pendiente. Vista operativa:
+ * la consume quien crea o reasigna, no quien administra grupos.
+ */
+export interface GrupoResponsableOpcion {
+  id: string
+  nombre: string
+  descripcion: string | null
+  /** Miembros activos, en cualquier proyecto. */
+  cantidadMiembros: number
+  /**
+   * Miembros que VEN el proyecto activo. Es el que importa al asignar: con cero, el
+   * pendiente queda asignado a un grupo del que nadie se va a enterar.
+   */
+  miembrosEnProyecto: number
+}

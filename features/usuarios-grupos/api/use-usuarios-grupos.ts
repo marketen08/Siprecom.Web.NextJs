@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   UsuarioGrupo, UsuarioGrupoDetalle, UsuarioGrupoInput, UsoGrupoFiltro, QuitarMiembroImpacto,
+  GrupoResponsableOpcion,
 } from "../types"
 
 const QK = ["usuarios-grupos"] as const
@@ -104,5 +105,21 @@ export function useImpactoQuitarMiembro(grupoId: string | null, usuarioId: strin
     // Sin cache: entre que se abre el diálogo y se confirma, la configuración pudo
     // cambiar — y este dato existe justamente para que la decisión sea informada.
     staleTime: 0,
+  })
+}
+
+/**
+ * Grupos para elegir el responsable de un pendiente, con cuántos miembros ven el proyecto.
+ *
+ * Separado de useGetUsuariosGrupos("pendientes") porque aquel es de administración y
+ * exige rol Admin: quien crea o reasigna pendientes es User o Supervisor, recibía 403 y
+ * el select salía vacío.
+ */
+export function useGetGruposResponsables() {
+  return useQuery({
+    queryKey: [...QK, "responsables-pendiente"],
+    queryFn: () =>
+      apiClient.get<ApiResponse<GrupoResponsableOpcion[]>>("/api/usuarios-grupos/responsables-pendiente"),
+    staleTime: 1000 * 60 * 5,
   })
 }

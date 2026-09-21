@@ -18,7 +18,8 @@ import { useCanWrite } from "@/lib/use-roles"
 import { usePendienteTransicion, useAsignarResponsable } from "../api/use-pendiente-workflow"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
-import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { avisoGrupoResponsable, etiquetaGrupoResponsable } from "@/features/usuarios-grupos/etiqueta-responsable"
 import { useUpdatePendiente } from "../api/use-update-pendiente"
 import { PendienteForm } from "./pendiente-form"
 import { PendienteCalidadPanel } from "@/features/no-conformidades/components/pendiente-calidad-panel"
@@ -860,7 +861,10 @@ function ReasignarDialog({
   const asignar = useAsignarResponsable()
   const { data: perfil } = useGetPerfil()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
-  const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
+  // Endpoint operativo: el de administración exige Admin y reasignar lo hace quien
+  // puede aprobar, que puede ser un Supervisor o un User con grupo autorizado.
+  const { data: gruposResp } = useGetGruposResponsables()
+  const grupos = gruposResp?.data ?? []
 
   const [responsableId, setResponsableId] = useState(responsableActualId)
   const [grupoId, setGrupoId] = useState(grupoActualId ?? SIN_GRUPO)
@@ -888,10 +892,11 @@ function ReasignarDialog({
 
   const grupoOptions: ComboboxOption[] = [
     { value: SIN_GRUPO, label: "Sin grupo" },
-    ...(gruposResp?.data ?? []).map((g) => ({ value: g.id, label: g.nombre })),
+    ...grupos.map((g) => ({ value: g.id, label: etiquetaGrupoResponsable(g) })),
   ]
 
   const grupoElegido = grupoId === SIN_GRUPO ? null : grupoId
+  const avisoGrupo = avisoGrupoResponsable(grupos.find((g) => g.id === grupoElegido))
   const sinCambios = responsableId === responsableActualId && grupoElegido === (grupoActualId ?? null)
 
   async function confirmar() {
@@ -943,6 +948,13 @@ function ReasignarDialog({
               emptyMessage="No hay grupos habilitados para Pendientes"
               disabled={asignar.isPending}
             />
+            {/* Avisa, no bloquea: puede ser deliberado asignar a un grupo que todavía no
+                tiene gente, pero no puede pasar desapercibido. */}
+            {avisoGrupo && (
+              <p className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                {avisoGrupo}
+              </p>
+            )}
           </div>
 
           {asignar.error && (

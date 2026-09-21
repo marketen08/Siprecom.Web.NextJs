@@ -17,7 +17,7 @@ import { useGetEspecialidades } from "@/features/especialidades/api/use-especial
 import { useGetPids } from "@/features/pids/api/use-get-pids"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
-import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import {
   ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD, PRIORIDAD_COLOR, type Pendiente,
 } from "@/features/pendientes/types"
@@ -189,9 +189,10 @@ function PendientesPageContent() {
   const { data: categoriasRaw } = useGetPendienteCategorias()
   const { data: tiposRaw } = useGetPendienteTipos()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
-  // Solo grupos declarados para uso en Pendientes — mismo criterio que el form
-  // de alta y la matriz de autorización.
-  const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
+  // Solo grupos declarados para uso en Pendientes, por el endpoint operativo: el
+  // listado lo abren Users y Supervisors, que con el de administración recibían 403 y
+  // se quedaban sin el filtro por grupo.
+  const { data: gruposResp } = useGetGruposResponsables()
 
   const sistemas = sistemasRaw?.data ?? []
   const subSistemas = subSistemasRaw?.data ?? []

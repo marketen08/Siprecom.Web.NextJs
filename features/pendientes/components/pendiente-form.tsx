@@ -15,7 +15,8 @@ import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
-import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { avisoGrupoResponsable, etiquetaGrupoResponsable } from "@/features/usuarios-grupos/etiqueta-responsable"
 import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
 import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
 import { PRIORIDAD } from "../types"
@@ -94,9 +95,11 @@ export function PendienteForm({
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
-  // Solo grupos declarados para uso en Pendientes — mismo criterio que la matriz
-  // de autorización, para no ofrecer grupos irrelevantes al asignar.
-  const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
+  // Grupos declarados para uso en Pendientes, por el endpoint OPERATIVO: el de
+  // administración exige rol Admin, y quien crea pendientes es User o Supervisor —
+  // recibía 403 y el select salía vacío. Este además trae cuántos miembros ven el
+  // proyecto, que es lo que importa al asignar.
+  const { data: gruposResp } = useGetGruposResponsables()
   // Ojo: la lista completa. La que se OFRECE se filtra más abajo por la audiencia
   // del ámbito elegido — ver `gruposResponsables`.
   const todosLosGrupos = gruposResp?.data ?? []
@@ -830,7 +833,7 @@ export function PendienteForm({
                   <FormLabel>👥 Grupo responsable</FormLabel>
                   <FormControl>
                     <Combobox
-                      options={gruposResponsables.map((g) => ({ value: g.id, label: g.nombre }))}
+                      options={gruposResponsables.map((g) => ({ value: g.id, label: etiquetaGrupoResponsable(g) }))}
                       value={field.value ?? ""}
                       onChange={(v) => field.onChange(v || null)}
                       placeholder="Sin grupo"
@@ -843,6 +846,17 @@ export function PendienteForm({
                     Opcional. Si elegís uno, el pendiente aparece en &quot;Míos&quot; a todo el
                     grupo, además del responsable. No cambia permisos.
                   </p>
+                  {/* Avisa, no bloquea: asignar a un grupo que todavía no tiene gente
+                      cargada puede ser deliberado. Lo que no puede es pasar desapercibido. */}
+                  {(() => {
+                    const aviso = avisoGrupoResponsable(
+                      gruposResponsables.find((g) => g.id === field.value))
+                    return aviso ? (
+                      <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                        {aviso}
+                      </p>
+                    ) : null
+                  })()}
                   <FormMessage />
                 </FormItem>
               )}
