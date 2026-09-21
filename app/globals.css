@@ -127,4 +127,26 @@
   html {
     @apply font-sans;
   }
+
+  /* Tailwind 4 dejó de aplicar cursor:pointer a los controles clickeables — su reset
+     los pone en cursor:default. El Button de shadcn lo compensa en su clase base, pero
+     cada <button> escrito a mano arrastraba el defecto, y se descubría de a una pantalla
+     por vez (tabs, chips de filtro, toggles).
+
+     Se restituye acá en vez de repetir la clase en cada uno: el afectado no es un
+     componente sino el elemento, y una utilidad suelta sólo arregla el caso que alguien
+     se acordó de mirar.
+
+     Deshabilitado queda con not-allowed, que es lo que el propio Button ya hacía. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(> input[type="checkbox"]:not(:disabled)),
+  label:has(> input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }

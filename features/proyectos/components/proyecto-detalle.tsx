@@ -115,7 +115,11 @@ function ProyectoDetailContent({ id, contexto }: { id: string; contexto: Proyect
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    // max-w-5xl y no 3xl: con siete tabs la barra pide ~850px y en 3xl (768) caía en
+    // scroll horizontal aunque sobrara pantalla. Ensanchar el contenedor no estira los
+    // formularios — cada tab se acota por su cuenta (max-w-lg / 2xl / 4xl) — así que lo
+    // único que cambia es que los tabs entran.
+    <div className="space-y-6 max-w-5xl">
 
       {/* Tabs — scrollables en horizontal cuando no entran (mobile). overflow-y-hidden
           evita el scroll vertical fantasma: poner overflow-x:auto fuerza overflow-y a
@@ -126,7 +130,7 @@ function ProyectoDetailContent({ id, contexto }: { id: string; contexto: Proyect
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 tab === t.id
                   ? "border-blue-600 text-blue-700"
                   : "border-transparent text-gray-500 hover:text-gray-700"
