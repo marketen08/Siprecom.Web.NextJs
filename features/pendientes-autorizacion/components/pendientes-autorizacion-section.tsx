@@ -87,19 +87,10 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
     })
   }
 
-  // Qué filas tiene sentido configurar en ESTE ámbito.
-  //
-  // Crear sale en los abiertos: es la puerta de entrada, no un paso del circuito, y
-  // ahí quién participa ya está definido —todo el proyecto—. Con los grupos ya
-  // exclusivos, tildarla dejaría al resto sin poder reportar pendientes. El backend
-  // también lo rechaza.
-  //
-  // Los pasos apagados del ámbito tampoco: si el paso no existe, no hay a quién
-  // autorizar.
+  // Qué filas tiene sentido configurar en ESTE ámbito: los pasos apagados no se
+  // muestran, porque si el paso no existe no hay a quién autorizar.
   const accionesVisibles = ACCIONES_LIST.filter((a) => {
     if (!ambitoActual) return true
-    if (a.value === AccionPendiente.Crear
-        && ambitoActual.audiencia === AudienciaAmbito.TodoElProyecto) return false
     if (a.value === AccionPendiente.Iniciar && !ambitoActual.pasoIniciar) return false
     if (a.value === AccionPendiente.PreAprobar && !ambitoActual.pasoPreAprobar) return false
     return true
@@ -117,12 +108,19 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
       .every((g) => g.cantidadMiembros === 0)
   })
 
+  // Crear en un ámbito abierto es la única fila que afecta a todo el proyecto: tildar
+  // un grupo deja a todos los demás sin poder reportar pendientes en el ámbito. Es
+  // válido —lo pidió el cliente— pero no es obvio mirando la tabla, así que se dice.
+  const creaSoloUnGrupo =
+    ambitoActual?.audiencia === AudienciaAmbito.TodoElProyecto
+    && (seleccion[AccionPendiente.Crear]?.size ?? 0) > 0
+
   async function guardar() {
     setError(null)
     try {
       // Se mandan TODAS, no sólo las visibles: una acción que dejó de aplicar
-      // —Crear en un ámbito que pasó a abierto, un paso que se apagó— viaja con la
-      // lista vacía y así se limpian sus filas viejas.
+      // —un paso que se apagó— viaja con la lista vacía y así se limpian sus filas
+      // viejas.
       const asignaciones = ACCIONES_LIST.map((a) => ({
         accion: a.value,
         grupoIds: Array.from(seleccion[a.value] ?? []),
@@ -261,6 +259,14 @@ export function PendientesAutorizacionSection({ proyectoId }: { proyectoId: stri
             </tbody>
           </table>
         </div>
+      )}
+
+      {creaSoloUnGrupo && (
+        <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          Con <span className="font-medium">Crear</span> tildado, solo los miembros de los grupos
+          marcados van a poder crear pendientes en el ámbito {ambitoActual?.nombre}. El resto de
+          los usuarios del proyecto los sigue viendo, pero no puede reportar nuevos.
+        </p>
       )}
 
       {accionesSinNadie.length > 0 && (
