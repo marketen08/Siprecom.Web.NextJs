@@ -1,4 +1,5 @@
 import type { GrupoResponsableOpcion } from "./types"
+import { AudienciaAmbito, type PendienteAmbito } from "@/features/pendientes-ambitos/types"
 
 /**
  * Cómo se muestra un grupo en el select de responsable: el nombre más cuántos de sus
@@ -46,4 +47,43 @@ export function seOfreceComoResponsable(
   grupoActualId?: string | null,
 ): boolean {
   return g.miembrosEnProyecto > 0 || g.id === grupoActualId
+}
+
+/**
+ * Si el grupo puede ser responsable en ese ámbito: en uno abierto, cualquiera; en uno
+ * restringido, sólo los de su audiencia — un grupo fuera de ella no vería el pendiente
+ * que se le asigna, y el backend lo rechaza.
+ *
+ * Lo comparten el alta y Reasignar para que no puedan divergir: antes el alta filtraba y
+ * Reasignar no, así que ofrecía grupos que después rebotaban al confirmar.
+ *
+ * Sin ámbito conocido no se filtra — el backend valida igual, y ocultar de más dejaría al
+ * usuario sin opciones por un dato que falta.
+ */
+export function enAudienciaDelAmbito(
+  g: { id: string },
+  ambito: Pick<PendienteAmbito, "audiencia" | "grupos"> | undefined,
+): boolean {
+  if (!ambito || ambito.audiencia === AudienciaAmbito.TodoElProyecto) return true
+  return ambito.grupos.some((ag) => ag.grupoId === g.id)
+}
+
+/**
+ * Aviso para el grupo elegido en Reasignar. Cubre los dos casos en que la asignación no
+ * sirve, que sólo pueden aparecer con el grupo que el pendiente YA tenía (los demás no se
+ * ofrecen):
+ *
+ * - quedó fuera de la audiencia del ámbito — lo más urgente, porque el backend rechaza la
+ *   asignación entera: sin sacar el grupo ni siquiera se puede cambiar el responsable.
+ * - quedó sin nadie en el proyecto.
+ */
+export function avisoReasignacion(
+  g: GrupoResponsableOpcion | undefined,
+  ambito: Pick<PendienteAmbito, "audiencia" | "grupos" | "nombre"> | undefined,
+): string | null {
+  if (!g) return null
+  if (!enAudienciaDelAmbito(g, ambito))
+    return `"${g.nombre}" ya no está en la audiencia del ámbito ${ambito?.nombre ?? ""}: `
+      + `así no se puede guardar. Elegí otro grupo o "Sin grupo".`
+  return avisoGrupoResponsable(g)
 }

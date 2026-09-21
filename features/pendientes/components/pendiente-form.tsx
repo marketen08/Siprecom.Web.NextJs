@@ -16,7 +16,9 @@ import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
-import { etiquetaGrupoResponsable, seOfreceComoResponsable } from "@/features/usuarios-grupos/etiqueta-responsable"
+import {
+  enAudienciaDelAmbito, etiquetaGrupoResponsable, seOfreceComoResponsable,
+} from "@/features/usuarios-grupos/etiqueta-responsable"
 import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
 import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
 import { PRIORIDAD } from "../types"
@@ -470,13 +472,10 @@ export function PendienteForm({
   const ambitoElegido = ambitoActual ?? ambitoPorDefecto
   // Dos filtros: que alguien lo vea en este proyecto, y —en un ámbito restringido— que
   // esté en su audiencia. En el alta no hay grupo previo, así que ningún vacío se salva.
-  const gruposResponsables = useMemo(() => {
-    const conGente = todosLosGrupos.filter((g) => seOfreceComoResponsable(g))
-    if (!ambitoElegido || ambitoElegido.audiencia === AudienciaAmbito.TodoElProyecto) {
-      return conGente
-    }
-    return conGente.filter((g) => ambitoElegido.grupos.some((ag) => ag.grupoId === g.id))
-  }, [todosLosGrupos, ambitoElegido])
+  const gruposResponsables = useMemo(
+    () => todosLosGrupos.filter((g) =>
+      seOfreceComoResponsable(g) && enAudienciaDelAmbito(g, ambitoElegido)),
+    [todosLosGrupos, ambitoElegido])
 
   // Cambiar el ámbito puede dejar al grupo co-responsable fuera de la audiencia
   // nueva. Se limpia y se avisa, en vez de mandarlo y que el backend rebote con un

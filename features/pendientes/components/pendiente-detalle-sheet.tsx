@@ -20,7 +20,7 @@ import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import {
-  avisoGrupoResponsable, etiquetaGrupoResponsable, seOfreceComoResponsable,
+  avisoReasignacion, enAudienciaDelAmbito, etiquetaGrupoResponsable, seOfreceComoResponsable,
 } from "@/features/usuarios-grupos/etiqueta-responsable"
 import { useUpdatePendiente } from "../api/use-update-pendiente"
 import { PendienteForm } from "./pendiente-form"
@@ -673,6 +673,7 @@ function Workflow({
           pendienteId={pendienteId}
           responsableActualId={responsableId}
           grupoActualId={grupoResponsableId ?? null}
+          ambito={misAmbitos.find((a) => a.id === ambitoId)}
         />
         <CambiarAmbitoDialog
           open={ambitoOpen}
@@ -702,6 +703,7 @@ function Workflow({
         pendienteId={pendienteId}
         responsableActualId={responsableId}
         grupoActualId={grupoResponsableId ?? null}
+        ambito={misAmbitos.find((a) => a.id === ambitoId)}
       />
       <CambiarAmbitoDialog
         open={ambitoOpen}
@@ -851,12 +853,19 @@ function ReasignarDialog({
   pendienteId,
   responsableActualId,
   grupoActualId,
+  ambito,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   pendienteId: string
   responsableActualId: string
   grupoActualId: string | null
+  /**
+   * Ámbito del pendiente. En uno restringido acota los grupos a su audiencia, igual que
+   * el alta. Puede faltar si el usuario no lo tiene entre sus usables; en ese caso no se
+   * filtra y el backend valida.
+   */
+  ambito: PendienteAmbito | undefined
 }) {
   const SIN_GRUPO = "__sin_grupo__"
 
@@ -895,12 +904,15 @@ function ReasignarDialog({
   const grupoOptions: ComboboxOption[] = [
     { value: SIN_GRUPO, label: "Sin grupo" },
     ...grupos
-      .filter((g) => seOfreceComoResponsable(g, grupoActualId))
+      // El actual se muestra siempre, aunque esté vacío o fuera de la audiencia: si no,
+      // el select no puede representar el valor que el pendiente ya tiene.
+      .filter((g) => g.id === grupoActualId
+        || (seOfreceComoResponsable(g) && enAudienciaDelAmbito(g, ambito)))
       .map((g) => ({ value: g.id, label: etiquetaGrupoResponsable(g) })),
   ]
 
   const grupoElegido = grupoId === SIN_GRUPO ? null : grupoId
-  const avisoGrupo = avisoGrupoResponsable(grupos.find((g) => g.id === grupoElegido))
+  const avisoGrupo = avisoReasignacion(grupos.find((g) => g.id === grupoElegido), ambito)
   const sinCambios = responsableId === responsableActualId && grupoElegido === (grupoActualId ?? null)
 
   async function confirmar() {
