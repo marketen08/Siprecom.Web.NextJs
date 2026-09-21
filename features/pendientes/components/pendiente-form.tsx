@@ -16,7 +16,7 @@ import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
-import { avisoGrupoResponsable, etiquetaGrupoResponsable } from "@/features/usuarios-grupos/etiqueta-responsable"
+import { etiquetaGrupoResponsable, seOfreceComoResponsable } from "@/features/usuarios-grupos/etiqueta-responsable"
 import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
 import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
 import { PRIORIDAD } from "../types"
@@ -468,11 +468,14 @@ export function PendienteForm({
   // acá directamente no se ofrece, que es el mismo criterio que usan las columnas
   // de la matriz de autorización.
   const ambitoElegido = ambitoActual ?? ambitoPorDefecto
+  // Dos filtros: que alguien lo vea en este proyecto, y —en un ámbito restringido— que
+  // esté en su audiencia. En el alta no hay grupo previo, así que ningún vacío se salva.
   const gruposResponsables = useMemo(() => {
+    const conGente = todosLosGrupos.filter((g) => seOfreceComoResponsable(g))
     if (!ambitoElegido || ambitoElegido.audiencia === AudienciaAmbito.TodoElProyecto) {
-      return todosLosGrupos
+      return conGente
     }
-    return todosLosGrupos.filter((g) => ambitoElegido.grupos.some((ag) => ag.grupoId === g.id))
+    return conGente.filter((g) => ambitoElegido.grupos.some((ag) => ag.grupoId === g.id))
   }, [todosLosGrupos, ambitoElegido])
 
   // Cambiar el ámbito puede dejar al grupo co-responsable fuera de la audiencia
@@ -838,7 +841,7 @@ export function PendienteForm({
                       onChange={(v) => field.onChange(v || null)}
                       placeholder="Sin grupo"
                       searchPlaceholder="Buscar grupo..."
-                      emptyMessage="No hay grupos habilitados para Pendientes en este ámbito"
+                      emptyMessage="Ningún grupo de Pendientes tiene miembros en este proyecto y ámbito"
                       disabled={isPending}
                     />
                   </FormControl>
@@ -846,17 +849,6 @@ export function PendienteForm({
                     Opcional. Si elegís uno, el pendiente aparece en &quot;Míos&quot; a todo el
                     grupo, además del responsable. No cambia permisos.
                   </p>
-                  {/* Avisa, no bloquea: asignar a un grupo que todavía no tiene gente
-                      cargada puede ser deliberado. Lo que no puede es pasar desapercibido. */}
-                  {(() => {
-                    const aviso = avisoGrupoResponsable(
-                      gruposResponsables.find((g) => g.id === field.value))
-                    return aviso ? (
-                      <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
-                        {aviso}
-                      </p>
-                    ) : null
-                  })()}
                   <FormMessage />
                 </FormItem>
               )}

@@ -19,7 +19,9 @@ import { usePendienteTransicion, useAsignarResponsable } from "../api/use-pendie
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
-import { avisoGrupoResponsable, etiquetaGrupoResponsable } from "@/features/usuarios-grupos/etiqueta-responsable"
+import {
+  avisoGrupoResponsable, etiquetaGrupoResponsable, seOfreceComoResponsable,
+} from "@/features/usuarios-grupos/etiqueta-responsable"
 import { useUpdatePendiente } from "../api/use-update-pendiente"
 import { PendienteForm } from "./pendiente-form"
 import { PendienteCalidadPanel } from "@/features/no-conformidades/components/pendiente-calidad-panel"
@@ -892,7 +894,9 @@ function ReasignarDialog({
 
   const grupoOptions: ComboboxOption[] = [
     { value: SIN_GRUPO, label: "Sin grupo" },
-    ...grupos.map((g) => ({ value: g.id, label: etiquetaGrupoResponsable(g) })),
+    ...grupos
+      .filter((g) => seOfreceComoResponsable(g, grupoActualId))
+      .map((g) => ({ value: g.id, label: etiquetaGrupoResponsable(g) })),
   ]
 
   const grupoElegido = grupoId === SIN_GRUPO ? null : grupoId

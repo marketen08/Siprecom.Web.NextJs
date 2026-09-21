@@ -27,3 +27,23 @@ export function avisoGrupoResponsable(g: GrupoResponsableOpcion | undefined): st
     return `"${g.nombre}" no tiene miembros: el pendiente no le va a aparecer a nadie en "Míos".`
   return `Ninguno de los ${g.cantidadMiembros} miembros de "${g.nombre}" tiene asignado este proyecto: el pendiente no le va a aparecer a nadie en "Míos".`
 }
+
+/**
+ * Si un grupo se ofrece para asignar. Se ocultan los que no tienen a nadie en el
+ * proyecto: asignarles un pendiente es una asignación inerte, y además un grupo sin
+ * gente acá es casi siempre de OTRO proyecto — así el select deja de mostrar el ruido
+ * de grupos globales ajenos.
+ *
+ * La excepción es el grupo que el pendiente ya tiene: se muestra aunque esté vacío.
+ * Si no, el select no puede representar el valor actual y el pendiente parece no tener
+ * grupo — cuando lo tiene, y es justamente el caso que interesa ver para corregir.
+ *
+ * No se usa en el filtro del listado: ahí se buscan pendientes existentes, y los que
+ * tienen asignado un grupo que quedó vacío son los que más importa encontrar.
+ */
+export function seOfreceComoResponsable(
+  g: GrupoResponsableOpcion,
+  grupoActualId?: string | null,
+): boolean {
+  return g.miembrosEnProyecto > 0 || g.id === grupoActualId
+}
