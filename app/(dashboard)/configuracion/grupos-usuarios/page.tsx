@@ -14,6 +14,7 @@ import {
   useImpactoQuitarMiembro,
 } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
+import type { UsuarioGrupo } from "@/features/usuarios-grupos/types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,32 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
+
+/**
+ * Los cuatro estados por los que se puede filtrar. "sin-uso" no es un flag del backend
+ * sino la ausencia de los tres: son grupos legacy de antes de la regla que exige declarar
+ * al menos un uso, y poder aislarlos es justamente lo que permite arreglarlos.
+ */
+type UsoFiltro = "pendientes" | "acceso-proyecto" | "calidad" | "sin-uso"
+
+const CUMPLE_USO: Record<UsoFiltro, (g: UsuarioGrupo) => boolean> = {
+  "pendientes": (g) => g.usoPendientes,
+  "acceso-proyecto": (g) => g.usoAccesoProyecto,
+  "calidad": (g) => g.usoCalidad,
+  "sin-uso": (g) => !g.usoPendientes && !g.usoAccesoProyecto && !g.usoCalidad,
+}
+
+/**
+ * Cada chip usa el color del badge que la fila ya muestra para ese uso. Que coincidan es
+ * lo que hace que el filtro se lea sin leyenda: el chip ámbar y el badge ámbar son la
+ * misma cosa.
+ */
+const CHIPS: { uso: UsoFiltro; label: string; activo: string }[] = [
+  { uso: "pendientes", label: "Pendientes", activo: "bg-amber-50 text-amber-800 border-amber-300" },
+  { uso: "acceso-proyecto", label: "Acceso a proyecto", activo: "bg-blue-50 text-blue-800 border-blue-300" },
+  { uso: "calidad", label: "Calidad", activo: "bg-emerald-50 text-emerald-800 border-emerald-300" },
+  { uso: "sin-uso", label: "Sin uso", activo: "bg-gray-100 text-gray-800 border-gray-400" },
+]
 
 interface EditSheetState {
   mode: "new" | "edit"
@@ -45,6 +72,30 @@ export default function GruposUsuariosPage() {
   const remove = useDeleteUsuarioGrupo()
 
   const items = data?.data ?? []
+
+  // Filtro por uso. La lista viene completa del server, así que se filtra en memoria:
+  // son pocos grupos y evita un round-trip por cada clic.
+  //
+  // Multi-selección con OR: marcar Pendientes y Calidad muestra los que sirven para
+  // alguna de las dos, que es lo que se busca al preguntar "¿qué tengo para esto?".
+  // "Sin uso" entra en el mismo grupo de chips porque es lo que un admin quiere
+  // encontrar para arreglarlo, y con OR convive bien con el resto.
+  const [usosFiltro, setUsosFiltro] = useState<Set<UsoFiltro>>(new Set())
+
+  function toggleUso(uso: UsoFiltro) {
+    setUsosFiltro((prev) => {
+      const next = new Set(prev)
+      if (next.has(uso)) next.delete(uso)
+      else next.add(uso)
+      return next
+    })
+  }
+
+  const itemsFiltrados = useMemo(() => {
+    if (usosFiltro.size === 0) return items
+    return items.filter((g) => [...usosFiltro].some((u) => CUMPLE_USO[u](g)))
+  }, [items, usosFiltro])
+
   const [editSheet, setEditSheet] = useState<EditSheetState | null>(null)
   const [miembrosSheetId, setMiembrosSheetId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; nombre: string } | null>(null)
@@ -113,6 +164,42 @@ export default function GruposUsuariosPage() {
         </Button>
       </div>
 
+      {/* Filtro por uso. Cuatro opciones y un solo criterio: un Sheet de filtros sería
+          más ceremonia que la pregunta. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Se usa en:</span>
+        {CHIPS.map((chip) => {
+          const activo = usosFiltro.has(chip.uso)
+          const cuantos = items.filter(CUMPLE_USO[chip.uso]).length
+          return (
+            <button
+              key={chip.uso}
+              type="button"
+              onClick={() => toggleUso(chip.uso)}
+              aria-pressed={activo}
+              className={
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+                (activo
+                  ? chip.activo
+                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+              }
+            >
+              {chip.label}
+              <span className="tabular-nums opacity-60">{cuantos}</span>
+            </button>
+          )
+        })}
+        {usosFiltro.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setUsosFiltro(new Set())}
+            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+
       <div className="rounded-lg border bg-white overflow-hidden">
         <Table>
           <TableHeader>
@@ -135,8 +222,16 @@ export default function GruposUsuariosPage() {
                   No hay grupos cargados.
                 </TableCell>
               </TableRow>
+            ) : itemsFiltrados.length === 0 ? (
+              // Vacío por el filtro, no por falta de datos: el mensaje tiene que
+              // distinguirlo o parece que se perdieron los grupos.
+              <TableRow>
+                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                  Ningún grupo coincide con el filtro.
+                </TableCell>
+              </TableRow>
             ) : (
-              items.map((g) => (
+              itemsFiltrados.map((g) => (
                 <TableRow key={g.id}>
                   <TableCell className="font-medium">{g.nombre}</TableCell>
                   <TableCell className="text-sm text-gray-600">{g.descripcion || "—"}</TableCell>
