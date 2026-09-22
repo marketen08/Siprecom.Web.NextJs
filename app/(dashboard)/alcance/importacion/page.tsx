@@ -97,10 +97,14 @@ export default function ImportacionPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Importar datos del proyecto</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Importá sistemas, subsistemas, elementos y paquetes de prueba desde un archivo Excel.
-          Soporta crear, modificar y eliminar en una sola operación. Los paquetes crean su elemento
-          sintético automáticamente y la columna <code className="text-xs">TestGroupCodigo</code> de
-          Elementos define la membresía en el pack.
+          Importá sistemas, subsistemas, elementos, módulos, áreas y paquetes de prueba desde un
+          archivo Excel. Soporta crear, modificar y eliminar en una sola operación. Los paquetes
+          crean su elemento sintético automáticamente y la columna{" "}
+          <code className="text-xs">TestGroupCodigo</code> de Elementos define la membresía en el
+          pack. Las columnas <code className="text-xs">Modulo</code> y{" "}
+          <code className="text-xs">Areas</code> pueden referenciar códigos que se crean en las
+          hojas <code className="text-xs">Modulos</code> / <code className="text-xs">Areas</code> del
+          mismo archivo.
         </p>
       </div>
 
@@ -380,10 +384,12 @@ function formatDuracion(ms: number): string {
 
 function ResumenGrid({ preview }: { preview: ImportPreview }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
       <ResumenCard titulo="Sistemas" resumen={preview.sistemas} />
       <ResumenCard titulo="Subsistemas" resumen={preview.subsistemas} />
       <ResumenCard titulo="Elementos" resumen={preview.elementos} />
+      <ResumenCard titulo="Módulos" resumen={preview.modulos} />
+      <ResumenCard titulo="Áreas" resumen={preview.areas} />
       <ResumenCard titulo="Paquetes de prueba" resumen={preview.testGroups} />
       <ResumenCard titulo="Membresías en pack" resumen={preview.testGroupMembresias} />
     </div>

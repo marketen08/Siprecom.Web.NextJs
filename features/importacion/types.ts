@@ -16,6 +16,10 @@ export interface ImportPreview {
   sistemas: ImportEntidadResumen
   subsistemas: ImportEntidadResumen
   elementos: ImportEntidadResumen
+  /** Módulos creados/actualizados/eliminados desde la hoja Modulos. */
+  modulos: ImportEntidadResumen
+  /** Áreas creadas/actualizadas/eliminadas desde la hoja Areas. */
+  areas: ImportEntidadResumen
   /** Paquetes de prueba (TestGroups) creados/actualizados/eliminados desde la hoja TestGroups. */
   testGroups: ImportEntidadResumen
   /** Membresías Elemento↔TG a crear (columna TestGroupCodigo de la hoja Elementos). */
@@ -24,6 +28,8 @@ export interface ImportPreview {
   errores: ImportError[]
   /** Total real de errores del import (puede ser mayor a errores.length por el cap del server). */
   totalErrores: number
+  /** Suma de todas las operaciones del archivo (todas las hojas). */
+  totalOperaciones: number
   esAplicable: boolean
 }
 
