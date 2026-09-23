@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type { Pendiente } from "../types"
+import { invalidarColoresPorPendiente } from "@/features/modelo-3d/api/use-ifc-entidades"
 
 type TransicionAccion =
   | "iniciar"
@@ -31,6 +32,9 @@ export function usePendienteTransicion() {
       // Los pines del visor de PID cachean el estado del pendiente para
       // pintar su color — refrescamos para que cambie en el acto.
       qc.invalidateQueries({ queryKey: ["pid-archivos"] })
+      // El coloreado por pendientes de la maqueta 3D cachea el bucket de cada
+      // Elemento — sin esto había que recargar la página para verlo pintado.
+      void invalidarColoresPorPendiente(qc)
     },
   })
 }

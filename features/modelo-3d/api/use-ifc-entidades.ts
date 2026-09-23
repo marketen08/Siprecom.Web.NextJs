@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
@@ -262,6 +262,25 @@ export function useColoresPorEstado(
  * los TestGroupIds seleccionados (solo esos packs aparecen).
  * NivelIds no aplica: un TestGroup no tiene "nivel" semánticamente.
  */
+/**
+ * Invalida el coloreado por pendientes de la maqueta.
+ *
+ * Lo llaman las mutaciones de pendientes (alta, edición, transiciones de estado):
+ * crear un pendiente, cambiarle la categoría o cerrarlo cambia el bucket en el que
+ * cae su Elemento, y sin esto el visor seguía pintando la foto vieja hasta recargar
+ * la página. Vive acá porque la forma de la query key es de modelo-3d; el módulo de
+ * pendientes no debería conocerla.
+ *
+ * Usa un predicado y no un prefijo `["ifc"]` para no arrastrar el resto de las
+ * queries del visor — la de filtrado devuelve cientos de miles de guids y no hay
+ * por qué volver a pedirla.
+ */
+export function invalidarColoresPorPendiente(qc: QueryClient) {
+  return qc.invalidateQueries({
+    predicate: (q) => q.queryKey[0] === "ifc" && q.queryKey[2] === "colores-por-pendiente",
+  })
+}
+
 /**
  * Coloreado por PENDIENTES, agrupado por categoría del punch (A/B/C/D).
  * Respeta todas las dimensiones del filtro visual — a diferencia del de packs,
