@@ -318,6 +318,8 @@ export interface NwdUploadSas {
 
 /** Una codificación de TAG detectada en el modelo (forma del Item.Name). */
 export interface ApsCodificacion {
+  /** Property de la que salió la forma, ej. `CADWorx.Tag`. */
+  property: string
   /** Forma regex del nombre, ej. `\d+-[A-Z]+-\d+`. */
   patron: string
   /** Entrada lista para apsTagProperties, ej. `Item.Name~^\d+-[A-Z]+-\d+$`. */

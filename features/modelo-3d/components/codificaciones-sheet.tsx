@@ -27,10 +27,18 @@ function pareceTag(patron: string): boolean {
   return patron.includes("\\d+") && patron.includes("[A-Z]+")
 }
 
+// La clave de selección combina property + patrón: el análisis ahora cubre varias
+// properties y la misma forma puede aparecer en más de una. Con el patrón solo,
+// tildar una tildaba todas.
+function claveDe(c: { property: string; patron: string }): string {
+  return `${c.property}|${c.patron}`
+}
+
 /**
- * Analiza el NWD y muestra las codificaciones de TAG detectadas (formas de
- * Item.Name). El usuario tilda las que representan elementos a trackear y copia
- * la lista lista para pegar en "Property names" del proyecto.
+ * Analiza el NWD y muestra las codificaciones de TAG detectadas: por cada property
+ * que parece llevar un TAG (CADWorx.Tag, Item.Name, ARCADIS.TAG…), las formas que
+ * toman sus valores. El usuario tilda las que representan elementos a trackear y
+ * copia la lista lista para pegar en "Property names" del proyecto.
  */
 export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, archivoNombre }: Props) {
   const query = useGetApsCodificaciones(archivoId, open)
@@ -45,28 +53,28 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
   // Pre-seleccionar las que parecen TAG cuando llegan los datos.
   useEffect(() => {
     if (codis.length > 0) {
-      setSeleccion(new Set(codis.filter((c) => pareceTag(c.patron)).map((c) => c.patron)))
+      setSeleccion(new Set(codis.filter((c) => pareceTag(c.patron)).map(claveDe)))
     }
   }, [codis])
 
   const propsSeleccionadas = codis
-    .filter((c) => seleccion.has(c.patron))
+    .filter((c) => seleccion.has(claveDe(c)))
     .map((c) => c.propTagSugerida)
     .join(",")
 
-  function toggle(patron: string) {
+  function toggle(clave: string) {
     setSeleccion((prev) => {
       const next = new Set(prev)
-      if (next.has(patron)) next.delete(patron)
-      else next.add(patron)
+      if (next.has(clave)) next.delete(clave)
+      else next.add(clave)
       return next
     })
   }
 
-  const todasSeleccionadas = codis.length > 0 && codis.every((c) => seleccion.has(c.patron))
+  const todasSeleccionadas = codis.length > 0 && codis.every((c) => seleccion.has(claveDe(c)))
 
   function toggleTodas() {
-    setSeleccion(todasSeleccionadas ? new Set() : new Set(codis.map((c) => c.patron)))
+    setSeleccion(todasSeleccionadas ? new Set() : new Set(codis.map(claveDe)))
   }
 
   async function copiar() {
@@ -179,12 +187,12 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
 
               <ul className="space-y-1.5">
                 {codis.map((c) => (
-                  <li key={c.patron}>
+                  <li key={claveDe(c)}>
                     <label className="flex items-start gap-2 rounded-md border border-gray-200 p-2.5 cursor-pointer hover:bg-gray-50">
                       <input
                         type="checkbox"
-                        checked={seleccion.has(c.patron)}
-                        onChange={() => toggle(c.patron)}
+                        checked={seleccion.has(claveDe(c))}
+                        onChange={() => toggle(claveDe(c))}
                         className="mt-0.5 h-4 w-4 rounded border-gray-300 shrink-0"
                       />
                       <div className="min-w-0 flex-1">
@@ -192,6 +200,11 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
                           <span className="text-sm font-semibold text-gray-900">{c.cantidad.toLocaleString()} nodos</span>
                           <span className="text-xs text-muted-foreground truncate">ej: {c.ejemplo}</span>
                         </div>
+                        {/* La property importa tanto como la forma: es la mitad de la
+                            respuesta a "dónde vive el TAG en este modelo". */}
+                        <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 mb-0.5">
+                          {c.property}
+                        </span>
                         <code className="text-[11px] text-blue-700 wrap-break-word">{c.propTagSugerida}</code>
                       </div>
                     </label>
