@@ -87,9 +87,14 @@ function ModeloPageContent() {
   const rematch = useRematchIfcArchivo(id)
   const marcarPrincipal = useMarcarIfcPrincipal(id)
   // Al terminar el rematch mostramos un feedback simple con el resultado.
-  const [rematchMsg, setRematchMsg] = useState<
-    { archivoId: string; mensaje: string; ok: boolean; sinPieza: number } | null
-  >(null)
+  const [rematchMsg, setRematchMsg] = useState<{
+    archivoId: string
+    mensaje: string
+    ok: boolean
+    sinPieza: number
+    tagEnNombre: number
+    ejemplos: string[]
+  } | null>(null)
 
   async function handleRematch(archivoId: string) {
     try {
@@ -100,10 +105,12 @@ function ModeloPageContent() {
         mensaje: data?.mensaje ?? "Re-vinculación completada.",
         ok: (data?.entidadesVinculadas ?? 0) > 0,
         sinPieza: data?.elementosSinPieza ?? 0,
+        tagEnNombre: data?.elementosTagEnNombre ?? 0,
+        ejemplos: data?.ejemplosTagEnNombre ?? [],
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo re-vincular."
-      setRematchMsg({ archivoId, mensaje: msg, ok: false, sinPieza: 0 })
+      setRematchMsg({ archivoId, mensaje: msg, ok: false, sinPieza: 0, tagEnNombre: 0, ejemplos: [] })
     }
   }
 
@@ -532,7 +539,10 @@ function ArchivoCard({
   reBootstrapeando: boolean
   rematcheando: boolean
   marcandoPrincipal: boolean
-  rematchMsg: { mensaje: string; ok: boolean; sinPieza: number } | null
+  rematchMsg: {
+    mensaje: string; ok: boolean; sinPieza: number
+    tagEnNombre: number; ejemplos: string[]
+  } | null
   onCloseRematchMsg: () => void
   onVisualizar: () => void
   onProcesar: () => Promise<unknown>
@@ -612,6 +622,14 @@ function ArchivoCard({
                   Ver los {rematchMsg.sinPieza} sin pieza
                 </Link>
               </>
+            )}
+            {/* Los TAG de ejemplo dicen de un vistazo si es el patrón conocido
+                (códigos cortos en Tag y el line number en Nombre). */}
+            {rematchMsg.ejemplos.length > 0 && (
+              <span className="mt-1 block text-[11px] opacity-90">
+                Ej.: {rematchMsg.ejemplos.slice(0, 8).map((t) => t || "(vacío)").join(", ")}
+                {rematchMsg.tagEnNombre > rematchMsg.ejemplos.slice(0, 8).length ? "…" : ""}
+              </span>
             )}
           </span>
           <button

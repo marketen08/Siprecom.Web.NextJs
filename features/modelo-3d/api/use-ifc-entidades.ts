@@ -150,6 +150,10 @@ export interface RematchEntidadesResultado {
   /** Elementos del proyecto sin ninguna pieza en una maqueta activa. */
   elementosSinPieza: number
   elementosEnMaqueta: number
+  /** De los sin pieza: cuántos tienen el identificador del modelo en la columna Nombre. */
+  elementosTagEnNombre: number
+  /** Hasta 20 TAG de ejemplo, para mostrar el patrón sin abrir el listado. */
+  ejemplosTagEnNombre: string[]
   mensaje: string
 }
 
