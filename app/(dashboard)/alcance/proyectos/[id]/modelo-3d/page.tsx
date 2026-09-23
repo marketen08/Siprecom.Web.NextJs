@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
@@ -85,7 +87,9 @@ function ModeloPageContent() {
   const rematch = useRematchIfcArchivo(id)
   const marcarPrincipal = useMarcarIfcPrincipal(id)
   // Al terminar el rematch mostramos un feedback simple con el resultado.
-  const [rematchMsg, setRematchMsg] = useState<{ archivoId: string; mensaje: string; ok: boolean } | null>(null)
+  const [rematchMsg, setRematchMsg] = useState<
+    { archivoId: string; mensaje: string; ok: boolean; sinPieza: number } | null
+  >(null)
 
   async function handleRematch(archivoId: string) {
     try {
@@ -95,10 +99,11 @@ function ModeloPageContent() {
         archivoId,
         mensaje: data?.mensaje ?? "Re-vinculación completada.",
         ok: (data?.entidadesVinculadas ?? 0) > 0,
+        sinPieza: data?.elementosSinPieza ?? 0,
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo re-vincular."
-      setRematchMsg({ archivoId, mensaje: msg, ok: false })
+      setRematchMsg({ archivoId, mensaje: msg, ok: false, sinPieza: 0 })
     }
   }
 
@@ -527,7 +532,7 @@ function ArchivoCard({
   reBootstrapeando: boolean
   rematcheando: boolean
   marcandoPrincipal: boolean
-  rematchMsg: { mensaje: string; ok: boolean } | null
+  rematchMsg: { mensaje: string; ok: boolean; sinPieza: number } | null
   onCloseRematchMsg: () => void
   onVisualizar: () => void
   onProcesar: () => Promise<unknown>
@@ -593,7 +598,22 @@ function ArchivoCard({
               : "border-amber-200 bg-amber-50 text-amber-800"
           }`}
         >
-          <span className="min-w-0 flex-1 leading-snug">{rematchMsg.mensaje}</span>
+          <span className="min-w-0 flex-1 leading-snug">
+            {rematchMsg.mensaje}
+            {/* El dato accionable: los que quedaron sin pieza suelen ser TAGs mal
+                cargados. Link al listado ya filtrado, que es donde se corrigen. */}
+            {rematchMsg.sinPieza > 0 && (
+              <>
+                {" "}
+                <Link
+                  href="/alcance/elementos?enMaqueta=false"
+                  className="font-medium underline underline-offset-2 hover:opacity-80"
+                >
+                  Ver los {rematchMsg.sinPieza} sin pieza
+                </Link>
+              </>
+            )}
+          </span>
           <button
             type="button"
             onClick={onCloseRematchMsg}

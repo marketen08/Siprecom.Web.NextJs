@@ -51,12 +51,23 @@ import {
 const ALL = "__all__"
 
 function ElementosPageContent() {
+  // Arriba de los useState: el filtro de maqueta se inicializa desde la URL.
+  const searchParams = useSearchParams()
   const [search, setSearch] = useState("")
   const [sistemaId, setSistemaId] = useState<string>(ALL)
   const [subSistemaId, setSubSistemaId] = useState<string>(ALL)
   const [especialidadId, setEspecialidadId] = useState<string>(ALL)
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
   const [prioridad, setPrioridad] = useState<string>(ALL)
+  // Vinculación con la maqueta 3D. Arranca desde ?enMaqueta=false para que la card
+  // del archivo, en /alcance/proyectos/{id}/modelo-3d, pueda linkear directo a los
+  // que quedaron sin pieza — que es el momento en que uno se hace la pregunta.
+  // Inicializador lazy: se evalúa una sola vez, así el primer fetch ya sale
+  // filtrado en vez de traer todo y re-pedir.
+  const [enMaqueta, setEnMaqueta] = useState<string>(
+    () => (searchParams.get("enMaqueta") === "false" ? "no"
+      : searchParams.get("enMaqueta") === "true" ? "si" : ALL),
+  )
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const pageSize = 10
@@ -70,6 +81,7 @@ function ElementosPageContent() {
     elementoTipoId: elementoTipoId || undefined,
     especialidadId: especialidadId !== ALL ? especialidadId : undefined,
     prioridad: prioridad !== ALL ? Number(prioridad) : undefined,
+    enMaqueta: enMaqueta !== ALL ? enMaqueta === "si" : undefined,
   })
   const { open } = useNewElemento()
 
@@ -78,7 +90,6 @@ function ElementosPageContent() {
   // sheet de edición del elemento con el contexto intacto, y que el link sea
   // compartible. El estado del sheet vive en zustand; acá hacemos el puente.
   const router = useRouter()
-  const searchParams = useSearchParams()
   const elementoIdParam = searchParams.get("elementoId") ?? undefined
   const {
     id: openElementoId,
@@ -198,6 +209,13 @@ function ElementosPageContent() {
       id: "prioridad",
       label: `Prioridad: ${PRIORIDAD[Number(prioridad) as keyof typeof PRIORIDAD] ?? "—"}`,
       onRemove: () => { setPrioridad(ALL); setPage(1) },
+    })
+  }
+  if (enMaqueta !== ALL) {
+    activeFilters.push({
+      id: "enMaqueta",
+      label: enMaqueta === "si" ? "Maqueta 3D: con pieza" : "Maqueta 3D: sin pieza",
+      onRemove: () => { setEnMaqueta(ALL); setPage(1) },
     })
   }
 
@@ -361,6 +379,28 @@ function ElementosPageContent() {
                 {Object.entries(PRIORIDAD).map(([id, nombre]) => (
                   <SelectItem key={id} value={id}>{nombre}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Maqueta 3D">
+            <Select
+              value={enMaqueta}
+              onValueChange={(v) => { setEnMaqueta(v ?? ALL); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                {/* SelectValue necesita children: solo con el value crudo mostraría
+                    "si"/"no" en vez del label. */}
+                <SelectValue>
+                  {enMaqueta === ALL
+                    ? "Todos"
+                    : enMaqueta === "si" ? "Con pieza en la maqueta" : "Sin pieza en la maqueta"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos</SelectItem>
+                <SelectItem value="no">Sin pieza en la maqueta</SelectItem>
+                <SelectItem value="si">Con pieza en la maqueta</SelectItem>
               </SelectContent>
             </Select>
           </FilterField>

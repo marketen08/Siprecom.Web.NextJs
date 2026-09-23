@@ -147,6 +147,9 @@ export interface RematchEntidadesResultado {
   entidadesVinculadas: number
   totalEntidades: number
   elementosConTag: number
+  /** Elementos del proyecto sin ninguna pieza en una maqueta activa. */
+  elementosSinPieza: number
+  elementosEnMaqueta: number
   mensaje: string
 }
 

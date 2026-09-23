@@ -13,13 +13,18 @@ interface Params {
   elementoTipoId?: string
   especialidadId?: string
   prioridad?: number
+  /**
+   * Vinculación con la maqueta 3D: true = solo con pieza, false = solo sin pieza,
+   * undefined = todos. Cuenta solo maquetas activas.
+   */
+  enMaqueta?: boolean
 }
 
 export function useGetElementos(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, sistemaId, subSistemaId, elementoTipoId, especialidadId, prioridad } = params
+  const { page = 1, pageSize = 10, nombre, sistemaId, subSistemaId, elementoTipoId, especialidadId, prioridad, enMaqueta } = params
 
   return useQuery({
-    queryKey: ["elementos", { page, pageSize, nombre, sistemaId, subSistemaId, elementoTipoId, especialidadId, prioridad }],
+    queryKey: ["elementos", { page, pageSize, nombre, sistemaId, subSistemaId, elementoTipoId, especialidadId, prioridad, enMaqueta }],
     queryFn: () =>
       apiClient.get<PagedResponse<Elemento>>("/api/elementos", {
         page,
@@ -30,6 +35,9 @@ export function useGetElementos(params: Params = {}) {
         ...(elementoTipoId ? { elementoTipoId } : {}),
         ...(especialidadId ? { especialidadId } : {}),
         ...(prioridad !== undefined ? { prioridad } : {}),
+        // apiClient solo acepta string|number en la query: el binder de .NET
+        // parsea "true"/"false" a bool? igual.
+        ...(enMaqueta !== undefined ? { enMaqueta: String(enMaqueta) } : {}),
       }),
   })
 }
