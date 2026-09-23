@@ -189,6 +189,18 @@ export function ElementoDetalleSheet({
                     página lo carga por id. `avance` es fallback y puede venir null si el
                     sheet se abrió por URL directa con el elemento fuera de la página de
                     la lista. */}
+                {elemento.sistemaCodigo && (
+                  <DataItem label="Sistema" value={formatCodigoNombre(elemento.sistemaCodigo, elemento.sistemaNombre)} />
+                )}
+                {(elemento.subSistemaCodigo ?? avance?.subSistemaCodigo) && (
+                  <DataItem
+                    label="Subsistema"
+                    value={formatCodigoNombre(
+                      (elemento.subSistemaCodigo ?? avance?.subSistemaCodigo)!,
+                      elemento.subSistemaNombre ?? avance?.subSistemaNombre,
+                    )}
+                  />
+                )}
                 {(elemento.elementoTipoNombre ?? avance?.elementoTipoNombre) && (
                   <DataItem label="Tipo" value={(elemento.elementoTipoNombre ?? avance?.elementoTipoNombre)!} />
                 )}
@@ -444,6 +456,11 @@ function agruparPorNivel(tareas: ElementoTarea[]): GrupoNivel[] {
   }
   return Array.from(map.values()).sort((a, b) => a.posicion - b.posicion)
 }
+/** "SIS-01 — Agua de enfriamiento", o sólo el código si no hay nombre. */
+function formatCodigoNombre(codigo: string, nombre: string | null | undefined): string {
+  return nombre ? `${codigo} — ${nombre}` : codigo
+}
+
 function DataItem({ label, value }: { label: string; value: string }) {
   return (
     <div>

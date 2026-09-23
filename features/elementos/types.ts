@@ -23,6 +23,9 @@ export interface Elemento {
   prioridad: number
   prioridadTexto: string
   sistemaId: string
+  /** Sólo los pobla el endpoint de detalle (GET /elementos/:id); en los listados vienen null. */
+  sistemaCodigo: string | null
+  sistemaNombre: string | null
   subSistemaId: string
   subSistemaCodigo: string | null
   subSistemaNombre: string | null
