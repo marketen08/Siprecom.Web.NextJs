@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Building2, LogOut, UserCircle, PenLine } from "lucide-react"
 import Link from "next/link"
 
@@ -39,6 +39,7 @@ function buildIniciales(nombre?: string, apellido?: string, email?: string): str
 
 export function UserMenu() {
   const { user, clearUser } = useAuthStore()
+  const queryClient = useQueryClient()
   const { data: perfil } = useGetPerfil()
   const { data: clienteRaw } = useGetCliente(perfil?.clienteId ?? null)
   const cliente = clienteRaw?.data
@@ -46,6 +47,10 @@ export function UserMenu() {
   const mutation = useMutation({
     mutationFn: logoutRequest,
     onSuccess: ({ logoutUrl }) => {
+      // Antes que clearUser: HidratarSesion repuebla el store desde la query de
+      // perfil, asi que si la caja quedara cargada volveria a escribir el mail y
+      // los roles en localStorage justo despues de limpiarlos.
+      queryClient.clear()
       clearUser()
       // Con federación vamos al IDP a cerrar la sesión de allá; él nos devuelve a
       // /api/auth/logout/callback y de ahí al login. Sin federación, directo.
