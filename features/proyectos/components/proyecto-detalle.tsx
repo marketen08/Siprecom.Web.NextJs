@@ -33,7 +33,7 @@ import {
   useGetFirmasConfig,
   firmasConfigQueryOptions,
 } from "@/features/proyectos/api/use-get-firmas-config"
-import { useGetProyectosSelect } from "@/features/proyectos/api/use-get-proyectos-select"
+import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useSaveFirmasConfig } from "@/features/proyectos/api/use-save-firmas-config"
 import { useGetFirmasPendientes } from "@/features/proyectos/api/use-get-firmas-pendientes"
 import { useSincronizarFirmasProyecto } from "@/features/proyectos/api/use-sincronizar-firmas-proyecto"
@@ -736,13 +736,19 @@ function TraerFirmasDeProyectoDialog({
   onTraer: (slots: FirmaConfigItem[]) => void
 }) {
   const queryClient = useQueryClient()
-  const { data: proyectosRaw, isLoading: loadingProyectos } = useGetProyectosSelect()
+  // mis-proyectos y NO la lista general: la lectura de ProyectoFirmaConfig está
+  // filtrada por RecursosProyectos (query filter de tenancy, sin bypass para
+  // SuperAdmin). La lista general sí bypasea para SuperAdmin/AdminGlobal, así que
+  // les ofrecería proyectos de los que no puede traer nada y el diálogo diría
+  // "no tiene firmas configuradas" cuando en realidad no hay acceso. Acá el combo
+  // ofrece exactamente lo que se puede leer.
+  const { data: misProyectos, isLoading: loadingProyectos } = useGetMisProyectos()
   const [open, setOpen] = useState(false)
   const [origenId, setOrigenId] = useState("")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const opciones = (proyectosRaw?.data ?? [])
+  const opciones = (misProyectos ?? [])
     .filter(p => p.id !== proyectoIdActual)
     .map(p => ({ value: p.id, label: p.nombre }))
 
@@ -809,6 +815,11 @@ function TraerFirmasDeProyectoDialog({
             emptyMessage="Sin proyectos"
             disabled={pending || loadingProyectos}
           />
+          {!loadingProyectos && opciones.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No tenés acceso a ningún otro proyecto desde el cual traer firmas.
+            </p>
+          )}
         </div>
 
         {error && (
