@@ -5,8 +5,9 @@ import Link from "next/link"
 import {
   Save, Plus, Trash2, ChevronUp, ChevronDown,
   Loader2, CheckCircle2, Settings, ShieldCheck, PenLine, X, AlertTriangle, RefreshCw,
-  Users, CalendarRange, Box, ClipboardCheck,
+  Users, CalendarRange, Box, ClipboardCheck, CopyPlus,
 } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
@@ -28,7 +29,11 @@ import {
   useGetFuncionalidadesProyecto,
   useSetFuncionalidadProyecto,
 } from "@/features/proyectos/api/use-funcionalidades-proyecto"
-import { useGetFirmasConfig } from "@/features/proyectos/api/use-get-firmas-config"
+import {
+  useGetFirmasConfig,
+  firmasConfigQueryOptions,
+} from "@/features/proyectos/api/use-get-firmas-config"
+import { useGetProyectosSelect } from "@/features/proyectos/api/use-get-proyectos-select"
 import { useSaveFirmasConfig } from "@/features/proyectos/api/use-save-firmas-config"
 import { useGetFirmasPendientes } from "@/features/proyectos/api/use-get-firmas-pendientes"
 import { useSincronizarFirmasProyecto } from "@/features/proyectos/api/use-sincronizar-firmas-proyecto"
@@ -49,6 +54,17 @@ import { NcAutorizacionSection } from "@/features/no-conformidades-autorizacion/
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
+import { Combobox } from "@/components/ui/combobox"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -699,6 +715,119 @@ function TabUsuarios({ proyectoId }: { proyectoId: string }) {
 
 // ─── Tab Firmas ───────────────────────────────────────────────────────────────
 
+/**
+ * Trae los slots de firma de otro proyecto y los carga en el formulario.
+ *
+ * Deliberadamente NO guarda: el POST de firmas-config es un reemplazo total y no
+ * hay undo, así que dejamos los slots en el estado local para que el usuario los
+ * revise y confirme con "Guardar configuración". Si se equivocó de proyecto,
+ * alcanza con salir del tab.
+ *
+ * Trae los slots, no las asignaciones de usuarios a esos roles (viven en
+ * ProyectoUsuarioRol, que es otra cosa — ver la sección de abajo del tab).
+ */
+function TraerFirmasDeProyectoDialog({
+  proyectoIdActual,
+  haySlotsCargados,
+  onTraer,
+}: {
+  proyectoIdActual: string
+  haySlotsCargados: boolean
+  onTraer: (slots: FirmaConfigItem[]) => void
+}) {
+  const queryClient = useQueryClient()
+  const { data: proyectosRaw, isLoading: loadingProyectos } = useGetProyectosSelect()
+  const [open, setOpen] = useState(false)
+  const [origenId, setOrigenId] = useState("")
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const opciones = (proyectosRaw?.data ?? [])
+    .filter(p => p.id !== proyectoIdActual)
+    .map(p => ({ value: p.id, label: p.nombre }))
+
+  function handleOpenChange(next: boolean) {
+    if (pending && !next) return
+    setOpen(next)
+    if (next) {
+      setOrigenId("")
+      setError(null)
+    }
+  }
+
+  async function handleConfirm() {
+    if (!origenId) return
+    setPending(true)
+    setError(null)
+    try {
+      const resp = await queryClient.fetchQuery(firmasConfigQueryOptions(origenId))
+      const slots = resp.data ?? []
+      if (slots.length === 0) {
+        setError("Ese proyecto no tiene firmas configuradas. Elegí otro.")
+        return
+      }
+      onTraer(slots.map((s, i) => ({ ...s, id: undefined, orden: i + 1 })))
+      setOpen(false)
+    } catch (err) {
+      setError((err as Error)?.message ?? "No se pudo traer la configuración.")
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        onClick={() => handleOpenChange(true)}
+      >
+        <CopyPlus className="h-4 w-4" /> Traer de otro proyecto
+      </Button>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Traer firmas de otro proyecto</AlertDialogTitle>
+          <AlertDialogDescription>
+            Copia los roles de firma del proyecto que elijas.{" "}
+            {haySlotsCargados
+              ? "Reemplaza los roles que tenés cargados acá."
+              : "Los vas a poder revisar antes de guardar."}{" "}
+            No copia los usuarios asignados a cada rol.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Proyecto origen</label>
+          <Combobox
+            options={opciones}
+            value={origenId}
+            onChange={setOrigenId}
+            placeholder={loadingProyectos ? "Cargando proyectos..." : "Elegí un proyecto"}
+            searchPlaceholder="Buscar proyecto..."
+            emptyMessage="Sin proyectos"
+            disabled={pending || loadingProyectos}
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+            {error}
+          </p>
+        )}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirm} disabled={pending || !origenId}>
+            {pending ? "Trayendo..." : "Traer firmas"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 function TabFirmas({ proyectoId }: { proyectoId: string }) {
   const { data: raw, isLoading } = useGetFirmasConfig(proyectoId)
   const save = useSaveFirmasConfig(proyectoId)
@@ -945,6 +1074,15 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
         <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addSlot}>
           <Plus className="h-4 w-4" /> Agregar rol
         </Button>
+        <TraerFirmasDeProyectoDialog
+          proyectoIdActual={proyectoId}
+          haySlotsCargados={slots.length > 0}
+          onTraer={(traidos) => {
+            setSlots(traidos)
+            setSaved(false)
+            setSincronizado(null)
+          }}
+        />
         <Button
           size="sm"
           className="gap-1.5"
