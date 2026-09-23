@@ -9,7 +9,8 @@ import { useSidebar } from "@/components/sidebar-context"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
-import { meetsRole, type AppRole } from "@/lib/roles"
+import { type AppRole } from "@/lib/roles"
+import { esVisible } from "@/lib/nav-visibilidad"
 import { menu, type MenuItem } from "@/lib/nav-menu"
 import { SidebarBadge } from "@/components/sidebar-badge"
 
@@ -94,31 +95,12 @@ function SidebarItem({
   const key = claveSeccion(item.label, parentKey)
   const open = abiertos[key] ?? hasActiveChild(item, pathname)
 
-  // Proyecto solo pre-firmados → no hay firmas electrónicas: ocultar "Mis firmas".
-  if (item.requiereFirmas && ocultarFirmas) return null
+  // Toda la decisión de visibilidad vive en esVisible() — incluido el caso de una
+  // sección cuyos hijos se ocultan todos, que antes se dibujaba igual.
+  if (!esVisible(item, { roles, ocultarFirmas, funcionalidades }, inheritedMin)) return null
 
-  // Funcionalidad (feature flag) requerida. Se muestra sólo si está explícitamente
-  // en true: si la clave falta —mapa todavía cargando, o una versión del front que
-  // conoce una funcionalidad que el backend no— el item queda oculto.
-  //
-  // Antes el criterio era `=== false`, que falla abierto: una clave ausente dejaba
-  // el item a la vista. Para un flag que arranca apagado eso es exactamente al
-  // revés de lo que se quiere.
-  if (item.requiereFuncionalidad && funcionalidades[item.requiereFuncionalidad] !== true) return null
-
-  // Rol mínimo efectivo: el propio o el heredado del ancestro. Lo calculamos
-  // siempre porque además de gatear el render, se pasa a los hijos como
-  // `inheritedMin` para que la jerarquía siga bajando.
+  // Se recalcula para pasárselo a los hijos: la jerarquía sigue bajando por acá.
   const effectiveMin = item.minRole ?? inheritedMin
-
-  // Lista blanca EXCLUSIVA (allowedRoles) tiene precedencia sobre la jerarquía
-  // lineal (minRole). Se usa cuando roles del mismo nivel no son intercambiables
-  // (ej. Auditor vs User — ambos pueden ver mucho, pero solo Auditor tiene el log).
-  if (item.allowedRoles && item.allowedRoles.length > 0) {
-    if (!roles?.some((r) => item.allowedRoles!.includes(r as AppRole))) return null
-  } else {
-    if (effectiveMin && !meetsRole(roles, effectiveMin)) return null
-  }
 
   if (item.href && !item.children) {
     return (
