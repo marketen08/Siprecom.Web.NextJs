@@ -4,6 +4,7 @@ import { SidebarProvider } from "@/components/sidebar-context"
 import { FetchingBar } from "@/components/fetching-bar"
 import { BreadcrumbProvider } from "@/components/breadcrumb-context"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { HidratarSesion } from "@/components/hidratar-sesion"
 
 /**
  * Hallazgo #2 del pentest: estas rutas se prerenderizaban en build y quedaban
@@ -29,6 +30,7 @@ export default function FullscreenLayout({
       <TooltipProvider>
         <BreadcrumbProvider>
           <div className="min-h-screen bg-gray-50">
+            <HidratarSesion />
             <FetchingBar />
             <Navbar ocultarHamburger />
             <Sidebar drawer />

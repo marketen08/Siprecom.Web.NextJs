@@ -6,6 +6,7 @@ import { Breadcrumb } from "@/components/breadcrumb"
 import { BreadcrumbProvider } from "@/components/breadcrumb-context"
 import { ProyectoActivoHeader } from "@/components/proyecto-activo-header"
 import { RouteGuard } from "@/components/route-guard"
+import { HidratarSesion } from "@/components/hidratar-sesion"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 /**
@@ -25,6 +26,7 @@ export default function DashboardLayout({
       <TooltipProvider>
         <BreadcrumbProvider>
           <div className="min-h-screen bg-gray-50">
+            <HidratarSesion />
             <FetchingBar />
             <Navbar />
             <Sidebar />
