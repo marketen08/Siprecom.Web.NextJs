@@ -135,6 +135,8 @@ export interface ImportMaquetaResultado {
   aplicado: boolean
   archivoIdCreado?: string | null
   entidadesImportadas: number
+  /** Vinculadas a un Elemento del destino en el mismo import. */
+  entidadesVinculadas: number
   mensaje?: string | null
 }
 
