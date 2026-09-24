@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Check, Copy, FileSpreadsheet, FileText, Loader2, ScanSearch, Wrench } from "lucide-react"
+import { Check, Copy, FileSpreadsheet, FileText, Loader2, RefreshCw, ScanSearch, Wrench } from "lucide-react"
 
 import { useGetApsCodificaciones, setApsTagProperties } from "../api/use-aps-codificaciones"
-import { useReBootstrapIfcArchivo } from "../api/use-ifc-entidades"
+import { useProcesarIfcArchivo, useReBootstrapIfcArchivo } from "../api/use-ifc-entidades"
 import { exportCodificacionesExcel, exportCodificacionesPdf } from "../lib/export-codificaciones"
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -44,6 +44,7 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
   const query = useGetApsCodificaciones(archivoId, open)
   const codis = useMemo(() => query.data?.data ?? [], [query.data])
   const reBootstrap = useReBootstrapIfcArchivo(proyectoId)
+  const procesar = useProcesarIfcArchivo(proyectoId)
 
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [copiado, setCopiado] = useState(false)
@@ -86,7 +87,20 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
     } catch { /* clipboard no disponible */ }
   }
 
-  // Atajo: guarda los patrones seleccionados en el proyecto y re-arma el modelo.
+  // Guarda las properties y RE-PROCESA: vuelve a leer el modelo con la property
+  // nueva y re-vincula contra los Elementos que ya existen. No crea ni borra nada.
+  // Es lo que hace falta cuando el proyecto ya tiene su alcance cargado — que es el
+  // caso normal al sumar una maqueta a un proyecto existente.
+  async function aplicarYReprocesar() {
+    if (!propsSeleccionadas || !archivoId) return
+    await setApsTagProperties(proyectoId, propsSeleccionadas)
+    await procesar.mutateAsync(archivoId)
+    onClose()
+  }
+
+  // Guarda las properties y RE-ARMA: borra Sistemas/SubSistemas/Elementos y los
+  // reconstruye desde el modelo. Solo tiene sentido en proyectos que nacieron de la
+  // maqueta; sobre uno con alcance propio te borra el alcance.
   async function aplicarYReArmar() {
     if (!propsSeleccionadas || !archivoId) return
     await setApsTagProperties(proyectoId, propsSeleccionadas)
@@ -227,16 +241,36 @@ export function CodificacionesSheet({ open, onClose, proyectoId, archivoId, arch
                 </code>
               </div>
 
-              {/* Atajo: aplicar al proyecto + re-armar de una. */}
+              {/* Acción primaria: aplicar sin tocar el alcance del proyecto. */}
               <ConfirmActionDialog
-                trigger={<><Wrench className="h-4 w-4" /> Aplicar y re-armar</>}
+                trigger={<><RefreshCw className="h-4 w-4" /> Guardar y re-procesar</>}
                 triggerClassName="inline-flex items-center justify-center gap-2 w-full h-9 rounded-lg border border-blue-900 bg-blue-900 px-3 text-sm font-medium text-white hover:bg-blue-800"
+                title="¿Guardar estas properties y re-procesar?"
+                description={
+                  <>
+                    Se guardan como <b>Property names</b> del proyecto y se vuelve a leer
+                    el modelo con ellas, re-vinculando contra los Elementos que ya existen.
+                    <b> No crea ni borra Sistemas, SubSistemas ni Elementos.</b> En modelos
+                    grandes el re-procesado tarda varios minutos.
+                  </>
+                }
+                confirmText="Guardar y re-procesar"
+                pendingText="Encolando…"
+                onConfirm={aplicarYReprocesar}
+              />
+
+              {/* Acción destructiva: solo para proyectos que nacieron de la maqueta. */}
+              <ConfirmActionDialog
+                trigger={<><Wrench className="h-4 w-4" /> Guardar y re-armar el proyecto</>}
+                triggerClassName="inline-flex items-center justify-center gap-2 w-full h-9 rounded-lg border border-red-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50"
                 title="¿Aplicar estos patrones y re-armar?"
                 description={
                   <>
                     Se guardarán los patrones seleccionados como <b>Property names</b> del
                     proyecto y se <b>re-armará</b> la estructura (Sistemas/SubSistemas/Elementos)
-                    del modelo. Esta acción borra la estructura actual y no se puede deshacer.
+                    desde el modelo. <b>Borra la estructura actual</b> y no se puede deshacer.
+                    Solo tiene sentido si el proyecto se creó a partir de esta maqueta; si
+                    cargaste el alcance por otro lado, usá «Guardar y re-procesar».
                     Se rechaza si el proyecto ya tiene registros de avance.
                   </>
                 }
