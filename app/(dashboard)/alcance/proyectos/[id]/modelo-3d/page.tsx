@@ -377,7 +377,7 @@ function ModeloPageContent() {
           </Button>
           <Button onClick={() => setOpenUpload(true)} className="gap-2">
             <FileUp className="h-4 w-4" />
-            Cargar IFC
+            Cargar maqueta 3D
           </Button>
         </div>
       </div>
@@ -389,7 +389,7 @@ function ModeloPageContent() {
         </div>
       ) : archivos.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-gray-50 p-6 text-center text-sm text-muted-foreground">
-          Sin archivos IFC cargados. Usá <strong>Cargar IFC</strong> para subir el primero.
+          Sin maquetas cargadas. Usá <strong>Cargar maqueta 3D</strong> para subir la primera (.ifc o .nwd).
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
