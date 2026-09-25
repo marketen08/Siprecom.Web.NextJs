@@ -16,7 +16,7 @@ import { EditProyectoSheet } from "@/features/proyectos/components/edit-proyecto
 import { CrearProyectoDesdeIfcSheet } from "@/features/modelo-3d/components/crear-proyecto-desde-ifc-sheet"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { ESTADO_PROYECTO, type Proyecto } from "@/features/proyectos/types"
-import { columns, EstadoBadge, RowActions } from "./columns"
+import { columns, EstadoBadge, ESTADO_COLORS, RowActions } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Button } from "@/components/ui/button"
@@ -79,16 +79,10 @@ export default function ProyectosPage() {
     setPage(1)
   }
 
-  // Chips de filtros activos
+  // El estado no entra acá: tiene su propia fila de chips, siempre visible, y repetirlo
+  // como chip activo mostraría dos veces lo mismo. Los del sheet sí, porque mientras el
+  // sheet está cerrado no hay otra señal de que están puestos.
   const activeFilters: FilterChip[] = []
-  if (estado !== ALL) {
-    const num = Number(estado) as keyof typeof ESTADO_PROYECTO
-    activeFilters.push({
-      id: "estado",
-      label: `Estado: ${ESTADO_PROYECTO[num] ?? "—"}`,
-      onRemove: () => { setEstado(ALL); setPage(1) },
-    })
-  }
   if (clienteId !== ALL) {
     const c = clientes.find((x) => x.id === clienteId)
     activeFilters.push({
@@ -157,6 +151,37 @@ export default function ProyectosPage() {
           </div>
         </div>
 
+        {/* Estado: siete opciones y un solo criterio, así que va a la vista en vez de
+            adentro del sheet — es el filtro de todos los días. Cliente y contratista se
+            quedan adentro: son listas largas y ocuparían toda la barra.
+
+            Volver a tocar el chip activo lo saca: con una sola opción a la vez, el chip
+            prendido es también el botón para apagarlo. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Estado:</span>
+          {Object.entries(ESTADO_PROYECTO).map(([id, label]) => {
+            const activo = estado === id
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => { setEstado(activo ? ALL : id); setPage(1) }}
+                aria-pressed={activo}
+                className={
+                  "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer " +
+                  (activo
+                    // Mismo color que el badge de la tabla: el chip prendido y la columna
+                    // Estado dicen lo mismo, así que se ven igual.
+                    ? `border-transparent ${ESTADO_COLORS[Number(id)] ?? "bg-gray-100 text-gray-700"}`
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+
         {/* Chips de filtros activos */}
         <FiltersChips activeFilters={activeFilters} onClearAll={clearFiltros} />
 
@@ -167,27 +192,7 @@ export default function ProyectosPage() {
           onClearAll={clearFiltros}
           hasActiveFilters={activeFilters.length > 0}
         >
-          <FilterField label="Estado">
-            <Select
-              value={estado}
-              onValueChange={(v) => { setEstado(v ?? ALL); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {estado === ALL
-                    ? "Todos los estados"
-                    : ESTADO_PROYECTO[Number(estado) as keyof typeof ESTADO_PROYECTO] ?? "Estado"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos los estados</SelectItem>
-                {Object.entries(ESTADO_PROYECTO).map(([id, label]) => (
-                  <SelectItem key={id} value={id}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
-
+          {/* El estado no está acá: quedó como fila de chips sobre la tabla. */}
           <FilterField label="Cliente">
             <Select
               value={clienteId}

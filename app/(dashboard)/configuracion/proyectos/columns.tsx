@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
-const ESTADO_COLORS: Record<number, string> = {
+/** Color por estado. Exportado para que los chips del filtro usen el mismo que el badge. */
+export const ESTADO_COLORS: Record<number, string> = {
   1: "bg-gray-100 text-gray-700",
   2: "bg-blue-100 text-blue-700",
   3: "bg-yellow-100 text-yellow-700",
