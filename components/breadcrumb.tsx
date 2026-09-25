@@ -3,12 +3,16 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronRight, Home } from "lucide-react"
-import { navBreadcrumbMap, segmentLabels } from "@/lib/nav-menu"
+import { esRutaNavegable, navBreadcrumbMap, segmentLabels } from "@/lib/nav-menu"
 import { useBreadcrumbOverride } from "./breadcrumb-context"
+
+function esId(segment: string): boolean {
+  return /^[0-9a-f-]{32,}$/i.test(segment)
+}
 
 function labelForSegment(segment: string): string {
   // UUID / ID — no mostramos el valor crudo
-  if (/^[0-9a-f-]{32,}$/i.test(segment)) return "Detalle"
+  if (esId(segment)) return "Detalle"
   return segmentLabels[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ")
 }
 
@@ -27,12 +31,28 @@ export function Breadcrumb() {
     if (fromMenu) {
       items = fromMenu
     } else {
-      // Construir desde los segmentos del path
+      // Construir desde los segmentos del path.
+      //
+      // El href solo se pone si el prefijo es una ruta a la que se puede navegar.
+      // Antes se ponía siempre, y eso generaba links a rutas inexistentes (ej.
+      // /alcance/proyectos, que no es una página: solo existe /alcance/proyectos/[id]).
+      // Next los prefetchea, así que además del link roto quedaba un 404 por cada
+      // miga en la consola.
       const segments = pathname.split("/").filter(Boolean)
-      items = segments.map((seg, i) => ({
-        label: labelForSegment(seg),
-        href: "/" + segments.slice(0, i + 1).join("/"),
-      }))
+      items = segments
+        .map((seg, i) => {
+          const href = "/" + segments.slice(0, i + 1).join("/")
+          return {
+            label: labelForSegment(seg),
+            href: esRutaNavegable(href) ? href : undefined,
+            esId: esId(seg),
+            esUltimo: i === segments.length - 1,
+          }
+        })
+        // Rutas con varios ids encadenados (ej. /qr/testgroup/:a/:b/:c) producían
+        // "Detalle › Detalle › Detalle", que no dice nada. Dejamos solo el último.
+        .filter((it) => !it.esId || it.esUltimo)
+        .map(({ label, href }) => ({ label, href }))
     }
   }
 

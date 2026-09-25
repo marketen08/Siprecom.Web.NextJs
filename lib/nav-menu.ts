@@ -429,3 +429,30 @@ export const segmentLabels: Record<string, string> = {
   "test-groups":           "Paquetes de prueba",
   asignacion:              "Asignar a paquetes",
 }
+
+// ─── Rutas navegables fuera del menú ─────────────────────────────────────────
+// Páginas reales que no son un ítem del menú pero a las que sí se puede navegar.
+// Son el complemento de `navBreadcrumbMap` para decidir si una miga lleva link.
+//
+// Por qué hace falta: el Breadcrumb, cuando la ruta no está en el menú, arma un
+// item por segmento y le pone como href el prefijo acumulado. Eso generaba links
+// a rutas inexistentes — `/alcance/proyectos` no es una página, solo existe
+// `/alcance/proyectos/[id]` — y Next los prefetchea, así que la consola se
+// llenaba de 404 y el usuario que clickeaba la miga se comía un error.
+// Relevado el 2026-09-24: 24 prefijos rotos generados por 22 páginas.
+//
+// El default seguro es NO linkear: si alguien agrega una ruta anidada y olvida
+// sumarla acá, la miga queda como texto — molesto, pero no roto.
+const RUTAS_NAVEGABLES_EXTRA: RegExp[] = [
+  /^\/alcance$/,
+  /^\/alcance\/proyectos\/[^/]+$/,
+  /^\/alcance\/test-groups\/[^/]+$/,
+  /^\/configuracion\/usuarios\/[^/]+$/,
+]
+
+/** ¿Este path corresponde a una página a la que se puede navegar? */
+export function esRutaNavegable(href: string): boolean {
+  if (!href) return false
+  if (navBreadcrumbMap.has(href)) return true
+  return RUTAS_NAVEGABLES_EXTRA.some((re) => re.test(href))
+}
