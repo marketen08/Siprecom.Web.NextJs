@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Loader2, FolderOpen, Check, ChevronDown, BarChart3, Settings2 } from "lucide-react"
 import { useIsFetching } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
@@ -26,6 +27,24 @@ export function ProyectoSwitcher() {
 
   const isUpdating = mutation.isPending || (mutation.isSuccess && isFetching > 0)
   const proyectoActivo = proyectos?.find((p) => p.esActivo)
+
+  // Alfabético. El backend los devuelve en el orden en que se asignaron, que para el
+  // usuario es ninguno: con varios proyectos hay que leer la lista entera para
+  // encontrar el suyo.
+  //
+  // Copia antes de ordenar: el array es el de la caché de React Query y ordenarlo en
+  // el lugar le cambiaría el orden a cualquier otra pantalla que lo use.
+  //
+  // localeCompare con numeric: "C-9" antes que "C-10" (alfabético puro los invierte,
+  // porque compara "1" con "9"), y los acentos ordenan como su letra base en vez de
+  // irse al final.
+  const ordenados = useMemo(
+    () =>
+      [...(proyectos ?? [])].sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, "es", { numeric: true, sensitivity: "base" }),
+      ),
+    [proyectos],
+  )
 
   if (loadingProyectos) {
     return (
@@ -65,7 +84,7 @@ export function ProyectoSwitcher() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-64">
-        {proyectos.map((proyecto) => (
+        {ordenados.map((proyecto) => (
           <DropdownMenuItem
             key={proyecto.id}
             disabled={proyecto.esActivo}
