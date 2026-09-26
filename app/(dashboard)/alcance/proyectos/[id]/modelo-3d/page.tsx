@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Link2, Loader2, RefreshCw, ScanSearch, Star, Trash2, Wrench,
+  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Link2, Loader2, RefreshCw, ScanSearch, SearchX, Star, Trash2, Wrench,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -28,6 +28,7 @@ import {
 } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
 import { CodificacionesSheet } from "@/features/modelo-3d/components/codificaciones-sheet"
+import { AnalisisVinculacionSheet } from "@/features/modelo-3d/components/analisis-vinculacion-sheet"
 import { ImportarDesdeApsSheet } from "@/features/aps/components/importar-desde-aps-sheet"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
@@ -561,6 +562,7 @@ function ArchivoCard({
     ? Math.round((archivo.tamanioBytes / (1024 * 1024)) * 10) / 10
     : null
   const [codisOpen, setCodisOpen] = useState(false)
+  const [analisisOpen, setAnalisisOpen] = useState(false)
   // Analizar TAGs solo aplica a NWD ya traducido (usa properties APS). Incluye
   // los que quedaron en Error: el estado es compartido entre la traducción APS y
   // nuestro bootstrap, así que un bootstrap fallido (property names que no
@@ -749,6 +751,33 @@ function ArchivoCard({
               onAction={async () => setCodisOpen(true)}
             />
           )}
+          {puedeAnalizar && (
+            <AccionMaqueta
+              tooltip="Analizar por qué hay Elementos sin vincular"
+              icono={<SearchX className="h-3.5 w-3.5" />}
+              tono="border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+              confirmacion={{
+                title: "¿Analizar la vinculación?",
+                description: (
+                  <>
+                    Busca el TAG de cada Elemento <strong>sin pieza</strong> en{" "}
+                    <strong>todas</strong> las properties de {archivo.nombre}, para
+                    distinguir «está en el modelo pero bajo otra property» de «no está».
+                    <br />
+                    <span className="text-xs text-muted-foreground">
+                      Es instantáneo: cruza el índice que dejó el último procesamiento
+                      contra los Elementos de ahora, sin volver a llamar a APS. Si la
+                      maqueta se procesó antes de que existiera el índice, hay que
+                      re-procesarla una vez.
+                    </span>
+                  </>
+                ),
+                confirmText: "Analizar",
+                pendingText: "Abriendo…",
+              }}
+              onAction={async () => setAnalisisOpen(true)}
+            />
+          )}
           <AccionMaqueta
             tooltip="Vincular con los elementos actuales (match masivo por TAG)"
             icono={<Link2 className="h-3.5 w-3.5" />}
@@ -829,6 +858,14 @@ function ArchivoCard({
           open={codisOpen}
           onClose={() => setCodisOpen(false)}
           proyectoId={archivo.proyectoId}
+          archivoId={archivo.id}
+          archivoNombre={archivo.nombre}
+        />
+      )}
+      {puedeAnalizar && (
+        <AnalisisVinculacionSheet
+          open={analisisOpen}
+          onClose={() => setAnalisisOpen(false)}
           archivoId={archivo.id}
           archivoNombre={archivo.nombre}
         />

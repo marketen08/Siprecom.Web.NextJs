@@ -317,6 +317,30 @@ export interface NwdUploadSas {
 }
 
 /** Una codificación de TAG detectada en el modelo (forma del Item.Name). */
+/**
+ * Resultado del botón "Analizar vinculación": para los Elementos sin pieza,
+ * en qué property del modelo aparece su TAG.
+ */
+export interface ApsAnalisisVinculacion {
+  indiceCalculadoEn: string
+  elementosSinPieza: number
+  conCoincidencia: number
+  porProperty: {
+    property: string
+    elementos: number
+    /** Ya está en «Property names» del proyecto. */
+    yaConfigurada: boolean
+  }[]
+  elementos: {
+    elementoId: string
+    tag: string
+    nombre: string | null
+    /** Vacío = el TAG no aparece en ninguna property del modelo. */
+    properties: string[]
+  }[]
+  mensaje: string
+}
+
 export interface ApsCodificacion {
   /** Property de la que salió la forma, ej. `CADWorx.Tag`. */
   property: string
