@@ -866,6 +866,7 @@ function ArchivoCard({
         <AnalisisVinculacionSheet
           open={analisisOpen}
           onClose={() => setAnalisisOpen(false)}
+          proyectoId={archivo.proyectoId}
           archivoId={archivo.id}
           archivoNombre={archivo.nombre}
         />

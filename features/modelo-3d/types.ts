@@ -316,7 +316,15 @@ export interface NwdUploadSas {
   expiraEnMinutos: number
 }
 
-/** Una codificación de TAG detectada en el modelo (forma del Item.Name). */
+/** Un Elemento sin pieza, con las properties donde aparece su valor. */
+export interface ApsAnalisisElementoAnalisis {
+  elementoId: string
+  tag: string
+  nombre: string | null
+  /** Vacío = el TAG no aparece en ninguna property del modelo. */
+  properties: string[]
+}
+
 /**
  * Resultado del botón "Analizar vinculación": para los Elementos sin pieza,
  * en qué property del modelo aparece su TAG.
@@ -325,22 +333,30 @@ export interface ApsAnalisisVinculacion {
   indiceCalculadoEn: string
   elementosSinPieza: number
   conCoincidencia: number
+  /** Cuántos vincularían agregando todas las properties sugeridas. */
+  coberturaMaxima: number
+  /** La cadena de Property names de hoy, verbatim y en orden (puede traer `~regex`). */
+  cadenaActual: string[]
+  /** True si `porProperty[].cobertura` viene completa y se puede recalcular acá. */
+  coberturaDetallada: boolean
   porProperty: {
     property: string
     elementos: number
+    /** Elementos que suma sobre las de más arriba. Es el número que importa. */
+    elementosNuevos: number
     /** Ya está en «Property names» del proyecto. */
     yaConfigurada: boolean
+    /** Índices opacos de los elementos que cubre, para recalcular el aporte. */
+    cobertura: number[]
   }[]
-  elementos: {
-    elementoId: string
-    tag: string
-    nombre: string | null
-    /** Vacío = el TAG no aparece en ninguna property del modelo. */
-    properties: string[]
-  }[]
+  elementos: ApsAnalisisElementoAnalisis[]
+  /** Elementos cuyo NOMBRE (no su TAG) está en el modelo. No se arreglan con la cadena. */
+  porNombre: ApsAnalisisElementoAnalisis[]
+  elementosNombreCoincide: number
   mensaje: string
 }
 
+/** Una codificación de TAG detectada en el modelo (forma del Item.Name). */
 export interface ApsCodificacion {
   /** Property de la que salió la forma, ej. `CADWorx.Tag`. */
   property: string
