@@ -1,14 +1,31 @@
 import type { AvanceSistemaDTO, AvanceSubSistemaDTO, AvanceSubSistemaNivelDTO } from "../types"
 
 /**
- * Primer nivel no completado del subsistema (ordenado por posición del nivel).
- * Es "la próxima meta" del subsistema. Null si todos completos o no hay niveles.
+ * Primer nivel no completado Y CON TAREAS del subsistema (ordenado por posición
+ * del nivel). Es "la próxima meta" del subsistema. Null si todos están completos,
+ * si no hay niveles, o si los que quedan no tienen ninguna tarea.
+ *
+ * El filtro por `totalTareas > 0` importa: un nivel sin una sola tarea no tiene
+ * trabajo que cumplir, así que no puede ser una meta ni estar vencido. Sin él, un
+ * subsistema con la ventana de fechas cargada pero sin tareas de ese nivel se
+ * mostraba como "Vencido 251d", que es exactamente lo que no pasa.
  */
 export function proximaMeta(
   niveles: AvanceSubSistemaNivelDTO[] | undefined,
 ): AvanceSubSistemaNivelDTO | null {
   if (!niveles || niveles.length === 0) return null
-  return niveles.find((n) => !n.completado) ?? null
+  return niveles.find((n) => !n.completado && n.totalTareas > 0) ?? null
+}
+
+/**
+ * True si queda algún nivel pendiente que todavía no tiene ninguna tarea. Sirve
+ * para distinguir "ya está todo hecho" de "falta generar/planificar el trabajo",
+ * que sin esto se veían igual.
+ */
+export function hayNivelesSinTareas(
+  niveles: AvanceSubSistemaNivelDTO[] | undefined,
+): boolean {
+  return (niveles ?? []).some((n) => !n.completado && n.totalTareas === 0)
 }
 
 /** Días desde hoy hasta la fecha (redondeo por día calendario, zona local). */

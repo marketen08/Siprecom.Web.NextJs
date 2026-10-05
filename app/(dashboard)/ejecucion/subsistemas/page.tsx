@@ -8,7 +8,7 @@ import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proye
 import { useGetAvanceSistema } from "@/features/avance/api/use-get-avance-sistema"
 import type { AvanceSubSistemaDTO } from "@/features/avance/types"
 import { NivelesDetalle, ProximaMetaCelda } from "@/features/avance/components/niveles-cells"
-import { diasHasta, proximaMeta } from "@/features/avance/lib/niveles"
+import { diasHasta, hayNivelesSinTareas, proximaMeta } from "@/features/avance/lib/niveles"
 import { BarraAvance } from "@/components/barra-avance"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
@@ -62,6 +62,13 @@ function AvanceSubsistemasContent() {
   type FiltroUrgencia = "todos" | "vencidos" | "proximos" | "completos" | "sin_plan"
   const [filtroUrgencia, setFiltroUrgencia] = useState<FiltroUrgencia>("todos")
 
+  // "Completos" exige que no quede ningún nivel pendiente SIN tareas: si el
+  // subsistema tiene el precomisionado hecho y el comisionado sin una sola tarea,
+  // no está completo, le falta generar ese trabajo. Esos caen en "Sin
+  // planificación", igual que los que no tienen ningún nivel cargado.
+  const sinTrabajoPlanificado = (ss: AvanceSubSistemaDTO) =>
+    (ss.niveles?.length ?? 0) === 0 || hayNivelesSinTareas(ss.niveles)
+
   const conteoUrgencia = useMemo(() => {
     let vencidos = 0, proximos = 0, completos = 0, sinPlan = 0
     for (const ss of subsistemas) {
@@ -70,10 +77,10 @@ function AvanceSubsistemasContent() {
         const dias = diasHasta(meta.fechaFin)
         if (dias != null && dias < 0) vencidos++
         else if (dias != null && dias <= 15) proximos++
-      } else if ((ss.niveles?.length ?? 0) > 0) {
-        completos++
-      } else {
+      } else if (sinTrabajoPlanificado(ss)) {
         sinPlan++
+      } else {
+        completos++
       }
     }
     return { vencidos, proximos, completos, sinPlan }
@@ -83,8 +90,8 @@ function AvanceSubsistemasContent() {
     if (filtroUrgencia === "todos") return subsistemas
     const filtrados = subsistemas.filter((ss) => {
       const meta = proximaMeta(ss.niveles)
-      if (filtroUrgencia === "completos") return !meta && (ss.niveles?.length ?? 0) > 0
-      if (filtroUrgencia === "sin_plan") return (ss.niveles?.length ?? 0) === 0
+      if (filtroUrgencia === "completos") return !meta && !sinTrabajoPlanificado(ss)
+      if (filtroUrgencia === "sin_plan") return !meta && sinTrabajoPlanificado(ss)
       if (!meta) return false
       const dias = diasHasta(meta.fechaFin)
       if (filtroUrgencia === "vencidos") return dias != null && dias < 0

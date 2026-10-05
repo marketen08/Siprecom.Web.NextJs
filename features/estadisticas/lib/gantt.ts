@@ -219,6 +219,12 @@ export function filasToSkyline(
 /** Estado visual de una barra según su fecha fin, avance y "hoy". */
 export function estadoDeBarra(fila: GanttFila): EstadoBarra {
   if (fila.completado || fila.porcentajeAvance >= 100) return "completado"
+  // PENDIENTE: una fila con totalTareas === 0 cae acá abajo y, si su fechaFin ya
+  // pasó, se pinta "vencido" — el mismo falso atraso que se corrigió en la grilla
+  // de Ejecución (ver proximaMeta en features/avance/lib/niveles.ts). Acá no se
+  // arregló porque EstadoBarra no tiene un estado "sin tareas" y meterlo en
+  // "en_curso" o "futuro" sería otra media verdad: necesita su propio color y
+  // entrada de leyenda.
   const hoy = new Date()
   if (fila.fechaFin) {
     const fin = new Date(fila.fechaFin)

@@ -1,19 +1,25 @@
 import { CalendarClock } from "lucide-react"
 
 import type { AvanceSubSistemaNivelDTO } from "../types"
-import { diasHasta, fmtFecha, proximaMeta } from "../lib/niveles"
+import { diasHasta, fmtFecha, hayNivelesSinTareas, proximaMeta } from "../lib/niveles"
 
 /**
  * Celda "Próxima meta" para grillas de sistemas/subsistemas. Muestra el primer nivel
- * pendiente + fecha fin con semáforo (vencido / próximo / a tiempo).
+ * pendiente con tareas + fecha fin con semáforo (vencido / próximo / a tiempo).
  */
 export function ProximaMetaCelda({ niveles }: { niveles?: AvanceSubSistemaNivelDTO[] }) {
   const meta = proximaMeta(niveles)
   if (!meta) {
-    if ((niveles?.length ?? 0) > 0) {
-      return <span className="text-xs text-green-700 font-medium">Todos los niveles completos</span>
+    if ((niveles?.length ?? 0) === 0) {
+      return <span className="text-xs text-muted-foreground">Sin planificación</span>
     }
-    return <span className="text-xs text-muted-foreground">Sin planificación</span>
+    // Hay niveles, ninguno es una meta válida. Si los que faltan no tienen tareas,
+    // decirlo: antes caía en "Todos los niveles completos", que daba por terminado
+    // trabajo que en realidad nunca se cargó.
+    if (hayNivelesSinTareas(niveles)) {
+      return <span className="text-xs text-muted-foreground">Sin tareas planificadas</span>
+    }
+    return <span className="text-xs text-green-700 font-medium">Todos los niveles completos</span>
   }
   const dias = diasHasta(meta.fechaFin)
   let color = "text-gray-600 bg-gray-100"
@@ -67,33 +73,42 @@ export function NivelesDetalle({ niveles }: { niveles: AvanceSubSistemaNivelDTO[
         </thead>
         <tbody>
           {niveles.map((n) => {
+            // Un nivel sin tareas no tiene trabajo que cumplir: queda fuera del
+            // semáforo y no muestra fechas ni porcentaje. La ventana puede existir
+            // igual (cargada al planificar, o traída por la migración), pero medir
+            // un atraso contra ella es inventar un dato.
+            const sinTareas = n.totalTareas === 0
             const dias = diasHasta(n.fechaFin)
-            const vencido = !n.completado && dias != null && dias < 0
-            const proximo = !n.completado && dias != null && dias >= 0 && dias <= 15
+            const vencido = !n.completado && !sinTareas && dias != null && dias < 0
+            const proximo = !n.completado && !sinTareas && dias != null && dias >= 0 && dias <= 15
             return (
               <tr key={n.nivelId} className="border-t border-gray-100">
                 <td className="px-3 py-1.5 font-medium text-gray-800">{n.nivelNombre}</td>
-                <td className="px-3 py-1.5 text-gray-600">{fmtFecha(n.fechaInicio)}</td>
+                <td className="px-3 py-1.5 text-gray-600">{sinTareas ? "—" : fmtFecha(n.fechaInicio)}</td>
                 <td className={`px-3 py-1.5 ${vencido ? "text-red-700 font-semibold" : proximo ? "text-amber-700 font-semibold" : "text-gray-600"}`}>
-                  {fmtFecha(n.fechaFin)}
+                  {sinTareas ? "—" : fmtFecha(n.fechaFin)}
                 </td>
                 <td className="px-3 py-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 flex-1 rounded-full bg-gray-200 overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600"
-                        style={{ width: `${Math.min(100, Number(n.porcentajeAvance))}%` }}
-                      />
+                  {sinTareas ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 flex-1 rounded-full bg-gray-200 overflow-hidden">
+                        <div
+                          className="h-full bg-blue-600"
+                          style={{ width: `${Math.min(100, Number(n.porcentajeAvance))}%` }}
+                        />
+                      </div>
+                      <span className="tabular-nums text-gray-700 w-12 text-right">
+                        {Number(n.porcentajeAvance).toFixed(0)}%
+                      </span>
                     </div>
-                    <span className="tabular-nums text-gray-700 w-12 text-right">
-                      {Number(n.porcentajeAvance).toFixed(0)}%
-                    </span>
-                  </div>
+                  )}
                 </td>
                 <td className="px-3 py-1.5">
                   {n.completado ? (
                     <span className="rounded bg-green-100 text-green-700 px-1.5 py-px text-[10px] font-semibold">Completo</span>
-                  ) : n.totalTareas === 0 ? (
+                  ) : sinTareas ? (
                     <span className="rounded bg-gray-100 text-gray-600 px-1.5 py-px text-[10px] font-semibold">Sin tareas</span>
                   ) : vencido ? (
                     <span className="rounded bg-red-100 text-red-700 px-1.5 py-px text-[10px] font-semibold">Vencido</span>
