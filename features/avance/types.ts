@@ -11,6 +11,11 @@ export interface AvanceDTO {
   aprobado: number
   rechazado: number
   cancelado: number
+  /**
+   * Estado del proyecto (ver ESTADO_PROYECTO). Sólo viene cuando la entidad es un
+   * proyecto; en sistemas, subsistemas y elementos es null.
+   */
+  estado?: number | null
 }
 
 export interface AvanceElementoDTO extends AvanceDTO {
