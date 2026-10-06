@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import {
   useReactTable,
@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
   FiltersTrigger,
   FiltersChips,
@@ -71,16 +72,31 @@ export default function UsuariosPage() {
   const [newOpen, setNewOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos")
-  const [clienteId, setClienteId] = useState<string>(ALL)
+  // Empresa usa "" como "todas" (y no el sentinel ALL) porque va en un Combobox,
+  // que es la convención del resto de los filtros con búsqueda.
+  const [clienteId, setClienteId] = useState<string>("")
   const [rol, setRol] = useState<string>(ALL)
   const pageSize = 10
 
   // Empresa: clientes + contratistas (estos con badge en el label).
   const { data: empresasData } = useGetClientesSelect()
-  const empresas = [
-    ...(empresasData?.contratistas ?? []).map((c) => ({ id: c.id, nombre: `${c.nombre} (contratista)` })),
-    ...(empresasData?.clientes ?? []).map((c) => ({ id: c.id, nombre: c.nombre })),
-  ]
+  const empresas = useMemo(
+    () => [
+      ...(empresasData?.contratistas ?? []).map((c) => ({ id: c.id, nombre: `${c.nombre} (contratista)` })),
+      ...(empresasData?.clientes ?? []).map((c) => ({ id: c.id, nombre: c.nombre })),
+    ],
+    [empresasData],
+  )
+
+  // Con 57 empresas el Select sin búsqueda era inusable. Combobox es lo que ya
+  // usan los filtros largos (tipo de elemento, planilla, tarea).
+  const empresaOptions = useMemo<ComboboxOption[]>(
+    () => [
+      { value: "", label: "Todas las empresas" },
+      ...empresas.map((e) => ({ value: e.id, label: e.nombre })),
+    ],
+    [empresas],
+  )
 
   // "activos" → isLocked: false, "baja" → true, "todos" → undefined
   const isLockedParam = estadoFiltro === "activos" ? false
@@ -92,7 +108,7 @@ export default function UsuariosPage() {
     pageSize,
     nombre: search || undefined,
     isLocked: isLockedParam,
-    clienteId: clienteId === ALL ? undefined : clienteId,
+    clienteId: clienteId || undefined,
     rol: rol === ALL ? undefined : rol,
   })
 
@@ -118,11 +134,11 @@ export default function UsuariosPage() {
       onRemove: () => { setEstadoFiltro("activos"); setPage(1) },
     })
   }
-  if (clienteId !== ALL) {
+  if (clienteId) {
     activeFilters.push({
       id: "empresa",
       label: `Empresa: ${empresas.find((e) => e.id === clienteId)?.nombre ?? "—"}`,
-      onRemove: () => { setClienteId(ALL); setPage(1) },
+      onRemove: () => { setClienteId(""); setPage(1) },
     })
   }
   if (rol !== ALL) {
@@ -135,7 +151,7 @@ export default function UsuariosPage() {
 
   function handleClearFiltros() {
     setEstadoFiltro("activos")
-    setClienteId(ALL)
+    setClienteId("")
     setRol(ALL)
     setPage(1)
   }
@@ -198,24 +214,14 @@ export default function UsuariosPage() {
           </FilterField>
 
           <FilterField label="Empresa">
-            <Select
+            <Combobox
+              options={empresaOptions}
               value={clienteId}
-              onValueChange={(v) => { setClienteId(v ?? ALL); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {clienteId === ALL
-                    ? "Todas las empresas"
-                    : empresas.find((e) => e.id === clienteId)?.nombre ?? "Empresa"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas las empresas</SelectItem>
-                {empresas.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => { setClienteId(v); setPage(1) }}
+              placeholder="Todas las empresas"
+              searchPlaceholder="Buscar empresa..."
+              emptyMessage="Sin resultados"
+            />
           </FilterField>
 
           <FilterField label="Rol">
