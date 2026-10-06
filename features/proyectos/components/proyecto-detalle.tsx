@@ -19,6 +19,8 @@ import {
   useSetProyectoPlanillasGrupos,
 } from "@/features/proyectos/api/use-proyecto-planillas-grupos"
 import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
+import { useAsignarEquipoProyecto, useGetEquipos } from "@/features/equipos/api/use-equipos"
+import { useMeetsRole } from "@/lib/use-roles"
 import {
   useUploadProyectoLogoHeader,
   useDeleteProyectoLogoHeader,
@@ -394,6 +396,8 @@ function TabConfiguracion({ proyecto }: { proyecto: Proyecto }) {
 
         <NivelMcSelector proyecto={proyecto} />
 
+        <EquipoDelProyectoCard proyecto={proyecto} />
+
         <PlanillasGruposHabilitadosCard proyecto={proyecto} />
 
         <ProyectoLogoHeaderCard proyecto={proyecto} />
@@ -470,6 +474,68 @@ function NivelMcSelector({ proyecto }: { proyecto: Proyecto }) {
 // (GrupoResponsableDefaultSelector eliminado 2026-09 — el proyecto ya no
 // define un grupo responsable por defecto: el grupo se elige por pendiente,
 // acotado a la audiencia del ámbito.)
+
+// ─── Equipo de administración del proyecto ───────────────────────────────────
+
+const EQUIPO_NONE = "__none__"
+
+/**
+ * De qué equipo de administración toma el proyecto su catálogo de planillas: se le ofrecen
+ * las de ese equipo más las globales.
+ *
+ * Es de AdminGlobal y solo aparece si hay equipos creados. No cambia quién administra el
+ * proyecto —eso es la asignación de usuarios— y no desarma lo ya asignado a tareas: acota lo
+ * que se puede elegir de acá en adelante.
+ */
+function EquipoDelProyectoCard({ proyecto }: { proyecto: Proyecto }) {
+  const esAdminGlobal = useMeetsRole("AdminGlobal")
+  const { data: equiposRaw } = useGetEquipos()
+  const update = useAsignarEquipoProyecto(proyecto.id)
+  const [error, setError] = useState<string | null>(null)
+
+  const equipos = equiposRaw?.data ?? []
+  // Mientras no haya equipos, todas las planillas son globales y esta tarjeta no decide nada.
+  if (!esAdminGlobal || equipos.length === 0) return null
+
+  const actual = proyecto.equipoId ?? null
+
+  async function cambiar(valor: string | null) {
+    setError(null)
+    try {
+      await update.mutateAsync(!valor || valor === EQUIPO_NONE ? null : valor)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-white p-4">
+      <div>
+        <p className="text-sm font-medium text-gray-900">Equipo de administración</p>
+        <p className="text-xs text-muted-foreground">
+          De qué equipo toma el proyecto su catálogo de planillas. Se le ofrecen las de ese
+          equipo más las globales. Sin equipo, manda la configuración de grupos de abajo.
+        </p>
+      </div>
+
+      <Select value={actual ?? EQUIPO_NONE} onValueChange={cambiar} disabled={update.isPending}>
+        <SelectTrigger className="w-full max-w-sm">
+          <SelectValue>
+            {actual ? (equipos.find((e) => e.id === actual)?.nombre ?? "—") : "Sin equipo"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={EQUIPO_NONE}>Sin equipo</SelectItem>
+          {equipos.map((e) => (
+            <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  )
+}
 
 // ─── Grupos de planillas habilitados en el proyecto ─────────────────────────
 

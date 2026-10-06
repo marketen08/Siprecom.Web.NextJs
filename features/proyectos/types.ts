@@ -20,6 +20,13 @@ export interface Proyecto {
   estado: EstadoProyecto
   estadoTexto: string
   observaciones: string
+  /**
+   * Equipo de administración del que el proyecto toma su catálogo de planillas (las de ese
+   * equipo + las globales). Null = sin equipo: manda la configuración de grupos de planillas.
+   * No tiene relación con quién administra el proyecto, que es la asignación de usuarios.
+   */
+  equipoId?: string | null
+  equipoNombre?: string | null
   /** @deprecated Espejo de `funcionalidadesEfectivas.AVANCE_SIN_REGISTRO`, que es la
    *  fuente de verdad. Lo sigue mandando el backend solo para las builds instaladas
    *  de la app mobile; en la web leé el mapa. Viene en false en los listados. */

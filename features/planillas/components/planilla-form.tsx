@@ -9,6 +9,7 @@ import { Info } from "lucide-react"
 import { planillaSchema, type PlanillaFormValues } from "../schema"
 import type { Planilla } from "../types"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
 import {
   applyServerErrorsToForm,
   PLANILLA_FIELD_MAP,
@@ -42,6 +43,8 @@ import {
 
 /** Valor sentinela para "Sin especialidad" en el Select — no se puede usar "" con shadcn/Base UI Select. */
 const SIN_ESPECIALIDAD = "__none__"
+/** Valor del select para "sin equipo" = planilla global. Solo lo ofrece AdminGlobal. */
+const EQUIPO_GLOBAL = "__global__"
 
 interface PlanillaFormProps {
   defaultValues?: Partial<Planilla>
@@ -83,6 +86,7 @@ export function PlanillaForm({
       margenPagina: defaultValues?.margenPagina ?? 0,
       especialidadId: defaultValues?.especialidadId ?? null,
       esEncabezadoTG: defaultValues?.esEncabezadoTG ?? false,
+      equipoId: defaultValues?.equipoId ?? null,
     },
   })
 
@@ -92,6 +96,13 @@ export function PlanillaForm({
     applyServerErrorsToForm(form, serverErrors, PLANILLA_FIELD_MAP)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverErrors])
+
+  // Equipo dueño. El selector aparece SOLO si hay más de una opción: con un equipo único no
+  // hay nada que elegir, y preguntarlo sería ruido. Con dos se elige explícito, porque es
+  // donde se cuela el error de crear en el equipo que había quedado puesto.
+  const { data: misEquipos } = useGetMisEquipos()
+  const opcionesEquipo = misEquipos?.equipos ?? []
+  const hayQueElegirEquipo = opcionesEquipo.length > 1 || !!misEquipos?.puedeElegirGlobales
 
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
@@ -228,6 +239,48 @@ export function PlanillaForm({
               <span className="text-xs text-muted-foreground hidden group-open:inline">▴</span>
             </summary>
             <div className="px-3 pb-3 pt-1 space-y-3">
+              {hayQueElegirEquipo && (
+                <FormField
+                  control={form.control}
+                  name="equipoId"
+                  render={({ field }) => {
+                    const valor = field.value ?? EQUIPO_GLOBAL
+                    const elegido = opcionesEquipo.find((e) => e.id === field.value)
+                    return (
+                      <FormItem>
+                        <FormLabel>Equipo dueño</FormLabel>
+                        <Select
+                          value={valor}
+                          onValueChange={(v) => field.onChange(v === EQUIPO_GLOBAL ? null : v)}
+                          disabled={isPending}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue>
+                                {field.value ? (elegido?.nombre ?? "—") : "Global (todos los proyectos)"}
+                              </SelectValue>
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {misEquipos?.puedeElegirGlobales && (
+                              <SelectItem value={EQUIPO_GLOBAL}>Global (todos los proyectos)</SelectItem>
+                            )}
+                            {opcionesEquipo.map((e) => (
+                              <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Quién administra esta planilla. Las globales las administra un
+                          AdminGlobal y las ven todos los proyectos.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="especialidadId"

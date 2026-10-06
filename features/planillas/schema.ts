@@ -19,6 +19,9 @@ export const planillaSchema = z.object({
   especialidadId: z.string().nullable().optional(),
   // True = candidata al select "Planilla del encabezado" del ElementoTipo sintético.
   esEncabezadoTG: z.boolean().optional(),
+  // Equipo de administración dueño. Solo se manda cuando el usuario tiene más de uno: si
+  // no, el backend usa su equipo activo. Null para AdminGlobal = planilla global.
+  equipoId: z.string().nullable().optional(),
 })
 
 export type PlanillaFormValues = z.infer<typeof planillaSchema>

@@ -229,7 +229,11 @@ export const menu: MenuItem[] = [
         children: [
           { label: "Grupos de planillas", href: "/configuracion/planillas-grupos", minRole: "Admin" },
           { label: "Campos",         href: "/configuracion/campos",         minRole: "AdminGlobal" },
-          { label: "Planillas",      href: "/configuracion/planillas",      minRole: "AdminGlobal" },
+          // Planillas se abre a Admin: administra las de los equipos a los que tiene
+          // acceso, y las globales las ve en lectura (de ahí clona). El backend acota qué
+          // puede editar — ver Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md.
+          { label: "Planillas",      href: "/configuracion/planillas",      minRole: "Admin" },
+          { label: "Equipos",        href: "/configuracion/equipos",        minRole: "AdminGlobal" },
           { label: "Procedimientos", href: "/configuracion/procedimientos", minRole: "AdminGlobal" },
         ],
       },
@@ -377,6 +381,7 @@ export const segmentLabels: Record<string, string> = {
   elementos:     "Elementos",
   tareas:        "Tareas",
   planillas:     "Planillas",
+  equipos:       "Equipos",
   proyectos:     "Proyectos",
   proyecto:      "Proyecto",
   usuarios:      "Usuarios",

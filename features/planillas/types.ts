@@ -38,6 +38,19 @@ export interface Planilla {
    * listado de config y se usa como filtro.
    */
   grupos?: PlanillaGrupoSimple[]
+  /**
+   * Equipo de administración dueño. Null = global: la ve y la usa todo el mundo, la
+   * administra AdminGlobal. Es el eje "de quién es", distinto de `grupos`, que es "de qué
+   * tipo es". Ver Siprecom.Server.Api/Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md.
+   */
+  equipoId?: string | null
+  equipoNombre?: string | null
+  /**
+   * Si QUIEN pidió la lista puede editar esta planilla. Lo resuelve el backend —el front no
+   * sabe a qué equipos pertenece el usuario— y con eso la pantalla deshabilita las acciones
+   * en vez de dejar que el error aparezca al guardar.
+   */
+  puedeEditar?: boolean
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string

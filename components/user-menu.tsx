@@ -1,17 +1,22 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Building2, LogOut, UserCircle, PenLine } from "lucide-react"
+import { Building2, Check, Loader2, LogOut, UserCircle, PenLine, Users } from "lucide-react"
 import Link from "next/link"
 
 import { useAuthStore } from "@/store/auth-store"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetCliente } from "@/features/clientes/api/use-get-cliente"
+import { useCambiarEquipoActivo, useGetMisEquipos } from "@/features/equipos/api/use-equipos"
+import { useMeetsRole } from "@/lib/use-roles"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -112,6 +117,8 @@ export function UserMenu() {
           </>
         )}
 
+        <EquipoDelPerfil />
+
         <DropdownMenuSeparator className="my-0" />
 
         <div className="p-1">
@@ -143,6 +150,91 @@ export function UserMenu() {
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * Equipo de administración del usuario, dentro del menú del perfil: es el lugar donde ya se
+ * mira "quién soy", y el equipo es exactamente eso.
+ *
+ * Con **un solo equipo —el caso normal— se muestra el nombre y nada más**: ninguna opción de
+ * cambio. La opción aparece recién con más de uno, que es la excepción (una suplencia, una
+ * consultora con dos clientes). Así el Admin de un equipo nunca tiene que decidir nada.
+ *
+ * El equipo define qué catálogo de planillas administra, no a qué proyectos entra. Ver
+ * Siprecom.Server.Api/Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md.
+ */
+function EquipoDelPerfil() {
+  // Solo Admin+ tiene equipos: para un User el endpoint devolvería 403 y la sección no
+  // significa nada.
+  const esAdmin = useMeetsRole("Admin")
+  const { data } = useGetMisEquipos()
+  const cambiar = useCambiarEquipoActivo()
+
+  if (!esAdmin || !data) return null
+
+  const { equipos, equipoActivoId, puedeElegirGlobales } = data
+  // Sin equipos y sin poder elegir globales no hay nada que mostrar: es un alta a medias, y
+  // el aviso correspondiente lo da la pantalla de planillas, donde importa.
+  if (equipos.length === 0 && !puedeElegirGlobales) return null
+
+  const activo = equipos.find((e) => e.id === equipoActivoId)
+  const etiquetaActivo = activo?.nombre ?? (puedeElegirGlobales ? "Globales" : "Sin equipo")
+  const hayQueElegir = equipos.length > 1 || puedeElegirGlobales
+
+  return (
+    <>
+      <DropdownMenuSeparator className="my-0" />
+      {hayQueElegir ? (
+        <div className="p-1">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="cursor-pointer">
+              <Users className="mr-2 h-4 w-4" />
+              <span className="flex-1 truncate">
+                Equipo: <span className="font-medium">{etiquetaActivo}</span>
+              </span>
+              {cambiar.isPending && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-56">
+              {puedeElegirGlobales && (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={cambiar.isPending}
+                  onClick={() => cambiar.mutate(null)}
+                >
+                  <span className="flex-1">Globales</span>
+                  {!equipoActivoId && <Check className="h-4 w-4 text-blue-900" />}
+                </DropdownMenuItem>
+              )}
+              {equipos.map((e) => (
+                <DropdownMenuItem
+                  key={e.id}
+                  className="cursor-pointer"
+                  disabled={cambiar.isPending || e.id === equipoActivoId}
+                  onClick={() => cambiar.mutate(e.id)}
+                >
+                  <span className="flex-1 truncate">{e.nombre}</span>
+                  {e.id === equipoActivoId && <Check className="h-4 w-4 shrink-0 text-blue-900" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </div>
+      ) : (
+        // Un solo equipo: es un dato del perfil, no un control.
+        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-white">
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Equipo
+            </p>
+            <p className="truncate text-xs font-medium text-gray-700">{etiquetaActivo}</p>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

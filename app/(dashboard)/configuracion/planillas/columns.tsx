@@ -52,6 +52,17 @@ function RowActions({ planilla }: { planilla: Planilla }) {
     window.open(`/api/planillas/${planilla.id}/pdf/blanco`, "_blank", "noopener,noreferrer")
   }
 
+  // El backend ya resolvió si esta fila es editable (es de un equipo del usuario). Las
+  // acciones que escriben se deshabilitan con el motivo a la vista: dejar que el error
+  // aparezca al guardar es peor, porque se descubre con el trabajo ya hecho.
+  //
+  // Clonar, exportar y descargar quedan siempre: son de lectura, y clonar es justamente el
+  // camino para tener una versión propia de una planilla ajena o global.
+  const puedeEditar = planilla.puedeEditar !== false
+  const motivoNoEditable = planilla.equipoNombre
+    ? `La administra el equipo ${planilla.equipoNombre}`
+    : "Es una planilla global: la administra un AdminGlobal"
+
   return (
     <div className="flex justify-end">
       <DropdownMenu>
@@ -62,13 +73,23 @@ function RowActions({ planilla }: { planilla: Planilla }) {
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem className="cursor-pointer" onClick={() => open(planilla.id)}>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            disabled={!puedeEditar}
+            title={puedeEditar ? undefined : motivoNoEditable}
+            onClick={() => open(planilla.id)}
+          >
             <Pencil className="h-4 w-4" />
             Editar datos
           </DropdownMenuItem>
-          <DropdownMenuItem className="cursor-pointer" onClick={() => router.push(`/configuracion/planillas/${planilla.id}`)}>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onClick={() => router.push(`/configuracion/planillas/${planilla.id}`)}
+          >
             <Settings className="h-4 w-4" />
-            Diseñar planilla
+            {/* El diseñador se abre igual: ver la planilla de otro equipo es lo que permite
+                copiarla. Lo que corta las escrituras es el backend. */}
+            {puedeEditar ? "Diseñar planilla" : "Ver diseño"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -91,6 +112,8 @@ function RowActions({ planilla }: { planilla: Planilla }) {
           <DropdownMenuItem
             className="cursor-pointer"
             variant="destructive"
+            disabled={!puedeEditar}
+            title={puedeEditar ? undefined : motivoNoEditable}
             onClick={() => setDeleteOpen(true)}
           >
             <Trash2 className="h-4 w-4" />
@@ -204,6 +227,36 @@ export const columns: ColumnDef<Planilla>[] = [
             </span>
           ))}
         </div>
+      )
+    },
+  },
+  {
+    id: "equipo",
+    header: "Equipo",
+    cell: ({ row }) => {
+      const p = row.original
+      // Dos ejes distintos en dos columnas: el equipo dice de quién es la planilla, los
+      // grupos de qué tipo es. Ver las dos juntas es lo que explica por qué una planilla no
+      // aparece en un proyecto: puede ser por cualquiera de los dos filtros.
+      if (!p.equipoId) {
+        return (
+          <span
+            className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+            title="Global: la ve y la usa todo el mundo. La administra un AdminGlobal."
+          >
+            Global
+          </span>
+        )
+      }
+      return (
+        <span
+          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+          title={p.puedeEditar === false
+            ? `La administra el equipo ${p.equipoNombre}`
+            : "La administra tu equipo"}
+        >
+          {p.equipoNombre}
+        </span>
       )
     },
   },

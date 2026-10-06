@@ -16,6 +16,7 @@ import { ImportExcelSheet } from "@/features/planillas/components/import-excel-s
 import { ImportJsonSheet } from "@/features/planillas/components/import-json-sheet"
 import { GenerarConIASheet } from "@/features/planillas/components/generar-con-ia-sheet"
 import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
+import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -42,6 +43,10 @@ export default function PlanillasPage() {
   // Tri-state: undefined = todas, true = solo encabezado TG, false = solo no encabezado.
   const [encabezadoFilter, setEncabezadoFilter] = useState<boolean | undefined>(undefined)
 
+  // Filtro por equipo dueño. Vacío = lo que el backend decide por defecto: el equipo activo
+  // del usuario más las globales, o todo para AdminGlobal.
+  const [equipoFiltro, setEquipoFiltro] = useState<string>("")
+
   const gruposIdsArr = useMemo(() => Array.from(gruposSel), [gruposSel])
   const { data, isLoading, isFetching } = useGetPlanillas({
     page,
@@ -49,7 +54,9 @@ export default function PlanillasPage() {
     nombre: search || undefined,
     planillaGrupoIds: gruposIdsArr.length > 0 ? gruposIdsArr : undefined,
     esEncabezadoTG: encabezadoFilter,
+    equipoId: equipoFiltro || undefined,
   })
+  const { data: misEquipos } = useGetMisEquipos()
   const { data: gruposRaw } = useGetPlanillasGrupos()
   const grupos = gruposRaw?.data ?? []
   const { open } = useNewPlanilla()
@@ -121,6 +128,39 @@ export default function PlanillasPage() {
             </Button>
           </div>
         </div>
+
+        {/* Filtro por equipo dueño. Solo aparece cuando hay más de una opción: para el Admin
+            de un equipo único no hay nada que elegir —ve el suyo y las globales— y el chip
+            sería ruido. Es el eje "de quién es", distinto de los chips de grupo de abajo, que
+            son "de qué tipo es". */}
+        {misEquipos && (misEquipos.equipos.length > 1 || misEquipos.puedeElegirGlobales) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="mr-1 text-muted-foreground">Equipo:</span>
+            {[
+              { id: "", nombre: "Todas" },
+              ...misEquipos.equipos,
+              { id: "__none__", nombre: "Globales" },
+            ].map((opcion) => {
+              const activo = equipoFiltro === opcion.id
+              return (
+                <button
+                  key={opcion.id || "todas"}
+                  type="button"
+                  onClick={() => { setEquipoFiltro(opcion.id); setPage(1) }}
+                  aria-pressed={activo}
+                  className={
+                    "inline-flex cursor-pointer items-center rounded-full border px-2 py-0.5 font-medium transition-colors "
+                    + (activo
+                      ? "border-blue-500 bg-blue-100 text-blue-900"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+                  }
+                >
+                  {opcion.nombre}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Filtro chips por grupo de planillas. Multi-select ESTRICTO: cada chip
             agrega su ID al filtro. El chip "Sin grupo" (token "__none__") pide
