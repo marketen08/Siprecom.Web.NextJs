@@ -489,7 +489,9 @@ const EQUIPO_NONE = "__none__"
  */
 function EquipoDelProyectoCard({ proyecto }: { proyecto: Proyecto }) {
   const esAdminGlobal = useMeetsRole("AdminGlobal")
-  const { data: equiposRaw } = useGetEquipos()
+  // GET /equipos es AdminGlobal-only: sin el flag, un Admin abriendo el detalle de
+  // proyecto disparaba un 403 por nada (la tarjeta igual no se le muestra).
+  const { data: equiposRaw } = useGetEquipos(esAdminGlobal)
   const update = useAsignarEquipoProyecto(proyecto.id)
   const [error, setError] = useState<string | null>(null)
 

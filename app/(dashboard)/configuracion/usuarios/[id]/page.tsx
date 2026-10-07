@@ -18,6 +18,7 @@ import { useGetUsuarioProyectos } from "@/features/usuarios/api/use-get-usuario-
 import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-proyecto-usuario"
 import { useBulkAssignProyectosUsuario, useBulkUnassignProyectosUsuario } from "@/features/usuarios/api/use-bulk-proyectos-usuario"
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
+import { useGetEquipos, useAgregarMiembrosEquipo } from "@/features/equipos/api/use-equipos"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useRoles, useMeetsRole } from "@/lib/use-roles"
@@ -142,6 +143,94 @@ function UsuarioDetailContent({ id }: { id: string }) {
   )
 }
 
+// ─── Asignar equipo desde el tab Rol ──────────────────────────────────────────
+
+/**
+ * Atajo para resolver, en el mismo lugar donde se crea el problema, que un Admin
+ * recién promovido no pertenezca a ningún equipo de administración.
+ *
+ * Deliberadamente NO es automático. Se evaluó auto-agregarlo cuando existe un solo
+ * equipo y se descartó: "hay un solo equipo" es una condición sobre estado global y
+ * temporal, así que dos Admin promovidos la misma semana podrían terminar con
+ * accesos distintos según si alguien creó un segundo equipo en el medio — y la
+ * membresía es un permiso, no una preferencia. Acá la decisión siempre la toma
+ * quien asigna el rol; lo único que cambia es cuántos clics cuesta.
+ *
+ * Con UN equipo: botón que lo agrega en el acto. Con VARIOS: link a la pantalla de
+ * Equipos, porque elegir cuál es una decisión que necesita ver el padrón.
+ */
+function AsignarEquipoAlAdmin({
+  usuarioId,
+  roles,
+}: {
+  usuarioId: string
+  roles: string[]
+}) {
+  // El usuario trae sus equipos en el mismo payload que alimenta el aviso de arriba.
+  const { data: result } = useGetUsuario(usuarioId)
+  const usuario = (result as { data?: Array<{ equipos?: string[] }> } | undefined)?.data?.[0]
+  const yaTieneEquipo = (usuario?.equipos?.length ?? 0) > 0
+
+  // Quién está mirando, no de quién es la ficha. Dar acceso a un equipo es exclusivo
+  // de AdminGlobal (POST /equipos/{id}/miembros), y GET /equipos también: sin esto,
+  // un Admin recibía 403, la lista quedaba vacía y el componente le decía "todavía no
+  // hay ningún equipo" —falso— con un link a una pantalla que tampoco puede abrir.
+  const puedeAsignar = useMeetsRole("AdminGlobal")
+
+  const { data: equiposResp } = useGetEquipos(puedeAsignar)
+  const equipos = equiposResp?.data ?? []
+
+  const agregar = useAgregarMiembrosEquipo(equipos.length === 1 ? equipos[0].id : null)
+
+  if (!necesitaEquipo(roles) || yaTieneEquipo) return null
+
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+      <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+      <div className="min-w-0 space-y-2">
+        <p className="text-sm text-amber-900">
+          Con rol Admin y sin equipo de administración no va a poder crear planillas.
+        </p>
+
+        {!puedeAsignar ? (
+          <p className="text-xs text-amber-800">
+            Sólo un AdminGlobal puede asignarlo a un equipo de administración.
+          </p>
+        ) : equipos.length === 1 ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => agregar.mutate([usuarioId])}
+              disabled={agregar.isPending}
+            >
+              {agregar.isPending ? "Agregando..." : `Agregar a ${equipos[0].nombre}`}
+            </Button>
+            {agregar.isError && (
+              <span className="text-xs text-red-700">
+                {(agregar.error as Error)?.message ?? "No se pudo agregar."}
+              </span>
+            )}
+          </div>
+        ) : equipos.length > 1 ? (
+          <Link
+            href="/configuracion/equipos"
+            className="inline-block text-xs font-medium text-amber-900 underline"
+          >
+            Elegir equipo en Configuración → Equipos
+          </Link>
+        ) : (
+          <Link
+            href="/configuracion/equipos"
+            className="inline-block text-xs font-medium text-amber-900 underline"
+          >
+            Todavía no hay ningún equipo: creá uno en Configuración → Equipos
+          </Link>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Aviso: Admin sin equipo de administración ────────────────────────────────
 
 /**
@@ -161,6 +250,10 @@ function AvisoSinEquipo({
 }: {
   usuario: { equipos?: string[]; roles?: string[] }
 }) {
+  // Quién mira, no de quién es la ficha: Configuración → Equipos es AdminGlobal-only
+  // (minRole en nav-menu, y el RouteGuard deriva de ahí), así que a un Admin el link
+  // lo dejaba contra una pantalla bloqueada.
+  const puedeAsignar = useMeetsRole("AdminGlobal")
   const equipos = usuario.equipos ?? []
   if (equipos.length > 0 || !necesitaEquipo(usuario.roles)) return null
 
@@ -173,11 +266,18 @@ function AvisoSinEquipo({
         </p>
         <p className="text-xs text-amber-800">
           Con rol Admin y sin equipo asignado no puede crear planillas: el sistema no tiene
-          dónde guardarlas. Asignalo a un equipo desde{" "}
-          <Link href="/configuracion/equipos" className="font-medium underline">
-            Configuración → Equipos
-          </Link>
-          .
+          dónde guardarlas.{" "}
+          {puedeAsignar ? (
+            <>
+              Asignalo a un equipo desde{" "}
+              <Link href="/configuracion/equipos" className="font-medium underline">
+                Configuración → Equipos
+              </Link>
+              .
+            </>
+          ) : (
+            <>Sólo un AdminGlobal puede asignarlo a un equipo.</>
+          )}
         </p>
       </div>
     </div>
@@ -1442,6 +1542,8 @@ function TabRol({ usuarioId }: { usuarioId: string }) {
           <CheckCircle2 className="h-4 w-4" /> Rol actualizado correctamente
         </div>
       )}
+
+      <AsignarEquipoAlAdmin usuarioId={usuarioId} roles={targetRoles} />
 
       <div className="space-y-2">
         {rolesVisibles.map((r) => {

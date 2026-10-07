@@ -267,25 +267,47 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
 
           {create.isError && (() => {
             const err = create.error as any
-            // 409 Conflict del backend: el email pertenece a un user dado de baja.
+            // 409 Conflict del backend: el email ya pertenece a alguien. Dos sabores,
+            // distinguidos por `isLocked`, porque la salida de cada uno es distinta:
+            // al dado de baja hay que reactivarlo o liberar el email; al activo
+            // simplemente hay que asignarlo al proyecto, no crearlo de nuevo.
             const conflict = err?.status === 409 && err?.body?.existingUserId
             if (conflict) {
+              const nombreCompleto = [err.body.nombre, err.body.apellido]
+                .filter(Boolean)
+                .join(" ")
               return (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-2">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
                     <p className="text-sm">
-                      El email pertenece a <strong>{err.body.nombre} {err.body.apellido}</strong>,
-                      que fue dado de baja. Para usar este email tenés que reactivarlo
-                      o liberarlo (baja definitiva) desde su pantalla.
+                      {err.body.isLocked ? (
+                        <>
+                          El email pertenece a <strong>{nombreCompleto || "un usuario"}</strong>,
+                          que fue dado de baja. Para usar este email tenés que reactivarlo
+                          o liberarlo (baja definitiva) desde su pantalla.
+                        </>
+                      ) : (
+                        <>
+                          Este usuario ya existe{nombreCompleto ? <> como <strong>{nombreCompleto}</strong></> : null}.
+                          No hace falta crearlo: asignalo al proyecto desde su ficha,
+                          en la pestaña Proyectos.
+                        </>
+                      )}
                     </p>
                   </div>
                   <Link
-                    href={`/configuracion/usuarios/${err.body.existingUserId}`}
+                    href={
+                      err.body.isLocked
+                        ? `/configuracion/usuarios/${err.body.existingUserId}`
+                        : `/configuracion/usuarios/${err.body.existingUserId}/proyectos`
+                    }
                     className="inline-flex items-center text-sm text-amber-800 underline hover:text-amber-900"
                     onClick={onClose}
                   >
-                    Ir al usuario existente →
+                    {err.body.isLocked
+                      ? "Ir al usuario existente →"
+                      : "Ir a sus proyectos →"}
                   </Link>
                 </div>
               )

@@ -7,11 +7,18 @@ import type { Equipo, EquipoDetalle, EquipoInput, MisEquipos } from "../types"
 const QK = ["equipos"] as const
 const QK_MIOS = ["equipos", "mios"] as const
 
-export function useGetEquipos() {
+/**
+ * Padrón de equipos. El endpoint es AdminGlobal-only, así que un Admin recibe 403.
+ * `enabled` existe para no disparar un request que ya sabemos que va a fallar: el
+ * consumidor que no tiene bypass lo pasa en false y usa su propio mensaje. Ojo con
+ * confundir "lista vacía" con "no pude listar" — son cosas distintas.
+ */
+export function useGetEquipos(enabled = true) {
   return useQuery({
     queryKey: QK,
     queryFn: () => apiClient.get<ApiResponse<Equipo[]>>("/api/equipos"),
     staleTime: 1000 * 60 * 5,
+    enabled,
   })
 }
 
@@ -60,6 +67,10 @@ export function useAgregarMiembrosEquipo(equipoId: string | null) {
       // perfil y el listado de planillas dependen de eso.
       qc.invalidateQueries({ queryKey: QK_MIOS })
       qc.invalidateQueries({ queryKey: ["planillas"] })
+      // Los usuarios también: su lista de equipos alimenta la columna "Equipo" del
+      // listado y el aviso de "no pertenece a ningún equipo" de su ficha. Sin esto, el
+      // aviso seguía ahí después de haberlo resuelto.
+      qc.invalidateQueries({ queryKey: ["usuarios"] })
     },
   })
 }

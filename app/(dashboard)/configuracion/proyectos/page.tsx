@@ -15,6 +15,7 @@ import { NewProyectoSheet } from "@/features/proyectos/components/new-proyecto-s
 import { EditProyectoSheet } from "@/features/proyectos/components/edit-proyecto-sheet"
 import { CrearProyectoDesdeIfcSheet } from "@/features/modelo-3d/components/crear-proyecto-desde-ifc-sheet"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
+import { useMeetsRole } from "@/lib/use-roles"
 import { ESTADO_PROYECTO, type Proyecto } from "@/features/proyectos/types"
 import { columns, EstadoBadge, ESTADO_COLORS, RowActions } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
@@ -54,6 +55,8 @@ export default function ProyectosPage() {
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [openCrearDesdeIfc, setOpenCrearDesdeIfc] = useState(false)
+  // AdminGlobal (7) cubre también a SuperAdmin (8), que tiene nivel mayor.
+  const puedeCrearDesdeMaqueta = useMeetsRole("AdminGlobal")
   const pageSize = 10
 
   const { data, isLoading, isFetching } = useGetProyectos({
@@ -138,11 +141,17 @@ export default function ProyectosPage() {
               onOpenChange={setFiltersOpen}
               activeCount={activeFilters.length}
             />
-            <Button onClick={() => setOpenCrearDesdeIfc(true)} variant="outline" className="gap-2">
-              <Box className="h-4 w-4" />
-              <span className="hidden sm:inline">Crear desde IFC o NWD</span>
-              <span className="sm:hidden">IFC/NWD</span>
-            </Button>
+            {/* Crear desde maqueta es AdminGlobal+: el bootstrap da de alta el
+                proyecto y le popula Sistemas, SubSistemas y Elementos de una,
+                sobre un archivo de cientos de MB. La pantalla la ve un Admin
+                (minRole "Admin"), así que el gate va en el botón y no en la ruta. */}
+            {puedeCrearDesdeMaqueta && (
+              <Button onClick={() => setOpenCrearDesdeIfc(true)} variant="outline" className="gap-2">
+                <Box className="h-4 w-4" />
+                <span className="hidden sm:inline">Crear desde IFC o NWD</span>
+                <span className="sm:hidden">IFC/NWD</span>
+              </Button>
+            )}
             <Button onClick={open} className="gap-2">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Nuevo proyecto</span>

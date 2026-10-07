@@ -1,13 +1,22 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { AlertTriangle, Settings } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import Link from "next/link"
 
 import type { Usuario } from "@/features/usuarios/types"
 import { meetsRole } from "@/lib/roles"
 
-import { Button } from "@/components/ui/button"
+/**
+ * Método de ingreso, abreviado para la columna. Los textos largos están en
+ * `MetodoLoginSelector` (new-usuario-sheet), que es la referencia: acá se usa la
+ * versión corta y el nombre completo va en el `title`.
+ */
+export const LOGIN_METHOD: Record<number, { corto: string; largo: string; clase: string }> = {
+  0: { corto: "Mail",      largo: "Mail + contraseña",  clase: "bg-gray-100 text-gray-700" },
+  1: { corto: "Microsoft", largo: "Microsoft (SSO)",    clase: "bg-blue-50 text-blue-700" },
+  2: { corto: "YPF",       largo: "YPF (IBM Verify)",   clase: "bg-violet-50 text-violet-700" },
+}
 
 /**
  * True si a este usuario le FALTA algo por no tener equipo de administración.
@@ -20,23 +29,10 @@ export function necesitaEquipo(roles: string[] | undefined | null): boolean {
   return meetsRole(roles, "Admin") && !meetsRole(roles, "AdminGlobal")
 }
 
-function RowActions({ usuario }: { usuario: Usuario }) {
-  return (
-    <div className="flex items-center gap-1 justify-end">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        title="Administrar usuario"
-        asChild
-      >
-        <Link href={`/configuracion/usuarios/${usuario.id}`}>
-          <Settings className="h-4 w-4" />
-        </Link>
-      </Button>
-    </div>
-  )
-}
+// La columna de acciones con el ícono de rueda se eliminó: su único ítem llevaba a
+// la misma ficha que el click en la fila, así que era un segundo camino al mismo
+// lugar ocupando una columna. La fila completa es clickeable (ver page.tsx), igual
+// que las cards de mobile, que ya funcionaban así.
 
 export const columns: ColumnDef<Usuario>[] = [
   {
@@ -79,13 +75,26 @@ export const columns: ColumnDef<Usuario>[] = [
     },
   },
   {
+    accessorKey: "loginMethod",
+    header: "Ingreso",
+    cell: ({ row }) => {
+      // Default 0 si el backend no lo manda, igual que el resto de los consumidores.
+      const m = LOGIN_METHOD[row.original.loginMethod ?? 0]
+      if (!m) return <span className="text-sm text-muted-foreground">—</span>
+      return (
+        <span
+          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${m.clase}`}
+          title={m.largo}
+        >
+          {m.corto}
+        </span>
+      )
+    },
+  },
+  {
     accessorKey: "equipos",
     header: "Equipo",
     cell: ({ row }) => <EquipoCelda usuario={row.original} />,
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => <RowActions usuario={row.original} />,
   },
 ]
 

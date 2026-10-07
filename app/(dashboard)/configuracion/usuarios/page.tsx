@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   useReactTable,
   getCoreRowModel,
@@ -14,7 +15,7 @@ import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-s
 import { EditUsuarioSheet } from "@/features/usuarios/components/edit-usuario-sheet"
 import { NewUsuarioSheet } from "@/features/usuarios/components/new-usuario-sheet"
 import type { Usuario } from "@/features/usuarios/types"
-import { columns, necesitaEquipo } from "./columns"
+import { columns, necesitaEquipo, LOGIN_METHOD } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Input } from "@/components/ui/input"
@@ -67,6 +68,7 @@ const ROLES: { value: string; label: string }[] = [
 ]
 
 export default function UsuariosPage() {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
@@ -278,6 +280,15 @@ export default function UsuariosPage() {
                           {roles.join(", ")}
                         </span>
                       )}
+                      {/* Método de ingreso, misma abreviatura que la columna del desktop. */}
+                      {LOGIN_METHOD[u.loginMethod ?? 0] && (
+                        <span
+                          className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs ${LOGIN_METHOD[u.loginMethod ?? 0].clase}`}
+                          title={LOGIN_METHOD[u.loginMethod ?? 0].largo}
+                        >
+                          {LOGIN_METHOD[u.loginMethod ?? 0].corto}
+                        </span>
+                      )}
                       {/* Mismo aviso que la columna "Equipo" del desktop. */}
                       {(u.equipos?.length ?? 0) === 0 && necesitaEquipo(roles) && (
                         <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
@@ -326,7 +337,16 @@ export default function UsuariosPage() {
                   </TableRow>
                 ) : (
                   table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} className="hover:bg-gray-50">
+                    // Fila clickeable, mismo patrón que la grilla de Avance por
+                    // proyectos. Reemplaza la columna de la rueda, que llevaba al
+                    // mismo lugar. El link del nombre se mantiene: sirve para
+                    // abrir en otra pestaña y para navegar por teclado, y apunta
+                    // a la misma URL, así que no compite con este handler.
+                    <TableRow
+                      key={row.id}
+                      onClick={() => router.push(`/configuracion/usuarios/${row.original.id}`)}
+                      className="cursor-pointer hover:bg-blue-50 transition-colors"
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
