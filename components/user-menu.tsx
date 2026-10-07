@@ -8,6 +8,10 @@ import { useAuthStore } from "@/store/auth-store"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetCliente } from "@/features/clientes/api/use-get-cliente"
 import { useCambiarEquipoActivo, useGetMisEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { useMeetsRole } from "@/lib/use-roles"
 import {
   DropdownMenu,
@@ -168,10 +172,13 @@ function EquipoDelPerfil() {
   // Solo Admin+ tiene equipos: para un User el endpoint devolvería 403 y la sección no
   // significa nada.
   const esAdmin = useMeetsRole("Admin")
-  const { data } = useGetMisEquipos()
+  // La estructura de equipos se puede apagar en toda la plataforma: entonces no hay
+  // equipo del que informar ni entre qué elegir.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const { data } = useGetMisEquipos(esAdmin && hayEquipos)
   const cambiar = useCambiarEquipoActivo()
 
-  if (!esAdmin || !data) return null
+  if (!esAdmin || !hayEquipos || !data) return null
 
   const { equipos, equipoActivoId, puedeElegirGlobales } = data
   // Sin equipos y sin poder elegir globales no hay nada que mostrar: es un alta a medias, y

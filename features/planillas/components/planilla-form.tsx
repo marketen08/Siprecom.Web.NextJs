@@ -11,6 +11,10 @@ import type { Planilla } from "../types"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
 import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
+import {
   applyServerErrorsToForm,
   PLANILLA_FIELD_MAP,
   type ServerValidationError,
@@ -100,9 +104,15 @@ export function PlanillaForm({
   // Equipo dueño. El selector aparece SOLO si hay más de una opción: con un equipo único no
   // hay nada que elegir, y preguntarlo sería ruido. Con dos se elige explícito, porque es
   // donde se cuela el error de crear en el equipo que había quedado puesto.
-  const { data: misEquipos } = useGetMisEquipos()
+  //
+  // Si la estructura de equipos está desactivada en la plataforma, no hay dueño del que
+  // hablar: la planilla es del catálogo y punto. Desaparecen el badge y el selector.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
+  const { data: misEquipos } = useGetMisEquipos(hayEquipos)
   const opcionesEquipo = misEquipos?.equipos ?? []
-  const hayQueElegirEquipo = opcionesEquipo.length > 1 || !!misEquipos?.puedeElegirGlobales
+  const hayQueElegirEquipo = hayEquipos
+    && (opcionesEquipo.length > 1 || !!misEquipos?.puedeElegirGlobales)
 
   /**
    * Dueño efectivo de la planilla, para mostrarlo siempre arriba.
@@ -119,6 +129,9 @@ export function PlanillaForm({
    */
   const equipoIdForm = form.watch("equipoId")
   const dueno = (() => {
+    // Sin estructura de equipos no hay nada que anunciar — ni el "Sin equipo asignado",
+    // que acá sería una alerta por algo que la plataforma dejó de pedir.
+    if (!hayEquipos) return null
     if (equipoIdForm) {
       const e = opcionesEquipo.find((x) => x.id === equipoIdForm)
       return { label: e?.nombre ?? "Equipo desconocido", tono: "equipo" as const }
@@ -135,8 +148,8 @@ export function PlanillaForm({
   })()
 
   const duenoClase =
-    dueno.tono === "alerta" ? "bg-red-100 text-red-700"
-    : dueno.tono === "global" ? "bg-slate-100 text-slate-700"
+    dueno?.tono === "alerta" ? "bg-red-100 text-red-700"
+    : dueno?.tono === "global" ? "bg-slate-100 text-slate-700"
     : "bg-blue-100 text-blue-700"
 
   const { data: especialidadesRaw } = useGetEspecialidades()
@@ -167,15 +180,17 @@ export function PlanillaForm({
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Información general
             </p>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              Equipo dueño
-              <span className={`inline-flex items-center rounded px-2 py-0.5 font-semibold ${duenoClase}`}>
-                {dueno.label}
+            {dueno && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                Equipo dueño
+                <span className={`inline-flex items-center rounded px-2 py-0.5 font-semibold ${duenoClase}`}>
+                  {dueno.label}
+                </span>
               </span>
-            </span>
+            )}
           </div>
 
-          {dueno.tono === "alerta" && (
+          {dueno?.tono === "alerta" && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
               Todavía no tenés un equipo de administración asignado, así que no hay dónde
               guardar la planilla. Pedile a un AdminGlobal que te asigne uno.
@@ -366,7 +381,9 @@ export function PlanillaForm({
                         </SelectContent>
                       </Select>
                       <p className="text-[11px] text-muted-foreground mt-1">
-                        Solo referencia — el filtrado del catálogo se hace por Grupos.
+                        {hayColecciones
+                          ? "Solo referencia — el filtrado del catálogo se hace por colecciones."
+                          : "Solo referencia — no acota en qué proyectos se puede usar la planilla."}
                       </p>
                       <FormMessage />
                     </FormItem>

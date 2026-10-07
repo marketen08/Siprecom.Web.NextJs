@@ -17,6 +17,10 @@ import { ImportJsonSheet } from "@/features/planillas/components/import-json-she
 import { GenerarConIASheet } from "@/features/planillas/components/generar-con-ia-sheet"
 import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
 import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -47,6 +51,12 @@ export default function PlanillasPage() {
   // del usuario más las globales, o todo para AdminGlobal.
   const [equipoFiltro, setEquipoFiltro] = useState<string>("")
 
+  // Los dos ejes con los que se acota el catálogo son apagables por el SuperAdmin. Con
+  // uno apagado desaparece su filtro Y su columna: dejar la columna sin el filtro —o al
+  // revés— muestra una división que ya no divide nada.
+  const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
   const gruposIdsArr = useMemo(() => Array.from(gruposSel), [gruposSel])
   const { data, isLoading, isFetching } = useGetPlanillas({
     page,
@@ -56,9 +66,9 @@ export default function PlanillasPage() {
     esEncabezadoTG: encabezadoFilter,
     equipoId: equipoFiltro || undefined,
   })
-  const { data: misEquipos } = useGetMisEquipos()
-  const { data: gruposRaw } = useGetPlanillasGrupos()
-  const grupos = gruposRaw?.data ?? []
+  const { data: misEquipos } = useGetMisEquipos(hayEquipos)
+  const { data: gruposRaw } = useGetPlanillasGrupos(hayColecciones)
+  const grupos = hayColecciones ? gruposRaw?.data ?? [] : []
   const { open } = useNewPlanilla()
 
   const toggleGrupo = (id: string) => {
@@ -78,9 +88,17 @@ export default function PlanillasPage() {
   const [importJsonOpen, setImportJsonOpen] = useState(false)
   const [generarIAOpen, setGenerarIAOpen] = useState(false)
 
+  // Las columnas se filtran acá y no en columns.tsx porque la decisión depende de un
+  // hook: el array exportado es estático.
+  const columnasVisibles = useMemo(
+    () => columns.filter((c) =>
+      c.id === "grupos" ? hayColecciones : c.id === "equipo" ? hayEquipos : true),
+    [hayColecciones, hayEquipos],
+  )
+
   const table = useReactTable({
     data: data?.data ?? [],
-    columns,
+    columns: columnasVisibles,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.id,
     manualPagination: true,

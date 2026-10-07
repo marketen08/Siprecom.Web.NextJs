@@ -14,6 +14,11 @@ import {
 } from "@/features/equipos/api/use-equipos"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import type { Equipo } from "@/features/equipos/types"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
+import { FuncionalidadDesactivada } from "@/features/funcionalidades/components/funcionalidad-desactivada"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +41,23 @@ import {
  * las planillas. Ver Siprecom.Server.Api/Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md.
  */
 export default function EquiposPage() {
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
+  // El ABM va en un componente aparte para poder cortar antes de sus hooks: así no se
+  // piden equipos, usuarios ni nada cuando la funcionalidad está apagada.
+  if (!hayEquipos) {
+    return (
+      <FuncionalidadDesactivada
+        titulo="Los equipos de administración están desactivados"
+        descripcion="Con la funcionalidad apagada hay un solo catálogo de planillas y cualquier Admin lo administra, así que no hay equipos que repartir. Los equipos que estaban cargados no se borraron: vuelven a aplicar al reactivarla."
+      />
+    )
+  }
+
+  return <EquiposAdmin />
+}
+
+function EquiposAdmin() {
   const { data, isLoading } = useGetEquipos()
   const create = useCreateEquipo()
   const update = useUpdateEquipo()

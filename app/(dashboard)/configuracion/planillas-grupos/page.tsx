@@ -13,6 +13,11 @@ import {
   useUpdatePlanillaGrupo,
 } from "@/features/planillas-grupos/api/use-planillas-grupos"
 import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
+import { FuncionalidadDesactivada } from "@/features/funcionalidades/components/funcionalidad-desactivada"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +40,22 @@ interface EditSheetState {
 }
 
 export default function PlanillasGruposPage() {
+  const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
+
+  // Igual que en Equipos: el ABM va aparte para cortar antes de sus hooks.
+  if (!hayColecciones) {
+    return (
+      <FuncionalidadDesactivada
+        titulo="Las colecciones de planillas están desactivadas"
+        descripcion="Con la funcionalidad apagada todo proyecto puede usar todas las planillas del catálogo, así que no hay nada que agrupar. Las colecciones que estaban cargadas no se borraron: vuelven a aplicar al reactivarla."
+      />
+    )
+  }
+
+  return <PlanillasGruposAdmin />
+}
+
+function PlanillasGruposAdmin() {
   const { data, isLoading } = useGetPlanillasGrupos()
   const create = useCreatePlanillaGrupo()
   const update = useUpdatePlanillaGrupo()

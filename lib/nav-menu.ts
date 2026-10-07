@@ -230,7 +230,14 @@ export const menu: MenuItem[] = [
           // "Colecciones" y no "Grupos": ya hay grupos de usuarios y equipos de
           // administradores, los dos de personas. La ruta y las entidades siguen
           // diciendo PlanillaGrupo — el rename es sólo de la etiqueta.
-          { label: "Colecciones de planillas", href: "/configuracion/planillas-grupos", minRole: "Admin" },
+          {
+            label: "Colecciones de planillas",
+            href: "/configuracion/planillas-grupos",
+            minRole: "Admin",
+            // Se puede apagar entera: en un catálogo chico, agrupar cuesta más de lo
+            // que ordena. Con el flag apagado todo proyecto usa todas las planillas.
+            requiereFuncionalidad: "COLECCIONES_PLANILLAS",
+          },
           { label: "Campos",         href: "/configuracion/campos",         minRole: "AdminGlobal" },
           // Planillas se abre a Admin: administra las de los equipos a los que tiene
           // acceso, y las globales las ve en lectura (de ahí clona). El backend acota qué
@@ -267,7 +274,15 @@ export const menu: MenuItem[] = [
       // (pendientes) y Equipos acota qué catálogos administra cada uno. Su primer
       // uso son las planillas (ver Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md),
       // pero no es una configuración de planillas.
-      { label: "Equipos",           href: "/configuracion/equipos", minRole: "AdminGlobal" },
+      {
+        label: "Equipos",
+        href: "/configuracion/equipos",
+        minRole: "AdminGlobal",
+        // Se puede apagar entera: si un solo equipo administra todo el catálogo, la
+        // estructura es puro trámite. Con el flag apagado cualquier Admin administra
+        // todas las planillas.
+        requiereFuncionalidad: "EQUIPOS_ADMINISTRACION",
+      },
       // Control de cambios: Auditor y Supervisor+ (User NO — es rol de escritura
       // operativa, no de auditoría). Ambos son roles con capacidades distintas.
       {

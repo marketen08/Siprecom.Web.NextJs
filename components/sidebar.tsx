@@ -9,6 +9,7 @@ import { useSidebar } from "@/components/sidebar-context"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
+import { useFuncionalidadesPlataforma } from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { type AppRole } from "@/lib/roles"
 import { esVisible } from "@/lib/nav-visibilidad"
 import { menu, type MenuItem } from "@/lib/nav-menu"
@@ -216,7 +217,17 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   // del catálogo. Antes acá se armaba a mano con una sola clave (MAQUETA_3D), así
   // que cualquier item gateado por otra funcionalidad —Preservación, Paro de
   // planta— se mostraba siempre, con el flag apagado.
-  const funcionalidades: Record<string, boolean> = activo?.funcionalidades ?? {}
+  //
+  // Las que solo existen a nivel global (equipos de administración, colecciones de
+  // planillas) van como base del mapa: gobiernan pantallas tenant-wide, y sin esto
+  // un Admin sin proyecto activo no las vería nunca. Para esas claves los dos mapas
+  // dicen lo mismo —el efectivo es `global AND true`—, así que el orden del spread
+  // no cambia nada; lo que agrega es cubrir el caso "no hay proyecto activo".
+  const { data: plataforma } = useFuncionalidadesPlataforma()
+  const funcionalidades: Record<string, boolean> = {
+    ...(plataforma ?? {}),
+    ...(activo?.funcionalidades ?? {}),
+  }
 
   return (
     <>

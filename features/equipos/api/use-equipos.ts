@@ -89,11 +89,16 @@ export function useQuitarMiembroEquipo(equipoId: string | null) {
 }
 
 /** Los equipos del propio usuario. Lo usa el menú del perfil. */
-export function useGetMisEquipos() {
+/**
+ * @param enabled Pasar `false` cuando la estructura de equipos está desactivada en la
+ *   plataforma: sin esto la pantalla pediría igual el listado y después lo ignoraría.
+ */
+export function useGetMisEquipos(enabled = true) {
   return useQuery({
     queryKey: QK_MIOS,
     queryFn: () => apiClient.get<MisEquipos>("/api/equipos/mios"),
     staleTime: 1000 * 60 * 5,
+    enabled,
   })
 }
 

@@ -16,6 +16,10 @@ import { EditUsuarioSheet } from "@/features/usuarios/components/edit-usuario-sh
 import { NewUsuarioSheet } from "@/features/usuarios/components/new-usuario-sheet"
 import type { Usuario } from "@/features/usuarios/types"
 import { columns, necesitaEquipo, LOGIN_METHOD } from "./columns"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Input } from "@/components/ui/input"
@@ -80,6 +84,9 @@ export default function UsuariosPage() {
   const [rol, setRol] = useState<string>(ALL)
   const pageSize = 10
 
+  // La estructura de equipos de administración se puede apagar en toda la plataforma.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
   // Empresa: clientes + contratistas (estos con badge en el label).
   const { data: empresasData } = useGetClientesSelect()
   const empresas = useMemo(
@@ -118,9 +125,16 @@ export default function UsuariosPage() {
   const total = (data as any)?.total ?? 0
   const totalPages = Math.ceil(total / pageSize)
 
+  // Sin estructura de equipos la columna no dice nada: todos administran el mismo
+  // catálogo. Se filtra acá porque `columns` es estático y la decisión sale de un hook.
+  const columnasVisibles = useMemo(
+    () => columns.filter((c) => (c as { accessorKey?: string }).accessorKey !== "equipos" || hayEquipos),
+    [hayEquipos],
+  )
+
   const table = useReactTable({
     data: usuarios,
-    columns,
+    columns: columnasVisibles,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row: any) => row.id,
     manualPagination: true,
@@ -290,7 +304,7 @@ export default function UsuariosPage() {
                         </span>
                       )}
                       {/* Mismo aviso que la columna "Equipo" del desktop. */}
-                      {(u.equipos?.length ?? 0) === 0 && necesitaEquipo(roles) && (
+                      {hayEquipos && (u.equipos?.length ?? 0) === 0 && necesitaEquipo(roles) && (
                         <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
                           <AlertTriangle className="h-3 w-3" />
                           Sin equipo
@@ -325,13 +339,13 @@ export default function UsuariosPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                       Cargando...
                     </TableCell>
                   </TableRow>
                 ) : table.getRowModel().rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                       No se encontraron usuarios.
                     </TableCell>
                   </TableRow>

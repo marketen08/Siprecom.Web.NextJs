@@ -6,11 +6,17 @@ import type { PlanillaGrupo, PlanillaGrupoDetalle, PlanillaGrupoInput } from "..
 const QK = ["planillas-grupos"] as const
 
 /** Trae todos los grupos activos (para selects y listados). */
-export function useGetPlanillasGrupos() {
+/**
+ * @param enabled Pasar `false` cuando las colecciones están desactivadas en la
+ *   plataforma: el endpoint sigue respondiendo (lo cargado queda latente, no se borra),
+ *   pero no hay para qué pedirlo.
+ */
+export function useGetPlanillasGrupos(enabled = true) {
   return useQuery({
     queryKey: QK,
     queryFn: () => apiClient.get<ApiResponse<PlanillaGrupo[]>>("/api/planillas-grupos"),
     staleTime: 1000 * 60 * 5,
+    enabled,
   })
 }
 

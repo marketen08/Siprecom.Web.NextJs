@@ -19,6 +19,10 @@ import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-pro
 import { useBulkAssignProyectosUsuario, useBulkUnassignProyectosUsuario } from "@/features/usuarios/api/use-bulk-proyectos-usuario"
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
 import { useGetEquipos, useAgregarMiembrosEquipo } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useRoles, useMeetsRole } from "@/lib/use-roles"
@@ -177,12 +181,16 @@ function AsignarEquipoAlAdmin({
   // hay ningún equipo" —falso— con un link a una pantalla que tampoco puede abrir.
   const puedeAsignar = useMeetsRole("AdminGlobal")
 
-  const { data: equiposResp } = useGetEquipos(puedeAsignar)
+  // Con la estructura de equipos apagada en la plataforma, un Admin sin equipo puede
+  // administrar todo el catálogo: el aviso sería al revés de la realidad.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
+  const { data: equiposResp } = useGetEquipos(puedeAsignar && hayEquipos)
   const equipos = equiposResp?.data ?? []
 
   const agregar = useAgregarMiembrosEquipo(equipos.length === 1 ? equipos[0].id : null)
 
-  if (!necesitaEquipo(roles) || yaTieneEquipo) return null
+  if (!hayEquipos || !necesitaEquipo(roles) || yaTieneEquipo) return null
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
@@ -254,8 +262,9 @@ function AvisoSinEquipo({
   // (minRole en nav-menu, y el RouteGuard deriva de ahí), así que a un Admin el link
   // lo dejaba contra una pantalla bloqueada.
   const puedeAsignar = useMeetsRole("AdminGlobal")
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
   const equipos = usuario.equipos ?? []
-  if (equipos.length > 0 || !necesitaEquipo(usuario.roles)) return null
+  if (!hayEquipos || equipos.length > 0 || !necesitaEquipo(usuario.roles)) return null
 
   return (
     <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">

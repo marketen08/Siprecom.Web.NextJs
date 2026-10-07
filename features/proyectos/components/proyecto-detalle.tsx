@@ -20,6 +20,10 @@ import {
 } from "@/features/proyectos/api/use-proyecto-planillas-grupos"
 import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
 import { useAsignarEquipoProyecto, useGetEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { useMeetsRole } from "@/lib/use-roles"
 import {
   useUploadProyectoLogoHeader,
@@ -489,15 +493,18 @@ const EQUIPO_NONE = "__none__"
  */
 function EquipoDelProyectoCard({ proyecto }: { proyecto: Proyecto }) {
   const esAdminGlobal = useMeetsRole("AdminGlobal")
+  // La estructura de equipos se puede apagar en toda la plataforma: entonces el proyecto
+  // no toma su catálogo de ningún equipo y la tarjeta no tiene nada que decidir.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
   // GET /equipos es AdminGlobal-only: sin el flag, un Admin abriendo el detalle de
   // proyecto disparaba un 403 por nada (la tarjeta igual no se le muestra).
-  const { data: equiposRaw } = useGetEquipos(esAdminGlobal)
+  const { data: equiposRaw } = useGetEquipos(esAdminGlobal && hayEquipos)
   const update = useAsignarEquipoProyecto(proyecto.id)
   const [error, setError] = useState<string | null>(null)
 
   const equipos = equiposRaw?.data ?? []
   // Mientras no haya equipos, todas las planillas son globales y esta tarjeta no decide nada.
-  if (!esAdminGlobal || equipos.length === 0) return null
+  if (!esAdminGlobal || !hayEquipos || equipos.length === 0) return null
 
   const actual = proyecto.equipoId ?? null
 
@@ -542,10 +549,16 @@ function EquipoDelProyectoCard({ proyecto }: { proyecto: Proyecto }) {
 // ─── Colecciones de planillas habilitadas en el proyecto ─────────────────────────
 
 function PlanillasGruposHabilitadosCard({ proyecto }: { proyecto: Proyecto }) {
-  const { data: gruposRaw, isLoading: loadingGrupos } = useGetPlanillasGrupos()
-  const { data: habilitadosRaw, isLoading: loadingHabilitados } = useGetProyectoPlanillasGrupos(proyecto.id)
+  // Apagadas en la plataforma, el proyecto puede usar todo el catálogo: no hay scope
+  // que configurar. Lo que esté guardado queda latente hasta reactivarlas.
+  const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
+  const { data: gruposRaw, isLoading: loadingGrupos } = useGetPlanillasGrupos(hayColecciones)
+  const { data: habilitadosRaw, isLoading: loadingHabilitados } =
+    useGetProyectoPlanillasGrupos(hayColecciones ? proyecto.id : null)
   const set = useSetProyectoPlanillasGrupos(proyecto.id)
   const [saving, setSaving] = useState(false)
+
+  if (!hayColecciones) return null
 
   const grupos = gruposRaw?.data ?? []
   const habilitadosSet = new Set(habilitadosRaw ?? [])
