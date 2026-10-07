@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Building2, Check, Loader2, LogOut, UserCircle, PenLine, Users } from "lucide-react"
+import { Building2, Check, Loader2, LogOut, UserCircle, PenLine, ShieldCheck, Users } from "lucide-react"
 import Link from "next/link"
 
 import { useAuthStore } from "@/store/auth-store"
@@ -13,6 +13,7 @@ import {
   useFuncionalidadPlataforma,
 } from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { useMeetsRole } from "@/lib/use-roles"
+import { etiquetaRolPrincipal } from "@/lib/roles"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,6 +74,11 @@ export function UserMenu() {
   const profileImageUrl = perfil?.profileImageUrl
   const logoClienteUrl = cliente?.logoSasUrl ?? cliente?.urlLogo ?? null
 
+  // Del perfil y NO del store: el store guarda los roles del JWT, que vienen expandidos
+  // (un SuperAdmin trae los ocho). El perfil devuelve los asignados en la base. Igual se
+  // toma el más alto, porque nada impide que haya dos.
+  const rolEtiqueta = etiquetaRolPrincipal(perfil?.roles)
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer bg-transparent border-0 p-0">
@@ -116,6 +122,25 @@ export function UserMenu() {
                   {cliente.esContratista ? "Contratista" : "Empresa"}
                 </p>
                 <p className="text-xs font-medium text-gray-700 truncate">{cliente.nombre}</p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Rol. Va antes del equipo porque es el dato más general: el rol dice qué puede
+            hacer en toda la plataforma, y el equipo sólo qué catálogo administra. */}
+        {rolEtiqueta && (
+          <>
+            <DropdownMenuSeparator className="my-0" />
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-white">
+                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Rol
+                </p>
+                <p className="truncate text-xs font-medium text-gray-700">{rolEtiqueta}</p>
               </div>
             </div>
           </>

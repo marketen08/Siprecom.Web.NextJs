@@ -13,6 +13,11 @@ import { useNewCampo } from "@/features/campos/hooks/use-new-campo"
 import { NewCampoSheet } from "@/features/campos/components/new-campo-sheet"
 import { EditCampoSheet } from "@/features/campos/components/edit-campo-sheet"
 import { useGetPlanillas } from "@/features/planillas/api/use-get-planillas"
+import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
@@ -43,8 +48,17 @@ export default function CamposPage() {
   const [search, setSearch] = useState("")
   const [tipoFiltro, setTipoFiltro] = useState<string>("__all__")
   const [planillaFiltro, setPlanillaFiltro] = useState<string>(PLANILLA_TODAS)
+  // Filtro por equipo dueño. Vacío = lo que el backend decide por defecto: el equipo
+  // activo del usuario más los globales, o todo para AdminGlobal.
+  const [equipoFiltro, setEquipoFiltro] = useState<string>("")
   const [page, setPage] = useState(1)
   const pageSize = 10
+
+  // La estructura de equipos es apagable por el SuperAdmin. Apagada, el catálogo es uno
+  // solo: desaparecen el filtro Y la columna juntos, porque mostrar una sin la otra deja a
+  // la vista una división que ya no divide nada.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const { data: misEquipos } = useGetMisEquipos(hayEquipos)
 
   const { data, isLoading, isFetching } = useGetCampos({
     page,
@@ -52,6 +66,7 @@ export default function CamposPage() {
     nombre: search || undefined,
     tipoDato: tipoFiltro === "__all__" ? undefined : Number(tipoFiltro),
     planillaId: planillaFiltro === PLANILLA_TODAS ? undefined : planillaFiltro,
+    equipoId: equipoFiltro || undefined,
   })
   const { open } = useNewCampo()
 
@@ -71,9 +86,16 @@ export default function CamposPage() {
     return all
   }, [planillasData])
 
+  // Se filtra acá y no en columns.tsx porque la decisión sale de un hook y el array
+  // exportado es estático. Mismo patrón que la lista de planillas.
+  const columnasVisibles = useMemo(
+    () => columns.filter((c) => c.id !== "equipo" || hayEquipos),
+    [hayEquipos],
+  )
+
   const table = useReactTable({
     data: data?.data ?? [],
-    columns,
+    columns: columnasVisibles,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.id,
     manualPagination: true,
@@ -133,6 +155,39 @@ export default function CamposPage() {
           </Button>
         </div>
 
+        {/* Filtro por equipo dueño. Sólo aparece cuando hay más de una opción: para el
+            Admin de un equipo único no hay nada que elegir —ve el suyo y los globales— y
+            el chip sería ruido. Mismo control que en el catálogo de planillas. */}
+        {hayEquipos && misEquipos
+          && (misEquipos.equipos.length > 1 || misEquipos.puedeElegirGlobales) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="mr-1 text-muted-foreground">Equipo:</span>
+            {[
+              { id: "", nombre: "Todos" },
+              ...misEquipos.equipos,
+              { id: "__none__", nombre: "Globales" },
+            ].map((opcion) => {
+              const activo = equipoFiltro === opcion.id
+              return (
+                <button
+                  key={opcion.id || "todos"}
+                  type="button"
+                  onClick={() => { setEquipoFiltro(opcion.id); setPage(1) }}
+                  aria-pressed={activo}
+                  className={
+                    "inline-flex cursor-pointer items-center rounded-full border px-2 py-0.5 font-medium transition-colors "
+                    + (activo
+                      ? "border-blue-500 bg-blue-100 text-blue-900"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+                  }
+                >
+                  {opcion.nombre}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>
           <Table>
@@ -152,13 +207,13 @@ export default function CamposPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                     Cargando...
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                     No se encontraron campos.
                   </TableCell>
                 </TableRow>

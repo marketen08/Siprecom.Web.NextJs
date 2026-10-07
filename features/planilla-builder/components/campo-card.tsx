@@ -15,6 +15,7 @@ import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useReorderOpciones } from "@/features/campos/api/use-reorder-opciones"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
 import { CampoTablaEditor } from "./campo-tabla-editor"
+import { ApropiarCampoAviso } from "./apropiar-campo-aviso"
 
 import {
   Select,
@@ -336,6 +337,23 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             {campo.campoUnidad && (
               <span className="text-xs text-muted-foreground shrink-0">{campo.campoUnidad}</span>
             )}
+            {/* Badge del dueño del CAMPO. Sólo cuando no es editable: si es tuyo, decirlo
+                es ruido — lo informativo es justamente lo que no podés tocar. */}
+            {campo.campoPuedeEditar === false && (
+              <span
+                className={
+                  "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium "
+                  + (campo.campoEquipoId
+                    ? "border border-blue-200 bg-blue-50 text-blue-800"
+                    : "bg-amber-50 text-amber-800")
+                }
+                title={campo.campoEquipoId
+                  ? `El campo lo administra el equipo ${campo.campoEquipoNombre}`
+                  : "Campo global: lo comparten todas las planillas y lo administra un AdminGlobal"}
+              >
+                {campo.campoEquipoId ? campo.campoEquipoNombre : "Campo global"}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -388,6 +406,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       {/* Expanded options */}
       {expanded && (
         <div className="border-t px-3 py-3 space-y-3 bg-gray-50 rounded-b-lg">
+          <ApropiarCampoAviso campo={campo} planillaId={planillaId} />
+
           {/* Mover de sección */}
           {secciones.length > 0 && (
             <div className="space-y-1">

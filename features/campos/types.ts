@@ -36,6 +36,19 @@ export interface Campo {
   sinMargen?: boolean
   /** Cantidad de planillas activas que usan este campo. */
   usoCount?: number
+
+  /**
+   * Equipo de administración dueño. Null/undefined = global: lo comparten todas las
+   * planillas y lo administra un AdminGlobal. Mismo contrato que `Planilla.equipoId`.
+   */
+  equipoId?: string | null
+  equipoNombre?: string | null
+  /**
+   * Si quien mira puede editarlo. Lo resuelve el backend — no reimplementar la regla acá,
+   * porque las dos se desincronizan.
+   */
+  puedeEditar?: boolean
+
   createdAt: string
   updatedAt: string
 }

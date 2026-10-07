@@ -69,6 +69,49 @@ export function roleLevelOne(role: string | null | undefined): number {
 }
 
 /**
+ * El rol más alto del usuario — el único que vale mostrar.
+ *
+ * Hace falta porque el claim `roles` del JWT viene **expandido** (ver
+ * `JwtHandler.ExpandRoles`): un SuperAdmin trae los ocho roles, así que listarlos todos
+ * sería ruido. El rol asignado en la base es uno solo, pero nada impide dos, y ahí también
+ * el que describe al usuario es el mayor.
+ *
+ * Devuelve null si no tiene ninguno conocido — un usuario sin rol existe (alta a medias) y
+ * la UI tiene que poder decirlo en vez de inventar "User".
+ */
+export function rolPrincipal(roles: string[] | undefined | null): AppRole | null {
+  if (!roles?.length) return null
+  const mayor = roles.reduce<{ rol: string | null; nivel: number }>(
+    (max, r) => (roleLevelOne(r) > max.nivel ? { rol: r, nivel: roleLevelOne(r) } : max),
+    { rol: null, nivel: 0 },
+  )
+  return (mayor.rol as AppRole) ?? null
+}
+
+/**
+ * Cómo se nombra cada rol en pantalla. Los nombres técnicos se mantienen donde el usuario
+ * ya los conoce (la lista de usuarios, el selector de rol); esto es para los lugares donde
+ * se le habla al propio usuario de sí mismo, como el menú del perfil, y "AdminGlobal" ahí
+ * no dice nada.
+ */
+export const ROL_ETIQUETA: Record<AppRole, string> = {
+  SuperAdmin: "Super Admin",
+  AdminGlobal: "Administrador global",
+  Admin: "Administrador",
+  Supervisor: "Supervisor",
+  Coordinador: "Coordinador",
+  User: "Usuario",
+  Auditor: "Auditor",
+  Consultor: "Consultor",
+}
+
+/** Etiqueta del rol más alto, lista para mostrar. Null si no tiene rol. */
+export function etiquetaRolPrincipal(roles: string[] | undefined | null): string | null {
+  const rol = rolPrincipal(roles)
+  return rol ? ROL_ETIQUETA[rol] ?? rol : null
+}
+
+/**
  * True si `caller` puede asignar `nuevoRol` a otro usuario. Regla: sólo roles
  * ESTRICTAMENTE inferiores al del caller. Un Admin no puede promover a
  * AdminGlobal ni SuperAdmin; un AdminGlobal no puede tocar SuperAdmin.

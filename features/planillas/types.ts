@@ -269,6 +269,18 @@ export interface PlanillaCampoDetalle {
   campoMostrarComoMarca?: boolean
 
   /**
+   * Equipo dueño del CAMPO del catálogo (no de la planilla). Null = global.
+   *
+   * Son dos cosas distintas: una planilla de tu equipo puede usar campos globales, y son
+   * justo ésos los que no podés editar. Por eso el diseñador necesita este dato para
+   * ofrecer apropiarse del campo en vez de dejar que la escritura falle.
+   */
+  campoEquipoId?: string | null
+  campoEquipoNombre?: string | null
+  /** Si quien mira puede editar el Campo del catálogo. Lo resuelve el backend. */
+  campoPuedeEditar?: boolean
+
+  /**
    * Overrides crudos de esta planilla: null/undefined = heredado del catálogo.
    *
    * Van además de los `campo*` resueltos de arriba porque contestan otra pregunta: no

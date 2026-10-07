@@ -18,6 +18,22 @@ import {
   useReactivarPlanilla,
   type ImportModo,
 } from "@/features/planillas/api/use-import-export"
+import { useGetEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+/** Sentinelas de los selectores de equipo — Base UI Select no acepta "" como value. */
+const TODOS = "__all__"
+const GLOBALES = "__none__"
 
 const MODOS: { value: ImportModo; label: string; help: string; destructivo?: boolean }[] = [
   { value: "crear", label: "Crear (versionar si ya existe)", help: "Las que ya existen se importan como versión nueva (1.0-2, …)." },
@@ -42,6 +58,21 @@ export default function PlanillasExportImportPage() {
   const [parseError, setParseError] = useState<string | null>(null)
   const [modo, setModo] = useState<ImportModo>("omitir")
 
+  // Equipos de administración: el export puede acotarse al catálogo de uno (origen) y el
+  // import elige a cuál aterrizan planillas y campos (destino). El archivo no arrastra el
+  // equipo de origen porque el destino es otro tenant, donde los equipos son otros.
+  // Ver Siprecom.Server.Api/Docs/ANALISIS-CAMPOS-POR-EQUIPO.md.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const { data: equiposResp } = useGetEquipos(hayEquipos)
+  const equipos = equiposResp?.data ?? []
+  const [equipoOrigen, setEquipoOrigen] = useState<string>(TODOS)
+  const [equipoDestino, setEquipoDestino] = useState<string>(GLOBALES)
+
+  // Sólo vale ofrecer la elección cuando hay equipos cargados: con cero, todo es global y
+  // los dos selectores serían una pregunta con una sola respuesta.
+  const ofrecerEquipos = hayEquipos && equipos.length > 0
+  const destinoReal = ofrecerEquipos && equipoDestino !== GLOBALES ? equipoDestino : undefined
+
   const previewMut = useImportPlanillasAllPreview()
   const applyMut = useImportPlanillasAllApply()
   const referenciasQuery = usePlanillasReferencias()
@@ -61,7 +92,7 @@ export default function PlanillasExportImportPage() {
     try {
       const json = await parseFileJson<unknown>(file)
       setData(json)
-      previewMut.mutate(json)
+      previewMut.mutate({ data: json, equipoDestino: destinoReal })
     } catch (err) {
       setData(null)
       setParseError(err instanceof Error ? err.message : "Archivo inválido.")
@@ -78,7 +109,7 @@ export default function PlanillasExportImportPage() {
   }
 
   async function doApply() {
-    if (data) await applyMut.mutateAsync({ data, modo })
+    if (data) await applyMut.mutateAsync({ data, modo, equipoDestino: destinoReal })
   }
 
   const yaExistenCount = preview?.planillas.filter((p) => p.yaExiste).length ?? 0
@@ -112,8 +143,42 @@ export default function PlanillasExportImportPage() {
             Descarga un JSON con todas las planillas activas, sus campos, opciones, tablas e imágenes (base64).
           </p>
         </div>
-        <Button onClick={exportarTodasLasPlanillas} className="gap-2">
-          <Download className="h-4 w-4" /> Exportar todas las planillas
+        {ofrecerEquipos && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-gray-600">Equipo de origen</p>
+            <Select value={equipoOrigen} onValueChange={(v) => setEquipoOrigen(v ?? TODOS)}>
+              <SelectTrigger className="w-full sm:w-80">
+                <SelectValue>
+                  {equipoOrigen === TODOS
+                    ? "Todas las planillas"
+                    : equipoOrigen === GLOBALES
+                      ? "Sólo las globales"
+                      : equipos.find((e) => e.id === equipoOrigen)?.nombre ?? "—"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todas las planillas</SelectItem>
+                <SelectItem value={GLOBALES}>Sólo las globales</SelectItem>
+                {equipos.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              El equipo no viaja en el archivo: al importar se elige a qué equipo del ambiente
+              destino aterriza. Lo que acá es global, allá también.
+            </p>
+          </div>
+        )}
+        <Button
+          onClick={() => exportarTodasLasPlanillas(
+            ofrecerEquipos && equipoOrigen !== TODOS ? equipoOrigen : undefined)}
+          className="gap-2"
+        >
+          <Download className="h-4 w-4" />
+          {ofrecerEquipos && equipoOrigen !== TODOS
+            ? "Exportar las planillas del equipo"
+            : "Exportar todas las planillas"}
         </Button>
       </Card>
 
@@ -150,6 +215,45 @@ export default function PlanillasExportImportPage() {
             </Button>
           )}
         </div>
+
+        {/* Equipo destino. Se elige ANTES de subir el archivo porque el preview resuelve
+            los campos existentes dentro de ese alcance: cambiarlo después invalida lo que
+            el preview mostró, así que al cambiarlo se vuelve a pedir. */}
+        {ofrecerEquipos && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-gray-600">Equipo de destino</p>
+            <Select
+              value={equipoDestino}
+              onValueChange={(v) => {
+                setEquipoDestino(v ?? GLOBALES)
+                // El preview quedó calculado con otro alcance; mejor rehacerlo que
+                // mostrar números que ya no corresponden.
+                if (data) previewMut.mutate({
+                  data,
+                  equipoDestino: v && v !== GLOBALES ? v : undefined,
+                })
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-80">
+                <SelectValue>
+                  {equipoDestino === GLOBALES
+                    ? "Global (sin equipo)"
+                    : equipos.find((e) => e.id === equipoDestino)?.nombre ?? "—"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={GLOBALES}>Global (sin equipo)</SelectItem>
+                {equipos.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Las planillas y los campos que en el origen eran de un equipo quedan en éste.
+              Los que eran globales quedan globales, sin importar lo que elijas acá.
+            </p>
+          </div>
+        )}
 
         {/* Modo de importación */}
         <div className="space-y-1.5">

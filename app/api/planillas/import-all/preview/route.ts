@@ -3,7 +3,14 @@ import { backendFetch } from "@/lib/server/backend-fetch"
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const res = await backendFetch(request, "/planillas/import-all/preview", {
+  // Mismo equipo destino que el apply: si el preview resolviera en otro alcance, podría
+  // aprobar un import que después choca.
+  const equipoDestino = request.nextUrl.searchParams.get("equipoDestino")
+  const path = equipoDestino
+    ? `/planillas/import-all/preview?equipoDestino=${encodeURIComponent(equipoDestino)}`
+    : "/planillas/import-all/preview"
+
+  const res = await backendFetch(request, path, {
     method: "POST",
     body: JSON.stringify(body),
   })

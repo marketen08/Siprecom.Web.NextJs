@@ -173,10 +173,19 @@ export interface PlanillasBulkImportResultado {
   mensaje: string
 }
 
-/** Descarga el JSON con TODAS las planillas (SuperAdmin), vía anchor programático. */
-export function exportarTodasLasPlanillas() {
+/**
+ * Descarga el JSON con las planillas (SuperAdmin), vía anchor programático.
+ *
+ * @param equipoOrigen Acota el export al catálogo de un equipo; `"__none__"` son las
+ *   globales. Vacío = todas, que es el comportamiento de siempre. El equipo elegido NO
+ *   viaja en el archivo: lo que viaja es si cada campo era global, y el equipo destino lo
+ *   elige quien importa. Ver Docs/ANALISIS-CAMPOS-POR-EQUIPO.md.
+ */
+export function exportarTodasLasPlanillas(equipoOrigen?: string) {
   const a = document.createElement("a")
-  a.href = `/api/planillas/export-all`
+  a.href = equipoOrigen
+    ? `/api/planillas/export-all?equipoOrigen=${encodeURIComponent(equipoOrigen)}`
+    : `/api/planillas/export-all`
   a.download = ""
   document.body.appendChild(a)
   a.click()
@@ -185,8 +194,13 @@ export function exportarTodasLasPlanillas() {
 
 export function useImportPlanillasAllPreview() {
   return useMutation({
-    mutationFn: (data: unknown) =>
-      apiClient.post<ApiResponse<PlanillasBulkImportPreview>>("/api/planillas/import-all/preview", data),
+    mutationFn: ({ data, equipoDestino }: { data: unknown; equipoDestino?: string }) =>
+      apiClient.post<ApiResponse<PlanillasBulkImportPreview>>(
+        equipoDestino
+          ? `/api/planillas/import-all/preview?equipoDestino=${encodeURIComponent(equipoDestino)}`
+          : "/api/planillas/import-all/preview",
+        data,
+      ),
   })
 }
 
@@ -196,13 +210,23 @@ export type ImportModo = "crear" | "omitir" | "reemplazar" | "eliminar-todas"
 export function useImportPlanillasAllApply() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ data, modo }: { data: unknown; modo: ImportModo }) =>
-      apiClient.post<ApiResponse<PlanillasBulkImportResultado>>(
-        `/api/planillas/import-all?modo=${encodeURIComponent(modo)}`,
+    mutationFn: ({ data, modo, equipoDestino }: {
+      data: unknown
+      modo: ImportModo
+      /** Equipo al que aterrizan planillas y campos que en el origen eran de un equipo. */
+      equipoDestino?: string
+    }) => {
+      const qs = new URLSearchParams({ modo })
+      if (equipoDestino) qs.set("equipoDestino", equipoDestino)
+      return apiClient.post<ApiResponse<PlanillasBulkImportResultado>>(
+        `/api/planillas/import-all?${qs}`,
         data,
-      ),
+      )
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["planillas"] })
+      // El import puede haber creado campos nuevos en el equipo destino.
+      qc.invalidateQueries({ queryKey: ["campos"] })
     },
   })
 }
