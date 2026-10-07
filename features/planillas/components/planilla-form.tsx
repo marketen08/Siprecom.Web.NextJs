@@ -104,6 +104,41 @@ export function PlanillaForm({
   const opcionesEquipo = misEquipos?.equipos ?? []
   const hayQueElegirEquipo = opcionesEquipo.length > 1 || !!misEquipos?.puedeElegirGlobales
 
+  /**
+   * Dueño efectivo de la planilla, para mostrarlo siempre arriba.
+   *
+   * Espeja a `ResolverEquipoParaNuevaAsync` del backend y no se puede simplificar a
+   * "equipoId ?? Global": en el alta el form arranca con equipoId = null y el destino
+   * real lo resuelve el servidor con el EQUIPO ACTIVO del usuario. Mostrar "Global"
+   * ahí sería mentir justo en el campo donde el error es más caro — una planilla que
+   * nace global solo la administra un AdminGlobal, y el equipo que creía ser dueño no
+   * la puede tocar.
+   *
+   * Hacía falta porque el selector de equipo vive en el bloque colapsado y encima se
+   * oculta cuando hay una sola opción: sin esto, nada en pantalla decía dónde caía.
+   */
+  const equipoIdForm = form.watch("equipoId")
+  const dueno = (() => {
+    if (equipoIdForm) {
+      const e = opcionesEquipo.find((x) => x.id === equipoIdForm)
+      return { label: e?.nombre ?? "Equipo desconocido", tono: "equipo" as const }
+    }
+    // null explícito: global, pero solo quien puede elegirlas termina realmente ahí.
+    if (misEquipos?.puedeElegirGlobales) return { label: "Global", tono: "global" as const }
+
+    const activo = opcionesEquipo.find((x) => x.id === misEquipos?.equipoActivoId)
+    if (activo) return { label: activo.nombre, tono: "equipo" as const }
+
+    // Admin sin equipo: el backend va a rechazar el alta. Avisarlo antes de que
+    // complete todo el formulario.
+    return { label: "Sin equipo asignado", tono: "alerta" as const }
+  })()
+
+  const duenoClase =
+    dueno.tono === "alerta" ? "bg-red-100 text-red-700"
+    : dueno.tono === "global" ? "bg-slate-100 text-slate-700"
+    : "bg-blue-100 text-blue-700"
+
   const { data: especialidadesRaw } = useGetEspecialidades()
   const especialidades = especialidadesRaw?.data ?? []
 
@@ -128,9 +163,24 @@ export function PlanillaForm({
     <Form {...form}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Información general
-          </p>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Información general
+            </p>
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              Equipo dueño
+              <span className={`inline-flex items-center rounded px-2 py-0.5 font-semibold ${duenoClase}`}>
+                {dueno.label}
+              </span>
+            </span>
+          </div>
+
+          {dueno.tono === "alerta" && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+              Todavía no tenés un equipo de administración asignado, así que no hay dónde
+              guardar la planilla. Pedile a un AdminGlobal que te asigne uno.
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <FormField
@@ -347,8 +397,8 @@ export function PlanillaForm({
                     <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-xs">
-                    Marca esta planilla como candidata al select "Planilla del
-                    encabezado" del tipo de elemento sintético. Al activarlo se
+                    Marca esta planilla como candidata al select “Planilla del
+                    encabezado” del tipo de elemento sintético. Al activarlo se
                     deshabilitan Requiere firma, Permite adjuntos y las opciones
                     de PDF — el pack firma y emite PDF vía el certificado
                     (RFC/RFSU/AOC), y los adjuntos viven en las tareas del pack.

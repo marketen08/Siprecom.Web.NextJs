@@ -20,6 +20,12 @@ export interface Usuario {
   loginMethod?: number
   /** Roles asignados al usuario. Viene en los listados. */
   roles?: string[]
+  /**
+   * Equipos de administración a los que pertenece. Viene en los listados.
+   * Array vacío = ninguno, y para un Admin eso significa que no puede crear
+   * planillas hasta que un AdminGlobal le asigne uno.
+   */
+  equipos?: string[]
 }
 
 export interface UsuarioUpdateInput {

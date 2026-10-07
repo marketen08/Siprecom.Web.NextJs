@@ -7,14 +7,14 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Search, UserPlus, ChevronRight } from "lucide-react"
+import { AlertTriangle, Search, UserPlus, ChevronRight } from "lucide-react"
 
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { EditUsuarioSheet } from "@/features/usuarios/components/edit-usuario-sheet"
 import { NewUsuarioSheet } from "@/features/usuarios/components/new-usuario-sheet"
 import type { Usuario } from "@/features/usuarios/types"
-import { columns } from "./columns"
+import { columns, necesitaEquipo } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Input } from "@/components/ui/input"
@@ -276,6 +276,13 @@ export default function UsuariosPage() {
                       {roles.length > 0 && (
                         <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
                           {roles.join(", ")}
+                        </span>
+                      )}
+                      {/* Mismo aviso que la columna "Equipo" del desktop. */}
+                      {(u.equipos?.length ?? 0) === 0 && necesitaEquipo(roles) && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                          <AlertTriangle className="h-3 w-3" />
+                          Sin equipo
                         </span>
                       )}
                     </div>

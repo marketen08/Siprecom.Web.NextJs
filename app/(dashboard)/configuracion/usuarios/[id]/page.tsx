@@ -7,8 +7,12 @@ import {
   UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight, Link as LinkIcon, Copy, Building2,
 } from "lucide-react"
 import { useEffect } from "react"
+import Link from "next/link"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
+// Mismo criterio que la columna "Equipo" del listado: comparten el helper para no
+// duplicar la regla de a quién le falta equipo.
+import { necesitaEquipo } from "../columns"
 import { useGetUsuario } from "@/features/usuarios/api/use-get-usuario"
 import { useGetUsuarioProyectos } from "@/features/usuarios/api/use-get-usuario-proyectos"
 import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-proyecto-usuario"
@@ -106,6 +110,8 @@ function UsuarioDetailContent({ id }: { id: string }) {
         </div>
       </div>
 
+      <AvisoSinEquipo usuario={usuario} />
+
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="flex gap-0">
@@ -131,6 +137,48 @@ function UsuarioDetailContent({ id }: { id: string }) {
         {tab === "datos"     && <TabDatos     usuario={usuario} />}
         {tab === "proyectos" && <TabProyectos usuarioId={id} />}
         {tab === "rol"       && <TabRol       usuarioId={id} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── Aviso: Admin sin equipo de administración ────────────────────────────────
+
+/**
+ * Un Admin sin equipo de administración no puede crear NINGUNA planilla: el backend
+ * rechaza el alta porque no hay dónde guardarla. Antes eso se descubría recién cuando
+ * el propio Admin intentaba crear una, con un error al final del formulario.
+ *
+ * Se muestra fuera de las tabs, al lado del email, porque es una condición del usuario
+ * y no de una sección: quien entra a su ficha para configurarlo tiene que verlo sin
+ * tener que adivinar en qué tab está.
+ *
+ * No aplica a AdminGlobal ni SuperAdmin: ellos trabajan sobre las planillas globales,
+ * que es su default, así que no tener equipo es lo normal y avisarlo sería ruido.
+ */
+function AvisoSinEquipo({
+  usuario,
+}: {
+  usuario: { equipos?: string[]; roles?: string[] }
+}) {
+  const equipos = usuario.equipos ?? []
+  if (equipos.length > 0 || !necesitaEquipo(usuario.roles)) return null
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+      <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+      <div className="min-w-0 space-y-1">
+        <p className="text-sm font-semibold text-amber-900">
+          No pertenece a ningún equipo de administradores
+        </p>
+        <p className="text-xs text-amber-800">
+          Con rol Admin y sin equipo asignado no puede crear planillas: el sistema no tiene
+          dónde guardarlas. Asignalo a un equipo desde{" "}
+          <Link href="/configuracion/equipos" className="font-medium underline">
+            Configuración → Equipos
+          </Link>
+          .
+        </p>
       </div>
     </div>
   )

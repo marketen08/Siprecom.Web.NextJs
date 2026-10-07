@@ -233,7 +233,10 @@ export const menu: MenuItem[] = [
           // acceso, y las globales las ve en lectura (de ahí clona). El backend acota qué
           // puede editar — ver Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md.
           { label: "Planillas",      href: "/configuracion/planillas",      minRole: "Admin" },
-          { label: "Equipos",        href: "/configuracion/equipos",        minRole: "AdminGlobal" },
+          // Equipos NO va acá: son equipos de administradores, no de planillas.
+          // Las planillas son su primer uso, pero el agrupamiento es de personas y
+          // va a servir para más catálogos. Vive en "Administración del sistema",
+          // al lado de Usuarios y Grupos de usuarios.
           { label: "Procedimientos", href: "/configuracion/procedimientos", minRole: "AdminGlobal" },
         ],
       },
@@ -256,6 +259,12 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Usuarios",          href: "/configuracion/usuarios", minRole: "Admin" },
       { label: "Grupos de usuarios", href: "/configuracion/grupos-usuarios", minRole: "Admin" },
+      // Equipos de administradores. Agrupa personas, igual que el ítem de arriba, de
+      // ahí que sean vecinos: Grupos de usuarios autoriza acciones operativas
+      // (pendientes) y Equipos acota qué catálogos administra cada uno. Su primer
+      // uso son las planillas (ver Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md),
+      // pero no es una configuración de planillas.
+      { label: "Equipos",           href: "/configuracion/equipos", minRole: "AdminGlobal" },
       // Control de cambios: Auditor y Supervisor+ (User NO — es rol de escritura
       // operativa, no de auditoría). Ambos son roles con capacidades distintas.
       {
