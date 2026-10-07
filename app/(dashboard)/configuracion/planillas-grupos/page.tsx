@@ -77,12 +77,12 @@ export default function PlanillasGruposPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Grupos de planillas</h1>
+          <h1 className="text-2xl font-semibold">Colecciones de planillas</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Agrupan planillas para segregar qué usan cada proyecto. Un proyecto
-            que declara grupos habilitados solo puede usar planillas de esos
-            grupos — más las planillas sin grupo, que quedan disponibles en todos
-            los proyectos.
+            Agrupan planillas para segregar qué usa cada proyecto. Un proyecto
+            que declara colecciones habilitadas solo puede usar planillas de esas
+            colecciones — más las planillas sin colección, que quedan disponibles
+            en todos los proyectos. Una planilla puede estar en varias.
           </p>
         </div>
         <Button
@@ -92,7 +92,7 @@ export default function PlanillasGruposPage() {
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
-          Nuevo grupo
+          Nueva colección
         </Button>
       </div>
 
@@ -115,7 +115,7 @@ export default function PlanillasGruposPage() {
             ) : items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                  No hay grupos de planillas cargados.
+                  No hay colecciones de planillas cargadas.
                 </TableCell>
               </TableRow>
             ) : (
@@ -141,7 +141,7 @@ export default function PlanillasGruposPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
-                      title="Gestionar planillas del grupo"
+                      title="Gestionar planillas de la colección"
                       onClick={() => { setError(null); setPlanillasSheetId(g.id) }}
                     >
                       <FileText className="h-4 w-4" />
@@ -164,7 +164,7 @@ export default function PlanillasGruposPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-red-600"
-                      title="Eliminar grupo"
+                      title="Eliminar colección"
                       onClick={() => { setError(null); setConfirmDelete({ id: g.id, nombre: g.nombre }) }}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -177,13 +177,13 @@ export default function PlanillasGruposPage() {
         </Table>
       </div>
 
-      <p className="text-sm text-muted-foreground">{items.length} grupos</p>
+      <p className="text-sm text-muted-foreground">{items.length} colecciones</p>
 
       {/* Sheet crear/editar */}
       <Sheet open={editSheet !== null} onOpenChange={(v) => !v && setEditSheet(null)}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>{editSheet?.mode === "new" ? "Nuevo grupo" : "Editar grupo"}</SheetTitle>
+            <SheetTitle>{editSheet?.mode === "new" ? "Nueva colección" : "Editar colección"}</SheetTitle>
             <SheetDescription>
               Las planillas se asignan desde el botón <FileText className="inline h-3.5 w-3.5 align-text-bottom" /> en la fila.
             </SheetDescription>
@@ -226,7 +226,7 @@ export default function PlanillasGruposPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Sheet planillas del grupo */}
+      {/* Sheet planillas de la colección */}
       <PlanillasSheet
         grupoId={planillasSheetId}
         onClose={() => setPlanillasSheetId(null)}
@@ -236,10 +236,10 @@ export default function PlanillasGruposPage() {
       <AlertDialog open={confirmDelete !== null} onOpenChange={(v) => { if (!v) { setConfirmDelete(null); setError(null) } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar grupo</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar colección</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Eliminar el grupo <strong>{confirmDelete?.nombre}</strong>? Se dan de baja
-              las asignaciones activas del grupo (soft-delete). Las planillas en sí no se tocan.
+              ¿Eliminar la colección <strong>{confirmDelete?.nombre}</strong>? Se dan de baja
+              las asignaciones activas de la colección (soft-delete). Las planillas en sí no se tocan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && (
@@ -263,7 +263,7 @@ export default function PlanillasGruposPage() {
   )
 }
 
-// ─── Sheet gestión de planillas del grupo ───────────────────────────────
+// ─── Sheet gestión de planillas de la colección ───────────────────────────────
 
 function PlanillasSheet({ grupoId, onClose }: { grupoId: string | null; onClose: () => void }) {
   const { data: detalle, isLoading } = useGetPlanillaGrupo(grupoId)
@@ -317,7 +317,7 @@ function PlanillasSheet({ grupoId, onClose }: { grupoId: string | null; onClose:
 
         <div className="mt-6 px-4 space-y-6">
           <div>
-            <h3 className="text-sm font-semibold mb-2">En el grupo</h3>
+            <h3 className="text-sm font-semibold mb-2">En la colección</h3>
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Cargando...</p>
             ) : planillas.length === 0 ? (
@@ -339,7 +339,7 @@ function PlanillasSheet({ grupoId, onClose }: { grupoId: string | null; onClose:
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 text-red-600"
-                      title="Quitar del grupo"
+                      title="Quitar de la colección"
                       disabled={quitar.isPending}
                       onClick={() => quitarPlanilla(p.planillaId)}
                     >

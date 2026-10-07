@@ -1,4 +1,4 @@
-/** Referencia mínima a un grupo de planillas — para mostrar chips en el listado. */
+/** Referencia mínima a una colección de planillas (PlanillaGrupo en el backend) — para los chips del listado. */
 export interface PlanillaGrupoSimple {
   id: string
   nombre: string

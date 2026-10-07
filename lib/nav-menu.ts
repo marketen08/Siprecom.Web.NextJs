@@ -220,14 +220,17 @@ export const menu: MenuItem[] = [
         ],
       },
       {
-        // Sub-grupo abierto a Admin+ para que "Grupos de planillas"
+        // Sub-grupo abierto a Admin+ para que "Colecciones de planillas"
         // (operativo, gestión de scope por proyecto) sea visible. Los otros
         // ítems catálogos siguen restringidos a AdminGlobal con minRole
         // explícito — Admin no los va a ver aunque abra el submenu.
         label: "Planillas y campos",
         minRole: "Admin",
         children: [
-          { label: "Grupos de planillas", href: "/configuracion/planillas-grupos", minRole: "Admin" },
+          // "Colecciones" y no "Grupos": ya hay grupos de usuarios y equipos de
+          // administradores, los dos de personas. La ruta y las entidades siguen
+          // diciendo PlanillaGrupo — el rename es sólo de la etiqueta.
+          { label: "Colecciones de planillas", href: "/configuracion/planillas-grupos", minRole: "Admin" },
           { label: "Campos",         href: "/configuracion/campos",         minRole: "AdminGlobal" },
           // Planillas se abre a Admin: administra las de los equipos a los que tiene
           // acceso, y las globales las ve en lectura (de ahí clona). El backend acota qué
@@ -390,6 +393,9 @@ export const segmentLabels: Record<string, string> = {
   elementos:     "Elementos",
   tareas:        "Tareas",
   planillas:     "Planillas",
+  // El segmento de la ruta sigue siendo planillas-grupos (las entidades se llaman
+  // PlanillaGrupo); en la UI el concepto se llama "colecciones".
+  "planillas-grupos": "Colecciones de planillas",
   equipos:       "Equipos",
   proyectos:     "Proyectos",
   proyecto:      "Proyecto",

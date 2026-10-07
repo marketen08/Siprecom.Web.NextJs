@@ -128,7 +128,7 @@ function RowActions({ planilla }: { planilla: Planilla }) {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Clonar planilla?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo "(copia)" en el nombre.
+              Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo “(copia)” en el nombre.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -201,7 +201,7 @@ export const columns: ColumnDef<Planilla>[] = [
   },
   {
     id: "grupos",
-    header: "Grupos",
+    header: "Colecciones",
     cell: ({ row }) => {
       const p = row.original
       const grupos = p.grupos ?? []
@@ -209,9 +209,9 @@ export const columns: ColumnDef<Planilla>[] = [
         return (
           <span
             className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500 italic"
-            title="Sin grupo — visible en todos los proyectos (comodín)."
+            title="Sin colección — visible en todos los proyectos (comodín)."
           >
-            Sin grupo
+            Sin colección
           </span>
         )
       }

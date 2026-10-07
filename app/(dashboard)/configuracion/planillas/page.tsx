@@ -162,14 +162,14 @@ export default function PlanillasPage() {
           </div>
         )}
 
-        {/* Filtro chips por grupo de planillas. Multi-select ESTRICTO: cada chip
+        {/* Filtro chips por colección de planillas (PlanillaGrupo en el código). Multi-select ESTRICTO: cada chip
             agrega su ID al filtro. El chip "Sin grupo" (token "__none__") pide
             explícitamente las planillas comodín (sin grupo). Sin nada seleccionado
             = sin filtro (muestra todas). Reemplazó al filtro por especialidad, que
             no aportaba valor al no usarse (todas caían en "Genérica"). */}
         {grupos.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap text-xs">
-            <span className="text-muted-foreground mr-1">Grupo:</span>
+            <span className="text-muted-foreground mr-1">Colección:</span>
             {grupos.map((g) => {
               const activo = gruposSel.has(g.id)
               return (
@@ -203,9 +203,9 @@ export default function PlanillasPage() {
                       ? { backgroundColor: "#f3f4f6", color: "#111827", borderColor: "#9ca3af" }
                       : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
                   }
-                  title="Planillas sin grupo asignado (comodín — visibles en todos los proyectos)"
+                  title="Planillas sin colección asignada (comodín — visibles en todos los proyectos)"
                 >
-                  Sin grupo
+                  Sin colección
                 </button>
               )
             })()}

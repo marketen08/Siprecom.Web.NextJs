@@ -8,7 +8,7 @@ interface Params {
   pageSize?: number
   nombre?: string
   /**
-   * Filtro multi-select por grupos de planillas. Backend semantics: incluye
+   * Filtro multi-select por colecciones de planillas (PlanillaGrupo en el backend). Backend semantics: incluye
    * planillas que están en al menos uno de los grupos listados. El token
    * especial "__none__" incluye planillas sin grupo (comodín).
    */

@@ -539,7 +539,7 @@ function EquipoDelProyectoCard({ proyecto }: { proyecto: Proyecto }) {
   )
 }
 
-// ─── Grupos de planillas habilitados en el proyecto ─────────────────────────
+// ─── Colecciones de planillas habilitadas en el proyecto ─────────────────────────
 
 function PlanillasGruposHabilitadosCard({ proyecto }: { proyecto: Proyecto }) {
   const { data: gruposRaw, isLoading: loadingGrupos } = useGetPlanillasGrupos()
@@ -566,19 +566,19 @@ function PlanillasGruposHabilitadosCard({ proyecto }: { proyecto: Proyecto }) {
   return (
     <div className="rounded-lg border bg-white p-4 space-y-2">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-medium text-gray-900">Grupos de planillas habilitados</p>
+        <p className="text-sm font-medium text-gray-900">Colecciones de planillas habilitadas</p>
         {(saving || loadingHabilitados) && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
       </div>
       <p className="text-xs text-muted-foreground">
         Al asignar planillas en las tareas del proyecto, solo se ofrecen las planillas
-        de estos grupos + las <strong>planillas sin grupo</strong> (comodín). Si no marcás
-        ningún grupo, solo se ofrecen las planillas sin grupo.
+        de estas colecciones + las <strong>planillas sin colección</strong> (comodín). Si no
+        marcás ninguna, solo se ofrecen las planillas sin colección.
       </p>
       {loadingGrupos ? (
-        <p className="text-xs text-muted-foreground">Cargando grupos...</p>
+        <p className="text-xs text-muted-foreground">Cargando colecciones...</p>
       ) : grupos.length === 0 ? (
         <p className="text-xs text-amber-700">
-          No hay grupos de planillas cargados. Creá uno en Configuración → Grupos de planillas.
+          No hay colecciones de planillas cargadas. Creá una en Configuración → Colecciones de planillas.
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5 pt-1">

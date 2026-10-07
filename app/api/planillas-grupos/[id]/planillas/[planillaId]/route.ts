@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
-// DELETE /api/planillas-grupos/[id]/planillas/[planillaId] — quita la planilla del grupo.
+// DELETE /api/planillas-grupos/[id]/planillas/[planillaId] — quita la planilla de la colección.
 export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string; planillaId: string }> },

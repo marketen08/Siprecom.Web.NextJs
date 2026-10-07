@@ -22,7 +22,7 @@ export interface Proyecto {
   observaciones: string
   /**
    * Equipo de administración del que el proyecto toma su catálogo de planillas (las de ese
-   * equipo + las globales). Null = sin equipo: manda la configuración de grupos de planillas.
+   * equipo + las globales). Null = sin equipo: manda la configuración de colecciones de planillas.
    * No tiene relación con quién administra el proyecto, que es la asignación de usuarios.
    */
   equipoId?: string | null
