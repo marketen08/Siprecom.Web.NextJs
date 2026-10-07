@@ -127,8 +127,9 @@ export function UserMenu() {
           </>
         )}
 
-        {/* Rol. Va antes del equipo porque es el dato más general: el rol dice qué puede
-            hacer en toda la plataforma, y el equipo sólo qué catálogo administra. */}
+        <EquipoDelPerfil />
+
+        {/* Rol, último de los tres datos del perfil (empresa, equipo, rol). */}
         {rolEtiqueta && (
           <>
             <DropdownMenuSeparator className="my-0" />
@@ -145,8 +146,6 @@ export function UserMenu() {
             </div>
           </>
         )}
-
-        <EquipoDelPerfil />
 
         <DropdownMenuSeparator className="my-0" />
 
