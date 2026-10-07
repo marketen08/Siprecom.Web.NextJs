@@ -11,6 +11,10 @@ import { useUpdateTablaColumna } from "@/features/campos/api/use-update-tabla-co
 import { useCreateTablaFila } from "@/features/campos/api/use-create-tabla-fila"
 import { useDeleteTablaFila } from "@/features/campos/api/use-delete-tabla-fila"
 import { useReorderTablaFilas } from "@/features/campos/api/use-reorder-tabla-filas"
+import {
+  ErrorEscrituraCampo,
+  primerErrorDeMutaciones,
+} from "@/features/campos/components/error-escritura-campo"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,6 +51,14 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   const createFila = useCreateTablaFila()
   const deleteFila = useDeleteTablaFila()
   const reorderFilas = useReorderTablaFilas()
+
+  // Columnas y filas cuelgan del Campo global, así que un campo compartido con una
+  // planilla de otro equipo rechaza estas escrituras con 403. Sin el cartel, la
+  // columna "se agregaba" en pantalla y desaparecía al refrescar.
+  const errorEscritura = primerErrorDeMutaciones(
+    createColumna, updateColumna, deleteColumna, reorderColumnas,
+    createFila, deleteFila, reorderFilas,
+  )
 
   const handleAddColumna = () => {
     if (!newColumna.trim()) return
@@ -159,6 +171,8 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   return (
     <div className="space-y-3 rounded-md border border-indigo-100 bg-indigo-50/40 p-3">
       <Label className="text-xs font-semibold text-indigo-900">Definición de la tabla</Label>
+
+      <ErrorEscrituraCampo error={errorEscritura} />
 
       {/* Columnas */}
       <div>

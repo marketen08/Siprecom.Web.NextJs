@@ -7,7 +7,10 @@ import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode, Planill
 import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_LISTA_RENDER_MODE_OPCIONES, CAMPO_TAMANO_OPCIONES, ALINEACION_TEXTO_LABEL } from "@/features/planillas/types"
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
-import { useUpdateCampoGlobal } from "@/features/campos/api/use-update-campo"
+import {
+  ErrorEscrituraCampo,
+  primerErrorDeMutaciones,
+} from "@/features/campos/components/error-escritura-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useReorderOpciones } from "@/features/campos/api/use-reorder-opciones"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
@@ -79,110 +82,32 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     isImagen || isTabla || isLabel || isEspacio || isCroquis || isNota || isLeyenda
   const tablaEsMatriz = (campo.filas?.length ?? 0) > 0
 
-  const updateCampoGlobal = useUpdateCampoGlobal()
+  // Se disparan con `.mutate()` sin await (un toggle, un input que pierde el foco), así
+  // que el rechazo no lo miraba nadie. El caso que importa es el 403 de
+  // ValidarEdicionCatalogoFilter cuando el campo lo usa una planilla de otro equipo: el
+  // control quedaba mostrando el valor nuevo como si hubiera guardado. Las opciones de
+  // lista siguen viviendo en el Campo global, así que el caso sigue vivo ahí.
+  const errorEscritura = primerErrorDeMutaciones(
+    updateMutation,
+    removeMutation,
+    createOpcionMutation,
+    deleteOpcionMutation,
+    reorderOpcionesMutation,
+  )
 
-  // Sincroniza el input local cuando el valor del campo global cambia (ej. tras
-  // guardar o cuando otra planilla abrió/cambió el campo).
+  // Sincroniza el input local con el valor efectivo (override de esta planilla, o el
+  // del catálogo) cuando cambia del lado del server.
   useEffect(() => {
     setEtiquetaAltInput(campo.campoEtiquetaAlt ?? "")
   }, [campo.campoEtiquetaAlt])
 
-  const saveEtiquetaAlt = (nuevo: string) => {
-    const valor = nuevo.trim()
-    if (valor === (campo.campoEtiquetaAlt ?? "")) return
-    updateCampoGlobal.mutate({
-      id: campo.campoId,
-      codigo: campo.campoCodigo ?? "",
-      etiqueta: campo.campoEtiqueta ?? "",
-      etiquetaAlt: valor || undefined,
-      tipoDato: campo.campoTipoDato,
-      unidad: campo.campoUnidad,
-      // Preserva el estilo de Label global si es Label; para otros tipos son ignorados.
-      negrita: campo.campoNegrita ?? false,
-      conBorde: campo.campoConBorde ?? false,
-      fondoGris: campo.campoFondoGris ?? false,
-      alineacion: campo.campoAlineacion ?? 0,
-      sinPadding: campo.campoSinPadding ?? false,
-      sinMargen: campo.campoSinMargen ?? false,
-      numeroLineas: campo.campoNumeroLineas ?? 3,
-      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
-      altoMm: campo.campoAltoMm ?? 20,
-      textoLargo: campo.campoTextoLargo ?? undefined,
-    })
-  }
-
-  // Update de NumeroLineas (Campo global, solo TextoArea). Rango 1-20, default 3.
-  const saveNumeroLineas = (valor: number) => {
-    const clamped = Math.min(20, Math.max(1, Math.floor(valor)))
-    if (clamped === (campo.campoNumeroLineas ?? 3)) return
-    updateCampoGlobal.mutate({
-      id: campo.campoId,
-      codigo: campo.campoCodigo ?? "",
-      etiqueta: campo.campoEtiqueta ?? "",
-      etiquetaAlt: campo.campoEtiquetaAlt || undefined,
-      tipoDato: campo.campoTipoDato,
-      unidad: campo.campoUnidad,
-      negrita: campo.campoNegrita ?? false,
-      conBorde: campo.campoConBorde ?? false,
-      fondoGris: campo.campoFondoGris ?? false,
-      alineacion: campo.campoAlineacion ?? 0,
-      sinPadding: campo.campoSinPadding ?? false,
-      sinMargen: campo.campoSinMargen ?? false,
-      numeroLineas: clamped,
-      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
-      altoMm: campo.campoAltoMm ?? 20,
-      textoLargo: campo.campoTextoLargo ?? undefined,
-    })
-  }
-  // Update del AltoMm (Campo global, solo Espacio). Rango 5-200, default 20.
-  const saveAltoMm = (valor: number) => {
-    const clamped = Math.min(200, Math.max(5, Math.floor(valor)))
-    if (clamped === (campo.campoAltoMm ?? 20)) return
-    updateCampoGlobal.mutate({
-      id: campo.campoId,
-      codigo: campo.campoCodigo ?? "",
-      etiqueta: campo.campoEtiqueta ?? "",
-      etiquetaAlt: campo.campoEtiquetaAlt || undefined,
-      tipoDato: campo.campoTipoDato,
-      unidad: campo.campoUnidad,
-      negrita: campo.campoNegrita ?? false,
-      conBorde: campo.campoConBorde ?? false,
-      fondoGris: campo.campoFondoGris ?? false,
-      alineacion: campo.campoAlineacion ?? 0,
-      sinPadding: campo.campoSinPadding ?? false,
-      sinMargen: campo.campoSinMargen ?? false,
-      numeroLineas: campo.campoNumeroLineas ?? 3,
-      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
-      altoMm: clamped,
-      textoLargo: campo.campoTextoLargo ?? undefined,
-    })
-  }
-
-  // El estilo del Label vive en el Campo global → update global (afecta todas las
-  // planillas que usen este campo). Otros campos del Campo no aplican a un Label.
-  const updateLabelStyle = (overrides: Partial<{ negrita: boolean; conBorde: boolean; fondoGris: boolean; alineacion: AlineacionTexto; sinPadding: boolean; sinMargen: boolean }>) => {
-    updateCampoGlobal.mutate({
-      id: campo.campoId,
-      codigo: campo.campoCodigo ?? "",
-      etiqueta: campo.campoEtiqueta ?? "",
-      etiquetaAlt: campo.campoEtiquetaAlt || undefined,
-      tipoDato: campo.campoTipoDato,
-      unidad: campo.campoUnidad,
-      negrita: campo.campoNegrita ?? false,
-      conBorde: campo.campoConBorde ?? false,
-      fondoGris: campo.campoFondoGris ?? false,
-      alineacion: campo.campoAlineacion ?? 0,
-      sinPadding: campo.campoSinPadding ?? false,
-      sinMargen: campo.campoSinMargen ?? false,
-      numeroLineas: campo.campoNumeroLineas ?? 3,
-      mostrarComoMarca: campo.campoMostrarComoMarca ?? false,
-      altoMm: campo.campoAltoMm ?? 20,
-      textoLargo: campo.campoTextoLargo ?? undefined,
-      ...overrides,
-    })
-  }
 
   // Construye el payload de update reusando todos los valores actuales del campo, con overrides.
+  //
+  // Reenvía SIEMPRE los nueve overrides de presentación con el valor crudo que ya tenía
+  // la fila (`*Override`), no con el efectivo: el PUT reemplaza la fila entera, así que
+  // mandar el efectivo convertiría cada herencia en un override copiado, y un cambio
+  // posterior en el catálogo dejaría de llegar a esta planilla.
   const buildUpdatePayload = (overrides: Partial<{
     esObligatorio: boolean
     visible: boolean
@@ -195,6 +120,15 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     numeroFilas?: number | null
     etiquetaArriba?: boolean
     alineacionEtiqueta?: AlineacionTexto
+    etiquetaAlt?: string | null
+    numeroLineas?: number | null
+    altoMm?: number | null
+    negrita?: boolean | null
+    conBorde?: boolean | null
+    fondoGris?: boolean | null
+    alineacionLabel?: AlineacionTexto | null
+    sinPadding?: boolean | null
+    sinMargen?: boolean | null
   }> = {}) => ({
     id: campo.id,
     planillaId,
@@ -210,8 +144,74 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     numeroFilas: campo.numeroFilas ?? null,
     etiquetaArriba: campo.etiquetaArriba ?? false,
     alineacionEtiqueta: campo.alineacionEtiqueta ?? 0,
+    etiquetaAlt: campo.etiquetaAltOverride ?? null,
+    numeroLineas: campo.numeroLineasOverride ?? null,
+    altoMm: campo.altoMmOverride ?? null,
+    negrita: campo.negritaOverride ?? null,
+    conBorde: campo.conBordeOverride ?? null,
+    fondoGris: campo.fondoGrisOverride ?? null,
+    alineacionLabel: campo.alineacionLabelOverride ?? null,
+    sinPadding: campo.sinPaddingOverride ?? null,
+    sinMargen: campo.sinMargenOverride ?? null,
     ...overrides,
   })
+
+  // ─── Presentación: se guarda en la ASOCIACIÓN, no en el Campo global ─────────
+  //
+  // Antes esto escribía el Campo del catálogo, y traía dos problemas juntos. Uno de
+  // permisos: si el campo lo usa una planilla de otro equipo el backend rechaza con
+  // 403, así que un Admin no podía ajustar el formato de su propia planilla. Y uno de
+  // alcance: cuando sí pasaba, el cambio le reformateaba la planilla a todos los que
+  // compartían el campo — y compartir es la norma, porque el modal de alta reusa
+  // campos del catálogo cuando la etiqueta coincide.
+  //
+  // El valor del catálogo sigue siendo el default y lo edita un AdminGlobal desde
+  // Configuración → Campos; manda en cada planilla que no haya puesto su override.
+
+  const saveEtiquetaAlt = (nuevo: string) => {
+    const valor = nuevo.trim()
+    if (valor === (campo.campoEtiquetaAlt ?? "")) return
+    // Vacío se manda como "" y no como null: null es "heredar", y acá el usuario está
+    // pidiendo que en ESTA planilla no vaya la etiqueta alternativa.
+    updateMutation.mutate(buildUpdatePayload({ etiquetaAlt: valor }))
+  }
+
+  // Líneas de un TextoArea. Rango 1-20, default 3.
+  const saveNumeroLineas = (valor: number) => {
+    const clamped = Math.min(20, Math.max(1, Math.floor(valor)))
+    if (clamped === (campo.campoNumeroLineas ?? 3)) return
+    updateMutation.mutate(buildUpdatePayload({ numeroLineas: clamped }))
+  }
+
+  // Alto en mm de un Espacio. Rango 5-200, default 20.
+  const saveAltoMm = (valor: number) => {
+    const clamped = Math.min(200, Math.max(5, Math.floor(valor)))
+    if (clamped === (campo.campoAltoMm ?? 20)) return
+    updateMutation.mutate(buildUpdatePayload({ altoMm: clamped }))
+  }
+
+  // Estilo del Label. Se persiste el valor efectivo de los flags que NO se tocaron
+  // junto con el que sí: al pisar uno, la planilla pasa a tener su propio estilo
+  // completo, y así no queda mitad heredado y mitad propio —que es imposible de
+  // explicar cuando después cambia el catálogo.
+  const updateLabelStyle = (overrides: Partial<{
+    negrita: boolean
+    conBorde: boolean
+    fondoGris: boolean
+    alineacionLabel: AlineacionTexto
+    sinPadding: boolean
+    sinMargen: boolean
+  }>) => {
+    updateMutation.mutate(buildUpdatePayload({
+      negrita: campo.campoNegrita ?? false,
+      conBorde: campo.campoConBorde ?? false,
+      fondoGris: campo.campoFondoGris ?? false,
+      alineacionLabel: campo.campoAlineacion ?? 0,
+      sinPadding: campo.campoSinPadding ?? false,
+      sinMargen: campo.campoSinMargen ?? false,
+      ...overrides,
+    }))
+  }
 
   const handleToggle = (field: "esObligatorio" | "visible" | "soloLectura", value: boolean) => {
     updateMutation.mutate(buildUpdatePayload({ [field]: value }))
@@ -231,9 +231,14 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
 
   // Swap del orden con un vecino (previousCampo o nextCampo).
   // Como el index en DB no es UNIQUE, podemos hacer 2 updates seguidos sin colisión.
+  //
+  // El try/catch no es decorativo: si el primer update falla, sin él la promesa
+  // rechazada sale de handleMoveUp/Down, que la llama sin await → unhandled rejection.
+  // El mensaje lo muestra el cartel de arriba, que lee `updateMutation.error`.
   const swapOrden = async (otro: PlanillaCampoDetalle) => {
     const ordenActual = campo.orden
     const ordenOtro = otro.orden
+    try {
     await updateMutation.mutateAsync(buildUpdatePayload({ orden: ordenOtro }))
     await updateMutation.mutateAsync({
       id: otro.id,
@@ -251,6 +256,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       etiquetaArriba: otro.etiquetaArriba ?? false,
       alineacionEtiqueta: otro.alineacionEtiqueta ?? 0,
     })
+    } catch { /* el cartel de error ya lo muestra */ }
   }
 
   const handleMoveUp = () => { if (previousCampo) swapOrden(previousCampo) }
@@ -310,6 +316,12 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       "border rounded-lg bg-white transition-shadow",
       expanded ? "shadow-sm" : ""
     )}>
+      {errorEscritura && (
+        <div className="px-3 pt-2.5">
+          <ErrorEscrituraCampo error={errorEscritura} />
+        </div>
+      )}
+
       {/* Header row */}
       <div className="flex items-center gap-2 px-3 py-2.5">
         <div className="flex-1 min-w-0">
@@ -560,7 +572,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                 placeholder="Oil temperature"
                 className="mt-1 h-7 text-sm"
                 maxLength={200}
-                disabled={updateCampoGlobal.isPending}
+                disabled={updateMutation.isPending}
               />
               <p className="text-[10px] text-muted-foreground mt-1">
                 Opcional. Se muestra debajo del label en itálica en el PDF.
@@ -583,7 +595,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                 min={1}
                 max={20}
                 className="mt-1 h-7 text-sm w-24"
-                disabled={updateCampoGlobal.isPending}
+                disabled={updateMutation.isPending}
                 onCommit={saveNumeroLineas}
               />
               <p className="text-[10px] text-muted-foreground mt-1">
@@ -893,7 +905,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                     min={5}
                     max={200}
                     className="h-8 w-20 text-sm"
-                    disabled={updateCampoGlobal.isPending}
+                    disabled={updateMutation.isPending}
                     onCommit={saveAltoMm}
                   />
                 </div>
@@ -901,21 +913,21 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoConBorde ?? false}
                     onChange={(e) => updateLabelStyle({ conBorde: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   {isCroquis ? "Recuadro alrededor del dibujo" : "Recuadro (para dibujar)"}
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoFondoGris ?? false}
                     onChange={(e) => updateLabelStyle({ fondoGris: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   Fondo gris
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoSinMargen ?? false}
                     onChange={(e) => updateLabelStyle({ sinMargen: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   Sin margen
                 </label>
               </div>
@@ -935,35 +947,35 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoNegrita ?? false}
                     onChange={(e) => updateLabelStyle({ negrita: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   Negrita
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoConBorde ?? false}
                     onChange={(e) => updateLabelStyle({ conBorde: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   Borde
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoFondoGris ?? false}
                     onChange={(e) => updateLabelStyle({ fondoGris: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   Fondo gris
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoSinPadding ?? false}
                     onChange={(e) => updateLabelStyle({ sinPadding: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   Sin padding
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
                     checked={campo.campoSinMargen ?? false}
                     onChange={(e) => updateLabelStyle({ sinMargen: e.target.checked })}
-                    disabled={updateCampoGlobal.isPending} />
+                    disabled={updateMutation.isPending} />
                   Sin margen
                 </label>
               </div>
@@ -972,8 +984,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                 <select
                   className="h-8 rounded-md border border-input bg-white px-2 text-sm"
                   value={campo.campoAlineacion ?? 0}
-                  onChange={(e) => updateLabelStyle({ alineacion: Number(e.target.value) as AlineacionTexto })}
-                  disabled={updateCampoGlobal.isPending}
+                  onChange={(e) => updateLabelStyle({ alineacionLabel: Number(e.target.value) as AlineacionTexto })}
+                  disabled={updateMutation.isPending}
                 >
                   {Object.entries(ALINEACION_TEXTO_LABEL).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>

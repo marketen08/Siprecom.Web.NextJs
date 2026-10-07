@@ -245,16 +245,20 @@ export interface PlanillaCampoDetalle {
   columnas?: CampoTablaColumna[]
   /** Filas predefinidas (solo Tabla matriz). Vacío si es dinámica o no es Tabla. */
   filas?: CampoTablaFila[]
-  /** Estilo de Label (vive en el Campo global). Solo si campoTipoDato === 10. */
+  /**
+   * Estilo de Label YA RESUELTO: el override de esta planilla si lo hay, y si no el
+   * default del catálogo. El prefijo `campo` quedó de cuando el valor venía siempre del
+   * Campo global. Solo si campoTipoDato === 10.
+   */
   campoNegrita?: boolean
   campoConBorde?: boolean
   campoFondoGris?: boolean
   campoAlineacion?: AlineacionTexto
   campoSinPadding?: boolean
   campoSinMargen?: boolean
-  /** Filas del área de texto (vive en el Campo global). Solo si campoTipoDato === 12 (TextoArea). Default 3. */
+  /** Filas efectivas del área de texto. Solo si campoTipoDato === 12 (TextoArea). Default 3. */
   campoNumeroLineas?: number
-  /** Alto en mm (Campo global). Solo si campoTipoDato === 13 (Espacio). Default 20. */
+  /** Alto efectivo en mm. Solo si campoTipoDato === 13 (Espacio). Default 20. */
   campoAltoMm?: number
   /** Texto fijo multilínea (Campo global). Solo si campoTipoDato === 15 (Nota). */
   campoTextoLargo?: string | null
@@ -263,6 +267,23 @@ export interface PlanillaCampoDetalle {
    * en vez de Sí/No. Vive en el Campo global. El valor persistido sigue siendo booleano.
    */
   campoMostrarComoMarca?: boolean
+
+  /**
+   * Overrides crudos de esta planilla: null/undefined = heredado del catálogo.
+   *
+   * Van además de los `campo*` resueltos de arriba porque contestan otra pregunta: no
+   * qué dibujar, sino si el valor está pisado acá. Es lo que deja marcar "formato
+   * propio en esta planilla" y ofrecer volver a heredar.
+   */
+  etiquetaAltOverride?: string | null
+  numeroLineasOverride?: number | null
+  altoMmOverride?: number | null
+  negritaOverride?: boolean | null
+  conBordeOverride?: boolean | null
+  fondoGrisOverride?: boolean | null
+  alineacionLabelOverride?: AlineacionTexto | null
+  sinPaddingOverride?: boolean | null
+  sinMargenOverride?: boolean | null
 }
 
 export interface PlanillaEstructura {
@@ -340,6 +361,24 @@ export interface PlanillaCampoCreateInput {
   etiquetaArriba?: boolean
   /** Alineación de la etiqueta (0=Izq, 1=Centro, 2=Der). Default 0. */
   alineacionEtiqueta?: AlineacionTexto
+
+  /**
+   * Overrides de presentación de ESTA planilla. null = heredar del Campo del catálogo.
+   *
+   * El PUT reemplaza la fila entera, así que todo update tiene que reenviarlos — si no,
+   * el que no se manda vuelve a null y la planilla pierde su formato propio. De eso se
+   * encarga `buildUpdatePayload` en campo-card.
+   */
+  etiquetaAlt?: string | null
+  numeroLineas?: number | null
+  altoMm?: number | null
+  negrita?: boolean | null
+  conBorde?: boolean | null
+  fondoGris?: boolean | null
+  /** Alineación del texto de un Label — distinta de `alineacionEtiqueta`. */
+  alineacionLabel?: AlineacionTexto | null
+  sinPadding?: boolean | null
+  sinMargen?: boolean | null
 }
 
 export interface PlanillaCampoUpdateInput {
@@ -360,4 +399,22 @@ export interface PlanillaCampoUpdateInput {
   etiquetaArriba?: boolean
   /** Alineación de la etiqueta (0=Izq, 1=Centro, 2=Der). Default 0. */
   alineacionEtiqueta?: AlineacionTexto
+
+  /**
+   * Overrides de presentación de ESTA planilla. null = heredar del Campo del catálogo.
+   *
+   * El PUT reemplaza la fila entera, así que todo update tiene que reenviarlos — si no,
+   * el que no se manda vuelve a null y la planilla pierde su formato propio. De eso se
+   * encarga `buildUpdatePayload` en campo-card.
+   */
+  etiquetaAlt?: string | null
+  numeroLineas?: number | null
+  altoMm?: number | null
+  negrita?: boolean | null
+  conBorde?: boolean | null
+  fondoGris?: boolean | null
+  /** Alineación del texto de un Label — distinta de `alineacionEtiqueta`. */
+  alineacionLabel?: AlineacionTexto | null
+  sinPadding?: boolean | null
+  sinMargen?: boolean | null
 }

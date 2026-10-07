@@ -14,6 +14,7 @@ import { useCreateOpcion } from "../api/use-create-opcion"
 import { useDeleteOpcion } from "../api/use-delete-opcion"
 import { useReorderOpciones } from "../api/use-reorder-opciones"
 import { useToggleOpcionDefault } from "../api/use-toggle-opcion-default"
+import { ErrorEscrituraCampo, primerErrorDeMutaciones } from "./error-escritura-campo"
 import { CHECKLIST_PRESETS } from "../lib/checklist-presets"
 import { BulkPasteOpcionesDialog } from "./bulk-paste-opciones-dialog"
 import type { CampoOpcion } from "@/features/planillas/types"
@@ -41,6 +42,12 @@ export function CampoOpcionesEditor({ campoId, mostrarPresets = false }: CampoOp
   const deleteOpcion = useDeleteOpcion()
   const reorderOpciones = useReorderOpciones()
   const toggleDefault = useToggleOpcionDefault()
+
+  // Las opciones cuelgan del Campo global: si el campo lo usa una planilla de otro
+  // equipo, el backend rechaza con 403 y antes no se veía nada.
+  const errorEscritura = primerErrorDeMutaciones(
+    createOpcion, deleteOpcion, reorderOpciones, toggleDefault,
+  )
 
   const [valor, setValor] = useState("")
   const [etiqueta, setEtiqueta] = useState("")
@@ -114,6 +121,7 @@ export function CampoOpcionesEditor({ campoId, mostrarPresets = false }: CampoOp
 
   return (
     <div className="mt-6 rounded-md border bg-blue-50/40 p-3 space-y-2">
+      <ErrorEscrituraCampo error={errorEscritura} />
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
