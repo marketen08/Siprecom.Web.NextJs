@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
-import type { Equipo, EquipoDetalle, EquipoInput, MisEquipos } from "../types"
+import type { Equipo, EquipoDetalle, EquipoInput, EquipoOpcion, MisEquipos } from "../types"
 
 const QK = ["equipos"] as const
 const QK_MIOS = ["equipos", "mios"] as const
@@ -84,7 +84,57 @@ export function useQuitarMiembroEquipo(equipoId: string | null) {
       qc.invalidateQueries({ queryKey: QK })
       qc.invalidateQueries({ queryKey: QK_MIOS })
       qc.invalidateQueries({ queryKey: ["planillas"] })
+      qc.invalidateQueries({ queryKey: ["usuarios"] })
     },
+  })
+}
+
+// ─── Desde la ficha del usuario ──────────────────────────────────────────────
+//
+// Las dos de arriba fijan el equipo en el hook porque la pantalla de Equipos trabaja
+// sobre uno. Desde la ficha de un usuario es al revés —el usuario es fijo y el equipo
+// cambia por fila— así que estas reciben el equipo en la mutación.
+
+/** Equipos a los que pertenece ESE usuario. */
+export function useGetEquiposDeUsuario(usuarioId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...QK, "de-usuario", usuarioId],
+    queryFn: () => apiClient.get<ApiResponse<EquipoOpcion[]>>(`/api/equipos/usuario/${usuarioId}`),
+    enabled: !!usuarioId && enabled,
+    staleTime: 1000 * 60,
+  })
+}
+
+function useInvalidarEquiposDeUsuario(usuarioId: string | null) {
+  const qc = useQueryClient()
+  return () => {
+    qc.invalidateQueries({ queryKey: [...QK, "de-usuario", usuarioId] })
+    qc.invalidateQueries({ queryKey: QK })
+    // Su propio contexto de trabajo y el catálogo que ve pueden haber cambiado.
+    qc.invalidateQueries({ queryKey: QK_MIOS })
+    qc.invalidateQueries({ queryKey: ["planillas"] })
+    // La columna "Equipo" del listado y el aviso de la ficha salen del payload de usuarios.
+    qc.invalidateQueries({ queryKey: ["usuarios"] })
+  }
+}
+
+export function useAgregarUsuarioAEquipo(usuarioId: string) {
+  const invalidar = useInvalidarEquiposDeUsuario(usuarioId)
+  return useMutation({
+    mutationFn: (equipoId: string) =>
+      apiClient.post<ApiResponse<EquipoDetalle>>(`/api/equipos/${equipoId}/miembros`, {
+        usuarioIds: [usuarioId],
+      }),
+    onSuccess: invalidar,
+  })
+}
+
+export function useQuitarUsuarioDeEquipo(usuarioId: string) {
+  const invalidar = useInvalidarEquiposDeUsuario(usuarioId)
+  return useMutation({
+    mutationFn: (equipoId: string) =>
+      apiClient.delete<ApiResponse<EquipoDetalle>>(`/api/equipos/${equipoId}/miembros/${usuarioId}`),
+    onSuccess: invalidar,
   })
 }
 

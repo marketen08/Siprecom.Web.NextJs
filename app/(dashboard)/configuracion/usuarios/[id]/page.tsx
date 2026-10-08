@@ -5,6 +5,7 @@ import {
   Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
   UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight, Link as LinkIcon, Copy, Building2,
+  Users, Plus,
 } from "lucide-react"
 import { useEffect } from "react"
 import Link from "next/link"
@@ -18,7 +19,13 @@ import { useGetUsuarioProyectos } from "@/features/usuarios/api/use-get-usuario-
 import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-proyecto-usuario"
 import { useBulkAssignProyectosUsuario, useBulkUnassignProyectosUsuario } from "@/features/usuarios/api/use-bulk-proyectos-usuario"
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
-import { useGetEquipos, useAgregarMiembrosEquipo } from "@/features/equipos/api/use-equipos"
+import {
+  useGetEquipos,
+  useAgregarMiembrosEquipo,
+  useGetEquiposDeUsuario,
+  useAgregarUsuarioAEquipo,
+  useQuitarUsuarioDeEquipo,
+} from "@/features/equipos/api/use-equipos"
 import {
   FUNCIONALIDAD,
   useFuncionalidadPlataforma,
@@ -26,7 +33,7 @@ import {
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useRoles, useMeetsRole } from "@/lib/use-roles"
-import { puedeAsignarRol, puedeEditarRolesDe } from "@/lib/roles"
+import { meetsRole, puedeAsignarRol, puedeEditarRolesDe } from "@/lib/roles"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
 import { useGetPasswordLink } from "@/features/usuarios/api/use-get-password-link"
@@ -55,11 +62,14 @@ import {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "datos" | "proyectos" | "rol"
+type Tab = "datos" | "proyectos" | "equipos" | "rol"
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "datos",     label: "Datos generales", icon: <User      className="h-4 w-4" /> },
   { id: "proyectos", label: "Proyectos",        icon: <Briefcase className="h-4 w-4" /> },
+  // El tab de equipos solo aplica a Admin+: para los demás roles el equipo no habilita
+  // nada, así que se arma la lista según el rol del usuario de la ficha (ver abajo).
+  { id: "equipos",   label: "Equipos",          icon: <Users     className="h-4 w-4" /> },
   { id: "rol",       label: "Rol",              icon: <Shield    className="h-4 w-4" /> },
 ]
 
@@ -75,6 +85,13 @@ function UsuarioDetailContent({ id }: { id: string }) {
   const { data: result, isLoading } = useGetUsuario(id)
   const usuario = (result as any)?.data?.[0] ?? null
   const fullName = [usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ")
+
+  // Los equipos de administración solo aplican de Admin para arriba: es lo que decide qué
+  // planillas administra. Para un User o un Supervisor el tab no diría nada, y además la
+  // estructura de equipos puede estar apagada en la plataforma.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const mostrarEquipos = hayEquipos && meetsRole(usuario?.roles, "Admin")
+  const tabs = mostrarEquipos ? TABS : TABS.filter((t) => t.id !== "equipos")
 
   // Breadcrumb dinámico: Configuración → Usuarios (link) → {nombre del usuario}
   useBreadcrumb(
@@ -120,7 +137,7 @@ function UsuarioDetailContent({ id }: { id: string }) {
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="flex gap-0">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -141,6 +158,9 @@ function UsuarioDetailContent({ id }: { id: string }) {
       <div>
         {tab === "datos"     && <TabDatos     usuario={usuario} />}
         {tab === "proyectos" && <TabProyectos usuarioId={id} />}
+        {tab === "equipos" && mostrarEquipos && (
+          <TabEquipos usuarioId={id} roles={usuario.roles} />
+        )}
         {tab === "rol"       && <TabRol       usuarioId={id} />}
       </div>
     </div>
@@ -919,6 +939,187 @@ function EstadoUsuarioSection({ usuario }: { usuario: any }) {
       )}
       </CardContent>
     </Card>
+  )
+}
+
+// ─── Tab Equipos ──────────────────────────────────────────────────────────────
+
+/**
+ * Equipos de administración del usuario: a qué catálogos de planillas tiene acceso.
+ *
+ * Mismo transfer que el tab de proyectos —disponibles a la izquierda, asignados a la
+ * derecha— pero sin la barra de filtros: los equipos son un puñado, no cientos, así que
+ * filtrar sería ceremonia sin uso.
+ *
+ * Puede pertenecer a varios. Lo normal es uno; dos existe para el caso real de alguien que
+ * cubre dos equipos (una suplencia, una consultora con dos clientes) sin tener que darle
+ * AdminGlobal. El equipo ACTIVO —cuál usa por defecto— lo elige la persona desde el menú de
+ * su perfil, no se decide acá.
+ *
+ * Quien opera tiene que ser AdminGlobal: dar acceso a un equipo es lo único que acota el
+ * modelo, y el backend lo exige. Un Admin ve la lista en lectura.
+ */
+function TabEquipos({ usuarioId, roles }: { usuarioId: string; roles?: string[] }) {
+  const puedeAsignar = useMeetsRole("AdminGlobal")
+
+  const { data: asignadosResp, isLoading: cargandoAsignados } = useGetEquiposDeUsuario(usuarioId)
+  const { data: todosResp, isLoading: cargandoTodos } = useGetEquipos(puedeAsignar)
+  const agregar = useAgregarUsuarioAEquipo(usuarioId)
+  const quitar = useQuitarUsuarioDeEquipo(usuarioId)
+  const [error, setError] = useState<string | null>(null)
+
+  // Memoizado porque alimenta el useMemo de abajo: recrear el array en cada render lo
+  // invalidaría siempre.
+  const asignados = useMemo(() => asignadosResp?.data ?? [], [asignadosResp])
+  const asignadosIds = useMemo(() => new Set(asignados.map((e) => e.id)), [asignados])
+  const disponibles = (todosResp?.data ?? []).filter((e) => !asignadosIds.has(e.id))
+
+  // AdminGlobal y SuperAdmin administran todo el catálogo sin pertenecer a ningún equipo.
+  // Se puede asignarlos igual —no molesta— pero decirlo evita que alguien ande buscando por
+  // qué "no tiene equipo" alguien que no lo necesita.
+  const bypasea = meetsRole(roles, "AdminGlobal")
+
+  async function agregarA(equipoId: string) {
+    setError(null)
+    try { await agregar.mutateAsync(equipoId) } catch (e) { setError((e as Error).message) }
+  }
+
+  async function quitarDe(equipoId: string) {
+    setError(null)
+    try { await quitar.mutateAsync(equipoId) } catch (e) { setError((e as Error).message) }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="max-w-3xl text-sm text-muted-foreground">
+        Los equipos de administración definen <span className="font-medium">qué planillas
+        administra</span> este usuario: las de sus equipos, más las globales en lectura. Puede
+        pertenecer a más de uno. Cuál usa por defecto lo elige él desde el menú de su perfil.
+      </p>
+
+      {bypasea && (
+        <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          Con rol AdminGlobal ya administra todas las planillas, de cualquier equipo, así que
+          no necesita que le asignes ninguno.
+        </p>
+      )}
+
+      {!puedeAsignar ? (
+        // Lectura para un Admin: ver a qué equipos pertenece es útil; asignarlos es de
+        // AdminGlobal y el backend lo rechaza, así que no se ofrecen los botones.
+        <div className="rounded-lg border bg-white p-4">
+          <p className="mb-2 text-sm font-semibold text-gray-700">Equipos asignados</p>
+          {cargandoAsignados ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : asignados.length === 0 ? (
+            <p className="text-sm italic text-muted-foreground">No pertenece a ningún equipo.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {asignados.map((e) => (
+                <span
+                  key={e.id}
+                  className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+                >
+                  {e.nombre}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Sólo un AdminGlobal puede asignar o quitar equipos.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Disponibles */}
+          <section className="flex flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">Disponibles</h3>
+              <p className="text-xs text-muted-foreground">Equipos a los que todavía no pertenece.</p>
+            </header>
+            <ul className="max-h-96 space-y-1 overflow-y-auto p-2">
+              {cargandoTodos ? (
+                <li className="p-2 text-sm text-muted-foreground">Cargando…</li>
+              ) : disponibles.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  {(todosResp?.data ?? []).length === 0
+                    ? "Todavía no hay equipos creados."
+                    : "Ya pertenece a todos los equipos."}
+                </li>
+              ) : (
+                disponibles.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-center gap-2 rounded-md border border-gray-100 px-2 py-1.5 text-sm hover:bg-gray-50"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium">{e.nombre}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 gap-1"
+                      disabled={agregar.isPending}
+                      onClick={() => agregarA(e.id)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar
+                    </Button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+
+          {/* Asignados */}
+          <section className="flex flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">
+                Asignados{" "}
+                <span className="font-normal tabular-nums text-muted-foreground">
+                  ({asignados.length})
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Quitarlo no lo da de baja: deja de administrar ese catálogo.
+              </p>
+            </header>
+            <ul className="max-h-96 space-y-1 overflow-y-auto p-2">
+              {cargandoAsignados ? (
+                <li className="p-2 text-sm text-muted-foreground">Cargando…</li>
+              ) : asignados.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  No pertenece a ningún equipo{necesitaEquipo(roles) ? ", así que no puede crear planillas" : ""}.
+                </li>
+              ) : (
+                asignados.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1.5 text-sm"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium">{e.nombre}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                      disabled={quitar.isPending}
+                      onClick={() => quitarDe(e.id)}
+                      aria-label={`Quitar de ${e.nombre}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+        </div>
+      )}
+
+      {error && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 
