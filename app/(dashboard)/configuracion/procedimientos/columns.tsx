@@ -14,31 +14,53 @@ function RowActions({ procedimiento }: { procedimiento: Procedimiento }) {
   const { open } = useOpenProcedimiento()
   const deleteMutation = useDeleteProcedimiento()
 
+  // El backend ya resolvió si esta fila es editable. Se deshabilita con el motivo a la
+  // vista en vez de dejar que el error aparezca al guardar. Mismo criterio que planillas
+  // y campos.
+  const puedeEditar = procedimiento.puedeEditar !== false
+  const motivo = procedimiento.equipoNombre
+    ? `Lo administra el equipo ${procedimiento.equipoNombre}`
+    : "Es un procedimiento global: lo administra un AdminGlobal. Si tu equipo necesita su propia versión, cargá una y apuntá la tarea a esa."
+
   return (
     <div className="flex items-center gap-1 justify-end">
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8"
+        disabled={!puedeEditar}
+        title={puedeEditar ? "Editar" : motivo}
         onClick={() => open(procedimiento.id)}
       >
         <Pencil className="h-4 w-4" />
       </Button>
 
-      <ConfirmActionDialog
-        trigger={<Trash2 className="h-4 w-4" />}
-        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
-        title="¿Eliminar procedimiento?"
-        description={
-          <>
-            Esta acción eliminará <strong>{procedimiento.nombre}</strong>. Podés reactivarlo después.
-          </>
-        }
-        confirmText="Eliminar"
-        pendingText="Eliminando..."
-        variant="destructive"
-        onConfirm={() => deleteMutation.mutateAsync(procedimiento.id)}
-      />
+      {puedeEditar ? (
+        <ConfirmActionDialog
+          trigger={<Trash2 className="h-4 w-4" />}
+          triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
+          title="¿Eliminar procedimiento?"
+          description={
+            <>
+              Esta acción eliminará <strong>{procedimiento.nombre}</strong>. Podés reactivarlo después.
+            </>
+          }
+          confirmText="Eliminar"
+          pendingText="Eliminando..."
+          variant="destructive"
+          onConfirm={() => deleteMutation.mutateAsync(procedimiento.id)}
+        />
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground"
+          disabled
+          title={motivo}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   )
 }
@@ -96,6 +118,35 @@ export const columns: ColumnDef<Procedimiento>[] = [
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.createdByNombre}</span>
     ),
+  },
+  {
+    id: "equipo",
+    header: "Equipo",
+    cell: ({ row }) => {
+      const p = row.original
+      // Mismo badge que en planillas y campos: es el mismo concepto y el usuario ya lo
+      // aprendió ahí.
+      if (!p.equipoId) {
+        return (
+          <span
+            className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+            title="Global: lo ve y lo usa todo el mundo. Lo administra un AdminGlobal."
+          >
+            Global
+          </span>
+        )
+      }
+      return (
+        <span
+          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+          title={p.puedeEditar === false
+            ? `Lo administra el equipo ${p.equipoNombre}`
+            : "Lo administra tu equipo"}
+        >
+          {p.equipoNombre}
+        </span>
+      )
+    },
   },
   {
     id: "actions",

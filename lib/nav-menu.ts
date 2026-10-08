@@ -247,7 +247,10 @@ export const menu: MenuItem[] = [
           // Las planillas son su primer uso, pero el agrupamiento es de personas y
           // va a servir para más catálogos. Vive en "Administración del sistema",
           // al lado de Usuarios y Grupos de usuarios.
-          { label: "Procedimientos", href: "/configuracion/procedimientos", minRole: "AdminGlobal" },
+          // Procedimientos se abre a Admin desde que tienen equipo dueño: administra los de
+          // su equipo y los globales los ve en lectura, igual que con Planillas. El backend
+          // acota qué puede editar — ver Docs/ANALISIS-CAMPOS-POR-EQUIPO.md.
+          { label: "Procedimientos", href: "/configuracion/procedimientos", minRole: "Admin" },
         ],
       },
       {

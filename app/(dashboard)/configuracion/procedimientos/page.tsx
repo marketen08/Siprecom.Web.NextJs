@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,6 +9,11 @@ import {
 import { Plus, Search } from "lucide-react"
 
 import { useGetProcedimientos } from "@/features/procedimientos/api/use-get-procedimientos"
+import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { useNewProcedimiento } from "@/features/procedimientos/hooks/use-new-procedimiento"
 import { NewProcedimientoSheet } from "@/features/procedimientos/components/new-procedimiento-sheet"
 import { EditProcedimientoSheet } from "@/features/procedimientos/components/edit-procedimiento-sheet"
@@ -31,12 +36,33 @@ export default function ProcedimientosPage() {
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const { data, isLoading, isFetching } = useGetProcedimientos({ page, pageSize, nombre: search || undefined })
+  // Filtro por equipo dueño. Vacío = lo que el backend decide por defecto: el equipo
+  // activo del usuario más los globales, o todo para AdminGlobal.
+  const [equipoFiltro, setEquipoFiltro] = useState<string>("")
+
+  // La estructura de equipos es apagable por el SuperAdmin: apagada, el catálogo es uno
+  // solo y desaparecen el filtro Y la columna juntos.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const { data: misEquipos } = useGetMisEquipos(hayEquipos)
+
+  const { data, isLoading, isFetching } = useGetProcedimientos({
+    page,
+    pageSize,
+    nombre: search || undefined,
+    equipoId: equipoFiltro || undefined,
+  })
   const { open } = useNewProcedimiento()
+
+  // Se filtra acá y no en columns.tsx porque la decisión sale de un hook y el array
+  // exportado es estático.
+  const columnasVisibles = useMemo(
+    () => columns.filter((c) => c.id !== "equipo" || hayEquipos),
+    [hayEquipos],
+  )
 
   const table = useReactTable({
     data: data?.data ?? [],
-    columns,
+    columns: columnasVisibles,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.id,
     manualPagination: true,
@@ -68,6 +94,39 @@ export default function ProcedimientosPage() {
           </Button>
         </div>
 
+        {/* Filtro por equipo dueño. Sólo cuando hay más de una opción: para el Admin de un
+            equipo único no hay nada que elegir —ve el suyo y los globales—. Mismo control
+            que en planillas y campos. */}
+        {hayEquipos && misEquipos
+          && (misEquipos.equipos.length > 1 || misEquipos.puedeElegirGlobales) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="mr-1 text-muted-foreground">Equipo:</span>
+            {[
+              { id: "", nombre: "Todos" },
+              ...misEquipos.equipos,
+              { id: "__none__", nombre: "Globales" },
+            ].map((opcion) => {
+              const activo = equipoFiltro === opcion.id
+              return (
+                <button
+                  key={opcion.id || "todos"}
+                  type="button"
+                  onClick={() => { setEquipoFiltro(opcion.id); setPage(1) }}
+                  aria-pressed={activo}
+                  className={
+                    "inline-flex cursor-pointer items-center rounded-full border px-2 py-0.5 font-medium transition-colors "
+                    + (activo
+                      ? "border-blue-500 bg-blue-100 text-blue-900"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+                  }
+                >
+                  {opcion.nombre}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         <DataTableWrapper isFetching={isFetching && !isLoading}>
           <Table>
             <TableHeader>
@@ -86,13 +145,13 @@ export default function ProcedimientosPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                     Cargando...
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                     No se encontraron procedimientos.
                   </TableCell>
                 </TableRow>

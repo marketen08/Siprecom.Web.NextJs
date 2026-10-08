@@ -12,6 +12,15 @@ export interface Procedimiento {
   /** SAS URL temporal (~60 min) para descargar/visualizar el PDF. Null si no hay archivo. */
   archivoUrl: string | null
 
+  /**
+   * Equipo de administración dueño. Null = global: lo ven y lo usan todos, lo administra un
+   * AdminGlobal. Mismo contrato que `Planilla.equipoId` y `Campo.equipoId`.
+   */
+  equipoId?: string | null
+  equipoNombre?: string | null
+  /** Si quien mira puede editarlo. Lo resuelve el backend; no reimplementar la regla acá. */
+  puedeEditar?: boolean
+
   createdAt: string
   createdByNombre: string
   updatedAt: string

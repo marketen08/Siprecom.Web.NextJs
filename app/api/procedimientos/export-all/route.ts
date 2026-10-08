@@ -1,9 +1,17 @@
 import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
-// GET /api/procedimientos/export-all → descarga JSON con todos los procedimientos. Solo SuperAdmin (backend).
+// GET /api/procedimientos/export-all → descarga JSON con los procedimientos. Solo SuperAdmin.
+//
+// equipoOrigen acota el export al catálogo de un equipo ("__none__" = los globales). Sin él,
+// exporta todos, que es el comportamiento de siempre.
 export async function GET(request: NextRequest) {
-  const res = await backendFetch(request, "/procedimientos/export-all")
+  const equipoOrigen = request.nextUrl.searchParams.get("equipoOrigen")
+  const path = equipoOrigen
+    ? `/procedimientos/export-all?equipoOrigen=${encodeURIComponent(equipoOrigen)}`
+    : "/procedimientos/export-all"
+
+  const res = await backendFetch(request, path)
   return new Response(res.body, {
     status: res.status,
     headers: {
