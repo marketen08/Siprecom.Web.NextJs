@@ -15,10 +15,9 @@ import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
 import { useUpdateProyectoNivelMc } from "@/features/proyectos/api/use-update-proyecto-nivel-mc"
 import {
-  useGetProyectoPlanillasGrupos,
+  useGetColeccionesDisponiblesProyecto,
   useSetProyectoPlanillasGrupos,
 } from "@/features/proyectos/api/use-proyecto-planillas-grupos"
-import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
 import { useAsignarEquipoProyecto, useGetEquipos } from "@/features/equipos/api/use-equipos"
 import {
   FUNCIONALIDAD,
@@ -552,20 +551,26 @@ function PlanillasGruposHabilitadosCard({ proyecto }: { proyecto: Proyecto }) {
   // Apagadas en la plataforma, el proyecto puede usar todo el catálogo: no hay scope
   // que configurar. Lo que esté guardado queda latente hasta reactivarlas.
   const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
-  const { data: gruposRaw, isLoading: loadingGrupos } = useGetPlanillasGrupos(hayColecciones)
-  const { data: habilitadosRaw, isLoading: loadingHabilitados } =
-    useGetProyectoPlanillasGrupos(hayColecciones ? proyecto.id : null)
+
+  // Un solo endpoint en vez de "catálogo global + lista de habilitadas": devuelve las que
+  // este proyecto PUEDE habilitar (las de su equipo + las globales) y, sobre todo, cuántas
+  // planillas le aporta cada una DE VERDAD, cruzando el eje equipo con el eje colección.
+  //
+  // Antes el chip mostraba sólo el nombre y el conteo del catálogo era global: podía decir
+  // "5 planillas" y aportar 0 a este proyecto, sin nada en pantalla que lo explicara.
+  const { data: disponiblesRaw, isLoading: loadingColecciones } =
+    useGetColeccionesDisponiblesProyecto(hayColecciones ? proyecto.id : null)
   const set = useSetProyectoPlanillasGrupos(proyecto.id)
   const [saving, setSaving] = useState(false)
 
   if (!hayColecciones) return null
 
-  const grupos = gruposRaw?.data ?? []
-  const habilitadosSet = new Set(habilitadosRaw ?? [])
-  const cantidad = habilitadosSet.size
+  const colecciones = disponiblesRaw?.data ?? []
+  const habilitadas = colecciones.filter((c) => c.habilitada)
+  const cantidad = habilitadas.length
 
   async function toggle(grupoId: string) {
-    const next = new Set(habilitadosSet)
+    const next = new Set(colecciones.filter((c) => c.habilitada).map((c) => c.id))
     if (next.has(grupoId)) next.delete(grupoId)
     else next.add(grupoId)
     setSaving(true)
@@ -580,38 +585,50 @@ function PlanillasGruposHabilitadosCard({ proyecto }: { proyecto: Proyecto }) {
     <div className="rounded-lg border bg-white p-4 space-y-2">
       <div className="flex items-center gap-2">
         <p className="text-sm font-medium text-gray-900">Colecciones de planillas habilitadas</p>
-        {(saving || loadingHabilitados) && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+        {(saving || loadingColecciones) && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
       </div>
       <p className="text-xs text-muted-foreground">
         Al asignar planillas en las tareas del proyecto, solo se ofrecen las planillas
         de estas colecciones + las <strong>planillas sin colección</strong> (comodín). Si no
         marcás ninguna, solo se ofrecen las planillas sin colección.
       </p>
-      {loadingGrupos ? (
+      {loadingColecciones ? (
         <p className="text-xs text-muted-foreground">Cargando colecciones...</p>
-      ) : grupos.length === 0 ? (
+      ) : colecciones.length === 0 ? (
         <p className="text-xs text-amber-700">
-          No hay colecciones de planillas cargadas. Creá una en Configuración → Colecciones de planillas.
+          No hay colecciones disponibles para este proyecto. Creá una en Configuración →
+          Colecciones de planillas.
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5 pt-1">
-          {grupos.map((g) => {
-            const activo = habilitadosSet.has(g.id)
+          {colecciones.map((c) => {
+            // El número al lado del nombre es el dato que faltaba: cuántas planillas aporta.
+            // Un cero avisa que habilitarla no va a cambiar nada —colección recién creada, o
+            // todavía sin planillas cargadas— en vez de dejar al admin probando.
+            const vacia = c.planillasQueAporta === 0
             return (
               <button
-                key={g.id}
+                key={c.id}
                 type="button"
                 disabled={saving}
-                onClick={() => toggle(g.id)}
+                onClick={() => toggle(c.id)}
                 className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
                 style={
-                  activo
+                  c.habilitada
                     ? { backgroundColor: "#dbeafe", color: "#1e40af", borderColor: "#3b82f6" }
                     : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
                 }
-                title={g.descripcion ?? g.nombre}
+                title={
+                  (c.descripcion ?? c.nombre)
+                  + (vacia
+                    ? " — todavía no tiene planillas, así que habilitarla no agrega ninguna."
+                    : ` — aporta ${c.planillasQueAporta} planilla(s) a este proyecto.`)
+                }
               >
-                {g.nombre}
+                {c.nombre}
+                <span className={vacia ? "tabular-nums opacity-60" : "tabular-nums"}>
+                  {c.planillasQueAporta}
+                </span>
               </button>
             )
           })}
@@ -619,8 +636,9 @@ function PlanillasGruposHabilitadosCard({ proyecto }: { proyecto: Proyecto }) {
       )}
       <p className="text-[11px] text-muted-foreground pt-1">
         {cantidad === 0
-          ? "Sin grupos habilitados — solo las planillas sin grupo (comodín) están disponibles."
-          : `${cantidad} grupo(s) habilitado(s).`}
+          ? "Sin colecciones habilitadas — solo las planillas sin colección (comodín) están disponibles."
+          : `${cantidad} colección(es) habilitada(s), que aportan `
+            + `${habilitadas.reduce((n, c) => n + c.planillasQueAporta, 0)} planilla(s).`}
       </p>
     </div>
   )

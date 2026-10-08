@@ -39,6 +39,13 @@ interface EditSheetState {
   descripcion: string
 }
 
+/** Por qué una colección no se puede tocar. El backend ya resolvió `puedeEditar`. */
+function motivoNoEditable(g: { equipoNombre?: string | null }): string {
+  return g.equipoNombre
+    ? `La administra el equipo ${g.equipoNombre}`
+    : "Es una colección global: agrupa las planillas de la casa y la administra un AdminGlobal."
+}
+
 export default function PlanillasGruposPage() {
   const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
 
@@ -56,6 +63,10 @@ export default function PlanillasGruposPage() {
 }
 
 function PlanillasGruposAdmin() {
+  // La estructura de equipos es apagable: apagada, la columna "Equipo" no dice nada y las
+  // acciones no se acotan.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
   const { data, isLoading } = useGetPlanillasGrupos()
   const create = useCreatePlanillaGrupo()
   const update = useUpdatePlanillaGrupo()
@@ -123,6 +134,9 @@ function PlanillasGruposAdmin() {
             <TableRow>
               <TableHead className="font-semibold text-gray-700">Nombre</TableHead>
               <TableHead className="font-semibold text-gray-700">Descripción</TableHead>
+              {hayEquipos && (
+                <TableHead className="w-36 font-semibold text-gray-700">Equipo</TableHead>
+              )}
               <TableHead className="w-32 font-semibold text-gray-700 text-right">Planillas</TableHead>
               <TableHead className="w-32 font-semibold text-gray-700 text-right">En proyectos</TableHead>
               <TableHead className="w-40 font-semibold text-gray-700 text-right">Acciones</TableHead>
@@ -131,11 +145,11 @@ function PlanillasGruposAdmin() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">Cargando...</TableCell>
+                <TableCell colSpan={hayEquipos ? 6 : 5} className="py-10 text-center text-muted-foreground">Cargando...</TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={hayEquipos ? 6 : 5} className="py-10 text-center text-muted-foreground">
                   No hay colecciones de planillas cargadas.
                 </TableCell>
               </TableRow>
@@ -144,6 +158,28 @@ function PlanillasGruposAdmin() {
                 <TableRow key={g.id}>
                   <TableCell className="font-medium">{g.nombre}</TableCell>
                   <TableCell className="text-sm text-gray-600">{g.descripcion || "—"}</TableCell>
+                  {hayEquipos && (
+                    <TableCell>
+                      {/* Mismo badge que en planillas, campos y procedimientos. */}
+                      {!g.equipoId ? (
+                        <span
+                          className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+                          title="Global: agrupa las planillas de la casa. La administra un AdminGlobal."
+                        >
+                          Global
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+                          title={g.puedeEditar === false
+                            ? `La administra el equipo ${g.equipoNombre}`
+                            : "La administra tu equipo"}
+                        >
+                          {g.equipoNombre}
+                        </span>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right tabular-nums">{g.cantidadPlanillas}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {g.proyectosEnUso > 0 ? (
@@ -162,7 +198,8 @@ function PlanillasGruposAdmin() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
-                      title="Gestionar planillas de la colección"
+                      disabled={g.puedeEditar === false}
+                      title={g.puedeEditar === false ? motivoNoEditable(g) : "Gestionar planillas de la colección"}
                       onClick={() => { setError(null); setPlanillasSheetId(g.id) }}
                     >
                       <FileText className="h-4 w-4" />
@@ -171,7 +208,8 @@ function PlanillasGruposAdmin() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
-                      title="Editar nombre/descripción"
+                      disabled={g.puedeEditar === false}
+                      title={g.puedeEditar === false ? motivoNoEditable(g) : "Editar nombre/descripción"}
                       onClick={() => { setError(null); setEditSheet({
                         mode: "edit",
                         id: g.id,
@@ -185,7 +223,8 @@ function PlanillasGruposAdmin() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-red-600"
-                      title="Eliminar colección"
+                      disabled={g.puedeEditar === false}
+                      title={g.puedeEditar === false ? motivoNoEditable(g) : "Eliminar colección"}
                       onClick={() => { setError(null); setConfirmDelete({ id: g.id, nombre: g.nombre }) }}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -298,9 +337,17 @@ function PlanillasSheet({ grupoId, onClose }: { grupoId: string | null; onClose:
   const planillas = grupo?.planillas ?? []
   const planillaIds = useMemo(() => new Set(planillas.map((p) => p.planillaId)), [planillas])
 
+  // Sólo las planillas del MISMO dueño que la colección. El backend lo valida igual, pero
+  // ofrecer en el selector algo que va a rechazar es peor que no mostrarlo: el usuario lo
+  // elige, falla, y no sabe por qué. Ver Docs/ANALISIS-COLECCIONES-POR-EQUIPO.md.
+  //
+  // La comparación normaliza null/undefined porque "global" viaja como null desde el backend
+  // y como undefined cuando la propiedad no vino (JSON viejo).
+  const duenoColeccion = grupo?.equipoId ?? null
   const todas = (planillasData as any)?.data ?? []
   const candidatas = todas
     .filter((p: any) => !planillaIds.has(p.id))
+    .filter((p: any) => (p.equipoId ?? null) === duenoColeccion)
     .filter((p: any) => {
       if (!busqueda.trim()) return true
       const q = busqueda.trim().toLowerCase()
