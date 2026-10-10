@@ -13,6 +13,7 @@ import { EstadoBadge, ESTADO_COLORS } from "@/components/estado-proyecto-badge"
 import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 import { EstadosPopover } from "@/features/avance/components/estados-popover"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -22,46 +23,43 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-/** "todos" o un estado puntual de ESTADO_PROYECTO. */
-type FiltroEstado = "todos" | number
+const ALL = "__all__"
+
+/** En curso. Default de la vista: es lo que se está ejecutando hoy. */
+const EN_CURSO = "2"
 
 export default function AvanceProyectosPage() {
   const router = useRouter()
-  const { data: avanceData, isLoading } = useGetAvanceProyectos()
   const { data: perfil } = useGetPerfil()
   const cambiarProyecto = useCambiarProyectoActivo()
 
-  // Arranca en "todos" para no cambiarle la vista a nadie: el filtro suma una
-  // forma de acotar, no esconde proyectos por default.
-  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos")
+  // Arranca en "En curso" y no en todos: con los 149 proyectos de Pluspetrol
+  // migrados —130 de ellos COMPLETADO— abrir la pantalla en "todos" era ruido
+  // histórico. Volver a tocar el chip activo lo apaga y muestra todos.
+  const [estado, setEstado] = useState<string>(EN_CURSO)
+  const [page, setPage] = useState(1)
+  const pageSize = 20
 
-  // Memoizado porque `?? []` devuelve un array nuevo en cada render y eso haría
-  // recalcular los useMemo de abajo siempre.
-  const todos: AvanceDTO[] = useMemo(() => avanceData?.data ?? [], [avanceData])
+  // Filtro y paginación son del SERVIDOR. Antes esta pantalla traía todos los
+  // proyectos y filtraba en memoria, y el backend resolvía el avance proyecto por
+  // proyecto: ~1.000 queries por carga, que es lo que la dejaba colgada.
+  const { data, isLoading, isFetching } = useGetAvanceProyectos({
+    estado: estado !== ALL ? Number(estado) : undefined,
+    page,
+    pageSize,
+  })
+
+  const proyectos: AvanceDTO[] = useMemo(() => data?.data?.data ?? [], [data])
+  const total = data?.data?.total ?? 0
+  const totalPages = Math.ceil(total / pageSize)
   const proyectoActivoId = perfil?.proyectoId ?? null
-
-  // Un chip por cada estado realmente presente, con su conteo. Armar los chips a
-  // partir de los datos evita ofrecer filtros que no matchean nada.
-  const estadosPresentes = useMemo(() => {
-    const conteo = new Map<number, number>()
-    for (const p of todos) {
-      if (p.estado == null) continue
-      conteo.set(p.estado, (conteo.get(p.estado) ?? 0) + 1)
-    }
-    return [...conteo.entries()].sort((a, b) => a[0] - b[0])
-  }, [todos])
-
-  const proyectos = useMemo(
-    () => (filtroEstado === "todos" ? todos : todos.filter((p) => p.estado === filtroEstado)),
-    [todos, filtroEstado],
-  )
 
   useBreadcrumb([{ label: "Ejecución" }, { label: "Avance por proyectos" }])
 
   // Distinguir "no tenés proyectos" de "el filtro no matcheó": con el mismo cartel,
   // filtrar por un estado sin resultados parecía una pérdida de acceso.
   const mensajeVacio =
-    todos.length > 0 && filtroEstado !== "todos"
+    estado !== ALL
       ? "Ningún proyecto con ese estado."
       : "No tenés proyectos asignados."
 
@@ -82,47 +80,34 @@ export default function AvanceProyectosPage() {
 
   return (
     <div className="space-y-4">
-      {/* Chips de estado. Sólo aparecen si hay más de un estado entre los proyectos:
-          con todos en el mismo estado, filtrar no aporta nada. */}
-      {!isLoading && estadosPresentes.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setFiltroEstado("todos")}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              filtroEstado === "todos"
-                ? "border-blue-600 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            Todos
-            <span className="text-muted-foreground">{todos.length}</span>
-          </button>
-
-          {estadosPresentes.map(([estado, cantidad]) => {
-            const activo = filtroEstado === estado
-            return (
-              <button
-                key={estado}
-                type="button"
-                onClick={() => setFiltroEstado(activo ? "todos" : estado)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  activo
-                    ? "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                <span
-                  className={`h-2 w-2 rounded-full ${(ESTADO_COLORS[estado] ?? "").split(" ")[0]}`}
-                  aria-hidden
-                />
-                {ESTADO_PROYECTO[estado as keyof typeof ESTADO_PROYECTO] ?? estado}
-                <span className="text-muted-foreground">{cantidad}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
+      {/* Mismo patrón que /configuracion/proyectos: los siete estados a la vista,
+          un solo criterio a la vez, y el chip prendido es también el botón para
+          apagarlo. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Estado:</span>
+        {Object.entries(ESTADO_PROYECTO).map(([id, label]) => {
+          const activo = estado === id
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => { setEstado(activo ? ALL : id); setPage(1) }}
+              aria-pressed={activo}
+              className={
+                "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer " +
+                (activo
+                  ? `border-transparent ${ESTADO_COLORS[Number(id)] ?? "bg-gray-100 text-gray-700"}`
+                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+              }
+            >
+              {label}
+            </button>
+          )
+        })}
+        {isFetching && !isLoading && (
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+        )}
+      </div>
 
       {/* Cards (solo mobile) */}
       <div className="md:hidden space-y-2">
@@ -217,18 +202,42 @@ export default function AvanceProyectosPage() {
         </Table>
       </div>
 
-      {!isLoading && (
-        <p className="text-sm text-muted-foreground">
-          {`${proyectos.length} proyecto${proyectos.length !== 1 ? "s" : ""}`}
-          {filtroEstado !== "todos" && ` de ${todos.length}`}
+      {/* Total + Paginación — mismo patrón que /configuracion/proyectos */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>
+          {`${total} proyecto${total !== 1 ? "s" : ""}`}
+          {estado !== ALL && ` en ${(ESTADO_PROYECTO[Number(estado) as keyof typeof ESTADO_PROYECTO] ?? "").toLowerCase()}`}
           {cambiarProyecto.isPending && (
             <span className="ml-2 inline-flex items-center gap-1 text-blue-700">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Cambiando proyecto activo...
             </span>
           )}
-        </p>
-      )}
+        </span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-3">
+            <span>Página {page} de {totalPages}</span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 1}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
