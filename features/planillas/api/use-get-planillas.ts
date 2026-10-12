@@ -21,17 +21,19 @@ interface Params {
    * todos, y un Admin con dos equipos puede mirar el que no tiene activo).
    */
   equipoId?: string
+  /** true = sólo las que no usa ninguna tarea; false = sólo las que sí; undefined = todas. */
+  sinUso?: boolean
 }
 
 export function useGetPlanillas(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, planillaGrupoIds, esEncabezadoTG, equipoId } = params
+  const { page = 1, pageSize = 10, nombre, planillaGrupoIds, esEncabezadoTG, equipoId, sinUso } = params
 
   // Serializamos como CSV para matchear el binding del PagedRequest en backend.
   const planillaGrupoIdsCsv =
     planillaGrupoIds && planillaGrupoIds.length > 0 ? planillaGrupoIds.join(",") : undefined
 
   return useQuery({
-    queryKey: ["planillas", { page, pageSize, nombre, planillaGrupoIdsCsv, esEncabezadoTG, equipoId }],
+    queryKey: ["planillas", { page, pageSize, nombre, planillaGrupoIdsCsv, esEncabezadoTG, equipoId, sinUso }],
     queryFn: () =>
       apiClient.get<PagedResponse<Planilla>>("/api/planillas", {
         page,
@@ -40,6 +42,7 @@ export function useGetPlanillas(params: Params = {}) {
         ...(planillaGrupoIdsCsv ? { planillaGrupoIds: planillaGrupoIdsCsv } : {}),
         ...(esEncabezadoTG !== undefined ? { esEncabezadoTG: String(esEncabezadoTG) } : {}),
         ...(equipoId ? { equipoId } : {}),
+        ...(sinUso !== undefined ? { sinUso: String(sinUso) } : {}),
       }),
   })
 }

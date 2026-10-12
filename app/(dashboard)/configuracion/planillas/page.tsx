@@ -46,6 +46,8 @@ export default function PlanillasPage() {
   const [gruposSel, setGruposSel] = useState<Set<string>>(new Set())
   // Tri-state: undefined = todas, true = solo encabezado TG, false = solo no encabezado.
   const [encabezadoFilter, setEncabezadoFilter] = useState<boolean | undefined>(undefined)
+  // Tri-state: undefined = todas, true = solo las que ninguna tarea usa, false = solo las usadas.
+  const [sinUsoFilter, setSinUsoFilter] = useState<boolean | undefined>(undefined)
 
   // Filtro por equipo dueño. Vacío = lo que el backend decide por defecto: el equipo activo
   // del usuario más las globales, o todo para AdminGlobal.
@@ -65,6 +67,7 @@ export default function PlanillasPage() {
     planillaGrupoIds: gruposIdsArr.length > 0 ? gruposIdsArr : undefined,
     esEncabezadoTG: encabezadoFilter,
     equipoId: equipoFiltro || undefined,
+    sinUso: sinUsoFilter,
   })
   const { data: misEquipos } = useGetMisEquipos(hayEquipos)
   const { data: gruposRaw } = useGetPlanillasGrupos(hayColecciones)
@@ -239,10 +242,12 @@ export default function PlanillasPage() {
           </div>
         )}
 
-        {/* Filtro por uso: Encabezado TG vs Estándar. Mutuamente excluyentes;
-            click en el chip activo lo deselecciona (vuelve a "todas"). */}
+        {/* Dos ejes en una fila. "Tipo" es qué clase de planilla es (encabezado de Test
+            Pack o estándar); "Uso" es si alguna tarea la usa. Antes el primero se llamaba
+            "Uso", y con los dos juntos el nombre quedaba para el segundo. Los chips de cada
+            grupo son mutuamente excluyentes; click en el activo lo deselecciona. */}
         <div className="flex items-center gap-1.5 flex-wrap text-xs">
-          <span className="text-muted-foreground mr-1">Uso:</span>
+          <span className="text-muted-foreground mr-1">Tipo:</span>
           {([
             { key: true, label: "Encabezado TG", activeColor: "#1d4ed8" },
             { key: false, label: "Estándar", activeColor: "#4b5563" },
@@ -267,10 +272,39 @@ export default function PlanillasPage() {
               </button>
             )
           })}
-          {encabezadoFilter !== undefined && (
+
+          <span className="ml-3 text-muted-foreground mr-1">Uso:</span>
+          {([
+            { key: true, label: "Sin uso", activeColor: "#b45309", titulo: "Planillas que ninguna tarea usa — se pueden eliminar sin afectar nada" },
+            { key: false, label: "En uso", activeColor: "#047857", titulo: "Planillas que usa al menos una tarea" },
+          ] as const).map(({ key, label, activeColor, titulo }) => {
+            const activo = sinUsoFilter === key
+            return (
+              <button
+                key={String(key)}
+                type="button"
+                title={titulo}
+                onClick={() => {
+                  setSinUsoFilter(activo ? undefined : key)
+                  setPage(1)
+                }}
+                aria-pressed={activo}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer"
+                style={
+                  activo
+                    ? { backgroundColor: `${activeColor}22`, color: activeColor, borderColor: activeColor }
+                    : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+
+          {(encabezadoFilter !== undefined || sinUsoFilter !== undefined) && (
             <button
               type="button"
-              onClick={() => { setEncabezadoFilter(undefined); setPage(1) }}
+              onClick={() => { setEncabezadoFilter(undefined); setSinUsoFilter(undefined); setPage(1) }}
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X className="h-3 w-3" /> Limpiar
@@ -297,13 +331,13 @@ export default function PlanillasPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                     Cargando...
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                     No se encontraron planillas.
                   </TableCell>
                 </TableRow>

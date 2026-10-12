@@ -261,6 +261,34 @@ export const columns: ColumnDef<Planilla>[] = [
     },
   },
   {
+    id: "uso",
+    header: "Tareas",
+    cell: ({ row }) => {
+      // `undefined` no es lo mismo que 0: los selects no mandan el conteo, y ahí mostrar
+      // "Sin uso" sería afirmar algo que el backend no dijo.
+      const n = row.original.cantidadTareas
+      if (n === undefined) return <span className="text-xs text-muted-foreground">—</span>
+      if (n === 0) {
+        return (
+          <span
+            className="inline-flex items-center rounded-full border border-dashed border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-500"
+            title="Ninguna tarea la usa. Se puede eliminar sin afectar nada."
+          >
+            Sin uso
+          </span>
+        )
+      }
+      return (
+        <span
+          className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium tabular-nums text-emerald-800"
+          title={`${n} ${n === 1 ? "tarea usa" : "tareas usan"} esta planilla`}
+        >
+          {n}
+        </span>
+      )
+    },
+  },
+  {
     accessorKey: "orientacionPdf",
     header: "PDF",
     cell: ({ row }) =>

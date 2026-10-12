@@ -51,6 +51,12 @@ export interface Planilla {
    * en vez de dejar que el error aparezca al guardar.
    */
   puedeEditar?: boolean
+  /**
+   * Cuántas Tareas activas la usan. En 0 no se usa en ninguna parte y es candidata a
+   * borrar. **Sólo lo manda el listado de administración** — en los selects viene 0,
+   * porque contarlo cuesta una query y ahí nadie lo mira.
+   */
+  cantidadTareas?: number
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string
