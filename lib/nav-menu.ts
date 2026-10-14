@@ -273,8 +273,11 @@ export const menu: MenuItem[] = [
         ],
       },
       {
+        // Baja a Admin: puede dar de alta clientes y contratistas -lo necesita para
+        // crear un proyecto- pero no editar ni borrar los que ya existen, porque su nombre
+        // sale en los reportes y certificados de los proyectos de todos los equipos.
         label: "Organización",
-        minRole: "AdminGlobal",
+        minRole: "Admin",
         children: [
           { label: "Clientes",     href: "/configuracion/clientes" },
           { label: "Contratistas", href: "/configuracion/contratistas" },

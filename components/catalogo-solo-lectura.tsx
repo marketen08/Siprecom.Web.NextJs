@@ -43,9 +43,19 @@ export function AvisoCatalogoSoloLectura({
   que,
   /** Para qué le sirve verlo al Admin. Una línea, concreta. */
   porQue,
+  /**
+   * True cuando el Admin **sí** puede dar de alta y lo que no puede es tocar lo que ya
+   * existe: el caso de clientes y contratistas. El alta es aditiva y no le cambia nada a
+   * nadie; renombrar o borrar sí, porque el nombre sale en los reportes y certificados de
+   * los proyectos de todos los equipos.
+   *
+   * Cambia la frase porque "solo lectura" sería mentira: hay un botón de alta habilitado.
+   */
+  puedeCrear = false,
 }: {
   que: string
   porQue?: string
+  puedeCrear?: boolean
 }) {
   const { soloLectura } = useCatalogoSoloLectura()
   if (!soloLectura) return null
@@ -54,8 +64,18 @@ export function AvisoCatalogoSoloLectura({
     <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
       <Lock className="mt-0.5 h-4 w-4 shrink-0" />
       <p>
-        Estás viendo {que} en <span className="font-medium">solo lectura</span>: las administra
-        un AdminGlobal porque las comparten todos los proyectos.
+        {puedeCrear ? (
+          <>
+            Podés <span className="font-medium">dar de alta</span> {que}, pero editar o
+            eliminar las que ya existen lo hace un AdminGlobal: su nombre aparece en los
+            reportes y certificados de todos los proyectos.
+          </>
+        ) : (
+          <>
+            Estás viendo {que} en <span className="font-medium">solo lectura</span>: las
+            administra un AdminGlobal porque las comparten todos los proyectos.
+          </>
+        )}
         {porQue ? ` ${porQue}` : ""}
       </p>
     </div>
