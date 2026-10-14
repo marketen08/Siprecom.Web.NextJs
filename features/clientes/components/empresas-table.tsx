@@ -7,7 +7,7 @@ import {
   flexRender,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { ImageIcon, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { ImageIcon, Pencil, Plus, Search, Trash2, Upload } from "lucide-react"
 
 import {
   AvisoCatalogoSoloLectura,
@@ -17,9 +17,11 @@ import {
 import { useGetClientes } from "../api/use-get-clientes"
 import { useNewCliente } from "../hooks/use-new-cliente"
 import { useOpenCliente } from "../hooks/use-open-cliente"
+import { useOpenClienteLogo } from "../hooks/use-open-cliente-logo"
 import { useDeleteCliente } from "../api/use-delete-cliente"
 import { NewClienteSheet } from "./new-cliente-sheet"
 import { EditClienteSheet } from "./edit-cliente-sheet"
+import { SubirLogoSheet } from "./subir-logo-sheet"
 import type { Cliente } from "../types"
 
 import { DataTableWrapper } from "@/components/data-table-wrapper"
@@ -102,6 +104,7 @@ export function EmpresasTable({ kind }: EmpresasTableProps) {
     <>
       <NewClienteSheet esContratista={esContratista} />
       <EditClienteSheet />
+      <SubirLogoSheet />
 
       <div className="space-y-4">
         {/* Buscador + Nuevo */}
@@ -228,9 +231,29 @@ function RowActions({ cliente, kind }: { cliente: Cliente; kind: "cliente" | "co
   // El Admin da de alta, pero no edita ni borra lo que ya existe: el nombre sale en los
   // reportes y certificados de los proyectos de todos los equipos.
   const { soloLectura, motivo } = useCatalogoSoloLectura()
+  // El logo de las empresas que dio de alta él sí lo puede cargar: si no, su alta con logo
+  // quedaba a mitad -la empresa creada y el logo afuera- y el aviso lo mandaba a "Editar",
+  // que no puede abrir. El backend decide la fila; acá solo se muestra.
+  const { abrirLogo } = useOpenClienteLogo()
+  const puedeLogo = cliente.puedeSubirLogo !== false
 
   return (
     <div className="flex items-center gap-1 justify-end">
+      {soloLectura && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          disabled={!puedeLogo}
+          title={puedeLogo
+            ? "Cargar o cambiar el logo"
+            : "Solo podés cargar el logo de las empresas que diste de alta vos"}
+          onClick={() => abrirLogo(cliente.id)}
+          aria-label="Cargar logo"
+        >
+          <Upload className="h-4 w-4" />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"
