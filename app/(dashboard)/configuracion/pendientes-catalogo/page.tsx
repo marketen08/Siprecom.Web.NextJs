@@ -19,6 +19,10 @@ import {
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 
+import {
+  AvisoCatalogoSoloLectura,
+  useCatalogoSoloLectura,
+} from "@/components/catalogo-solo-lectura"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -69,6 +73,10 @@ export default function PendientesCatalogoPage() {
   const create = useCreatePendienteCatalogo()
   const update = useUpdatePendienteCatalogo()
   const remove = useDeletePendienteCatalogo()
+
+  // Catalogo global: el Admin lo ve -son las descripciones que su gente va a elegir- y lo
+  // administra AdminGlobal.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
 
   const items = data?.data ?? []
   const [sheet, setSheet] = useState<SheetState | null>(null)
@@ -144,6 +152,8 @@ export default function PendientesCatalogoPage() {
           </Link>
           <Button
             onClick={() => setSheet({ mode: "new", ...EMPTY_SHEET })}
+            disabled={soloLectura}
+            title={motivo}
             className="gap-2 whitespace-nowrap"
           >
             <Plus className="h-4 w-4" />
@@ -151,6 +161,11 @@ export default function PendientesCatalogoPage() {
           </Button>
         </div>
       </div>
+
+      <AvisoCatalogoSoloLectura
+        que="el catálogo maestro"
+        porQue="Son las descripciones que tu equipo va a elegir al cargar un pendiente."
+      />
 
       <div className="flex items-center gap-2 max-w-md">
         <Search className="h-4 w-4 text-muted-foreground" />
@@ -204,6 +219,8 @@ export default function PendientesCatalogoPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
+                      disabled={soloLectura}
+                      title={motivo}
                       onClick={() =>
                         setSheet({
                           mode: "edit",
@@ -224,6 +241,8 @@ export default function PendientesCatalogoPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-red-600"
+                      disabled={soloLectura}
+                      title={motivo}
                       onClick={() => setConfirmDelete({
                         id: it.id,
                         label: `${it.nivelNombre} · ${it.especialidadNombre} · ${it.tipoNombre} · ${it.accionNombre} · ${it.motivoNombre}`,

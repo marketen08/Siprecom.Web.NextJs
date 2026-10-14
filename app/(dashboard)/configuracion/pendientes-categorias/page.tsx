@@ -10,6 +10,10 @@ import {
   useUpdatePendienteCategoria,
 } from "@/features/pendientes/api/use-catalogos"
 
+import {
+  AvisoCatalogoSoloLectura,
+  useCatalogoSoloLectura,
+} from "@/components/catalogo-solo-lectura"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -28,6 +32,9 @@ export default function PendientesCategoriasPage() {
   const create = useCreatePendienteCategoria()
   const update = useUpdatePendienteCategoria()
   const remove = useDeletePendienteCategoria()
+
+  // Catalogo global: el Admin lo ve, lo administra AdminGlobal. Ver el componente.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
 
   const items = data?.data ?? []
   const [sheet, setSheet] = useState<{ mode: "new" | "edit"; id?: string; nombre: string } | null>(null)
@@ -66,11 +73,13 @@ export default function PendientesCategoriasPage() {
             Catálogo de categorías que se asignan a cada pendiente (ej: A, B, C).
           </p>
         </div>
-        <Button onClick={() => setSheet({ mode: "new", nombre: "" })} className="gap-2">
+        <Button onClick={() => setSheet({ mode: "new", nombre: "" })} disabled={soloLectura} title={motivo} className="gap-2">
           <Plus className="h-4 w-4" />
           Nueva categoría
         </Button>
       </div>
+
+      <AvisoCatalogoSoloLectura que="las categorías de pendientes" porQue="Son las que va a ver tu equipo al clasificar." />
 
       <div className="rounded-lg border bg-white overflow-hidden">
         <Table>
@@ -90,10 +99,10 @@ export default function PendientesCategoriasPage() {
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.nombre}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSheet({ mode: "edit", id: c.id, nombre: c.nombre })}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" disabled={soloLectura} title={motivo} onClick={() => setSheet({ mode: "edit", id: c.id, nombre: c.nombre })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => setConfirmDelete({ id: c.id, nombre: c.nombre })}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" disabled={soloLectura} title={motivo} onClick={() => setConfirmDelete({ id: c.id, nombre: c.nombre })}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>

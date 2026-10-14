@@ -198,8 +198,12 @@ export const menu: MenuItem[] = [
       // del tenant. Único ítem que Admin ve suelto arriba de las categorías.
       { label: "Proyectos", href: "/configuracion/proyectos", minRole: "Admin" },
       {
+        // Baja a Admin: estos catalogos son vocabulario de la casa -los administra
+        // AdminGlobal- pero el Admin los necesita VER para cargar alcance y para entender
+        // que opciones va a elegir su gente. Las pantallas se muestran en solo lectura
+        // (components/catalogo-solo-lectura).
         label: "Catálogos",
-        minRole: "AdminGlobal",
+        minRole: "Admin",
         children: [
           { label: "Especialidades",    href: "/configuracion/especialidades" },
           // Tipos de elemento se abre a Admin: administra los de los equipos a los que
@@ -211,8 +215,11 @@ export const menu: MenuItem[] = [
         ],
       },
       {
+        // Mismo criterio que Catalogos: el Admin ve los catalogos de pendientes en solo
+        // lectura. Son las opciones del wizard que usa su gente y los ambitos que configura
+        // en la matriz de su proyecto, asi que esconderlos lo deja configurando a ciegas.
         label: "Pendientes",
-        minRole: "AdminGlobal",
+        minRole: "Admin",
         children: [
           { label: "Ámbitos",             href: "/configuracion/pendientes-ambitos" },
           { label: "Categorías",          href: "/configuracion/pendientes-categorias" },
@@ -220,7 +227,13 @@ export const menu: MenuItem[] = [
           { label: "Acciones",            href: "/configuracion/pendientes-acciones" },
           { label: "Motivos",             href: "/configuracion/pendientes-motivos" },
           { label: "Catálogo maestro",    href: "/configuracion/pendientes-catalogo" },
-          { label: "Importar / Exportar", href: "/configuracion/importacion-maestro-pendientes" },
+          // Importar / Exportar NO: escribe el catalogo entero de una, asi que queda en
+          // AdminGlobal. Decision tomada, no un olvido.
+          {
+            label: "Importar / Exportar",
+            href: "/configuracion/importacion-maestro-pendientes",
+            minRole: "AdminGlobal",
+          },
         ],
       },
       {

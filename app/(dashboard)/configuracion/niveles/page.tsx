@@ -15,6 +15,10 @@ import { EditNivelSheet } from "@/features/niveles/components/edit-nivel-sheet"
 import { columns } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
+import {
+  AvisoCatalogoSoloLectura,
+  useCatalogoSoloLectura,
+} from "@/components/catalogo-solo-lectura"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -37,6 +41,8 @@ export default function NivelesPage() {
     nombre: search || undefined,
   })
   const { open } = useNewNivel()
+  // Catalogo global: el Admin lo ve, lo administra AdminGlobal.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -66,11 +72,16 @@ export default function NivelesPage() {
               className="pl-9"
             />
           </div>
-          <Button onClick={open} className="gap-2 ml-auto">
+          <Button onClick={open} disabled={soloLectura} title={motivo} className="gap-2 ml-auto">
             <Plus className="h-4 w-4" />
             Nuevo nivel
           </Button>
         </div>
+
+        <AvisoCatalogoSoloLectura
+          que="los niveles"
+          porQue="Los necesitás para planificar y para la matriz de tareas."
+        />
 
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>

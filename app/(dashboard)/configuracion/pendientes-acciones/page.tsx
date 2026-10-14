@@ -10,6 +10,10 @@ import {
   useUpdatePendienteAccion,
 } from "@/features/pendientes/api/use-catalogos"
 
+import {
+  AvisoCatalogoSoloLectura,
+  useCatalogoSoloLectura,
+} from "@/components/catalogo-solo-lectura"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -28,6 +32,9 @@ export default function PendientesAccionesPage() {
   const create = useCreatePendienteAccion()
   const update = useUpdatePendienteAccion()
   const remove = useDeletePendienteAccion()
+
+  // Catalogo global: el Admin lo ve, lo administra AdminGlobal. Ver el componente.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
 
   const items = data?.data ?? []
   const [sheet, setSheet] = useState<{ mode: "new" | "edit"; id?: string; nombre: string } | null>(null)
@@ -66,11 +73,13 @@ export default function PendientesAccionesPage() {
             Catálogo de acciones para el wizard de descripción (ej: Reemplazar, Inspeccionar, Reajustar).
           </p>
         </div>
-        <Button onClick={() => setSheet({ mode: "new", nombre: "" })} className="gap-2">
+        <Button onClick={() => setSheet({ mode: "new", nombre: "" })} disabled={soloLectura} title={motivo} className="gap-2">
           <Plus className="h-4 w-4" />
           Nueva acción
         </Button>
       </div>
+
+      <AvisoCatalogoSoloLectura que="las acciones de pendientes" porQue="Son las opciones del wizard de descripción." />
 
       <div className="rounded-lg border bg-white overflow-hidden">
         <Table>
@@ -90,10 +99,10 @@ export default function PendientesAccionesPage() {
                 <TableRow key={a.id}>
                   <TableCell className="font-medium">{a.nombre}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSheet({ mode: "edit", id: a.id, nombre: a.nombre })}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" disabled={soloLectura} title={motivo} onClick={() => setSheet({ mode: "edit", id: a.id, nombre: a.nombre })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => setConfirmDelete({ id: a.id, nombre: a.nombre })}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" disabled={soloLectura} title={motivo} onClick={() => setConfirmDelete({ id: a.id, nombre: a.nombre })}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>

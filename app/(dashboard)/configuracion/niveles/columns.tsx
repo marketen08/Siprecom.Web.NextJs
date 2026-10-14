@@ -5,6 +5,7 @@ import { Pencil, Trash2 } from "lucide-react"
 
 import type { Nivel } from "@/features/niveles/types"
 import { useOpenNivel } from "@/features/niveles/hooks/use-open-nivel"
+import { useCatalogoSoloLectura } from "@/components/catalogo-solo-lectura"
 import { useDeleteNivel } from "@/features/niveles/api/use-delete-nivel"
 
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,8 @@ import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 function RowActions({ nivel }: { nivel: Nivel }) {
   const { open } = useOpenNivel()
   const deleteMutation = useDeleteNivel()
+  // Catalogo global: el Admin lo ve, lo administra AdminGlobal.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
 
   return (
     <div className="flex items-center gap-1 justify-end">
@@ -20,11 +23,24 @@ function RowActions({ nivel }: { nivel: Nivel }) {
         variant="ghost"
         size="icon"
         className="h-8 w-8"
+        disabled={soloLectura}
+        title={motivo}
         onClick={() => open(nivel.id)}
       >
         <Pencil className="h-4 w-4" />
       </Button>
 
+      {soloLectura ? (
+        // El tacho en gris y sin dialogo: el boton existe para que la columna no cambie de
+        // forma segun quien mira, pero no abre nada.
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/40"
+          title={motivo}
+          aria-label={motivo}
+        >
+          <Trash2 className="h-4 w-4" />
+        </span>
+      ) : (
       <ConfirmActionDialog
         trigger={<Trash2 className="h-4 w-4" />}
         triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
@@ -40,6 +56,7 @@ function RowActions({ nivel }: { nivel: Nivel }) {
         variant="destructive"
         onConfirm={() => deleteMutation.mutateAsync(nivel.id)}
       />
+      )}
     </div>
   )
 }

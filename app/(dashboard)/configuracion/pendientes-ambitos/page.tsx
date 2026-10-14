@@ -13,6 +13,10 @@ import { AudienciaAmbito, type PendienteAmbito } from "@/features/pendientes-amb
 import { COLORES_AMBITO, ICONOS_AMBITO, colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
 import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 
+import {
+  AvisoCatalogoSoloLectura,
+  useCatalogoSoloLectura,
+} from "@/components/catalogo-solo-lectura"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -66,6 +70,9 @@ const VACIO: FormState = {
 
 export default function PendientesAmbitosPage() {
   const { data, isLoading } = useGetPendientesAmbitos()
+  // Catalogo global: el Admin lo ve -lo necesita para configurar la matriz de su proyecto-
+  // y lo administra AdminGlobal.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
   const { data: gruposResp } = useGetUsuariosGrupos("pendientes")
   const crear = useCrearAmbito()
   const actualizar = useActualizarAmbito()
@@ -152,10 +159,20 @@ export default function PendientesAmbitosPage() {
             ámbito.
           </p>
         </div>
-        <Button onClick={() => { setError(null); setForm(VACIO) }} className="gap-2">
+        <Button
+          onClick={() => { setError(null); setForm(VACIO) }}
+          disabled={soloLectura}
+          title={motivo}
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" /> Nuevo ámbito
         </Button>
       </div>
+
+      <AvisoCatalogoSoloLectura
+        que="los ámbitos"
+        porQue="Los necesitás para configurar, en tu proyecto, qué puede hacer cada grupo dentro de cada ámbito."
+      />
 
       {error && !form && (
         <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
@@ -237,15 +254,24 @@ export default function PendientesAmbitosPage() {
                 <TableCell className="align-top text-center tabular-nums text-sm">{a.orden}</TableCell>
                 <TableCell className="align-top">
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => abrirEdicion(a)} aria-label="Editar">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={soloLectura}
+                      title={soloLectura ? motivo : "Editar"}
+                      onClick={() => abrirEdicion(a)}
+                      aria-label="Editar"
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => { setError(null); setConfirmDelete(a) }}
-                      disabled={a.esPrincipal}
-                      title={a.esPrincipal ? "El ámbito principal no se puede eliminar" : "Eliminar"}
+                      disabled={a.esPrincipal || soloLectura}
+                      title={soloLectura
+                        ? motivo
+                        : a.esPrincipal ? "El ámbito principal no se puede eliminar" : "Eliminar"}
                       aria-label="Eliminar"
                     >
                       <Trash2 className="h-4 w-4" />
