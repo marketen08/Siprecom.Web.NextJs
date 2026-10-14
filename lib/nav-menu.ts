@@ -242,7 +242,9 @@ export const menu: MenuItem[] = [
             // que ordena. Con el flag apagado todo proyecto usa todas las planillas.
             requiereFuncionalidad: "COLECCIONES_PLANILLAS",
           },
-          { label: "Campos",         href: "/configuracion/campos",         minRole: "AdminGlobal" },
+          // Campos se abre a Admin: ya tiene dueño por equipo y la pantalla acota las
+          // acciones por fila. Se había quedado afuera cuando se implementó eso.
+          { label: "Campos",         href: "/configuracion/campos",         minRole: "Admin" },
           // Planillas se abre a Admin: administra las de los equipos a los que tiene
           // acceso, y las globales las ve en lectura (de ahí clona). El backend acota qué
           // puede editar — ver Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md.
