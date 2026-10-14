@@ -32,17 +32,35 @@ function RowActions({ tipo }: { tipo: ElementoTipo }) {
   const { open } = useOpenElementoTipo()
   const deleteMutation = useDeleteElementoTipo()
 
+  // El backend ya resolvio si esta fila es editable. Deshabilitar con el motivo a la vista es
+  // mejor que dejar que el error aparezca al guardar, con el trabajo ya hecho.
+  const puedeEditar = tipo.puedeEditar !== false
+  const motivo = tipo.equipoNombre
+    ? `Lo administra el equipo ${tipo.equipoNombre}`
+    : "Es un tipo global: lo administra un AdminGlobal"
+
   return (
     <div className="flex items-center gap-1 justify-end">
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8"
+        disabled={!puedeEditar}
+        title={puedeEditar ? undefined : motivo}
         onClick={() => open(tipo.id)}
       >
         <Pencil className="h-4 w-4" />
       </Button>
 
+      {!puedeEditar ? (
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/40"
+          title={motivo}
+          aria-label={motivo}
+        >
+          <Trash2 className="h-4 w-4" />
+        </span>
+      ) : (
       <ConfirmActionDialog
         trigger={<Trash2 className="h-4 w-4" />}
         triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
@@ -57,6 +75,7 @@ function RowActions({ tipo }: { tipo: ElementoTipo }) {
         variant="destructive"
         onConfirm={() => deleteMutation.mutateAsync(tipo.id)}
       />
+      )}
     </div>
   )
 }
@@ -126,6 +145,35 @@ export const columns: ColumnDef<ElementoTipo>[] = [
     accessorKey: "permiteAgrupar",
     header: "Agrupar",
     cell: ({ row }) => <BoolChip value={row.original.permiteAgrupar} />,
+  },
+  {
+    id: "equipo",
+    header: "Equipo",
+    cell: ({ row }) => {
+      const t = row.original
+      // Mismo badge que en planillas y campos, a proposito: es el mismo concepto y el
+      // usuario ya lo aprendio ahi.
+      if (!t.equipoId) {
+        return (
+          <span
+            className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+            title="Global: lo ven y lo usan todos los proyectos. Lo administra un AdminGlobal."
+          >
+            Global
+          </span>
+        )
+      }
+      return (
+        <span
+          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+          title={t.puedeEditar === false
+            ? `Lo administra el equipo ${t.equipoNombre}`
+            : "Lo administra tu equipo"}
+        >
+          {t.equipoNombre}
+        </span>
+      )
+    },
   },
   {
     id: "actions",

@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -7,6 +8,12 @@ import { proyectoSchema, type ProyectoFormInput, type ProyectoFormValues } from 
 import { ESTADO_PROYECTO, type Proyecto } from "../types"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { useGetProyectosSelect } from "../api/use-get-proyectos-select"
+import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +44,9 @@ interface ProyectoFormProps {
   mostrarClonado?: boolean
 }
 
+/** Valor del combobox para "sin plantilla". El form guarda "" en ese caso. */
+const SIN_PLANTILLA = "__none__"
+
 export function ProyectoForm({
   defaultValues,
   onSubmit,
@@ -46,6 +56,17 @@ export function ProyectoForm({
 }: ProyectoFormProps) {
   const { data: clientesData, isLoading: loadingClientes } = useGetClientesSelect()
   const { data: proyectosData, isLoading: loadingProyectos } = useGetProyectosSelect()
+
+  // Plantillas ofrecidas: solo proyectos de los equipos de administracion del usuario.
+  //
+  // Clonar un proyecto se lleva su configuracion -tareas, firmas, accesos- y esa
+  // configuracion apunta al catalogo de SU equipo: desde otro equipo, el proyecto nuevo
+  // naceria con tareas que referencian planillas que su gente no administra ni ve. El
+  // backend lo valida igual; esto evita ofrecer lo que va a ser rechazado.
+  //
+  // AdminGlobal ve todas, y con la estructura de equipos apagada tampoco se acota nada.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const { data: misEquipos } = useGetMisEquipos(hayEquipos)
 
   const form = useForm<ProyectoFormInput, any, ProyectoFormValues>({
     resolver: zodResolver(proyectoSchema),
@@ -78,6 +99,28 @@ export function ProyectoForm({
   // a esos roles → nadie podrá firmar hasta que un admin los asigne.
   const firmasSinAcceso = hayPlantilla && clonarFirmas && !clonarAcceso
   const proyectosLista = proyectosData?.data ?? []
+
+  // Los que se pueden usar como plantilla, con el criterio de arriba.
+  const plantillasPosibles = useMemo(() => {
+    if (!hayEquipos || !misEquipos) return proyectosLista
+    if (misEquipos.puedeElegirGlobales) return proyectosLista // AdminGlobal
+    const mios = new Set(misEquipos.equipos.map((e) => e.id))
+    return proyectosLista.filter((p) => p.equipoId && mios.has(p.equipoId))
+  }, [proyectosLista, hayEquipos, misEquipos])
+
+  // Con buscador: el padrón pasa los cientos en un tenant grande y un desplegable sin
+  // búsqueda obliga a scrollear a ciegas. Mismo control que en los otros selects largos.
+  const plantillaOptions: ComboboxOption[] = useMemo(
+    () => [
+      { value: SIN_PLANTILLA, label: "Ninguno" },
+      ...plantillasPosibles.map((p) => ({
+        value: p.id,
+        // El cliente entra en el label para poder buscar por cualquiera de los dos.
+        label: p.clienteNombre ? `${p.nombre} — ${p.clienteNombre}` : p.nombre,
+      })),
+    ],
+    [plantillasPosibles],
+  )
 
   return (
     <Form {...form}>
@@ -278,29 +321,26 @@ export function ProyectoForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Proyecto plantilla</FormLabel>
-                    <Select
-                      disabled={isPending || loadingProyectos}
-                      onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
-                      value={field.value || "__none__"}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Ninguno">
-                            {field.value
-                              ? proyectosLista.find((p) => p.id === field.value)?.nombre
-                              : "Ninguno"}
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">Ninguno</SelectItem>
-                        {proyectosLista.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        options={plantillaOptions}
+                        value={field.value || SIN_PLANTILLA}
+                        onChange={(v) => field.onChange(v === SIN_PLANTILLA ? "" : v)}
+                        placeholder="Ninguno"
+                        searchPlaceholder="Buscar proyecto…"
+                        emptyMessage="Sin proyectos que coincidan"
+                        disabled={isPending || loadingProyectos}
+                      />
+                    </FormControl>
+                    {/* Solo si hay equipos y el usuario no es AdminGlobal: explica por qué la
+                        lista es más corta que el padrón que ve en Proyectos. */}
+                    {hayEquipos && misEquipos && !misEquipos.puedeElegirGlobales && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {plantillasPosibles.length === 0
+                          ? "Ninguno de tus proyectos está asignado a un equipo de administración todavía, así que no hay configuración que heredar."
+                          : "Solo se ofrecen proyectos de tu equipo: la configuración que se copia apunta a su catálogo de planillas."}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

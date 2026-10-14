@@ -202,7 +202,11 @@ export const menu: MenuItem[] = [
         minRole: "AdminGlobal",
         children: [
           { label: "Especialidades",    href: "/configuracion/especialidades" },
-          { label: "Tipos de elemento", href: "/configuracion/elementos-tipos" },
+          // Tipos de elemento se abre a Admin: administra los de los equipos a los que
+          // tiene acceso y ve los globales en lectura. El backend acota qué puede editar
+          // — ver Docs/PLAN-EQUIPOS-ADMINISTRACION-PLANILLAS.md. Especialidades y Niveles
+          // siguen en AdminGlobal: cambian poco y no tienen dueño.
+          { label: "Tipos de elemento", href: "/configuracion/elementos-tipos", minRole: "Admin" },
           { label: "Niveles",           href: "/configuracion/niveles" },
         ],
       },
