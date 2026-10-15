@@ -82,8 +82,16 @@ export function IntegridadBadge({ registroId, enabled = true }: Props) {
       {expanded && (
         <div className="border-t border-current/20 px-2.5 py-2 space-y-1.5">
           <p className="text-[11px] opacity-80">
-            {integridad.firmasVerificadas} firma(s) verificada(s) contra hash SHA-256
-            que incluye los datos del registro al momento de firmar.
+            {(() => {
+              const digitales = integridad.firmas.filter((f) => !f.esFirmaEnPapel).length
+              const enPapel = integridad.firmas.filter((f) => f.esFirmaEnPapel).length
+              const partes: string[] = []
+              if (digitales > 0)
+                partes.push(`${digitales} firma(s) digital(es) verificada(s) contra hash SHA-256`)
+              if (enPapel > 0)
+                partes.push(`${enPapel} firma(s) en papel (evidencia en el escaneo, no aplica hash)`)
+              return partes.join(" · ") + "."
+            })()}
           </p>
           <ul className="space-y-1">
             {integridad.firmas.map((f) => (
@@ -95,6 +103,11 @@ export function IntegridadBadge({ registroId, enabled = true }: Props) {
                   <span className="font-medium">{f.nombreFirmante}</span>
                   <span className="opacity-70"> · {f.rolFirmante}</span>
                   <span className="opacity-60"> · {new Date(f.fechaFirma).toLocaleString("es-AR")}</span>
+                  {f.esFirmaEnPapel ? (
+                    <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">
+                      En papel
+                    </span>
+                  ) : null}
                   {!f.integro && (
                     <p className="text-red-700 mt-0.5">
                       Hash no coincide — los datos fueron modificados después de esta firma.

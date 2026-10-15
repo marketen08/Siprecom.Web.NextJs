@@ -3,6 +3,7 @@ export const PENDIENTE_ESTADO_IDS = {
   ABIERTO: "estado-pend-abierto",
   EN_PROCESO: "estado-pend-en-proceso",
   PENDIENTE_APROBACION: "estado-pend-aprobacion",
+  PRE_APROBADO: "estado-pend-preaprobado",
   CERRADO: "estado-pend-cerrado",
   CANCELADO: "estado-pend-cancelado",
 } as const
@@ -25,14 +26,38 @@ export const ESTADO_COLOR: Record<string, string> = {
   ABIERTO: "bg-gray-100 text-gray-700",
   EN_PROCESO: "bg-blue-100 text-blue-700",
   PENDIENTE_APROBACION: "bg-amber-100 text-amber-800",
+  PRE_APROBADO: "bg-violet-100 text-violet-700",
   CERRADO: "bg-green-100 text-green-700",
   CANCELADO: "bg-red-100 text-red-700",
+}
+
+/**
+ * Color por categoría del punch. Es la dimensión que define la criticidad —
+ * A bloquea el arranque, D es documental — y la que usa el visor 3D para pintar
+ * la maqueta, así que conviene que el badge del pendiente hable el mismo idioma
+ * visual que el modelo.
+ *
+ * Las categorías son datos, no un enum: si un tenant las nombra distinto, cae al
+ * neutro de `CATEGORIA_COLOR_FALLBACK` en vez de romper.
+ */
+export const CATEGORIA_COLOR: Record<string, string> = {
+  A: "bg-red-100 text-red-800 border-red-300",
+  B: "bg-orange-100 text-orange-800 border-orange-300",
+  C: "bg-yellow-100 text-yellow-800 border-yellow-300",
+  D: "bg-blue-100 text-blue-800 border-blue-300",
+}
+export const CATEGORIA_COLOR_FALLBACK = "bg-gray-100 text-gray-700 border-gray-300"
+
+export function categoriaColor(nombre: string | null | undefined): string {
+  if (!nombre) return CATEGORIA_COLOR_FALLBACK
+  return CATEGORIA_COLOR[nombre.trim().toUpperCase()] ?? CATEGORIA_COLOR_FALLBACK
 }
 
 export const ESTADO_LABEL: Record<string, string> = {
   ABIERTO: "Abierto",
   EN_PROCESO: "En proceso",
   PENDIENTE_APROBACION: "Esperando aprobación",
+  PRE_APROBADO: "Pre-aprobado",
   CERRADO: "Cerrado",
   CANCELADO: "Cancelado",
 }
@@ -45,11 +70,125 @@ export interface PendienteCategoria {
 export interface PendienteTipo {
   id: string
   tipo: string
+  /** Categoría que se pre-selecciona al elegir este Tipo en el wizard (opcional). */
+  categoriaSugeridaId?: string | null
+  categoriaSugeridaNombre?: string | null
 }
 
 export interface PendienteEstado {
   id: string
   estado: string
+}
+
+export interface PendienteAccion {
+  id: string
+  nombre: string
+}
+
+export interface PendienteMotivo {
+  id: string
+  nombre: string
+}
+
+/**
+ * Fila del catálogo maestro (5 dimensiones → descripción + categoría).
+ * Alimenta el wizard del pendiente: cuando el operador completa las 5,
+ * el resolver busca match exacto acá y autopobla desc + categoría.
+ */
+export interface PendienteCatalogoMaestro {
+  id: string
+  nivelId: string
+  nivelNombre: string
+  especialidadId: string
+  especialidadNombre: string
+  tipoId: string
+  tipoNombre: string
+  accionId: string
+  accionNombre: string
+  motivoId: string
+  motivoNombre: string
+  categoriaId: string
+  categoriaNombre: string
+  descripcion: string
+}
+
+export interface PendienteCatalogoMaestroCreate {
+  nivelId: string
+  especialidadId: string
+  tipoId: string
+  accionId: string
+  motivoId: string
+  categoriaId: string
+  descripcion: string
+}
+
+export type PendienteCatalogoMaestroUpdate = PendienteCatalogoMaestroCreate
+
+export interface PendienteCatalogoResolverResult {
+  descripcion: string
+  categoriaId: string
+  categoriaNombre: string
+}
+
+// ── Árbol del catálogo — cascada estricta en el form ──────────────────
+
+export interface PendienteCatalogoArbolMotivo {
+  motivoId: string
+  motivoNombre: string
+  categoriaId: string
+  categoriaNombre: string
+  descripcion: string
+}
+
+export interface PendienteCatalogoArbolAccion {
+  accionId: string
+  accionNombre: string
+  motivos: PendienteCatalogoArbolMotivo[]
+}
+
+export interface PendienteCatalogoArbolTipo {
+  tipoId: string
+  tipoNombre: string
+  acciones: PendienteCatalogoArbolAccion[]
+}
+
+export interface PendienteCatalogoArbolEspecialidad {
+  especialidadId: string
+  especialidadNombre: string
+  tipos: PendienteCatalogoArbolTipo[]
+}
+
+export interface PendienteCatalogoArbolNivel {
+  nivelId: string
+  nivelNombre: string
+  nivelPosicion: number
+  especialidades: PendienteCatalogoArbolEspecialidad[]
+}
+
+// ── Import Excel del catálogo maestro (multi-hoja) ─────────────────────
+
+export interface PendienteCatalogoImportResumen {
+  creates: number
+  updates: number
+  deletes: number
+  total: number
+}
+
+export interface PendienteCatalogoImportError {
+  hoja: string
+  filaExcel: number
+  columna: string | null
+  mensaje: string
+}
+
+export interface PendienteCatalogoImportResult {
+  aplicado: boolean
+  mensaje: string
+  tipos: PendienteCatalogoImportResumen
+  acciones: PendienteCatalogoImportResumen
+  motivos: PendienteCatalogoImportResumen
+  catalogo: PendienteCatalogoImportResumen
+  errores: PendienteCatalogoImportError[]
 }
 
 export interface Pendiente {
@@ -75,11 +214,46 @@ export interface Pendiente {
   detectadoPorNombre: string | null
   responsableId: string
   responsableNombre: string | null
+  /**
+   * Grupo co-responsable (opcional). Complementa al responsable nominal: su único
+   * efecto es que el pendiente aparece en "Míos" para todos los miembros del grupo.
+   * No otorga permisos — eso se configura en la matriz de autorización del proyecto.
+   */
+  grupoResponsableId?: string | null
+  grupoResponsableNombre?: string | null
+  /** Ámbito del pendiente: la clase de información a la que pertenece. */
+  ambitoId: string
+  ambitoNombre: string | null
+  /**
+   * True cuando el ámbito es el principal del tenant. Sirve para no dibujar el
+   * chip: marcar todo con "General" es ruido, lo que informa es el restringido.
+   */
+  ambitoEsPrincipal: boolean
+  /** Ícono y color con que el ámbito se marca en el listado. Sin ícono, no se marca. */
+  ambitoIcono: string | null
+  ambitoColor: string | null
+  /**
+   * Qué pasos del workflow existen en el ámbito de este pendiente. Definen qué botón
+   * ofrecer — no si este usuario puede ejecutarlo, que lo decide el backend.
+   */
+  ambitoPasoIniciar: boolean
+  ambitoPasoPreAprobar: boolean
   descripcion: string
+  /** True si el usuario editó la descripción manualmente (checkbox activo). */
+  descripcionManual?: boolean
+  /** Descripción libre de la ubicación geográfica del pendiente (opcional). */
+  ubicacion?: string | null
   pid: string | null
   especialidadId: string | null
   especialidadNombre: string | null
   circuito: string | null
+  // Wizard de descripción (5 dimensiones — opcional).
+  nivelId?: string | null
+  nivelNombre?: string | null
+  accionId?: string | null
+  accionNombre?: string | null
+  motivoId?: string | null
+  motivoNombre?: string | null
   fechaDeteccion: string
   fechaCierreEstimado: string
   fechaCierre: string | null
@@ -89,6 +263,15 @@ export interface Pendiente {
   desestimadoPorId: string | null
   desestimadoPorNombre: string | null
   motivoRechazoCierre: string | null
+  /** True cuando el pendiente fue cerrado con carga de PDF físico y ese archivo está disponible para descarga. */
+  tienePdfFisico?: boolean
+  // Vínculo opcional a un pin sobre un PID (visor tablet). Todos van juntos:
+  // si `pidArchivoId` no es null, los otros 3 tampoco.
+  pidArchivoId?: string | null
+  pidArchivoCodigo?: string | null
+  pidPagina?: number | null
+  pidCoordX?: number | null
+  pidCoordY?: number | null
   createdAt: string
   updatedAt: string
   isActive: boolean
@@ -130,17 +313,50 @@ export interface PendienteHistorial {
   usuarioNombre: string | null
 }
 
+/**
+ * Qué puede hacer el usuario con ESTE pendiente. Lo calcula el backend: además de la
+ * matriz por ámbito entra el atajo del responsable, y para eso hay que saber a qué
+ * grupos pertenece el usuario — dato que el front no tiene.
+ *
+ * Son permisos, no estado: que puedas aprobar no significa que el pendiente esté en
+ * condiciones de aprobarse. El estado lo sigue decidiendo la pantalla.
+ */
+export interface PendientePermisos {
+  iniciar: boolean
+  enviarAprobacion: boolean
+  preAprobar: boolean
+  aprobar: boolean
+  rechazar: boolean
+  cancelar: boolean
+  /** Permiso para cerrar con el PDF firmado: el mismo que aprobar. */
+  cargarFisico: boolean
+  /**
+   * La funcionalidad está activa en el proyecto. Apagada, la acción no existe: se
+   * oculta el botón en vez de mostrarlo gris — no hay permiso que conseguir.
+   */
+  cargaFisicaHabilitada: boolean
+}
+
 export interface PendienteDetalle extends Pendiente {
   comentarios: PendienteComentario[]
   adjuntos: PendienteAdjunto[]
   historial: PendienteHistorial[]
+  permisos: PendientePermisos
 }
 
 export interface PendienteCreateInput {
   categoriaId: string
   tipoId: string
   responsableId: string
+  /** Grupo co-responsable (opcional). Solo afecta la visibilidad en "Míos". */
+  grupoResponsableId?: string | null
+  /** Ámbito donde se clasifica. Vacío = el principal del tenant. */
+  ambitoId?: string | null
   descripcion: string
+  /** True si el user tildó "Modificar descripción manualmente". Backend lo ignora si el flag del proyecto está off. */
+  descripcionManual?: boolean
+  /** Ubicación geográfica libre — opcional. */
+  ubicacion?: string | null
   prioridad: number
   fechaCierreEstimado: string // YYYY-MM-DD
   subSistemaId?: string | null
@@ -148,12 +364,30 @@ export interface PendienteCreateInput {
   especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
+
+  // Dimensiones del wizard — requeridas por el backend (cascada estricta contra el catálogo).
+  nivelId?: string | null
+  accionId?: string | null
+  motivoId?: string | null
+
+  /**
+   * Vínculo opcional a un punto de un PID: se setean cuando el pendiente se crea
+   * desde el visor tap-en-plano. Los 4 campos van juntos — el backend valida.
+   */
+  pidArchivoId?: string | null
+  pidPagina?: number | null
+  pidCoordX?: number | null
+  pidCoordY?: number | null
 }
 
 export interface PendienteUpdateInput {
   categoriaId: string
   tipoId: string
   descripcion: string
+  /** Idem PendienteCreateInput.descripcionManual. */
+  descripcionManual?: boolean
+  /** Ubicación geográfica libre — opcional. */
+  ubicacion?: string | null
   prioridad: number
   fechaCierreEstimado: string
   subSistemaId?: string | null
@@ -161,6 +395,12 @@ export interface PendienteUpdateInput {
   especialidadId?: string | null
   pid?: string | null
   circuito?: string | null
+  // Dimensiones del wizard — requeridas al editar pendientes nuevos.
+  nivelId?: string | null
+  accionId?: string | null
+  motivoId?: string | null
+  // El ámbito NO va en el update: se cambia con PUT /pendientes/{id}/ambito,
+  // que valida el permiso de reclasificación. Igual que el responsable.
 }
 
 export interface PendienteFilterInput {
@@ -172,10 +412,21 @@ export interface PendienteFilterInput {
   tipoId?: string
   estadoId?: string
   responsableId?: string
+  /** Pendientes asignados a este grupo co-responsable. Independiente de responsableId. */
+  grupoResponsableId?: string
+  /**
+   * Filtra por ámbito. Vacío = todos los que el usuario ve, que es el default del
+   * listado: esconder por omisión un pendiente asignado es peor que mostrarlo.
+   * (En el PDF el criterio se invierte y el default es el ámbito principal.)
+   */
+  ambitoId?: string
   detectadoPorId?: string
   prioridad?: number
   especialidadId?: string
+  pidArchivoId?: string
   soloAbiertos?: boolean
+  /** Solo pendientes donde el usuario es creador (DetectadoPor) o responsable. Default UI para roles < Supervisor. */
+  soloMios?: boolean
   orderBy?: string
   orderDescending?: boolean
 }

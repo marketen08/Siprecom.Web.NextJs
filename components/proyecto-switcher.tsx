@@ -1,11 +1,13 @@
 "use client"
 
-import { Loader2, FolderOpen, Check, ChevronDown, BarChart3 } from "lucide-react"
+import { useMemo } from "react"
+import { Loader2, FolderOpen, Check, ChevronDown, BarChart3, Settings2 } from "lucide-react"
 import { useIsFetching } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useCambiarProyectoActivo } from "@/features/auth/api/use-cambiar-proyecto-activo"
+import { useMeetsRole } from "@/lib/use-roles"
 
 import {
   DropdownMenu,
@@ -20,9 +22,29 @@ export function ProyectoSwitcher() {
   const { data: proyectos, isLoading: loadingProyectos } = useGetMisProyectos()
   const mutation = useCambiarProyectoActivo()
   const isFetching = useIsFetching()
+  // "Configuración de todos los proyectos" solo tiene sentido para Admin+ (gestión).
+  const isAdmin = useMeetsRole("Admin")
 
   const isUpdating = mutation.isPending || (mutation.isSuccess && isFetching > 0)
   const proyectoActivo = proyectos?.find((p) => p.esActivo)
+
+  // Alfabético. El backend los devuelve en el orden en que se asignaron, que para el
+  // usuario es ninguno: con varios proyectos hay que leer la lista entera para
+  // encontrar el suyo.
+  //
+  // Copia antes de ordenar: el array es el de la caché de React Query y ordenarlo en
+  // el lugar le cambiaría el orden a cualquier otra pantalla que lo use.
+  //
+  // localeCompare con numeric: "C-9" antes que "C-10" (alfabético puro los invierte,
+  // porque compara "1" con "9"), y los acentos ordenan como su letra base en vez de
+  // irse al final.
+  const ordenados = useMemo(
+    () =>
+      [...(proyectos ?? [])].sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, "es", { numeric: true, sensitivity: "base" }),
+      ),
+    [proyectos],
+  )
 
   if (loadingProyectos) {
     return (
@@ -62,7 +84,7 @@ export function ProyectoSwitcher() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-64">
-        {proyectos.map((proyecto) => (
+        {ordenados.map((proyecto) => (
           <DropdownMenuItem
             key={proyecto.id}
             disabled={proyecto.esActivo}
@@ -90,6 +112,15 @@ export function ProyectoSwitcher() {
           <BarChart3 className="h-4 w-4 shrink-0 text-blue-900" />
           <span className="truncate">Avance de todos los proyectos</span>
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem
+            onClick={() => router.push("/configuracion/proyectos")}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <Settings2 className="h-4 w-4 shrink-0 text-blue-900" />
+            <span className="truncate">Configuración de todos los proyectos</span>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -1,0 +1,358 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+} from "@tanstack/react-table"
+import { Box, Plus, Search } from "lucide-react"
+
+import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
+import { useNewProyecto } from "@/features/proyectos/hooks/use-new-proyecto"
+import { NewProyectoSheet } from "@/features/proyectos/components/new-proyecto-sheet"
+import { EditProyectoSheet } from "@/features/proyectos/components/edit-proyecto-sheet"
+import { CrearProyectoDesdeIfcSheet } from "@/features/modelo-3d/components/crear-proyecto-desde-ifc-sheet"
+import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
+import { useMeetsRole } from "@/lib/use-roles"
+import { ESTADO_PROYECTO, type Proyecto } from "@/features/proyectos/types"
+import { columns, EstadoBadge, ESTADO_COLORS, RowActions } from "./columns"
+import { DataTableWrapper } from "@/components/data-table-wrapper"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  FiltersTrigger,
+  FiltersChips,
+  FiltersSheet,
+  FilterField,
+  type FilterChip,
+} from "@/components/ui/filters-bar"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+const ALL = "__all__"
+
+export default function ProyectosPage() {
+  const [search, setSearch] = useState("")
+  const [estado, setEstado] = useState<string>(ALL)
+  const [clienteId, setClienteId] = useState<string>(ALL)
+  const [contratistaId, setContratistaId] = useState<string>(ALL)
+  const [page, setPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [openCrearDesdeIfc, setOpenCrearDesdeIfc] = useState(false)
+  // AdminGlobal (7) cubre también a SuperAdmin (8), que tiene nivel mayor.
+  const puedeCrearDesdeMaqueta = useMeetsRole("AdminGlobal")
+  const pageSize = 10
+
+  const { data, isLoading, isFetching } = useGetProyectos({
+    page,
+    pageSize,
+    nombre: search || undefined,
+    estado: estado !== ALL ? Number(estado) : undefined,
+    clienteId: clienteId !== ALL ? clienteId : undefined,
+    contratistaId: contratistaId !== ALL ? contratistaId : undefined,
+  })
+  const { open } = useNewProyecto()
+
+  // Catálogo de clientes y contratistas (un solo fetch que devuelve ambos separados)
+  const { data: clientesData } = useGetClientesSelect()
+  const clientes = clientesData?.clientes ?? []
+  const contratistas = clientesData?.contratistas ?? []
+
+  // Limpiar resetea filtros (no toca el buscador, igual que en /alcance/elementos)
+  function clearFiltros() {
+    setEstado(ALL)
+    setClienteId(ALL)
+    setContratistaId(ALL)
+    setPage(1)
+  }
+
+  // El estado no entra acá: tiene su propia fila de chips, siempre visible, y repetirlo
+  // como chip activo mostraría dos veces lo mismo. Los del sheet sí, porque mientras el
+  // sheet está cerrado no hay otra señal de que están puestos.
+  const activeFilters: FilterChip[] = []
+  if (clienteId !== ALL) {
+    const c = clientes.find((x) => x.id === clienteId)
+    activeFilters.push({
+      id: "cliente",
+      label: `Cliente: ${c?.nombre ?? "—"}`,
+      onRemove: () => { setClienteId(ALL); setPage(1) },
+    })
+  }
+  if (contratistaId !== ALL) {
+    const c = contratistas.find((x) => x.id === contratistaId)
+    activeFilters.push({
+      id: "contratista",
+      label: `Contratista: ${c?.nombre ?? "—"}`,
+      onRemove: () => { setContratistaId(ALL); setPage(1) },
+    })
+  }
+
+  const table = useReactTable({
+    data: data?.data ?? [],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
+    manualPagination: true,
+    rowCount: data?.total ?? 0,
+  })
+
+  const totalPages = Math.ceil((data?.total ?? 0) / pageSize)
+
+  return (
+    <>
+      <NewProyectoSheet />
+      <EditProyectoSheet />
+      <CrearProyectoDesdeIfcSheet
+        open={openCrearDesdeIfc}
+        onClose={() => setOpenCrearDesdeIfc(false)}
+      />
+
+      <div className="space-y-4">
+        {/* Buscador + Nuevo + Filtros */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="pl-9"
+            />
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <FiltersTrigger
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+              activeCount={activeFilters.length}
+            />
+            {/* Crear desde maqueta es AdminGlobal+: el bootstrap da de alta el
+                proyecto y le popula Sistemas, SubSistemas y Elementos de una,
+                sobre un archivo de cientos de MB. La pantalla la ve un Admin
+                (minRole "Admin"), así que el gate va en el botón y no en la ruta. */}
+            {puedeCrearDesdeMaqueta && (
+              <Button onClick={() => setOpenCrearDesdeIfc(true)} variant="outline" className="gap-2">
+                <Box className="h-4 w-4" />
+                <span className="hidden sm:inline">Crear desde IFC o NWD</span>
+                <span className="sm:hidden">IFC/NWD</span>
+              </Button>
+            )}
+            <Button onClick={open} className="gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nuevo proyecto</span>
+              <span className="sm:hidden">Nuevo</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Estado: siete opciones y un solo criterio, así que va a la vista en vez de
+            adentro del sheet — es el filtro de todos los días. Cliente y contratista se
+            quedan adentro: son listas largas y ocuparían toda la barra.
+
+            Volver a tocar el chip activo lo saca: con una sola opción a la vez, el chip
+            prendido es también el botón para apagarlo. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Estado:</span>
+          {Object.entries(ESTADO_PROYECTO).map(([id, label]) => {
+            const activo = estado === id
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => { setEstado(activo ? ALL : id); setPage(1) }}
+                aria-pressed={activo}
+                className={
+                  "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer " +
+                  (activo
+                    // Mismo color que el badge de la tabla: el chip prendido y la columna
+                    // Estado dicen lo mismo, así que se ven igual.
+                    ? `border-transparent ${ESTADO_COLORS[Number(id)] ?? "bg-gray-100 text-gray-700"}`
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Chips de filtros activos */}
+        <FiltersChips activeFilters={activeFilters} onClearAll={clearFiltros} />
+
+        {/* Sheet con los controles */}
+        <FiltersSheet
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          onClearAll={clearFiltros}
+          hasActiveFilters={activeFilters.length > 0}
+        >
+          {/* El estado no está acá: quedó como fila de chips sobre la tabla. */}
+          <FilterField label="Cliente">
+            <Select
+              value={clienteId}
+              onValueChange={(v) => { setClienteId(v ?? ALL); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {clienteId === ALL
+                    ? "Todos los clientes"
+                    : clientes.find((c) => c.id === clienteId)?.nombre ?? "Cliente"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los clientes</SelectItem>
+                {clientes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Contratista">
+            <Select
+              value={contratistaId}
+              onValueChange={(v) => { setContratistaId(v ?? ALL); setPage(1) }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {contratistaId === ALL
+                    ? "Todos los contratistas"
+                    : contratistas.find((c) => c.id === contratistaId)?.nombre ?? "Contratista"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los contratistas</SelectItem>
+                {contratistas.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </FiltersSheet>
+
+        {/* Cards (solo mobile) */}
+        <div className="md:hidden space-y-2">
+          {isLoading ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              Cargando...
+            </div>
+          ) : (data?.data ?? []).length === 0 ? (
+            <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              No se encontraron proyectos.
+            </div>
+          ) : (
+            (data?.data ?? []).map((p: Proyecto) => (
+              <div key={p.id} className="rounded-lg border bg-white p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/configuracion/proyectos/${p.id}`} className="min-w-0 flex-1">
+                    <p className="font-medium text-blue-700 truncate">{p.nombre}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {p.clienteNombre ?? "—"}
+                      {p.contratistaNombre ? ` · ${p.contratistaNombre}` : ""}
+                    </p>
+                  </Link>
+                  <EstadoBadge estado={p.estado} />
+                </div>
+                {p.observaciones && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{p.observaciones}</p>
+                )}
+                <div className="flex justify-end border-t pt-2">
+                  <RowActions proyecto={p} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Tabla (solo desktop) */}
+        <div className="hidden md:block">
+          <DataTableWrapper isFetching={isFetching && !isLoading}>
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id}>
+                  {hg.headers.map((header) => (
+                    <TableHead key={header.id} className="font-semibold text-gray-700">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                    Cargando...
+                  </TableCell>
+                </TableRow>
+              ) : table.getRowModel().rows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                    No se encontraron proyectos.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} className="hover:bg-gray-50">
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          </DataTableWrapper>
+        </div>
+
+        {/* Total + Paginación */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{data?.total ?? 0} proyectos en total</span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-3">
+              <span>Página {page} de {totalPages}</span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={page === 1}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}

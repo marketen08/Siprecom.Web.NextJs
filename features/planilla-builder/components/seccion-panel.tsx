@@ -64,8 +64,12 @@ export function SeccionPanel({
         id: seccion.id,
         planillaId,
         nombre: editingNombre.trim(),
+        // Preservamos nombreAlt/mostrarTitulo/descripcion: el inline solo cambia el nombre;
+        // el DTO de update es full-replace, así que sin esto se pierde el resto.
+        nombreAlt: seccion.nombreAlt ?? null,
         descripcion: seccion.descripcion,
         orden: seccion.orden,
+        mostrarTitulo: seccion.mostrarTitulo ?? true,
       },
       {
         onSuccess: () => {
@@ -81,6 +85,8 @@ export function SeccionPanel({
   }
 
   // Swap del orden de dos secciones (no hay índice unique sobre orden, así que es seguro).
+  // Update es full-replace, así que arrastramos nombreAlt/mostrarTitulo/descripcion para
+  // no perderlos.
   const swapOrden = async (a: PlanillaSeccion, b: PlanillaSeccion) => {
     const ordenA = a.orden
     const ordenB = b.orden
@@ -88,15 +94,19 @@ export function SeccionPanel({
       id: a.id,
       planillaId,
       nombre: a.nombre,
+      nombreAlt: a.nombreAlt ?? null,
       descripcion: a.descripcion,
       orden: ordenB,
+      mostrarTitulo: a.mostrarTitulo ?? true,
     })
     await updateMutation.mutateAsync({
       id: b.id,
       planillaId,
       nombre: b.nombre,
+      nombreAlt: b.nombreAlt ?? null,
       descripcion: b.descripcion,
       orden: ordenA,
+      mostrarTitulo: b.mostrarTitulo ?? true,
     })
   }
 
@@ -168,13 +178,18 @@ export function SeccionPanel({
                 <button
                   onClick={() => onSelect(s.id)}
                   className={cn(
-                    "flex-1 text-left px-3 py-2 rounded-md text-sm transition-colors truncate",
+                    "flex-1 text-left px-3 py-2 rounded-md text-sm transition-colors min-w-0",
                     selectedSeccionId === s.id
                       ? "bg-blue-50 text-blue-900 font-medium"
                       : "hover:bg-gray-100"
                   )}
                 >
-                  {s.nombre}
+                  <span className="block truncate">{s.nombre}</span>
+                  {s.nombreAlt && (
+                    <span className="block truncate text-[11px] italic text-gray-500 font-normal">
+                      {s.nombreAlt}
+                    </span>
+                  )}
                 </button>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button

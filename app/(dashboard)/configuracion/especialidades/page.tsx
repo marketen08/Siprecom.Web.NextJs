@@ -10,6 +10,10 @@ import {
   useUpdateEspecialidad,
 } from "@/features/especialidades/api/use-especialidades"
 
+import {
+  AvisoCatalogoSoloLectura,
+  useCatalogoSoloLectura,
+} from "@/components/catalogo-solo-lectura"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -38,6 +42,9 @@ export default function EspecialidadesPage() {
   const create = useCreateEspecialidad()
   const update = useUpdateEspecialidad()
   const remove = useDeleteEspecialidad()
+
+  // Catalogo global: el Admin lo ve, lo administra AdminGlobal. Ver el componente.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
 
   const items = data?.data ?? []
   const [sheet, setSheet] = useState<SheetState | null>(null)
@@ -83,6 +90,8 @@ export default function EspecialidadesPage() {
           </p>
         </div>
         <Button
+          disabled={soloLectura}
+          title={motivo}
           onClick={() => { setError(null); setSheet({ mode: "new", nombre: "", codigo: "", color: COLOR_DEFAULT }) }}
           className="gap-2"
         >
@@ -90,6 +99,11 @@ export default function EspecialidadesPage() {
           Nueva especialidad
         </Button>
       </div>
+
+      <AvisoCatalogoSoloLectura
+        que="las especialidades"
+        porQue="Las necesitás para elegirlas al cargar tipos de elemento y planillas."
+      />
 
       <div className="rounded-lg border bg-white overflow-hidden">
         <Table>
@@ -129,6 +143,8 @@ export default function EspecialidadesPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
+                      disabled={soloLectura}
+                      title={motivo}
                       onClick={() => { setError(null); setSheet({
                         mode: "edit",
                         id: e.id,
@@ -143,6 +159,8 @@ export default function EspecialidadesPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-red-600"
+                      disabled={soloLectura}
+                      title={motivo}
                       onClick={() => { setError(null); setConfirmDelete({ id: e.id, nombre: e.nombre }) }}
                     >
                       <Trash2 className="h-4 w-4" />

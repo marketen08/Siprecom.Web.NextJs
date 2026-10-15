@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import * as XLSX from "xlsx"
-import { FileSpreadsheet, Trash2, ChevronDown, ChevronRight, Loader2, Upload, CheckCircle2, AlertCircle } from "lucide-react"
+import Link from "next/link"
+import { FileSpreadsheet, Trash2, ChevronDown, ChevronRight, Loader2, Upload, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,9 +26,10 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 
 import { apiClient } from "@/lib/api-client"
-import type { ExcelParsePayload, PlanillaImportada, SeccionImportada, CampoImportado } from "../import-types"
+import type { ExcelParsePayload, PlanillaImportada, SeccionImportada, CampoImportado, CatalogoCampoResumen } from "../import-types"
 import type { Planilla, PlanillaSeccion, CampoTipoDato } from "../types"
 import { CAMPO_TIPO_DATO } from "../types"
+import { useGetCamposSelect } from "@/features/campos/api/use-get-campos-select"
 
 const TIPOS = Object.entries(CAMPO_TIPO_DATO)
   .filter(([k]) => k !== "6") // excluir Firma
@@ -78,17 +79,28 @@ interface Props {
 export function ImportExcelSheet({ open, onClose }: Props) {
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
+  // Catálogo global — se envía a la IA para que reutilice campos existentes
+  // en vez de crear duplicados (mismo mecanismo que "Generar con IA").
+  const camposQuery = useGetCamposSelect() as {
+    data?: { data?: Array<{ id: string; codigo: string; etiqueta: string; tipoDato: CampoTipoDato }> }
+  }
 
   const [step, setStep] = useState<Step>("upload")
   const [errorMsg, setErrorMsg] = useState("")
   const [progreso, setProgreso] = useState("")
   const [planilla, setPlanilla] = useState<PlanillaEditable | null>(null)
+  const [planillaCreada, setPlanillaCreada] = useState<{
+    id: string
+    codigo: string
+    nombre: string
+  } | null>(null)
 
   function resetear() {
     setStep("upload")
     setErrorMsg("")
     setProgreso("")
     setPlanilla(null)
+    setPlanillaCreada(null)
     if (fileRef.current) fileRef.current.value = ""
   }
 
@@ -106,18 +118,40 @@ export function ImportExcelSheet({ open, onClose }: Props) {
     setErrorMsg("")
 
     try {
-      const buffer = await file.arrayBuffer()
-      const wb = XLSX.read(buffer, { type: "array" })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const filas: string[][] = XLSX.utils.sheet_to_json(ws, {
-        header: 1,
-        defval: "",
-        raw: false,
-      }) as string[][]
+      // El .xlsx lo parsea el backend, no el navegador. Antes esto era
+      // XLSX.read + sheet_to_json de la librería `xlsx` (SheetJS), que tiene dos
+      // vulnerabilidades HIGH sin fix en npm —prototype pollution y ReDoS— y las
+      // dos se disparan justamente al parsear. Parsear un archivo que entra de
+      // afuera acá, en el origen de la app y con la sesión a mano, era el riesgo.
+      //
+      // El backend devuelve la misma matriz: se comparó celda por celda contra la
+      // que producía SheetJS sobre el mismo archivo (ver ExcelMatrizParser).
+      const fd = new FormData()
+      fd.append("archivo", file)
+      const resMatriz = await fetch("/api/planillas/excel-matriz", { method: "POST", body: fd })
+      const bodyMatriz = await resMatriz.json().catch(() => null)
+      if (!resMatriz.ok) {
+        throw new Error(bodyMatriz?.message ?? `No se pudo leer el archivo (${resMatriz.status})`)
+      }
+      const filas: string[][] = bodyMatriz?.data?.filas ?? []
+      if (filas.length === 0) {
+        throw new Error("El archivo no tiene filas para analizar.")
+      }
+
+      // Armar el catálogo compacto para minimizar tokens (mismo formato que
+      // el flujo "Generar con IA desde descripción").
+      const camposData = camposQuery.data?.data ?? []
+      const catalogo: CatalogoCampoResumen[] = camposData.map((c) => ({
+        id: c.id,
+        codigo: c.codigo,
+        etiqueta: c.etiqueta,
+        tipoDato: c.tipoDato,
+      }))
 
       const payload: ExcelParsePayload = {
         nombreArchivo: file.name,
         filas,
+        catalogo,
       }
 
       const resultado = await fetch("/api/ai/planilla-desde-excel", {
@@ -197,12 +231,20 @@ export function ImportExcelSheet({ open, onClose }: Props) {
     setErrorMsg("")
 
     try {
-      // 1. Crear planilla base
+      // 1. Crear planilla base. Código único basado en nombre + timestamp para
+      // garantizar unicidad de (Codigo, Version) — sin esto, la segunda planilla
+      // importada con codigo=null falla contra el índice UQ del back.
       setProgreso("Creando planilla...")
+      const codigoPlanilla = (planilla.nombre || "PL")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "_")
+        .replace(/_+/g, "_")
+        .slice(0, 30) + "_" + Date.now().toString().slice(-6)
       const planillaResp = await apiClient.post<{ data: Planilla }>("/api/planillas", {
+        codigo: codigoPlanilla,
         nombre: planilla.nombre,
         requiereFirma: true,
-        permiteAdjuntos: false,
+        permiteAdjuntos: true,
         generaPdfFinal: false,
       })
       const planillaId = planillaResp.data.id
@@ -228,15 +270,16 @@ export function ImportExcelSheet({ open, onClose }: Props) {
           const campo = camposActivos[i]
           setProgreso(`Creando campo "${campo.etiqueta}"...`)
 
-          // Generar código único a partir de la etiqueta
+          // Generar código único a partir de la etiqueta. `slug + "_" + 6 chars`
+          // suma max 30 + 1 + 6 = 37 chars — bajo el cap del DTO (50).
           const codigo = campo.etiqueta
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, "_")
             .replace(/_+/g, "_")
-            .slice(0, 50)
+            .slice(0, 30)
 
           const campoResp = await apiClient.post<{ data: { id: string } }>("/api/campos", {
-            codigo: `${codigo}_${Date.now()}`,
+            codigo: `${codigo}_${Date.now().toString().slice(-6)}`,
             etiqueta: campo.etiqueta,
             tipoDato: campo.tipoDato,
             esObligatorioDefault: campo.esObligatorio,
@@ -257,6 +300,11 @@ export function ImportExcelSheet({ open, onClose }: Props) {
       }
 
       setProgreso("")
+      setPlanillaCreada({
+        id: planillaId,
+        codigo: codigoPlanilla,
+        nombre: planilla.nombre,
+      })
       setStep("ok")
       qc.invalidateQueries({ queryKey: ["planillas"] })
     } catch (err: unknown) {
@@ -283,7 +331,7 @@ export function ImportExcelSheet({ open, onClose }: Props) {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto mt-4 px-1 pb-6 space-y-4">
+        <div className="flex-1 overflow-y-auto mt-6 px-4 pb-6 space-y-4">
 
           {/* STEP: upload */}
           {step === "upload" && (
@@ -327,11 +375,38 @@ export function ImportExcelSheet({ open, onClose }: Props) {
 
           {/* STEP: ok */}
           {step === "ok" && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
               <p className="font-semibold text-lg text-gray-800">¡Planilla creada!</p>
-              <p className="text-sm text-muted-foreground">La planilla se creó correctamente.</p>
-              <Button onClick={cerrar}>Cerrar</Button>
+
+              {planillaCreada && (
+                <div className="w-full max-w-md rounded-lg border bg-gray-50 p-4 space-y-1.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0 w-16">Código</span>
+                    <span className="font-mono text-sm text-gray-800 break-all">
+                      {planillaCreada.codigo}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0 w-16">Nombre</span>
+                    <span className="text-sm font-medium text-gray-800">
+                      {planillaCreada.nombre}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                {planillaCreada && (
+                  <Button asChild onClick={cerrar}>
+                    <Link href={`/configuracion/planillas/${planillaCreada.id}`}>
+                      Ir al diseño
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </Button>
+                )}
+                <Button variant="outline" onClick={cerrar}>Cerrar</Button>
+              </div>
             </div>
           )}
 

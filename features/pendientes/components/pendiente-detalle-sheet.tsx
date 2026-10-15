@@ -1,23 +1,47 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import {
   Clock, CheckCircle2, XCircle, Ban, Loader2, MessageSquarePlus,
-  Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, X,
+  Paperclip, Trash2, Upload, Play, Send, ThumbsUp, ThumbsDown, ClipboardCheck, X, Pencil,
+  FileDown, FileUp, MapPin, ListChecks, UserCog, Tags,
 } from "lucide-react"
+
+import { PendienteCargaFisicaUploader } from "./pendiente-carga-fisica-uploader"
 
 import { useOpenPendiente } from "../hooks/use-open-pendiente"
 import { useGetPendiente } from "../api/use-get-pendiente"
 import { useAgregarComentario } from "../api/use-agregar-comentario"
 import { useSubirAdjunto, useEliminarAdjunto } from "../api/use-adjuntos"
-import { usePendienteTransicion } from "../api/use-pendiente-workflow"
+import { useCanWrite } from "@/lib/use-roles"
+import { usePendienteTransicion, useAsignarResponsable } from "../api/use-pendiente-workflow"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
+import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import {
-  ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR,
+  avisoReasignacion, enAudienciaDelAmbito, etiquetaGrupoResponsable, seOfreceComoResponsable,
+} from "@/features/usuarios-grupos/etiqueta-responsable"
+import { useUpdatePendiente } from "../api/use-update-pendiente"
+import { PendienteForm } from "./pendiente-form"
+import { PendienteCalidadPanel } from "@/features/no-conformidades/components/pendiente-calidad-panel"
+import type { PendienteFormValues } from "../schema"
+import {
+  ESTADO_COLOR, ESTADO_LABEL, PENDIENTE_ESTADO_IDS, PRIORIDAD, PRIORIDAD_COLOR, categoriaColor,
 } from "../types"
+import type { PendientePermisos } from "../types"
+import { colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
+import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
+import { AudienciaAmbito, type PendienteAmbito } from "@/features/pendientes-ambitos/types"
+import { useReclasificarPendiente } from "../api/use-reclasificar-pendiente"
 
 import { Button } from "@/components/ui/button"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
@@ -27,31 +51,241 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-export function PendienteDetalleSheet() {
+interface PendienteDetalleSheetProps {
+  /** Oculta el backdrop — usado desde el visor de PID para no tapar el plano. */
+  hideOverlay?: boolean
+  /** Sheet ancho (4xl en vez del default 2xl). Útil en el listado global. */
+  wide?: boolean
+}
+
+export function PendienteDetalleSheet({ hideOverlay, wide }: PendienteDetalleSheetProps = {}) {
   const { id, isOpen, close } = useOpenPendiente()
   const { data, isLoading } = useGetPendiente(id)
   const p = data?.data
+  const [isEditing, setIsEditing] = useState(false)
+  const [cargaFisicaOpen, setCargaFisicaOpen] = useState(false)
+  // Estamos dentro del visor de PID cuando la URL activa arranca con /ejecucion/pids/.
+  // En ese contexto ocultamos "Ver en PID" (redundante) y mostramos en su lugar
+  // "Ver pendientes de este PID" que lleva al listado filtrado.
+  const pathname = usePathname()
+  const enPidViewer = pathname?.startsWith("/ejecucion/pids/") ?? false
+  // Consultor/Auditor: solo lectura del pendiente (ni editar ni workflow ni comentarios).
+  const canWrite = useCanWrite()
+
+  // Al cambiar de pendiente o cerrar el sheet, salimos del modo edición.
+  useEffect(() => {
+    if (!isOpen) {
+      setIsEditing(false)
+      setCargaFisicaOpen(false)
+    }
+  }, [isOpen, id])
+
+  const puedeEditar = canWrite && p?.estadoId === PENDIENTE_ESTADO_IDS.ABIERTO
+  // El Workflow (sección "Acciones") solo tiene sentido en estados no terminales.
+  // En CERRADO/CANCELADO se oculta — ver early-return en el propio Workflow.
+  const puedeVerWorkflow = canWrite
+    && p?.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
+    && p?.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO
+
+  // Interceptamos el intento de cerrar (X, click fuera, Escape) para que en
+  // modo edición sólo salgamos del modo edit y el detalle quede visible.
+  // Cerrar el sheet completo requiere una segunda acción (X con el detalle
+  // ya en pantalla, o el botón "Cancelar" del form de edición).
+  const handleOpenChange = (open: boolean) => {
+    if (open) return
+    if (isEditing) {
+      setIsEditing(false)
+      return
+    }
+    close()
+  }
 
   return (
-    <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto">
-        <SheetHeader>
+    <Sheet open={isOpen} onOpenChange={handleOpenChange}>
+      <SheetContent
+        className={`w-full overflow-y-auto ${wide ? "sm:max-w-4xl!" : "sm:max-w-2xl!"}`}
+        hideOverlay={hideOverlay}
+      >
+        {/* Header sticky para que código + estado + acciones queden accesibles
+            al scrollear un pendiente con historial largo. `pr-10` deja espacio
+            para la X de cerrar del sheet (top-3 right-3). */}
+        <SheetHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b pr-10">
           {isLoading ? (
             <SheetTitle className="text-gray-400">Cargando…</SheetTitle>
           ) : p ? (
             <>
-              <SheetTitle className="text-lg font-bold flex items-center gap-2 flex-wrap">
+              <SheetTitle className="text-base sm:text-lg font-bold flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className="font-mono text-blue-700">{p.codigoFormateado}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
+                {/* Categoría primero y con más peso que el resto: es la criticidad
+                    del punch (A bloquea el arranque, D es documental) y el criterio
+                    con el que se pinta la maqueta 3D. Antes iba como chip gris al
+                    final de la tira del catálogo, donde no se veía. */}
+                {p.categoriaNombre && (
+                  <span
+                    className={`text-[11px] sm:text-sm px-2.5 py-0.5 rounded-md font-bold border ${categoriaColor(p.categoriaNombre)}`}
+                    title="Categoría del pendiente — define la criticidad"
+                  >
+                    Categoría {p.categoriaNombre}
+                  </span>
+                )}
+                <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[p.estadoNombre ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
                   {ESTADO_LABEL[p.estadoNombre ?? ""] ?? p.estadoNombre}
                 </span>
-                <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
+                <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium ${PRIORIDAD_COLOR[p.prioridad] ?? "bg-gray-100"}`}>
                   {PRIORIDAD[p.prioridad]}
                 </span>
+                {/* Chip del ámbito. Se dibuja solo si el ámbito tiene ícono elegido:
+                    el principal se siembra sin uno porque marcarlo en todos lados es
+                    ruido, pero eso es configuración y no una regla del código. */}
+                <MarcaAmbitoChip pendiente={p} />
               </SheetTitle>
-              <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
-                {p.descripcion}
-              </SheetDescription>
+              {!isEditing && (
+                <>
+                  <SheetDescription className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {p.descripcion}
+                  </SheetDescription>
+                  {/* Contexto del catálogo — misma info que "Datos principales" pero
+                      visible sin scrollear. Tira compacta con separadores. */}
+                  {(p.nivelNombre || p.especialidadNombre || p.tipoNombre
+                    || p.accionNombre || p.motivoNombre) && (
+                    <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1">
+                      {[
+                        p.nivelNombre,
+                        p.especialidadNombre,
+                        p.tipoNombre,
+                        p.accionNombre,
+                        p.motivoNombre,
+                      ]
+                        .filter(Boolean)
+                        .map((label, i, arr) => (
+                          <span key={`${label}-${i}`} className="inline-flex items-center gap-1.5">
+                            <span>{label}</span>
+                            {i < arr.length - 1 && <span className="text-gray-300">·</span>}
+                          </span>
+                        ))}
+                      {/* La categoría ya no va acá: subió al título como badge. */}
+                    </div>
+                  )}
+                  {/* Barra de acciones compacta — solo íconos en mobile con
+                      tooltip por `title`, ícono + label corto en sm+. Botones
+                      chicos (h-8) para no ocupar mucho vertical en el header
+                      sticky. En mobile las acciones de workflow (Iniciar/Enviar/
+                      Aprobar/Rechazar/Cancelar) se meten a la misma fila para
+                      compactar; en sm+ el workflow vive en el content. */}
+                  {/* Layout de dos grupos: acciones de utilidad a la izquierda
+                      (Descargar/Cargar/Ver en PID/Editar), acciones de workflow
+                      a la derecha (Iniciar/Enviar/Aprobar/Rechazar/Cancelar).
+                      `justify-between` los separa; ambos son flex-wrap para
+                      resbalar a una segunda línea si no entran. En sm+ el
+                      workflow no aparece acá (queda en el content). */}
+                  <div className="flex flex-wrap items-center justify-between gap-1 pt-2">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {/* Descargar primero — es la acción más frecuente. */}
+                      {!p.tienePdfFisico && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a href={`/api/pendientes/${p.id}/pdf`} target="_blank" rel="noreferrer" title="Descargar PDF">
+                            <FileDown className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">PDF</span>
+                          </a>
+                        </Button>
+                      )}
+                      {p.tienePdfFisico && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a
+                            href={`/api/pendientes/${p.id}/pdf-fisico`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Descargar PDF Firmado"
+                          >
+                            <FileDown className="h-3.5 w-3.5 text-emerald-700" />
+                            <span className="hidden sm:inline">PDF Firmado</span>
+                          </a>
+                        </Button>
+                      )}
+                      {/* Cargar — la acción más pesada: cierra el pendiente al confirmar,
+                          salteando el circuito. Por eso el proyecto puede desactivarla, y
+                          cuando lo hace el botón NO se dibuja: no es falta de permiso, la
+                          acción no existe ahí. Sin permiso sí se dibuja, gris y con motivo. */}
+                      {canWrite
+                        && p.permisos.cargaFisicaHabilitada
+                        && p.estadoId !== PENDIENTE_ESTADO_IDS.CERRADO
+                        && p.estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!p.permisos.cargarFisico}
+                          className="gap-1 h-8 px-2 sm:px-2.5 text-xs"
+                          onClick={() => setCargaFisicaOpen(true)}
+                          title={p.permisos.cargarFisico
+                            ? "Cargar PDF Firmado"
+                            : "Sólo quien puede aprobar el cierre puede cargar el PDF firmado."}
+                        >
+                          <FileUp className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Cargar</span>
+                        </Button>
+                      )}
+                      {/* Acceso directo al pin en el visor de PID. Se oculta si
+                          ya estamos en /ejecucion/pids/* — sería redundante. */}
+                      {!enPidViewer && p.pidArchivoId && p.pidPagina && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a
+                            href={`/ejecucion/pids/${p.pidArchivoId}?p=${p.pidPagina}&pin=${p.id}`}
+                            title={p.pidArchivoCodigo ? `Ver en ${p.pidArchivoCodigo}` : "Ver en el PID"}
+                          >
+                            <MapPin className="h-3.5 w-3.5 text-blue-700" />
+                            <span className="hidden sm:inline">Ver en PID</span>
+                          </a>
+                        </Button>
+                      )}
+                      {/* Contexto inverso: dentro del visor de PID, dar salida al
+                          listado global filtrado por este PID. */}
+                      {enPidViewer && p.pidArchivoId && (
+                        <Button asChild size="sm" variant="outline" className="gap-1 h-8 px-2 sm:px-2.5 text-xs">
+                          <a
+                            href={`/ejecucion/pendientes?pidArchivoId=${p.pidArchivoId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={p.pidArchivoCodigo ? `Ver pendientes de ${p.pidArchivoCodigo}` : "Ver pendientes de este PID"}
+                          >
+                            <ListChecks className="h-3.5 w-3.5 text-blue-700" />
+                            <span className="hidden sm:inline">Pendientes del PID</span>
+                          </a>
+                        </Button>
+                      )}
+                      {puedeEditar && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 h-8 px-2 sm:px-2.5 text-xs"
+                          onClick={() => setIsEditing(true)}
+                          title="Editar"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Grupo derecho — acciones del workflow (mobile only). En
+                        sm+ vive en el content bajo el título "Acciones". Se oculta
+                        en estados terminales (CERRADO/CANCELADO) — no hay transiciones. */}
+                    {puedeVerWorkflow && (
+                      <div className="sm:hidden flex flex-wrap items-center gap-1">
+                        <Workflow
+                          pendienteId={p.id}
+                          estadoId={p.estadoId}
+                          responsableId={p.responsableId}
+                          grupoResponsableId={p.grupoResponsableId}
+                          ambitoId={p.ambitoId}
+                          pasoPreAprobar={p.ambitoPasoPreAprobar}
+                          permisos={p.permisos}
+                          compact
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <SheetTitle>Pendiente</SheetTitle>
@@ -62,25 +296,83 @@ export function PendienteDetalleSheet() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 px-4">
             <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
           </div>
+        ) : p && isEditing ? (
+          <EditarPendiente
+            pendiente={p}
+            onDone={() => setIsEditing(false)}
+          />
         ) : p ? (
-          <div className="mt-4 px-4 pb-8 space-y-6">
-            {/* Datos principales */}
-            <section className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-              <DataItem label="Categoría"   value={p.categoriaNombre} />
+          <div className="mt-4 px-3 sm:px-4 pb-8 space-y-6">
+            {/* Workflow / acciones de transición arriba del detalle. En mobile
+                ya se rendera en el header sticky (ver arriba); acá aparece solo
+                en sm+ donde el header no tiene lugar para meterlo. */}
+            {puedeVerWorkflow && (
+              <div className="hidden sm:block">
+                <Workflow
+                  pendienteId={p.id}
+                  estadoId={p.estadoId}
+                  responsableId={p.responsableId}
+                  grupoResponsableId={p.grupoResponsableId}
+                  ambitoId={p.ambitoId}
+                  pasoPreAprobar={p.ambitoPasoPreAprobar}
+                  permisos={p.permisos}
+                />
+              </div>
+            )}
+
+            {puedeVerWorkflow && <Separator className="hidden sm:block" />}
+
+            {/* Puente con Calidad: informes generados a partir de este
+                pendiente + boton para escalarlo. Se auto-oculta si el
+                proyecto no tiene habilitado el modulo. */}
+            <PendienteCalidadPanel
+              pendienteId={p.id}
+              descripcion={p.descripcion}
+              subSistemaId={p.subSistemaId}
+              elementoId={p.elementoId}
+              especialidadId={p.especialidadId}
+            />
+
+            {/* Datos principales — 1 columna en mobile (más legible con valores
+                largos como TAG-1234 — Nombre), 2 columnas en sm+. `sm:col-span-2`
+                para el warning de rechazo se aplica solo cuando hay 2 columnas. */}
+            <section className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 text-sm">
+              <DataItem label="Nivel"       value={p.nivelNombre} />
+              <DataItem label="Especialidad" value={p.especialidadNombre} />
               <DataItem label="Tipo"        value={p.tipoNombre} />
+              <DataItem label="Acción"      value={p.accionNombre} />
+              <DataItem label="Motivo"      value={p.motivoNombre} />
+              {/* Coloreada igual que el badge del título y que la maqueta 3D:
+                  que el mismo dato se vea del mismo color en todos lados. */}
+              {p.categoriaNombre && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">Categoría</dt>
+                  <dd className="mt-0.5">
+                    <span className={`inline-block rounded-md border px-2 py-0.5 text-xs font-bold ${categoriaColor(p.categoriaNombre)}`}>
+                      {p.categoriaNombre}
+                    </span>
+                  </dd>
+                </div>
+              )}
               <DataItem label="Detectado por" value={p.detectadoPorNombre} />
               <DataItem label="Responsable" value={p.responsableNombre} />
+              <DataItem label="Grupo responsable" value={p.grupoResponsableNombre} />
               <DataItem label="Subsistema"  value={p.subSistemaNombre} />
               <DataItem label="Elemento"    value={p.elementoTag ? `${p.elementoTag} — ${p.elementoNombre}` : null} />
-              <DataItem label="Especialidad" value={p.especialidadNombre} />
               <DataItem label="PID"         value={p.pid} />
               <DataItem label="Circuito"    value={p.circuito} />
               <DataItem label="Detección"   value={p.fechaDeteccion} />
               <DataItem label="Cierre est." value={p.fechaCierreEstimado} />
               {p.fechaCierre && <DataItem label="Cierre real" value={p.fechaCierre} />}
               {p.fechaDesestimado && <DataItem label="Cancelado el" value={p.fechaDesestimado} />}
+              {p.ubicacion && (
+                <div className="sm:col-span-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Ubicación</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap mt-0.5">{p.ubicacion}</p>
+                </div>
+              )}
               {p.motivoRechazoCierre && (
-                <div className="col-span-2 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                <div className="sm:col-span-2 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
                   <strong>Cierre rechazado:</strong> {p.motivoRechazoCierre}
                 </div>
               )}
@@ -88,18 +380,13 @@ export function PendienteDetalleSheet() {
 
             <Separator />
 
-            {/* Acciones de workflow */}
-            <Workflow pendienteId={p.id} estadoId={p.estadoId} />
-
-            <Separator />
-
             {/* Comentarios */}
-            <Comentarios pendienteId={p.id} comentarios={p.comentarios} />
+            <Comentarios pendienteId={p.id} comentarios={p.comentarios} canWrite={canWrite} />
 
             <Separator />
 
             {/* Adjuntos */}
-            <Adjuntos pendienteId={p.id} adjuntos={p.adjuntos} />
+            <Adjuntos pendienteId={p.id} adjuntos={p.adjuntos} canWrite={canWrite} />
 
             <Separator />
 
@@ -110,102 +397,639 @@ export function PendienteDetalleSheet() {
           <p className="text-sm text-destructive px-4 py-6">No se pudo cargar el pendiente.</p>
         )}
       </SheetContent>
+
+      {/* Dialog de carga física. Se abre desde el botón "Cargar físico" del header
+          del sheet. Reusa el mismo uploader que la ruta /pendiente-carga/{id}.
+          El content es más ancho, tiene ring más marcado y sombra fuerte para
+          separarse del PID de fondo. El overlay usa bg-black/40 + blur más
+          intenso porque el sheet debajo (en el visor de PID) no monta backdrop. */}
+      <AlertDialog
+        open={cargaFisicaOpen}
+        onOpenChange={(v) => setCargaFisicaOpen(v)}
+      >
+        <AlertDialogContent
+          className="max-w-[min(92vw,720px)] sm:max-w-2xl! ring-2 ring-black/20 shadow-2xl"
+          overlayClassName="bg-black/40 supports-backdrop-filter:backdrop-blur-sm"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cargar PDF firmado del pendiente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Al confirmar el archivo, el pendiente pasa directamente a{" "}
+              <strong>Cerrado</strong> — se asume que las firmas están en el papel.
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {p && (
+            <PendienteCargaFisicaUploader
+              pendienteId={p.id}
+              codigoFormateado={p.codigoFormateado}
+              onSuccess={() => setCargaFisicaOpen(false)}
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cerrar</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   )
 }
 
 // ─── Workflow ────────────────────────────────────────────────────────────
 
-function Workflow({ pendienteId, estadoId }: { pendienteId: string; estadoId: string }) {
+function Workflow({
+  pendienteId,
+  estadoId,
+  responsableId,
+  grupoResponsableId,
+  ambitoId,
+  pasoPreAprobar,
+  permisos,
+  compact = false,
+}: {
+  pendienteId: string
+  estadoId: string
+  /** Responsable nominal actual — precarga el diálogo de reasignación. */
+  responsableId: string
+  /** Grupo co-responsable actual (null = sin grupo). */
+  grupoResponsableId?: string | null
+  /** Ámbito actual — se excluye de las opciones al reclasificar. */
+  ambitoId: string
+  /**
+   * El ámbito usa el paso de revisión interna. Define si desde "Esperando
+   * aprobación" se ofrece Pre-aprobar o directamente Aprobar — sin esto habría
+   * que mostrar los dos y dejar que el backend rechace uno.
+   */
+  pasoPreAprobar: boolean
+  /** Qué puede hacer el usuario con este pendiente. Lo calculó el backend. */
+  permisos: PendientePermisos
+  /** Variante compacta para embeber en el header sticky: sin título "Acciones" y botones más chicos. */
+  compact?: boolean
+}) {
   const transicion = usePendienteTransicion()
   const [dialog, setDialog] = useState<null | { accion: "rechazar" | "cancelar"; titulo: string; descripcion: string }>(null)
   const [motivo, setMotivo] = useState("")
+  const [reasignarOpen, setReasignarOpen] = useState(false)
+  const [ambitoOpen, setAmbitoOpen] = useState(false)
+  // Los ámbitos que este usuario puede usar. Con uno solo, el botón no se dibuja.
+  const { data: ambitosResp } = useGetMisAmbitos()
+  const misAmbitos = ambitosResp?.data ?? []
 
-  async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "aprobar", comentario?: string) {
-    await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
+  // Sin permiso el botón se DESHABILITA con el motivo, no se oculta: uno que
+  // desaparece deja al usuario sin entender por qué otro sí puede, y uno gris que
+  // explica es información. (Lo que sí se oculta es lo que directamente no existe:
+  // un paso apagado en el ámbito, o la carga física apagada en el proyecto.)
+  const SIN_PERMISO = "No tenés permiso para esta acción en este ámbito."
+
+  // El error del backend se sigue mostrando: los permisos cubren la autorización,
+  // pero una transición puede fallar por estado y esta pantalla no es la única
+  // fuente de verdad. Sin el catch la promesa quedaba colgada y el clic no producía
+  // nada visible.
+  async function ejecutar(accion: "iniciar" | "enviar-aprobacion" | "pre-aprobar" | "aprobar", comentario?: string) {
+    try {
+      await transicion.mutateAsync({ id: pendienteId, accion, comentario: comentario ?? null })
+    } catch { /* el mensaje queda en transicion.error */ }
   }
 
   async function ejecutarConMotivo() {
     if (!dialog) return
     if (!motivo.trim()) return
-    await transicion.mutateAsync({ id: pendienteId, accion: dialog.accion, comentario: motivo })
+    try {
+      await transicion.mutateAsync({ id: pendienteId, accion: dialog.accion, comentario: motivo })
+    } catch {
+      // El diálogo queda abierto: el error se muestra adentro y el motivo escrito
+      // no se pierde.
+      return
+    }
     setDialog(null)
     setMotivo("")
   }
 
   const busy = transicion.isPending
+  const errorAccion = transicion.error instanceof Error ? transicion.error.message : null
+
+  // Estados terminales — no hay ninguna transición posible. Salimos temprano
+  // para no renderizar la sección "Acciones" vacía (ni el fragment vacío en
+  // el header compact que igual toma espacio del gap).
+  if (estadoId === PENDIENTE_ESTADO_IDS.CERRADO
+      || estadoId === PENDIENTE_ESTADO_IDS.CANCELADO) {
+    return null
+  }
+
+  // Botones más compactos cuando embebido en header sticky (mobile).
+  const btnBase = compact ? "gap-1 h-8 px-2 sm:px-2.5 text-xs" : "gap-1.5 h-9 sm:h-8"
+  const iconSize = "h-3.5 w-3.5"
+
+  const botones = (
+    <>
+      {estadoId === PENDIENTE_ESTADO_IDS.ABIERTO && (
+        <Button
+          size="sm" disabled={busy || !permisos.iniciar} className={btnBase}
+          title={permisos.iniciar ? undefined : SIN_PERMISO}
+          onClick={() => ejecutar("iniciar")}
+        >
+          <Play className={iconSize} /> Iniciar
+        </Button>
+      )}
+      {estadoId === PENDIENTE_ESTADO_IDS.EN_PROCESO && (
+        <>
+          <Button
+            size="sm" disabled={busy || !permisos.enviarAprobacion} className={btnBase}
+            title={permisos.enviarAprobacion ? undefined : SIN_PERMISO}
+            onClick={() => ejecutar("enviar-aprobacion")}
+          >
+            <Send className={iconSize} /> {compact ? "Enviar" : "Enviar a aprobación"}
+          </Button>
+          {/* Rechazar desde EN_PROCESO — devuelve el pendiente a ABIERTO.
+              Uso típico: el responsable devuelve porque no aplica, falta
+              información, o se cargó a la persona equivocada. */}
+          <Button
+            size="sm" variant="outline" disabled={busy || !permisos.rechazar} className={btnBase}
+            title={permisos.rechazar ? undefined : SIN_PERMISO}
+            onClick={() => setDialog({
+              accion: "rechazar",
+              titulo: "Rechazar pendiente",
+              descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a ABIERTO.",
+            })}
+          >
+            <ThumbsDown className={iconSize} /> Rechazar
+          </Button>
+        </>
+      )}
+      {/* Esperando aprobación. Con revisión interna en el ámbito, lo que sigue es
+          Pre-aprobar; sin ella, se aprueba el cierre directamente. Mostrar los dos y
+          dejar que el backend rechace uno sería ofrecer un botón que no hace nada. */}
+      {estadoId === PENDIENTE_ESTADO_IDS.PENDIENTE_APROBACION && (
+        <>
+          {pasoPreAprobar ? (
+            <Button
+              size="sm" disabled={busy || !permisos.preAprobar}
+              className={`${btnBase} bg-violet-700 hover:bg-violet-600`}
+              title={permisos.preAprobar ? undefined : SIN_PERMISO}
+              onClick={() => ejecutar("pre-aprobar")}
+            >
+              <ClipboardCheck className={iconSize} /> {compact ? "Pre-aprobar" : "Pre-aprobar (revisión interna)"}
+            </Button>
+          ) : (
+            <Button
+              size="sm" disabled={busy || !permisos.aprobar}
+              className={`${btnBase} bg-green-700 hover:bg-green-600`}
+              title={permisos.aprobar ? undefined : SIN_PERMISO}
+              onClick={() => ejecutar("aprobar")}
+            >
+              <ThumbsUp className={iconSize} /> {compact ? "Aprobar" : "Aprobar cierre"}
+            </Button>
+          )}
+          <Button
+            size="sm" variant="outline" disabled={busy || !permisos.rechazar} className={btnBase}
+            title={permisos.rechazar ? undefined : SIN_PERMISO}
+            onClick={() => setDialog({
+              accion: "rechazar",
+              titulo: "Rechazar cierre",
+              descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a EN_PROCESO.",
+            })}
+          >
+            <ThumbsDown className={iconSize} /> Rechazar
+          </Button>
+        </>
+      )}
+      {/* Pre-aprobado: pasó la revisión interna y espera la aprobación final. */}
+      {estadoId === PENDIENTE_ESTADO_IDS.PRE_APROBADO && (
+        <>
+          <Button
+            size="sm" disabled={busy || !permisos.aprobar}
+            className={`${btnBase} bg-green-700 hover:bg-green-600`}
+            title={permisos.aprobar ? undefined : SIN_PERMISO}
+            onClick={() => ejecutar("aprobar")}
+          >
+            <ThumbsUp className={iconSize} /> {compact ? "Aprobar" : "Aprobar cierre"}
+          </Button>
+          {/* Rechazar desde PRE_APROBADO vuelve a EN_PROCESO, no a la revisión: si hay
+              que rehacer el trabajo, la revisión se repite sobre el trabajo nuevo. */}
+          <Button
+            size="sm" variant="outline" disabled={busy || !permisos.rechazar} className={btnBase}
+            title={permisos.rechazar ? undefined : SIN_PERMISO}
+            onClick={() => setDialog({
+              accion: "rechazar",
+              titulo: "Rechazar cierre",
+              descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a EN_PROCESO.",
+            })}
+          >
+            <ThumbsDown className={iconSize} /> Rechazar
+          </Button>
+        </>
+      )}
+      {/* Reasignar comparte permiso con Aprobar: el backend valida AsignarResponsable
+          contra esa misma acción. */}
+      <Button
+        size="sm" variant="outline" disabled={busy || !permisos.aprobar} className={btnBase}
+        title={permisos.aprobar ? undefined : SIN_PERMISO}
+        onClick={() => setReasignarOpen(true)}
+      >
+        <UserCog className={iconSize} /> Reasignar
+      </Button>
+      {/* Cambiar ámbito: solo si el usuario tiene más de uno disponible. Con uno
+          solo no hay nada que elegir, y el botón seria una promesa vacía. */}
+      {misAmbitos.length > 1 && (
+        <Button
+          size="sm" variant="outline" disabled={busy} className={btnBase}
+          onClick={() => setAmbitoOpen(true)}
+        >
+          <Tags className={iconSize} /> Cambiar ámbito
+        </Button>
+      )}
+      {estadoId !== PENDIENTE_ESTADO_IDS.CERRADO && estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
+        <Button
+          size="sm" variant="outline" disabled={busy || !permisos.cancelar}
+          className={`${btnBase} text-red-600 hover:text-red-700`}
+          title={permisos.cancelar ? undefined : SIN_PERMISO}
+          onClick={() => setDialog({
+            accion: "cancelar",
+            titulo: "Cancelar pendiente",
+            descripcion: "Indicá el motivo. Esta acción no se puede deshacer.",
+          })}
+        >
+          <Ban className={iconSize} /> Cancelar
+        </Button>
+      )}
+    </>
+  )
+
+  // Modo compact: rendereamos los botones como fragment (sin section/wrapper)
+  // para que se integren en el flex-wrap del parent — así en mobile los botones
+  // de workflow quedan en la misma línea que Descargar / Cargar / Editar.
+  // El dialog (para pedir motivo en Rechazar/Cancelar) va aparte al final.
+  if (compact) {
+    return (
+      <>
+        {botones}
+        {errorAccion && (
+          <p className="w-full text-xs text-red-600 whitespace-pre-line">{errorAccion}</p>
+        )}
+        {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy, errorAccion)}
+        <ReasignarDialog
+          open={reasignarOpen}
+          onOpenChange={setReasignarOpen}
+          pendienteId={pendienteId}
+          responsableActualId={responsableId}
+          grupoActualId={grupoResponsableId ?? null}
+          ambito={misAmbitos.find((a) => a.id === ambitoId)}
+        />
+        <CambiarAmbitoDialog
+          open={ambitoOpen}
+          onOpenChange={setAmbitoOpen}
+          pendienteId={pendienteId}
+          ambitoActualId={ambitoId}
+          ambitosDisponibles={misAmbitos}
+        />
+      </>
+    )
+  }
 
   return (
     <section className="space-y-3">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Acciones
       </h3>
-      <div className="flex flex-wrap gap-2">
-        {estadoId === PENDIENTE_ESTADO_IDS.ABIERTO && (
-          <Button size="sm" disabled={busy} className="gap-1.5" onClick={() => ejecutar("iniciar")}>
-            <Play className="h-3.5 w-3.5" /> Tomar / Iniciar
-          </Button>
-        )}
-        {estadoId === PENDIENTE_ESTADO_IDS.EN_PROCESO && (
-          <Button size="sm" disabled={busy} className="gap-1.5" onClick={() => ejecutar("enviar-aprobacion")}>
-            <Send className="h-3.5 w-3.5" /> Enviar a aprobación
-          </Button>
-        )}
-        {estadoId === PENDIENTE_ESTADO_IDS.PENDIENTE_APROBACION && (
-          <>
-            <Button size="sm" disabled={busy} className="gap-1.5 bg-green-700 hover:bg-green-600" onClick={() => ejecutar("aprobar")}>
-              <ThumbsUp className="h-3.5 w-3.5" /> Aprobar cierre
-            </Button>
-            <Button
-              size="sm" variant="outline" disabled={busy} className="gap-1.5"
-              onClick={() => setDialog({
-                accion: "rechazar",
-                titulo: "Rechazar cierre",
-                descripcion: "Indicá el motivo del rechazo. El pendiente vuelve a EN_PROCESO.",
-              })}
-            >
-              <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
-            </Button>
-          </>
-        )}
-        {estadoId !== PENDIENTE_ESTADO_IDS.CERRADO && estadoId !== PENDIENTE_ESTADO_IDS.CANCELADO && (
-          <Button
-            size="sm" variant="outline" disabled={busy} className="gap-1.5 text-red-600 hover:text-red-700"
-            onClick={() => setDialog({
-              accion: "cancelar",
-              titulo: "Cancelar pendiente",
-              descripcion: "Indicá el motivo. Esta acción no se puede deshacer.",
-            })}
-          >
-            <Ban className="h-3.5 w-3.5" /> Cancelar
-          </Button>
-        )}
-      </div>
+      <div className="flex flex-wrap gap-2">{botones}</div>
+      {errorAccion && (
+        <p className="text-xs text-red-600 whitespace-pre-line">{errorAccion}</p>
+      )}
 
-      <AlertDialog open={dialog !== null} onOpenChange={(v) => !v && setDialog(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{dialog?.titulo}</AlertDialogTitle>
-            <AlertDialogDescription>{dialog?.descripcion}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <Textarea
-            placeholder="Motivo..."
-            rows={3}
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={busy || !motivo.trim()}
-              onClick={(e) => { e.preventDefault(); ejecutarConMotivo() }}
-            >
-              {busy ? "Procesando..." : "Confirmar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {renderDialog(dialog, motivo, setMotivo, ejecutarConMotivo, setDialog, busy, errorAccion)}
+      <ReasignarDialog
+        open={reasignarOpen}
+        onOpenChange={setReasignarOpen}
+        pendienteId={pendienteId}
+        responsableActualId={responsableId}
+        grupoActualId={grupoResponsableId ?? null}
+        ambito={misAmbitos.find((a) => a.id === ambitoId)}
+      />
+      <CambiarAmbitoDialog
+        open={ambitoOpen}
+        onOpenChange={setAmbitoOpen}
+        pendienteId={pendienteId}
+        ambitoActualId={ambitoId}
+        ambitosDisponibles={misAmbitos}
+      />
     </section>
+  )
+}
+
+// ─── Cambiar ámbito (reclasificación) ────────────────────────────────────
+
+/**
+ * Mueve el pendiente a otro ámbito. Endpoint propio —no el update— porque cambia
+ * quién ve el pendiente, sus comentarios y sus adjuntos, y de forma retroactiva.
+ *
+ * El diálogo nombra la audiencia del destino antes de confirmar: es lo que
+ * convierte un clic distraído en una decisión. Y avisa si el propio usuario va a
+ * perder de vista el pendiente, que es el efecto que más sorprende.
+ *
+ * Como el resto de las acciones de workflow, no hace gating por rol en el cliente:
+ * el backend valida (mandar sobre el ámbito origen + pertenecer al destino) y el
+ * error se muestra acá adentro, que es donde el usuario lo va a leer.
+ */
+function CambiarAmbitoDialog({
+  open,
+  onOpenChange,
+  pendienteId,
+  ambitoActualId,
+  ambitosDisponibles,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  pendienteId: string
+  ambitoActualId: string
+  ambitosDisponibles: PendienteAmbito[]
+}) {
+  const reclasificar = useReclasificarPendiente()
+  const [destinoId, setDestinoId] = useState("")
+  const [comentario, setComentario] = useState("")
+
+  useEffect(() => {
+    if (open) {
+      setDestinoId("")
+      setComentario("")
+      reclasificar.reset()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const destino = ambitosDisponibles.find((a) => a.id === destinoId) ?? null
+  const opciones = ambitosDisponibles.filter((a) => a.id !== ambitoActualId)
+
+  async function confirmar() {
+    if (!destinoId) return
+    try {
+      await reclasificar.mutateAsync({ id: pendienteId, ambitoId: destinoId, comentario })
+      onOpenChange(false)
+    } catch {
+      // El error queda en la mutation y se muestra abajo.
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cambiar ámbito</AlertDialogTitle>
+          <AlertDialogDescription>
+            El ámbito define quién puede ver este pendiente. Cambiarlo también cambia quién ve
+            sus comentarios y sus adjuntos, incluidos los que ya están cargados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Nuevo ámbito</label>
+            <Select value={destinoId} onValueChange={(v) => setDestinoId(v ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue>{destino?.nombre ?? "Elegí un ámbito"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {opciones.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {destino && (
+            <p className="text-xs rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+              Va a pasar a <span className="font-medium">{destino.nombre}</span>:{" "}
+              {destino.audiencia === AudienciaAmbito.TodoElProyecto
+                ? "lo va a ver cualquiera con acceso al proyecto."
+                : `lo van a ver ${destino.grupos.map((g) => g.grupoNombre).join(", ") || "los grupos de su audiencia"}.`}
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Motivo (opcional)</label>
+            <Textarea
+              rows={2}
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              placeholder="Queda en el historial junto al cambio."
+            />
+          </div>
+
+          {reclasificar.isError && (
+            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+              {(reclasificar.error as Error).message}
+            </p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={reclasificar.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!destinoId || reclasificar.isPending}
+            onClick={(e) => { e.preventDefault(); confirmar() }}
+          >
+            {reclasificar.isPending ? "Cambiando…" : "Cambiar ámbito"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+// ─── Reasignar (responsable + grupo) ─────────────────────────────────────
+
+/**
+ * Cambia el responsable nominal y/o el grupo co-responsable. Los dos viajan en
+ * el mismo PUT porque el endpoint reemplaza la asignación completa: mandar el
+ * grupo vacío lo quita.
+ *
+ * No hace gating por rol en el cliente — misma convención que el resto de las
+ * acciones de workflow: el botón se muestra y el backend rechaza si el usuario
+ * no está autorizado (la acción comparte permiso con "Aprobar"). El error del
+ * backend se muestra dentro del diálogo, que es donde el usuario lo va a leer.
+ */
+function ReasignarDialog({
+  open,
+  onOpenChange,
+  pendienteId,
+  responsableActualId,
+  grupoActualId,
+  ambito,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  pendienteId: string
+  responsableActualId: string
+  grupoActualId: string | null
+  /**
+   * Ámbito del pendiente. En uno restringido acota los grupos a su audiencia, igual que
+   * el alta. Puede faltar si el usuario no lo tiene entre sus usables; en ese caso no se
+   * filtra y el backend valida.
+   */
+  ambito: PendienteAmbito | undefined
+}) {
+  const SIN_GRUPO = "__sin_grupo__"
+
+  const asignar = useAsignarResponsable()
+  const { data: perfil } = useGetPerfil()
+  const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
+  // Endpoint operativo: el de administración exige Admin y reasignar lo hace quien
+  // puede aprobar, que puede ser un Supervisor o un User con grupo autorizado.
+  const { data: gruposResp } = useGetGruposResponsables()
+  const grupos = gruposResp?.data ?? []
+
+  const [responsableId, setResponsableId] = useState(responsableActualId)
+  const [grupoId, setGrupoId] = useState(grupoActualId ?? SIN_GRUPO)
+
+  // Al abrir, re-sincronizamos con lo que está guardado: si el usuario cerró sin
+  // confirmar (o el pendiente cambió por otra vía) el diálogo no debe conservar
+  // la selección abandonada.
+  useEffect(() => {
+    if (!open) return
+    setResponsableId(responsableActualId)
+    setGrupoId(grupoActualId ?? SIN_GRUPO)
+    asignar.reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, responsableActualId, grupoActualId])
+
+  const usuarioOptions: ComboboxOption[] = (usuariosRaw ?? []).map((u) => {
+    const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
+    // En SIPRECOM el userName suele ser el email — evitamos duplicarlo.
+    const identificador = u.userName && u.userName !== u.email ? u.userName : u.email
+    return {
+      value: u.usuarioId,
+      label: nombreCompleto ? `${nombreCompleto} — ${identificador}` : identificador,
+    }
+  })
+
+  const grupoOptions: ComboboxOption[] = [
+    { value: SIN_GRUPO, label: "Sin grupo" },
+    ...grupos
+      // El actual se muestra siempre, aunque esté vacío o fuera de la audiencia: si no,
+      // el select no puede representar el valor que el pendiente ya tiene.
+      .filter((g) => g.id === grupoActualId
+        || (seOfreceComoResponsable(g) && enAudienciaDelAmbito(g, ambito)))
+      .map((g) => ({ value: g.id, label: etiquetaGrupoResponsable(g) })),
+  ]
+
+  const grupoElegido = grupoId === SIN_GRUPO ? null : grupoId
+  const avisoGrupo = avisoReasignacion(grupos.find((g) => g.id === grupoElegido), ambito)
+  const sinCambios = responsableId === responsableActualId && grupoElegido === (grupoActualId ?? null)
+
+  async function confirmar() {
+    try {
+      await asignar.mutateAsync({
+        id: pendienteId,
+        responsableId,
+        grupoResponsableId: grupoElegido,
+      })
+      onOpenChange(false)
+    } catch {
+      /* el error queda visible dentro del diálogo */
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reasignar pendiente</AlertDialogTitle>
+          <AlertDialogDescription>
+            El responsable es la persona a cargo. El grupo es opcional y solo hace que
+            el pendiente aparezca en “Míos” para todos sus miembros — no cambia permisos.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Responsable *</label>
+            <Combobox
+              options={usuarioOptions}
+              value={responsableId}
+              onChange={(v) => setResponsableId(v || "")}
+              placeholder="Asignar a un usuario"
+              searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
+              emptyMessage="Sin usuarios en el proyecto"
+              disabled={asignar.isPending}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Grupo responsable</label>
+            <Combobox
+              options={grupoOptions}
+              value={grupoId}
+              onChange={(v) => setGrupoId(v || SIN_GRUPO)}
+              placeholder="Sin grupo"
+              searchPlaceholder="Buscar grupo..."
+              emptyMessage="No hay grupos habilitados para Pendientes"
+              disabled={asignar.isPending}
+            />
+            {/* Avisa, no bloquea: puede ser deliberado asignar a un grupo que todavía no
+                tiene gente, pero no puede pasar desapercibido. */}
+            {avisoGrupo && (
+              <p className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                {avisoGrupo}
+              </p>
+            )}
+          </div>
+
+          {asignar.error && (
+            <p className="text-xs text-destructive">{(asignar.error as Error).message}</p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={asignar.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={asignar.isPending || !responsableId || sinCambios}
+            onClick={(e) => { e.preventDefault(); confirmar() }}
+          >
+            {asignar.isPending ? "Guardando..." : "Reasignar"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+// Dialog compartido para pedir motivo en Rechazar / Cancelar. Extraído para
+// que el modo compact del Workflow pueda usarlo sin duplicar el JSX.
+function renderDialog(
+  dialog: { accion: "rechazar" | "cancelar"; titulo: string; descripcion: string } | null,
+  motivo: string,
+  setMotivo: (v: string) => void,
+  ejecutarConMotivo: () => void,
+  setDialog: (v: null) => void,
+  busy: boolean,
+  error: string | null,
+) {
+  return (
+    <AlertDialog open={dialog !== null} onOpenChange={(v) => !v && setDialog(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{dialog?.titulo}</AlertDialogTitle>
+          <AlertDialogDescription>{dialog?.descripcion}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <Textarea
+          placeholder="Motivo..."
+          rows={3}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+        />
+        {error && (
+          <p className="text-xs text-red-600 whitespace-pre-line">{error}</p>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy || !motivo.trim()}
+            onClick={(e) => { e.preventDefault(); ejecutarConMotivo() }}
+          >
+            {busy ? "Procesando..." : "Confirmar"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
@@ -214,9 +1038,11 @@ function Workflow({ pendienteId, estadoId }: { pendienteId: string; estadoId: st
 function Comentarios({
   pendienteId,
   comentarios,
+  canWrite,
 }: {
   pendienteId: string
   comentarios: { id: string; comentario: string; autorNombre: string | null; createdAt: string }[]
+  canWrite: boolean
 }) {
   const [texto, setTexto] = useState("")
   const agregar = useAgregarComentario()
@@ -250,18 +1076,27 @@ function Comentarios({
         )}
       </div>
 
-      <div className="flex gap-2 items-end">
-        <Textarea
-          placeholder="Agregar comentario..."
-          rows={2}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          disabled={agregar.isPending}
-        />
-        <Button size="sm" disabled={!texto.trim() || agregar.isPending} onClick={enviar}>
-          {agregar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
-        </Button>
-      </div>
+      {canWrite && (
+        // Mobile: textarea full-width con botón "Enviar" debajo (también full).
+        // Desktop: fila con botón chico a la derecha.
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+          <Textarea
+            placeholder="Agregar comentario..."
+            rows={2}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            disabled={agregar.isPending}
+          />
+          <Button
+            size="sm"
+            disabled={!texto.trim() || agregar.isPending}
+            onClick={enviar}
+            className="h-9 sm:h-8 w-full sm:w-auto"
+          >
+            {agregar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
+          </Button>
+        </div>
+      )}
     </section>
   )
 }
@@ -271,9 +1106,11 @@ function Comentarios({
 function Adjuntos({
   pendienteId,
   adjuntos,
+  canWrite,
 }: {
   pendienteId: string
   adjuntos: { id: string; fileName: string; url: string; createdAt: string; createdByNombre: string | null }[]
+  canWrite: boolean
 }) {
   const subir = useSubirAdjunto()
   const eliminar = useEliminarAdjunto(pendienteId)
@@ -297,36 +1134,77 @@ function Adjuntos({
           <p className="text-xs text-muted-foreground italic">Sin adjuntos.</p>
         ) : (
           adjuntos.map((a) => (
-            <div key={a.id} className="flex items-center justify-between rounded-md border bg-white px-3 py-2 text-sm">
-              <a href={a.url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline truncate flex-1">
+            // Mobile: nombre arriba (link tapeable, full-width), meta+trash abajo.
+            // Desktop: fila con nombre a la izquierda, meta al centro, trash a la
+            // derecha.
+            <div
+              key={a.id}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 rounded-md border bg-white px-3 py-2 text-sm min-w-0"
+            >
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-700 hover:underline truncate flex-1 min-w-0"
+              >
                 {a.fileName}
               </a>
-              <span className="text-xs text-muted-foreground mx-3 truncate">
-                {a.createdByNombre} · {formatFecha(a.createdAt)}
-              </span>
-              <Button
-                size="icon" variant="ghost"
-                className="h-7 w-7 text-red-600"
-                disabled={eliminar.isPending}
-                onClick={() => eliminar.mutate(a.id)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <span className="text-xs text-muted-foreground truncate">
+                  {a.createdByNombre} · {formatFecha(a.createdAt)}
+                </span>
+                {canWrite && (
+                  <Button
+                    size="icon" variant="ghost"
+                    className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 text-red-600"
+                    disabled={eliminar.isPending}
+                    onClick={() => eliminar.mutate(a.id)}
+                    aria-label="Eliminar adjunto"
+                  >
+                    <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
       </div>
 
-      <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-blue-700 hover:underline">
-        {subir.isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Upload className="h-4 w-4" />
-        )}
-        Subir archivo
-        <input type="file" className="hidden" onChange={onPick} disabled={subir.isPending} />
-      </label>
+      {canWrite && (
+        <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-blue-700 hover:underline">
+          {subir.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+          Subir archivo
+          <input type="file" className="hidden" onChange={onPick} disabled={subir.isPending} />
+        </label>
+      )}
     </section>
+  )
+}
+
+/**
+ * Chip del ámbito en la cabecera del detalle. Ícono y color los elige el admin
+ * por ámbito y viajan con el pendiente ya resueltos.
+ */
+function MarcaAmbitoChip({
+  pendiente,
+}: {
+  pendiente: { ambitoIcono: string | null; ambitoColor: string | null; ambitoNombre: string | null }
+}) {
+  const Icon = iconoDeAmbito(pendiente.ambitoIcono)
+  if (!Icon) return null
+  const color = colorDeAmbito(pendiente.ambitoColor)
+  return (
+    <span
+      className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-md font-medium border inline-flex items-center gap-1 ${color.chip}`}
+      title={`Ámbito ${pendiente.ambitoNombre ?? "restringido"}: lo ven los grupos de su audiencia, el creador, el responsable y roles Admin+`}
+    >
+      <Icon className="h-3 w-3" />
+      <span>{pendiente.ambitoNombre ?? "Restringido"}</span>
+    </span>
   )
 }
 
@@ -357,8 +1235,8 @@ function Historial({
           <p className="text-xs text-muted-foreground italic">Sin movimientos registrados.</p>
         ) : (
           historial.map((h) => (
-            <div key={h.id} className="text-xs flex gap-3 items-start border-l-2 border-gray-200 pl-3 py-1">
-              <div className="flex-1">
+            <div key={h.id} className="text-xs flex gap-3 items-start border-l-2 border-gray-200 pl-3 py-1 min-w-0">
+              <div className="flex-1 min-w-0 wrap-break-word">
                 <p className="font-medium text-gray-800">
                   {h.estadoAnteriorNombre && h.estadoAnteriorNombre !== h.estadoNuevoNombre
                     ? `${h.estadoAnteriorNombre} → ${h.estadoNuevoNombre}`
@@ -380,14 +1258,102 @@ function Historial({
   )
 }
 
+// ─── Editar ──────────────────────────────────────────────────────────────
+
+function EditarPendiente({
+  pendiente,
+  onDone,
+}: {
+  pendiente: {
+    id: string
+    categoriaId: string
+    tipoId: string
+    responsableId: string
+    grupoResponsableId?: string | null
+    ambitoId?: string | null
+    descripcion: string
+    descripcionManual?: boolean
+    ubicacion?: string | null
+    prioridad: number
+    fechaCierreEstimado: string
+    subSistemaId: string | null
+    elementoId: string | null
+    especialidadId: string | null
+    pid: string | null
+    circuito: string | null
+    nivelId?: string | null
+    accionId?: string | null
+    motivoId?: string | null
+  }
+  onDone: () => void
+}) {
+  const update = useUpdatePendiente(pendiente.id)
+
+  const onSubmit = async (values: PendienteFormValues) => {
+    // El endpoint PUT /pendientes/{id} no toca responsable — se ignora.
+    // Circuito quedó deprecado del form pero mantenemos la columna en BD;
+    // enviamos null para no borrar valores viejos indirectamente.
+    await update.mutateAsync({
+      categoriaId: values.categoriaId,
+      tipoId: values.tipoId,
+      descripcion: values.descripcion,
+      descripcionManual: values.descripcionManual ?? false,
+      ubicacion: values.ubicacion ?? null,
+      prioridad: values.prioridad,
+      fechaCierreEstimado: values.fechaCierreEstimado,
+      subSistemaId: values.subSistemaId ?? null,
+      elementoId: values.elementoId ?? null,
+      especialidadId: values.especialidadId,
+      pid: values.pid ?? null,
+      circuito: null,
+      nivelId: values.nivelId,
+      accionId: values.accionId,
+      motivoId: values.motivoId,
+    })
+    onDone()
+  }
+
+  return (
+    <div className="mt-4 px-3 sm:px-4 pb-8">
+      <PendienteForm
+        defaultValues={{
+          nivelId: pendiente.nivelId ?? undefined,
+          accionId: pendiente.accionId ?? undefined,
+          motivoId: pendiente.motivoId ?? undefined,
+          categoriaId: pendiente.categoriaId,
+          tipoId: pendiente.tipoId,
+          responsableId: pendiente.responsableId,
+          grupoResponsableId: pendiente.grupoResponsableId ?? null,
+          ambitoId: pendiente.ambitoId ?? null,
+          descripcion: pendiente.descripcion,
+          descripcionManual: pendiente.descripcionManual ?? false,
+          ubicacion: pendiente.ubicacion ?? null,
+          prioridad: pendiente.prioridad,
+          fechaCierreEstimado: pendiente.fechaCierreEstimado.substring(0, 10),
+          subSistemaId: pendiente.subSistemaId ?? undefined,
+          elementoId: pendiente.elementoId,
+          especialidadId: pendiente.especialidadId ?? undefined,
+          pid: pendiente.pid,
+        }}
+        onSubmit={onSubmit}
+        isPending={update.isPending}
+        onCancel={onDone}
+        modo="edicion"
+      />
+    </div>
+  )
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 function DataItem({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null
   return (
-    <div>
+    // `min-w-0` para que el DataItem colapse en grid parent. `wrap-break-word`
+    // en el valor permite wrappear labels largos (ej "TAG-XXX — Nombre largo").
+    <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-gray-800 mt-0.5">{value}</dd>
+      <dd className="font-medium text-gray-800 mt-0.5 wrap-break-word">{value}</dd>
     </div>
   )
 }

@@ -42,19 +42,24 @@ export function useColoresPorEstadoToggle({
   const buckets = query.data?.data ?? null
 
   // Aplicar al viewer cuando llegan los datos. Si se apaga, limpiar.
+  // Solo PINTA. La limpieza la dispara la página vía `limpiar()` antes de
+  // cambiar de modo: si cada hook limpiara al desactivarse, el orden de los
+  // efectos (por declaración) podía hacer que el modo saliente borrara lo que el
+  // entrante ya había pintado — pasa cuando la query del entrante viene cacheada.
   useEffect(() => {
     if (!archivoCargado) return
-    if (activo && buckets) {
-      void applyColorPorEstado(buckets)
-    } else if (!activo) {
-      void applyColorPorEstado(null)
-    }
+    if (!activo || !buckets) return
+    void applyColorPorEstado(buckets)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activo, buckets, archivoCargado])
+
+  /** Apaga el pintado de este modo (y su auto-isolate). La llama la página. */
+  const limpiar = () => { void applyColorPorEstado(null) }
 
   return {
     activo,
     setActivo,
+    limpiar,
     buckets,
     loading: query.isFetching && activo,
     error: query.error as Error | null,

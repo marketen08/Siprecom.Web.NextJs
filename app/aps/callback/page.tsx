@@ -83,7 +83,7 @@ function ApsCallbackContent() {
             <h1 className="text-lg font-semibold text-gray-800">No se pudo conectar</h1>
             <p className="text-sm text-red-700 whitespace-pre-wrap">{message}</p>
             <a
-              href="/alcance/proyectos"
+              href="/configuracion/proyectos"
               className="inline-block text-sm text-blue-700 hover:underline"
             >
               Volver

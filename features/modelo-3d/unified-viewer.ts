@@ -25,6 +25,8 @@ import {
  * pueden no estar implementadas según el motor.
  */
 export interface UnifiedViewerHandle {
+  /** Resuelve cuando la maqueta pasa a ser interactiva. El motor IFC resuelve ya. */
+  esperarArbol: () => Promise<void>
   highlightByGuid: (guid: string | null) => Promise<void>
   /**
    * Selecciona en el visor TODAS las entidades indicadas (por guid/externalId)
@@ -32,6 +34,8 @@ export interface UnifiedViewerHandle {
    * clickear una de sus piezas.
    */
   selectByGuids: (guids: string[]) => void
+  /** Solo el visor APS/NWD la implementa; el motor IFC no la expone. */
+  selectByDbIds?: (dbIds: number[]) => void
   /**
    * Encuadra la cámara sobre las entidades indicadas. En mobile lo dispara la
    * página tras abrir el bottom sheet (y redimensionar el viewer) para centrar
@@ -43,8 +47,21 @@ export interface UnifiedViewerHandle {
    * visibles quedan completamente invisibles. Si es false (default), quedan
    * semi-transparentes (efecto fantasma del viewer).
    */
-  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
+  applyGhost: (
+    visibleGuids: string[] | null,
+    opts?: { hide?: boolean; dbIds?: number[] },
+  ) => Promise<void>
   applyColorPorEstado: (buckets: BucketsPorEstado | null) => Promise<void>
+  /**
+   * F7 del roadmap TestGroups: pinta cada TestGroup con un color de la paleta
+   * de 12 colores. Pasá null para volver al color IFC original.
+   */
+  applyColorPorTestGroup: (buckets: BucketsPorTestGroup | null) => Promise<void>
+  /**
+   * Pintado genérico: cada grupo lleva sus piezas y su color. Lo usan los modos
+   * de coloreado que no tienen buckets fijos — hoy, pendientes por categoría.
+   */
+  applyColorPorGrupos: (grupos: GrupoColor[] | null) => Promise<void>
   /**
    * Notifica al viewer que su contenedor cambió de tamaño. Lo llaman las
    * páginas vía ResizeObserver para evitar que el click se desfase cuando
@@ -58,10 +75,27 @@ export interface BucketsPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
+  /** dbIds paralelos, cuando el backend los tiene — evitan construir el índice. */
+  noIniciadosIds?: number[]
+  enCursoIds?: number[]
+  completadosIds?: number[]
+}
+
+export interface BucketsPorTestGroup {
+  buckets: Array<{ testGroupId: string; guids: string[]; ids?: number[] }>
+  sinTestGroup: string[]
+  sinTestGroupIds?: number[]
+}
+
+/** Piezas + color. `ids` (dbIds APS) evita construir el índice; el motor IFC los ignora. */
+export interface GrupoColor {
+  guids: string[]
+  ids?: number[]
+  hex: number
 }
 
 export interface CreateUnifiedViewerOptions {
-  onPick?: (guids: string[] | null) => void
+  onPick?: (guids: string[] | null, dbIds?: number[]) => void
   /**
    * Callback para reportar progreso de la carga: usado para el indicador de
    * "Descargando IFC… X MB" o "Cargando NWD desde APS…" en la UI.
@@ -121,7 +155,10 @@ async function crearIfcViewer(
   opts.onProgress?.("Parseando IFC (puede tardar varios segundos)…")
   await handle.loadIfc(new Uint8Array(buffer), archivo.nombre)
   opts.onProgress?.("")
-  return handle
+  // El motor IFC no tiene una carga diferida equivalente al árbol de objetos de
+  // APS: cuando terminó de parsear ya es interactivo. Resolvemos de una para que
+  // las páginas puedan esperar lo mismo en ambos motores.
+  return { ...handle, esperarArbol: () => Promise.resolve() }
 }
 
 async function crearApsViewer(
@@ -138,10 +175,20 @@ async function crearApsViewer(
     throw new Error("Archivo NWD sin URN APS asignada — re-procesá la traducción.")
   }
   const { createApsViewer } = await import("./aps-viewer")
-  const handle = await createApsViewer(container, { onPick: opts.onPick, onProgress: opts.onProgress })
+  const handle = await createApsViewer(container, {
+    onPick: opts.onPick,
+    onProgress: opts.onProgress,
+    // El árbol de objetos llega después de la geometría y es lo que habilita el
+    // clic y el aislamiento. Recién ahí la maqueta está realmente operativa.
+    onArbolListo: () => opts.onProgress?.(""),
+  })
 
-  opts.onProgress?.("Cargando NWD desde Autodesk…")
+  opts.onProgress?.("Cargando maqueta…")
   await handle.loadModel(archivo.apsUrn)
+  // Listo: con la geometría ya se navega, se clickea y se pinta por estado. El
+  // árbol de objetos sigue cargando por detrás —en maquetas de más de un millón
+  // de piezas son minutos— pero solo lo necesita el atenuado de lo no filtrado,
+  // que se aplica solo cuando llega. No bloqueamos la UI por eso.
   opts.onProgress?.("")
   return handle
 }

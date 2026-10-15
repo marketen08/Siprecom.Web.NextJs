@@ -1,5 +1,3 @@
-import type { TestpackPropagacionResult } from "@/features/elementos-tareas/types"
-
 export interface RegistroValor {
   id: string
   registroId: string
@@ -50,12 +48,19 @@ export interface RegistroDetalle {
   terminalId: string
   estado: string
   esFisico: boolean
+  /** Registro creado vía "Marcar completada sin registro" — no tiene planilla completada. */
+  sinPlanilla: boolean
   fechaInicio: string
   fechaTerminado: string | null
   observaciones: string | null
   porcentajeCompletitud: number
   camposPendientes: number
   validacionPasada: boolean
+  /**
+   * True cuando el registro es el encabezado de un TestGroup. Es re-editable
+   * siempre — el UI debe ignorar el bloqueo por estado terminal.
+   */
+  esEncabezadoTg?: boolean
   valores: RegistroValor[]
   archivos: RegistroArchivo[]
   /**
@@ -65,10 +70,21 @@ export interface RegistroDetalle {
    */
   valoresPrecargados?: RegistroValorPrecargado[]
   /**
-   * Resultado de la propagación al grupo de Testpack cuando la carga se hizo con
-   * "aplicar a todo el testpack". Null si no se propagó. Solo viene al completar.
+   * Info del ciclo de preservación generado por la transición APROBADO/FIRMADO que
+   * produjo esta respuesta. Solo viene poblado en el response de completar/firmar
+   * cuando el generador se disparó (independientemente de si generó o no — Motivo
+   * indica el porqué). Null en cualquier otra lectura del detalle.
    */
-  testpackPropagacion?: TestpackPropagacionResult | null
+  preservacionCicloGenerado?: PreservacionCicloInfo | null
+}
+
+export interface PreservacionCicloInfo {
+  generado: boolean
+  /** Motivo cuando generado=false (no_es_preservacion, feature_flag_off, elemento_retirado, etc). */
+  motivo?: string | null
+  /** ISO date-time del próximo ciclo generado (solo cuando generado=true). */
+  fechaPlanificadaProximo?: string | null
+  nuevaElementoTareaId?: string | null
 }
 
 export interface RegistroValorPrecargado {
@@ -95,8 +111,6 @@ export interface CompletarDigitalInput {
   fechaTerminado?: string | null
   observaciones?: string | null
   valores: RegistroValorInput[]
-  /** Si true y el elemento tiene testpack, propaga el estado al grupo al completar. */
-  aplicarATestpack?: boolean
 }
 
 export interface RegistroFirmaSlot {
@@ -105,6 +119,8 @@ export interface RegistroFirmaSlot {
   rolNombre: string
   descripcion: string | null
   esObligatorio: boolean
+  /** Digital (1) = firma electrónica. Fisica (2) = firma manuscrita (auto-marcada al cargar el PDF). */
+  tipoFirma: number
   puedeFirearUsuarioActual: boolean
   firmaId: string | null
   firmadoPor: string | null
@@ -120,6 +136,11 @@ export interface RegistroFirmasStatus {
   totalFirmas: number
   firmasCompletadas: number
   firmasPendientes: number
+  /** Flag global RENDERIZAR_GARABATO_FIRMA. Si false, no mostrar UI de captura del garabato. */
+  renderizarGarabatoFirma: boolean
+  /** True si la detección visual falló + flag FIRMA_DIGITAL_SI_VISUAL_FALLA ON. En ese caso
+   *  los slots Fisica requieren firma digital manual (no auto-firma al subir el PDF). */
+  firmaVisualFallo: boolean
   slots: RegistroFirmaSlot[]
 }
 
@@ -171,8 +192,10 @@ export interface FirmaIntegridad {
   rolFirmante: string
   fechaFirma: string
   integro: boolean
-  hashPersistido: string
-  hashRecalculado: string
+  hashPersistido: string | null
+  hashRecalculado: string | null
+  /** true si es firma manuscrita (auto-marcada al cargar PDF físico) — no se verifica hash. */
+  esFirmaEnPapel: boolean
 }
 
 export interface IntegridadRegistro {

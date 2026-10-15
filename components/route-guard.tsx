@@ -4,8 +4,8 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
-import { meetsRole } from "@/lib/roles"
-import { requiredRoleForPath } from "@/lib/nav-menu"
+import { meetsRole, type AppRole } from "@/lib/roles"
+import { ruleForPath } from "@/lib/nav-menu"
 
 /**
  * Guard de rutas por rol. Si el usuario entra (por URL directa) a una ruta que
@@ -21,8 +21,12 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
   const roles = useAuthStore((s) => s.user?.roles)
   const mounted = useMounted()
 
-  const required = requiredRoleForPath(pathname)
-  const allowed = !required || meetsRole(roles ?? [], required)
+  const rule = ruleForPath(pathname)
+  const allowed =
+    !rule ||
+    (rule.kind === "min"
+      ? meetsRole(roles ?? [], rule.role)
+      : (roles ?? []).some((r) => rule.roles.includes(r as AppRole)))
 
   useEffect(() => {
     if (mounted && !allowed) router.replace("/dashboard")

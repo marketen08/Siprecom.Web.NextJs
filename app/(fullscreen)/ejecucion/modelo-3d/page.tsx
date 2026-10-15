@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Link as LinkIcon, Loader2, Menu, Palette, Settings, Star,
+  AlertTriangle, Box, ChevronDown, ChevronUp, Eye, Filter, Link as LinkIcon, Loader2, Menu, Settings, Star,
 } from "lucide-react"
 
 import { useSidebar } from "@/components/sidebar-context"
@@ -11,7 +11,12 @@ import { useSidebar } from "@/components/sidebar-context"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import type { Elemento } from "@/features/elementos/types"
 import { useGetIfcPrincipal } from "@/features/modelo-3d/api/use-ifc-archivos"
-import { resolverEntidadesPorGuids, getGuidsPorElemento } from "@/features/modelo-3d/api/use-ifc-entidades"
+import {
+  resolverEntidadesPorGuids,
+  resolverEntidadesPorIds,
+  getGuidsPorElemento,
+  getIdsPorElemento,
+} from "@/features/modelo-3d/api/use-ifc-entidades"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { ElementosPanel } from "@/features/modelo-3d/components/elementos-panel"
@@ -19,21 +24,37 @@ import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor
 import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-colores-estado"
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
+import { useColoresPorTestGroupToggle } from "@/features/modelo-3d/hooks/use-colores-por-testgroup"
+import { useColoresPorPendienteToggle } from "@/features/modelo-3d/hooks/use-colores-por-pendiente"
+import { LeyendaColoresPendiente } from "@/features/modelo-3d/components/leyenda-colores-pendiente"
+import { SelectorModoColor } from "@/features/modelo-3d/components/selector-modo-color"
+import { LeyendaColoresTestGroup } from "@/features/modelo-3d/components/leyenda-colores-testgroup"
 import {
   ApsTranslationStatus,
   EstadoProcesamientoIfc,
   FormatoArchivo3d,
   type ColoresPorEstado,
+  MODO_COLOR,
+  type ColoresPorTestGroup,
+  type ElementoEnMaqueta,
+  type ModoColor,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
 
+import type { GrupoColor } from "@/features/modelo-3d/unified-viewer"
+
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   selectByGuids: (guids: string[]) => void
+  /** Solo el motor APS/NWD. Selecciona por dbId, sin necesitar el índice. */
+  selectByDbIds?: (dbIds: number[]) => void
   fitToGuids: (guids: string[]) => void
   applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
+  applyColorPorTestGroup: (buckets: ColoresPorTestGroup | null) => Promise<void>
+  /** Pintado genérico por grupos — lo usa el modo "Pendientes". */
+  applyColorPorGrupos: (grupos: GrupoColor[] | null) => Promise<void>
   resize: () => void
   dispose: () => void
 }
@@ -116,6 +137,44 @@ function ModeloEjecucionContent() {
     filtro: filtroVisor.filtro,
   })
 
+  // Pendientes por categoría del punch (A/B/C/D) del pendiente abierto más crítico.
+  const coloresPendiente = useColoresPorPendienteToggle({
+    proyectoId: proyectoActivo?.id ?? null,
+    archivoId: archivo?.id ?? null,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
+    applyColorPorGrupos: (g) => viewerRef.current?.applyColorPorGrupos(g) ?? Promise.resolve(),
+    filtro: filtroVisor.filtro,
+  })
+
+  // F7 del roadmap TestGroups: colorización por pack.
+  const coloresTestGroup = useColoresPorTestGroupToggle({
+    proyectoId: proyectoActivo?.id ?? null,
+    archivoId: archivo?.id ?? null,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === archivo?.id,
+    applyColorPorTestGroup: (b) => viewerRef.current?.applyColorPorTestGroup(b) ?? Promise.resolve(),
+    filtro: filtroVisor.filtro,
+  })
+
+  // Los modos de color son excluyentes. Antes eran toggles independientes con un
+  // mutex por useEffect; ahora un solo valor manda y cada toggle se deriva de él,
+  // así no hay estados intermedios con dos modos prendidos.
+  const [modoColor, setModoColor] = useState<ModoColor>(MODO_COLOR.ninguno)
+  useEffect(() => {
+    // Limpiamos ACÁ, antes de activar el modo nuevo. Si cada hook limpiara al
+    // desactivarse, el orden de los efectos (por declaración de hooks) podía
+    // hacer que el saliente borrara lo que el entrante ya pintó — pasa cuando la
+    // query del entrante viene de caché y pinta en el mismo flush.
+    coloresEstado.limpiar()
+    coloresPendiente.limpiar()
+    coloresTestGroup.limpiar()
+    coloresEstado.setActivo(modoColor === MODO_COLOR.estado)
+    coloresPendiente.setActivo(modoColor === MODO_COLOR.pendientes)
+    coloresTestGroup.setActivo(modoColor === MODO_COLOR.testgroup)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoColor])
+  // Al cambiar de archivo cada toggle se resetea solo; el selector también.
+  useEffect(() => { setModoColor(MODO_COLOR.ninguno) }, [archivo?.id])
+
   const archivoActualIdRef = useRef<string | null>(null)
   archivoActualIdRef.current = archivo?.id ?? null
 
@@ -148,8 +207,9 @@ function ModeloEjecucionContent() {
         const { createUnifiedViewer } = await import("@/features/modelo-3d/unified-viewer")
         if (cancelled) return
         const handle = await createUnifiedViewer(containerEl, archivo, proyectoActivo.id, {
-          onPick: async (guids) => {
-            if (guids === null || guids.length === 0) {
+          onPick: async (guids, dbIds) => {
+            const hayAlgo = (guids && guids.length > 0) || (dbIds && dbIds.length > 0)
+            if (!hayAlgo) {
               setEntidadSeleccionada(null)
               fitGuidsRef.current = null
               return
@@ -159,12 +219,24 @@ function ModeloEjecucionContent() {
             if (!archivoActivo || !proyId) return
             setResolviendoPick(true)
             try {
-              // guids viene como cadena hoja→raíz. El backend devuelve las
-              // entidades que existen; elegimos la que matchea el guid más
-              // profundo (la más cercana a lo clickeado).
-              const entidades = await resolverEntidadesPorGuids(proyId, archivoActivo, guids)
-              const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
-              const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              // La cadena viene hoja→raíz y elegimos la coincidencia más profunda
+              // (la más cercana a lo clickeado). Con dbIds resolvemos por
+              // ApsObjectId y no dependemos del índice externalId → dbId, que en
+              // maquetas grandes tarda minutos en construirse.
+              let elegida: ProyectoIfcEntidad | null = null
+              if (dbIds && dbIds.length > 0) {
+                const entidades = await resolverEntidadesPorIds(proyId, archivoActivo, dbIds)
+                const porDbId = new Map(
+                  entidades
+                    .filter((e) => e.apsObjectId != null)
+                    .map((e) => [e.apsObjectId as number, e]),
+                )
+                elegida = dbIds.map((d) => porDbId.get(d)).find(Boolean) ?? null
+              } else if (guids && guids.length > 0) {
+                const entidades = await resolverEntidadesPorGuids(proyId, archivoActivo, guids)
+                const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
+                elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              }
               // Nueva selección → el sheet arranca a media altura.
               setSheetExpanded(false)
               setEntidadSeleccionada(elegida)
@@ -173,13 +245,19 @@ function ModeloEjecucionContent() {
               // visor TODAS las piezas de ese Elemento (toda la línea/equipo), no
               // solo la hoja clickeada. Esos mismos guids son los que encuadramos.
               if (elegida?.elementoId) {
+                // Preferimos dbIds: seleccionar por guid necesita el índice.
+                const idsElemento = await getIdsPorElemento(proyId, archivoActivo, elegida.elementoId)
                 const guidsElemento = await getGuidsPorElemento(proyId, archivoActivo, elegida.elementoId)
-                if (guidsElemento.length > 0) {
+                if (idsElemento.length > 0) {
+                  viewerRef.current?.selectByDbIds?.(idsElemento)
+                } else if (guidsElemento.length > 0) {
                   viewerRef.current?.selectByGuids(guidsElemento)
-                  fitGuidsRef.current = guidsElemento
-                } else {
-                  fitGuidsRef.current = elegida.ifcGuid ? [elegida.ifcGuid] : null
                 }
+                // El encuadre sigue por guid: fitToGuids es el contrato común con
+                // el motor IFC. Si no hay guids, caemos al de la propia entidad.
+                fitGuidsRef.current = guidsElemento.length > 0
+                  ? guidsElemento
+                  : (elegida.ifcGuid ? [elegida.ifcGuid] : null)
               } else {
                 fitGuidsRef.current = elegida?.ifcGuid ? [elegida.ifcGuid] : null
               }
@@ -259,7 +337,7 @@ function ModeloEjecucionContent() {
   // Seleccionar un Elemento desde el listado: resaltamos TODAS sus piezas en la
   // maqueta, las encuadramos, y abrimos el detalle reutilizando el sidebar (con
   // una entidad del elemento). Si el elemento no tiene piezas vinculadas, avisamos.
-  async function seleccionarElementoDesdeListado(elemento: Elemento) {
+  async function seleccionarElementoDesdeListado(elemento: ElementoEnMaqueta) {
     if (!proyectoActivo || !archivo) return
     setSheetExpanded(false)
     setAvisoMaqueta(null)
@@ -426,25 +504,17 @@ function ModeloEjecucionContent() {
           >
             <Filter className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Filtros</span>
+            {/* Elementos, no piezas 3D — mismo criterio que el panel y la leyenda. */}
             {filtroVisor.activo && filtroVisor.resultado && (
-              <span className="ml-1 rounded-full bg-blue-600 text-white px-1.5 text-[10px] font-bold">
-                {filtroVisor.resultado.totalCoinciden}
+              <span
+                className="ml-1 rounded-full bg-blue-600 text-white px-1.5 text-[10px] font-bold tabular-nums"
+                title={`${filtroVisor.resultado.elementosCoinciden.toLocaleString("es-AR")} elementos en el filtro`}
+              >
+                {filtroVisor.resultado.elementosCoinciden}
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => coloresEstado.setActivo((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
-              coloresEstado.activo
-                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-            title="Pintar entidades con color según el estado del Elemento"
-          >
-            <Palette className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Colores por estado</span>
-          </button>
+          <SelectorModoColor valor={modoColor} onChange={setModoColor} compacto />
           <button
             type="button"
             onClick={() => {
@@ -506,10 +576,12 @@ function ModeloEjecucionContent() {
             <FiltrosVisorPanel
               filtro={filtroVisor.filtro}
               onChange={filtroVisor.setFiltro}
-              totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
-              totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
+              elementosCoinciden={filtroVisor.resultado?.elementosCoinciden ?? null}
+              totalElementos={filtroVisor.resultado?.totalElementos ?? null}
               loading={filtroVisor.loading}
               onClose={() => setMostrarFiltros(false)}
+              proyectoId={proyectoActivo?.id ?? null}
+              archivoId={archivo?.id ?? null}
             />
           </div>
         )}
@@ -518,6 +590,16 @@ function ModeloEjecucionContent() {
           {coloresEstado.activo && (
             <div className="absolute top-3 left-3 z-10">
               <LeyendaColoresEstado buckets={coloresEstado.buckets} loading={coloresEstado.loading} />
+            </div>
+          )}
+          {coloresPendiente.activo && (
+            <div className="pointer-events-none">
+              <LeyendaColoresPendiente datos={coloresPendiente.datos} loading={coloresPendiente.loading} />
+            </div>
+          )}
+          {coloresTestGroup.activo && (
+            <div className="absolute top-3 left-3 z-10">
+              <LeyendaColoresTestGroup buckets={coloresTestGroup.buckets} loading={coloresTestGroup.loading} />
             </div>
           )}
           {actualHintVisible(viewerReady, archivoCargadoId, entidadSeleccionada, resolviendoPick) && (
@@ -567,8 +649,11 @@ function ModeloEjecucionContent() {
       {mostrarPanelElementos && (
         <div className="border-t border-gray-200 bg-white p-4 max-h-[40vh] overflow-y-auto">
           <ElementosPanel
+            proyectoId={proyectoActivo.id}
+            archivoId={archivo.id}
             onSeleccionar={seleccionarElementoDesdeListado}
             elementoSeleccionadoId={entidadSeleccionada?.elementoId ?? null}
+            filtroVisor={filtroVisor.filtro}
           />
         </div>
       )}

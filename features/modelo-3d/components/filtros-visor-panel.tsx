@@ -4,18 +4,37 @@ import { useMemo, useState } from "react"
 import { Check, ChevronDown, ChevronRight, Filter, X } from "lucide-react"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetDimensionesUsadas } from "../api/use-ifc-entidades"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
+import { useGetTestGroups } from "@/features/testgroups/api/use-get-testgroups"
+import { ESTADO_TEST_GROUP, type EstadoTestGroup } from "@/features/testgroups/types"
 import { EstadoVisualIds, filtroVacio, isFiltroVacio, type FiltroVisor } from "../types"
+
+// Para el panel del visor 3D nos interesan solo los packs que están en juego:
+// ACTIVO y COMPLETADO. BORRADOR no llega a highlightear (aún no cerró el alcance)
+// y CERRADO es archivo.
+const ESTADOS_EN_EJECUCION: EstadoTestGroup[] = [
+  ESTADO_TEST_GROUP.ACTIVO,
+  ESTADO_TEST_GROUP.COMPLETADO,
+]
 
 interface Props {
   filtro: FiltroVisor
   onChange: (f: FiltroVisor) => void
   /** Resultado del backend, para mostrar "X de Y visibles". */
-  totalCoinciden: number | null
-  totalEntidades: number | null
+  /** Elementos que pasan el filtro y total con geometría en la maqueta. */
+  elementosCoinciden: number | null
+  totalElementos: number | null
   loading?: boolean
   onClose: () => void
+  /**
+   * Archivo activo en el visor. Sirve para acotar los combos de Sistema y
+   * SubSistema a los que tienen geometría en esa maqueta. Si no se pasa (o
+   * todavía no cargó), se ofrecen todos.
+   */
+  proyectoId?: string | null
+  archivoId?: string | null
 }
 
 /**
@@ -24,10 +43,17 @@ interface Props {
  * fetch al backend para resolver los GUIDs visibles → el viewer aplica ghost.
  */
 export function FiltrosVisorPanel({
-  filtro, onChange, totalCoinciden, totalEntidades, loading, onClose,
+  filtro, onChange, elementosCoinciden, totalElementos, loading, onClose,
+  proyectoId, archivoId,
 }: Props) {
   const { data: sistemasData } = useGetSistemasSelect()
   const { data: subsistemasData } = useGetSubSistemasSelect()
+  // Sistemas/SubSistemas con geometría en la maqueta activa. Mismo criterio que
+  // Especialidades y Niveles, que ya se acotan a "los usados" — sin esto el
+  // panel ofrece opciones que devuelven 0 garantizado (un proyecto con 185
+  // subsistemas puede tener solo 4 representados en el modelo).
+  const { data: dimsData } = useGetDimensionesUsadas(proyectoId ?? null, archivoId ?? null)
+  const dims = dimsData?.data ?? null
   // Solo las Especialidades usadas por el proyecto activo — evita ofrecer
   // opciones en el filtro que dejarían 0 elementos al seleccionarlas.
   const { data: especialidadesData } = useGetEspecialidadesUsadas()
@@ -36,9 +62,18 @@ export function FiltrosVisorPanel({
   const { data: nivelesRaw } = useGetNivelesUsadosSelect()
 
   // Ordenado por código (numérico natural: S1, S2, … S10), no alfabético por nombre.
-  const sistemas = [...(sistemasData?.data ?? [])].sort((a, b) =>
-    (a.codigo ?? "").localeCompare(b.codigo ?? "", undefined, { numeric: true, sensitivity: "base" }))
-  const todosSubsistemas = subsistemasData?.data ?? []
+  // Si el backend ya respondió qué dimensiones tiene la maqueta, filtramos por
+  // ahí. Mientras no haya respuesta (o venga vacía, ej. archivo sin procesar)
+  // mostramos todo — vale más un combo de más que un panel vacío.
+  const sistemasUsados = dims && dims.sistemaIds.length > 0 ? new Set(dims.sistemaIds) : null
+  const subsistemasUsados = dims && dims.subSistemaIds.length > 0 ? new Set(dims.subSistemaIds) : null
+
+  const sistemas = [...(sistemasData?.data ?? [])]
+    .filter((s) => !sistemasUsados || sistemasUsados.has(s.id))
+    .sort((a, b) =>
+      (a.codigo ?? "").localeCompare(b.codigo ?? "", undefined, { numeric: true, sensitivity: "base" }))
+  const todosSubsistemas = (subsistemasData?.data ?? [])
+    .filter((s) => !subsistemasUsados || subsistemasUsados.has(s.id))
   const especialidades = especialidadesData?.data ?? []
   // El endpoint /api/niveles devuelve el array directo (no envuelto en {data}).
   // Lo soportamos por compat por si alguna versión lo envuelve.
@@ -48,6 +83,10 @@ export function FiltrosVisorPanel({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       : (nivelesRaw as any)?.data ?? []) as Array<{ id: string; nombre: string; posicion?: number }>
   const nivelesOrdenados = [...niveles].sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0))
+
+  // TestGroups activos + completados del proyecto — para "aislar" packs en el visor.
+  const { data: testGroupsData } = useGetTestGroups({ estados: ESTADOS_EN_EJECUCION })
+  const testGroups = testGroupsData?.data ?? []
 
   // Si hay sistemas seleccionados, mostramos solo los subsistemas que les pertenecen.
   // Ordenados por código (numérico natural: SS1, SS2, … SS10), no alfabético por nombre.
@@ -78,9 +117,12 @@ export function FiltrosVisorPanel({
         <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-800">
           <Filter className="h-4 w-4 text-blue-600" />
           Filtros
-          {!vacio && totalCoinciden !== null && totalEntidades !== null && (
-            <span className="text-xs font-medium text-gray-500 ml-1">
-              · {totalCoinciden.toLocaleString("es-AR")} / {totalEntidades.toLocaleString("es-AR")}
+          {/* Contamos ELEMENTOS, no piezas 3D: un Elemento agrupa N entidades y
+              el número de piezas no le dice nada al usuario. Mismo criterio que
+              la leyenda de estado y que /alcance/elementos. */}
+          {!vacio && elementosCoinciden !== null && totalElementos !== null && (
+            <span className="text-xs font-medium text-gray-500 ml-1 tabular-nums">
+              · {elementosCoinciden.toLocaleString("es-AR")} / {totalElementos.toLocaleString("es-AR")} elementos
             </span>
           )}
         </div>
@@ -182,6 +224,41 @@ export function FiltrosVisorPanel({
               onChange({ ...filtro, estadosVisuales: Array.from(set) })
             }}
           />
+        </Seccion>
+
+        <Seccion
+          titulo="Paquetes de prueba"
+          selectedCount={filtro.testGroupIds.length}
+        >
+          <ChecklistMulti
+            items={testGroups.map((tg) => ({
+              id: tg.id,
+              label: `${tg.codigo} · ${tg.nombre || "(sin nombre)"}${tg.elementoTipoSinteticoNombre ? ` [${tg.elementoTipoSinteticoNombre}]` : ""}`,
+            }))}
+            selectedIds={filtro.testGroupIds}
+            onToggle={(id) => toggleSet(filtro.testGroupIds, id, (next) => ({ testGroupIds: next }))}
+            empty="Sin paquetes en ejecución. Activá al menos uno en Alcance → Paquetes de prueba."
+          />
+        </Seccion>
+
+        <Seccion titulo="Pendientes" defaultOpen>
+          {/* Complemento del modo de color "Pendientes": pintar muestra dónde
+              están, esto deja solo esos. Abierto = ni cerrado ni cancelado. */}
+          <label className="flex items-start gap-2 cursor-pointer px-1 py-1 rounded hover:bg-gray-50">
+            <input
+              type="checkbox"
+              className="mt-0.5 cursor-pointer"
+              checked={filtro.soloConPendientesAbiertos}
+              onChange={(e) => onChange({ ...filtro, soloConPendientesAbiertos: e.target.checked })}
+              disabled={loading}
+            />
+            <span className="min-w-0">
+              <span className="block text-xs text-gray-700">Solo con pendientes abiertos</span>
+              <span className="block text-[10px] text-muted-foreground">
+                Deja los elementos que tienen al menos una observación sin cerrar
+              </span>
+            </span>
+          </label>
         </Seccion>
 
         <Seccion titulo="Entidades sin vincular" defaultOpen>

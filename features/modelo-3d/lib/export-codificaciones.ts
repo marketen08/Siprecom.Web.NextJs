@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx"
 import type { ApsCodificacion } from "../types"
 
 /** Fila del reporte, con el flag de si fue marcada para trackear. */
@@ -22,28 +21,60 @@ function nombreBase(archivoNombre?: string): string {
   return `codificaciones-tag-${base}-${timestamp()}`
 }
 
-/** Exporta las codificaciones a un .xlsx (descarga directa, client-side). */
-export function exportCodificacionesExcel(
+/**
+ * Exporta las codificaciones a un .xlsx.
+ *
+ * El archivo lo arma el backend con ClosedXML. Antes lo armaba acá la librería
+ * `xlsx` (SheetJS); ese uso era inofensivo —sólo escribía, y sus dos
+ * vulnerabilidades HIGH se disparan al parsear— pero mientras el paquete
+ * siguiera instalado npm audit lo seguía reportando y no tiene fix publicado.
+ * Moverlo permitió sacar la dependencia del frontend.
+ *
+ * Las filas van en el body porque son el resultado del análisis del modelo, que
+ * ya está en memoria acá y es caro de recalcular (re-descarga properties de APS).
+ *
+ * Lanza si la descarga falla, para que el llamador lo muestre.
+ */
+export async function exportCodificacionesExcel(
   rows: ApsCodificacion[],
   seleccion: Set<string>,
   archivoNombre?: string,
-) {
+): Promise<void> {
   const filas = construirFilas(rows, seleccion)
-  const aoa: (string | number)[][] = [
-    ["Trackear", "Cantidad de nodos", "Patrón", "Property name sugerido", "Ejemplo"],
-    ...filas.map((f) => [
-      f.seleccionada ? "Sí" : "No",
-      f.cantidad,
-      f.patron,
-      f.propTagSugerida,
-      f.ejemplo,
-    ]),
-  ]
-  const ws = XLSX.utils.aoa_to_sheet(aoa)
-  ws["!cols"] = [{ wch: 10 }, { wch: 18 }, { wch: 28 }, { wch: 40 }, { wch: 28 }]
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, "Codificaciones TAG")
-  XLSX.writeFile(wb, `${nombreBase(archivoNombre)}.xlsx`)
+
+  const res = await fetch("/api/aps/codificaciones/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      archivoNombre: archivoNombre ?? "modelo",
+      filas: filas.map((f) => ({
+        seleccionada: f.seleccionada,
+        cantidad: f.cantidad,
+        patron: f.patron,
+        propTagSugerida: f.propTagSugerida,
+        ejemplo: f.ejemplo,
+      })),
+    }),
+  })
+
+  if (!res.ok) {
+    const cuerpo = await res.json().catch(() => null)
+    throw new Error(cuerpo?.message ?? `No se pudo generar el Excel (${res.status})`)
+  }
+
+  descargar(await res.blob(), `${nombreBase(archivoNombre)}.xlsx`)
+}
+
+/** Dispara la descarga de un blob con el nombre indicado. */
+function descargar(blob: Blob, nombre: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = nombre
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 function escapeHtml(s: string): string {

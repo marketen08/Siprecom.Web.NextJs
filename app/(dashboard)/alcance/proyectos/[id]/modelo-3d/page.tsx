@@ -1,26 +1,34 @@
 "use client"
 
+import Link from "next/link"
+
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  AlertTriangle, Box, CheckCircle2, Cloud, Eye, FileUp, Filter, Loader2, Palette, RefreshCw, ScanSearch, Star, Trash2, Wrench,
+  AlertTriangle, Box, CheckCircle2, Cloud, Download, Eye, FileJson, FileUp, Filter, Link2, Loader2, RefreshCw, ScanSearch, SearchX, Star, Trash2, Wrench,
 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import {
+  descargarMaquetaJson,
   useDeleteIfcArchivo,
   useGetIfcArchivos,
   useMarcarIfcPrincipal,
 } from "@/features/modelo-3d/api/use-ifc-archivos"
+import { ImportarMaquetaJsonSheet } from "@/features/modelo-3d/components/importar-maqueta-json-dialog"
 import {
   resolverEntidadesPorGuids,
+  resolverEntidadesPorIds,
   getGuidsPorElemento,
+  getIdsPorElemento,
   useProcesarIfcArchivo,
   useReBootstrapIfcArchivo,
+  useRematchIfcArchivo,
 } from "@/features/modelo-3d/api/use-ifc-entidades"
 import { UploadIfcSheet } from "@/features/modelo-3d/components/upload-ifc-sheet"
 import { CodificacionesSheet } from "@/features/modelo-3d/components/codificaciones-sheet"
+import { AnalisisVinculacionSheet } from "@/features/modelo-3d/components/analisis-vinculacion-sheet"
 import { ImportarDesdeApsSheet } from "@/features/aps/components/importar-desde-aps-sheet"
 import { EntidadesPanel } from "@/features/modelo-3d/components/entidades-panel"
 import { EntidadDetalleSidebar } from "@/features/modelo-3d/components/entidad-detalle-sidebar"
@@ -28,24 +36,40 @@ import { FiltrosVisorPanel } from "@/features/modelo-3d/components/filtros-visor
 import { LeyendaColoresEstado } from "@/features/modelo-3d/components/leyenda-colores-estado"
 import { useFiltroVisor } from "@/features/modelo-3d/hooks/use-filtro-visor"
 import { useColoresPorEstadoToggle } from "@/features/modelo-3d/hooks/use-colores-por-estado"
+import { useColoresPorPendienteToggle } from "@/features/modelo-3d/hooks/use-colores-por-pendiente"
+import { LeyendaColoresPendiente } from "@/features/modelo-3d/components/leyenda-colores-pendiente"
+import { SelectorModoColor } from "@/features/modelo-3d/components/selector-modo-color"
 import {
   ApsTranslationStatus,
   EstadoProcesamientoIfc,
   FormatoArchivo3d,
+  MODO_COLOR,
   type ColoresPorEstado,
+  type ModoColor,
   type ProyectoIfcArchivo,
   type ProyectoIfcEntidad,
 } from "@/features/modelo-3d/types"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+
+import type { GrupoColor } from "@/features/modelo-3d/unified-viewer"
 
 interface ViewerHandle {
   highlightByGuid: (guid: string | null) => Promise<void>
   selectByGuids: (guids: string[]) => void
+  /** Solo el motor APS/NWD. Evita traducir guid → dbId, que requiere el índice. */
+  selectByDbIds?: (dbIds: number[]) => void
   fitToGuids: (guids: string[]) => void
-  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void>
+  applyGhost: (
+    visibleGuids: string[] | null,
+    opts?: { hide?: boolean; dbIds?: number[] },
+  ) => Promise<void>
   applyColorPorEstado: (buckets: ColoresPorEstado | null) => Promise<void>
+  /** Pintado genérico por grupos — lo usa el modo "Pendientes". */
+  applyColorPorGrupos: (grupos: GrupoColor[] | null) => Promise<void>
   resize: () => void
   dispose: () => void
 }
@@ -61,16 +85,45 @@ function ModeloPageContent() {
   const eliminar = useDeleteIfcArchivo(id)
   const procesar = useProcesarIfcArchivo(id)
   const reBootstrap = useReBootstrapIfcArchivo(id)
+  const rematch = useRematchIfcArchivo(id)
   const marcarPrincipal = useMarcarIfcPrincipal(id)
+  // Al terminar el rematch mostramos un feedback simple con el resultado.
+  const [rematchMsg, setRematchMsg] = useState<{
+    archivoId: string
+    mensaje: string
+    ok: boolean
+    sinPieza: number
+    tagEnNombre: number
+    ejemplos: string[]
+  } | null>(null)
+
+  async function handleRematch(archivoId: string) {
+    try {
+      const res = await rematch.mutateAsync(archivoId)
+      const data = res?.data
+      setRematchMsg({
+        archivoId,
+        mensaje: data?.mensaje ?? "Re-vinculación completada.",
+        ok: (data?.entidadesVinculadas ?? 0) > 0,
+        sinPieza: data?.elementosSinPieza ?? 0,
+        tagEnNombre: data?.elementosTagEnNombre ?? 0,
+        ejemplos: data?.ejemplosTagEnNombre ?? [],
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo re-vincular."
+      setRematchMsg({ archivoId, mensaje: msg, ok: false, sinPieza: 0, tagEnNombre: 0, ejemplos: [] })
+    }
+  }
 
   const [openUpload, setOpenUpload] = useState(false)
   const [openAps, setOpenAps] = useState(false)
+  const [openImportJson, setOpenImportJson] = useState(false)
 
   useBreadcrumb(
     proyecto
       ? [
           { label: "Alcance" },
-          { label: "Proyectos", href: "/alcance/proyectos" },
+          { label: "Proyecto", href: "/alcance/proyecto" },
           { label: proyecto.nombre, href: `/alcance/proyectos/${id}` },
           { label: "Modelo 3D" },
         ]
@@ -107,6 +160,27 @@ function ModeloPageContent() {
     applyColorPorEstado: (b) => viewerRef.current?.applyColorPorEstado(b) ?? Promise.resolve(),
     filtro: filtroVisor.filtro,
   })
+
+  const coloresPendiente = useColoresPorPendienteToggle({
+    proyectoId: id,
+    archivoId: actualId,
+    archivoCargado: archivoCargadoId !== null && archivoCargadoId === actualId,
+    applyColorPorGrupos: (g) => viewerRef.current?.applyColorPorGrupos(g) ?? Promise.resolve(),
+    filtro: filtroVisor.filtro,
+  })
+
+  // Un solo modo de color a la vez; cada toggle se deriva del valor elegido.
+  const [modoColor, setModoColor] = useState<ModoColor>(MODO_COLOR.ninguno)
+  useEffect(() => {
+    // Limpiar antes de activar: ver el comentario del mismo efecto en
+    // /ejecucion/modelo-3d sobre el orden de los efectos entre modos.
+    coloresEstado.limpiar()
+    coloresPendiente.limpiar()
+    coloresEstado.setActivo(modoColor === MODO_COLOR.estado)
+    coloresPendiente.setActivo(modoColor === MODO_COLOR.pendientes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoColor])
+  useEffect(() => { setModoColor(MODO_COLOR.ninguno) }, [actualId])
 
   const archivoActual = actualId
     ? archivos.find((a) => a.id === actualId) ?? null
@@ -145,8 +219,9 @@ function ModeloPageContent() {
         const { createUnifiedViewer } = await import("@/features/modelo-3d/unified-viewer")
         if (cancelled) return
         const handle = await createUnifiedViewer(container, archivoActual, id, {
-          onPick: async (guids) => {
-            if (guids === null || guids.length === 0) {
+          onPick: async (guids, dbIds) => {
+            const hayAlgo = (guids && guids.length > 0) || (dbIds && dbIds.length > 0)
+            if (!hayAlgo) {
               setEntidadSeleccionada(null)
               return
             }
@@ -154,17 +229,36 @@ function ModeloPageContent() {
             if (!archivoActivo) return
             setResolviendoPick(true)
             try {
-              // guids = cadena hoja→raíz (APS) o un único guid (IFC). Elegimos la
-              // entidad que matchea el guid más profundo.
-              const entidades = await resolverEntidadesPorGuids(id, archivoActivo, guids)
-              const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
-              const elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              // Camino rápido: si el visor nos dio la cadena de dbIds resolvemos por
+              // ApsObjectId y no dependemos del índice externalId → dbId, que en
+              // maquetas grandes tarda minutos en construirse. Si no, por guid.
+              let elegida: ProyectoIfcEntidad | null = null
+              if (dbIds && dbIds.length > 0) {
+                const entidades = await resolverEntidadesPorIds(id, archivoActivo, dbIds)
+                // dbIds viene hoja → raíz. Nos quedamos con la coincidencia más
+                // profunda, igual que en el camino por guid.
+                const porDbId = new Map(
+                  entidades
+                    .filter((e) => e.apsObjectId != null)
+                    .map((e) => [e.apsObjectId as number, e]),
+                )
+                elegida = dbIds.map((d) => porDbId.get(d)).find(Boolean) ?? null
+              } else if (guids && guids.length > 0) {
+                const entidades = await resolverEntidadesPorGuids(id, archivoActivo, guids)
+                const porGuid = new Map(entidades.map((e) => [e.ifcGuid, e]))
+                elegida = guids.map((g) => porGuid.get(g)).find(Boolean) ?? null
+              }
               setEntidadSeleccionada(elegida)
 
               // Seleccionar TODAS las piezas del Elemento (línea/equipo completo).
               if (elegida?.elementoId) {
-                const guidsElemento = await getGuidsPorElemento(id, archivoActivo, elegida.elementoId)
-                if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+                const idsElemento = await getIdsPorElemento(id, archivoActivo, elegida.elementoId)
+                if (idsElemento.length > 0) {
+                  viewerRef.current?.selectByDbIds?.(idsElemento)
+                } else {
+                  const guidsElemento = await getGuidsPorElemento(id, archivoActivo, elegida.elementoId)
+                  if (guidsElemento.length > 0) viewerRef.current?.selectByGuids(guidsElemento)
+                }
               }
             } catch (e) {
               setViewError((e as Error).message)
@@ -260,31 +354,31 @@ function ModeloPageContent() {
             >
               <Filter className="h-4 w-4" />
               Filtros
+              {/* Elementos, no piezas 3D — mismo criterio que el panel y la leyenda. */}
               {filtroVisor.activo && filtroVisor.resultado && (
-                <span className="rounded-full bg-white/30 text-current px-1.5 text-[10px] font-bold">
-                  {filtroVisor.resultado.totalCoinciden}
+                <span
+                  className="rounded-full bg-white/30 text-current px-1.5 text-[10px] font-bold tabular-nums"
+                  title={`${filtroVisor.resultado.elementosCoinciden.toLocaleString("es-AR")} elementos en el filtro`}
+                >
+                  {filtroVisor.resultado.elementosCoinciden}
                 </span>
               )}
             </Button>
           )}
           {actualId && (
-            <Button
-              variant={coloresEstado.activo ? "default" : "outline"}
-              onClick={() => coloresEstado.setActivo((v) => !v)}
-              className="gap-2"
-              title="Pintar entidades con color según el estado del Elemento vinculado"
-            >
-              <Palette className="h-4 w-4" />
-              Colores por estado
-            </Button>
+            <SelectorModoColor valor={modoColor} onChange={setModoColor} />
           )}
+          <Button onClick={() => setOpenImportJson(true)} variant="outline" className="gap-2">
+            <FileJson className="h-4 w-4" />
+            Importar JSON
+          </Button>
           <Button onClick={() => setOpenAps(true)} variant="outline" className="gap-2">
             <Cloud className="h-4 w-4" />
             Importar de Autodesk
           </Button>
           <Button onClick={() => setOpenUpload(true)} className="gap-2">
             <FileUp className="h-4 w-4" />
-            Cargar IFC
+            Cargar maqueta 3D
           </Button>
         </div>
       </div>
@@ -296,7 +390,7 @@ function ModeloPageContent() {
         </div>
       ) : archivos.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-gray-50 p-6 text-center text-sm text-muted-foreground">
-          Sin archivos IFC cargados. Usá <strong>Cargar IFC</strong> para subir el primero.
+          Sin maquetas cargadas. Usá <strong>Cargar maqueta 3D</strong> para subir la primera (.ifc o .nwd).
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -314,12 +408,17 @@ function ModeloPageContent() {
               }
               procesando={procesar.isPending && procesar.variables === a.id}
               reBootstrapeando={reBootstrap.isPending && reBootstrap.variables === a.id}
+              rematcheando={rematch.isPending && rematch.variables === a.id}
               marcandoPrincipal={marcarPrincipal.isPending && marcarPrincipal.variables === a.id}
+              rematchMsg={rematchMsg && rematchMsg.archivoId === a.id ? rematchMsg : null}
+              onCloseRematchMsg={() => setRematchMsg(null)}
               onVisualizar={() => handleVisualizar(a)}
               onProcesar={() => procesar.mutateAsync(a.id)}
               onReBootstrap={() => reBootstrap.mutateAsync(a.id)}
+              onRematch={() => handleRematch(a.id)}
               onMarcarPrincipal={() => marcarPrincipal.mutateAsync(a.id)}
               onEliminar={() => eliminar.mutateAsync(a.id)}
+              onExportarJson={() => descargarMaquetaJson(id, a.id, a.nombre)}
             />
           ))}
         </div>
@@ -344,10 +443,12 @@ function ModeloPageContent() {
           <FiltrosVisorPanel
             filtro={filtroVisor.filtro}
             onChange={filtroVisor.setFiltro}
-            totalCoinciden={filtroVisor.resultado?.totalCoinciden ?? null}
-            totalEntidades={filtroVisor.resultado?.totalEntidades ?? null}
+            elementosCoinciden={filtroVisor.resultado?.elementosCoinciden ?? null}
+            totalElementos={filtroVisor.resultado?.totalElementos ?? null}
             loading={filtroVisor.loading}
             onClose={() => setMostrarFiltros(false)}
+            proyectoId={id}
+            archivoId={actualId}
           />
         )}
         <div
@@ -357,6 +458,11 @@ function ModeloPageContent() {
           {coloresEstado.activo && (
             <div className="absolute top-3 left-3 z-10">
               <LeyendaColoresEstado buckets={coloresEstado.buckets} loading={coloresEstado.loading} />
+            </div>
+          )}
+          {coloresPendiente.activo && (
+            <div className="absolute top-3 left-3 z-10">
+              <LeyendaColoresPendiente datos={coloresPendiente.datos} loading={coloresPendiente.loading} />
             </div>
           )}
           {!actualId && (
@@ -410,6 +516,11 @@ function ModeloPageContent() {
         open={openAps}
         onClose={() => setOpenAps(false)}
       />
+      <ImportarMaquetaJsonSheet
+        proyectoId={id}
+        open={openImportJson}
+        onClose={() => setOpenImportJson(false)}
+      />
     </div>
   )
 }
@@ -417,8 +528,9 @@ function ModeloPageContent() {
 // ─── Card de archivo IFC ───────────────────────────────────────────────────
 
 function ArchivoCard({
-  archivo, activo, loading, disabledVisualizar, procesando, reBootstrapeando, marcandoPrincipal,
-  onVisualizar, onProcesar, onReBootstrap, onMarcarPrincipal, onEliminar,
+  archivo, activo, loading, disabledVisualizar, procesando, reBootstrapeando, rematcheando, marcandoPrincipal,
+  rematchMsg, onCloseRematchMsg,
+  onVisualizar, onProcesar, onReBootstrap, onRematch, onMarcarPrincipal, onEliminar, onExportarJson,
 }: {
   archivo: ProyectoIfcArchivo
   activo: boolean
@@ -426,20 +538,40 @@ function ArchivoCard({
   disabledVisualizar: boolean
   procesando: boolean
   reBootstrapeando: boolean
+  rematcheando: boolean
   marcandoPrincipal: boolean
+  rematchMsg: {
+    mensaje: string; ok: boolean; sinPieza: number
+    tagEnNombre: number; ejemplos: string[]
+  } | null
+  onCloseRematchMsg: () => void
   onVisualizar: () => void
   onProcesar: () => Promise<unknown>
   onReBootstrap: () => Promise<unknown>
+  onRematch: () => Promise<unknown>
   onMarcarPrincipal: () => Promise<unknown>
   onEliminar: () => Promise<unknown>
+  onExportarJson: () => Promise<unknown>
 }) {
+  const [exportando, setExportando] = useState(false)
+  const handleExportar = async () => {
+    setExportando(true)
+    try { await onExportarJson() } finally { setExportando(false) }
+  }
   const mb = archivo.tamanioBytes
     ? Math.round((archivo.tamanioBytes / (1024 * 1024)) * 10) / 10
     : null
   const [codisOpen, setCodisOpen] = useState(false)
-  // Analizar TAGs solo aplica a NWD ya traducido (usa properties APS).
+  const [analisisOpen, setAnalisisOpen] = useState(false)
+  // Analizar TAGs solo aplica a NWD ya traducido (usa properties APS). Incluye
+  // los que quedaron en Error: el estado es compartido entre la traducción APS y
+  // nuestro bootstrap, así que un bootstrap fallido (property names que no
+  // matchean) marca Error sobre una traducción que salió bien — y es justo el
+  // caso donde el usuario necesita este analizador para destrabarse. El backend
+  // valida el manifest antes de leer properties.
   const puedeAnalizar = archivo.formatoArchivo === FormatoArchivo3d.Nwd
-    && archivo.apsTranslationStatus === ApsTranslationStatus.Completado
+    && (archivo.apsTranslationStatus === ApsTranslationStatus.Completado
+      || archivo.apsTranslationStatus === ApsTranslationStatus.Error)
   return (
     <div
       className={`rounded-lg border bg-white p-3 space-y-2 transition-colors ${
@@ -470,92 +602,255 @@ function ArchivoCard({
 
       <EstadoProcesamientoBadge archivo={archivo} />
 
-      <div className="flex items-center gap-2 pt-1">
-        <Button
-          size="sm"
-          variant={activo ? "default" : "outline"}
-          className="flex-1 gap-1.5"
-          onClick={onVisualizar}
-          disabled={disabledVisualizar}
-        >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
-          {loading ? "Cargando…" : activo ? "En visor" : "Visualizar"}
-        </Button>
-        <button
-          type="button"
-          onClick={onMarcarPrincipal}
-          disabled={marcandoPrincipal || archivo.esPrincipal}
-          className={`inline-flex items-center justify-center h-8 w-8 rounded-md border transition-colors disabled:opacity-50 ${
-            archivo.esPrincipal
-              ? "border-amber-200 bg-amber-50 text-amber-600 cursor-default"
-              : "border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+      {rematchMsg && (
+        <div
+          className={`rounded-md border px-2.5 py-2 text-xs flex items-start justify-between gap-2 ${
+            rematchMsg.ok
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-amber-200 bg-amber-50 text-amber-800"
           }`}
-          title={archivo.esPrincipal ? "Es el IFC principal del proyecto" : "Marcar como principal"}
         >
-          {marcandoPrincipal
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <Star className={`h-3.5 w-3.5 ${archivo.esPrincipal ? "fill-amber-400" : ""}`} />}
-        </button>
-        <button
-          type="button"
-          onClick={onProcesar}
-          disabled={procesando
-            || archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
-            || archivo.apsTranslationStatus === ApsTranslationStatus.EnProceso
-            || archivo.apsTranslationStatus === ApsTranslationStatus.Pendiente}
-          className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors disabled:opacity-50"
-          title="Re-procesar"
-        >
-          {procesando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-        </button>
-        {puedeAnalizar && (
+          <span className="min-w-0 flex-1 leading-snug">
+            {rematchMsg.mensaje}
+            {/* El dato accionable: los que quedaron sin pieza suelen ser TAGs mal
+                cargados. Link al listado ya filtrado, que es donde se corrigen. */}
+            {rematchMsg.sinPieza > 0 && (
+              <>
+                {" "}
+                <Link
+                  href="/alcance/elementos?enMaqueta=false"
+                  className="font-medium underline underline-offset-2 hover:opacity-80"
+                >
+                  Ver los {rematchMsg.sinPieza} sin pieza
+                </Link>
+              </>
+            )}
+            {/* Los TAG de ejemplo dicen de un vistazo si es el patrón conocido
+                (códigos cortos en Tag y el line number en Nombre). */}
+            {rematchMsg.ejemplos.length > 0 && (
+              <span className="mt-1 block text-[11px] opacity-90">
+                Ej.: {rematchMsg.ejemplos.slice(0, 8).map((t) => t || "(vacío)").join(", ")}
+                {rematchMsg.tagEnNombre > rematchMsg.ejemplos.slice(0, 8).length ? "…" : ""}
+              </span>
+            )}
+          </span>
           <button
             type="button"
-            onClick={() => setCodisOpen(true)}
-            className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
-            title="Analizar codificaciones de TAG"
+            onClick={onCloseRematchMsg}
+            className="shrink-0 -mt-0.5 -mr-0.5 rounded px-1 leading-none text-sm hover:bg-black/5"
+            aria-label="Cerrar"
           >
-            <ScanSearch className="h-3.5 w-3.5" />
+            ×
           </button>
-        )}
-        <ConfirmActionDialog
-          trigger={reBootstrapeando
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <Wrench className="h-3.5 w-3.5" />}
-          triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition-colors disabled:opacity-50"
-          title="¿Re-armar la estructura desde cero?"
-          description={
-            <>
-              Esto <strong>borra todos los Sistemas, SubSistemas y Elementos</strong> del
-              proyecto (más tareas, pendientes y planificación) y vuelve a correr el
-              bootstrap de <strong>{archivo.nombre}</strong> con la config de
-              «property names» actual. No se puede deshacer.
-              <br />
-              <span className="text-xs text-muted-foreground">
-                Si el proyecto ya tiene registros de avance cargados, la operación se
-                rechaza para no perder ese trabajo.
-              </span>
-            </>
-          }
-          confirmText="Re-armar"
-          pendingText="Re-armando…"
-          variant="destructive"
-          onConfirm={onReBootstrap}
-        />
-        <ConfirmActionDialog
-          trigger={<Trash2 className="h-3.5 w-3.5" />}
-          triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
-          title="¿Eliminar archivo IFC?"
-          description={
-            <>
-              Vas a eliminar <strong>{archivo.nombre}</strong>. Esta acción no se puede deshacer.
-            </>
-          }
-          confirmText="Eliminar"
-          pendingText="Eliminando…"
-          variant="destructive"
-          onConfirm={onEliminar}
-        />
+        </div>
+      )}
+
+      {/* Acciones: la principal ocupa su propia fila y los íconos van abajo con
+          wrap. La card vive en una grilla de hasta 3 columnas, así que 8 botones
+          en una sola línea no entran — antes se deformaban por flex-shrink y con
+          los wrappers del tooltip pasaban a desbordar. */}
+      <div className="space-y-2 pt-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex w-full">
+              <Button
+                size="sm"
+                variant={activo ? "default" : "outline"}
+                className="flex-1 gap-1.5"
+                onClick={onVisualizar}
+                disabled={disabledVisualizar}
+              >
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                {loading ? "Cargando…" : activo ? "En visor" : "Visualizar"}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {activo
+              ? "Esta maqueta ya está cargada en el visor"
+              : "Cargar esta maqueta en el visor 3D"}
+          </TooltipContent>
+        </Tooltip>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <AccionMaqueta
+            tooltip={archivo.esPrincipal
+              ? "Ya es la maqueta principal del proyecto"
+              : "Marcar como maqueta principal"}
+            icono={<Star className={`h-3.5 w-3.5 ${archivo.esPrincipal ? "fill-amber-400" : ""}`} />}
+            pending={marcandoPrincipal}
+            disabled={archivo.esPrincipal}
+            tono={archivo.esPrincipal
+              ? "border-amber-200 bg-amber-50 text-amber-600"
+              : "border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"}
+            confirmacion={{
+              title: "¿Marcar como maqueta principal?",
+              description: (
+                <>
+                  <strong>{archivo.nombre}</strong> pasa a ser la maqueta que se abre por
+                  defecto en el visor de ejecución, para todos los usuarios del proyecto.
+                  La que era principal deja de serlo.
+                </>
+              ),
+              confirmText: "Marcar como principal",
+              pendingText: "Marcando…",
+            }}
+            onAction={onMarcarPrincipal}
+          />
+          <AccionMaqueta
+            tooltip="Re-procesar: vuelve a leer el modelo y re-vincula las entidades"
+            icono={<RefreshCw className="h-3.5 w-3.5" />}
+            pending={procesando}
+            disabled={archivo.estadoProcesamiento === EstadoProcesamientoIfc.Procesando
+              || archivo.apsTranslationStatus === ApsTranslationStatus.EnProceso
+              || archivo.apsTranslationStatus === ApsTranslationStatus.Pendiente}
+            tono="border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+            confirmacion={{
+              title: "¿Re-procesar la maqueta?",
+              description: (
+                <>
+                  Vuelve a leer las propiedades de <strong>{archivo.nombre}</strong> y
+                  recrea sus entidades con la config de «property names» actual del
+                  proyecto. <strong>Los vínculos manuales se preservan.</strong> No toca
+                  Sistemas, SubSistemas ni Elementos.
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Corre en segundo plano y en maquetas grandes puede tardar varios
+                    minutos. Podés seguir usando la app mientras tanto.
+                  </span>
+                </>
+              ),
+              confirmText: "Re-procesar",
+              pendingText: "Encolando…",
+            }}
+            onAction={onProcesar}
+          />
+          {puedeAnalizar && (
+            <AccionMaqueta
+              tooltip="Analizar codificaciones de TAG del modelo"
+              icono={<ScanSearch className="h-3.5 w-3.5" />}
+              tono="border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+              confirmacion={{
+                title: "¿Analizar las codificaciones de TAG?",
+                description: (
+                  <>
+                    Lee las propiedades de <strong>{archivo.nombre}</strong> desde APS y
+                    arma la lista de patrones de nombre detectados, para que elijas cuáles
+                    representan elementos a trackear.
+                    <br />
+                    <span className="text-xs text-muted-foreground">
+                      El análisis se hace en el momento y puede tardar varios minutos. En
+                      maquetas de más de un millón de objetos puede llegar a cortar por
+                      timeout — en ese caso, el perfil completo queda igual en el log del
+                      procesamiento.
+                    </span>
+                  </>
+                ),
+                confirmText: "Analizar",
+                pendingText: "Abriendo…",
+              }}
+              onAction={async () => setCodisOpen(true)}
+            />
+          )}
+          {puedeAnalizar && (
+            <AccionMaqueta
+              tooltip="Analizar por qué hay Elementos sin vincular"
+              icono={<SearchX className="h-3.5 w-3.5" />}
+              tono="border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+              confirmacion={{
+                title: "¿Analizar la vinculación?",
+                description: (
+                  <>
+                    Busca el TAG de cada Elemento <strong>sin pieza</strong> en{" "}
+                    <strong>todas</strong> las properties de {archivo.nombre}, para
+                    distinguir «está en el modelo pero bajo otra property» de «no está».
+                    <br />
+                    <span className="text-xs text-muted-foreground">
+                      Es instantáneo: cruza el índice que dejó el último procesamiento
+                      contra los Elementos de ahora, sin volver a llamar a APS. Si la
+                      maqueta se procesó antes de que existiera el índice, hay que
+                      re-procesarla una vez.
+                    </span>
+                  </>
+                ),
+                confirmText: "Analizar",
+                pendingText: "Abriendo…",
+              }}
+              onAction={async () => setAnalisisOpen(true)}
+            />
+          )}
+          <AccionMaqueta
+            tooltip="Vincular con los elementos actuales (match masivo por TAG)"
+            icono={<Link2 className="h-3.5 w-3.5" />}
+            pending={rematcheando}
+            tono="border-input bg-white text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200"
+            confirmacion={{
+              title: "¿Vincular con los elementos actuales?",
+              description: (
+                <>
+                  Recorre las entidades de <strong>{archivo.nombre}</strong> que quedaron
+                  sin vincular y las asocia al Elemento del proyecto que tenga el mismo
+                  TAG. <strong>No toca las que ya están vinculadas</strong>, así que no
+                  perdés vinculaciones manuales.
+                </>
+              ),
+              confirmText: "Vincular",
+              pendingText: "Vinculando…",
+            }}
+            onAction={onRematch}
+          />
+          <AccionMaqueta
+            tooltip="Exportar a JSON (para reutilizar la maqueta en otro proyecto)"
+            icono={<Download className="h-3.5 w-3.5" />}
+            pending={exportando}
+            tono="border-input bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+            onAction={handleExportar}
+          />
+          <AccionMaqueta
+            tooltip="Re-armar la estructura del proyecto desde la maqueta"
+            icono={<Wrench className="h-3.5 w-3.5" />}
+            pending={reBootstrapeando}
+            tono="border-input bg-white text-gray-500 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200"
+            confirmacion={{
+              title: "¿Re-armar la estructura desde cero?",
+              description: (
+                <>
+                  Esto <strong>borra todos los Sistemas, SubSistemas y Elementos</strong> del
+                  proyecto (más tareas, pendientes y planificación) y vuelve a correr el
+                  bootstrap de <strong>{archivo.nombre}</strong> con la config de
+                  «property names» actual. No se puede deshacer.
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Si el proyecto ya tiene registros de avance cargados, la operación se
+                    rechaza para no perder ese trabajo.
+                  </span>
+                </>
+              ),
+              confirmText: "Re-armar",
+              pendingText: "Re-armando…",
+              variant: "destructive",
+            }}
+            onAction={onReBootstrap}
+          />
+          <AccionMaqueta
+            tooltip="Eliminar la maqueta del proyecto"
+            icono={<Trash2 className="h-3.5 w-3.5" />}
+            tono="border-input bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            confirmacion={{
+              title: "¿Eliminar la maqueta?",
+              description: (
+                <>
+                  Vas a eliminar <strong>{archivo.nombre}</strong> y todas sus entidades,
+                  junto con las vinculaciones a Elementos que tengan. Los Elementos del
+                  proyecto NO se borran. Esta acción no se puede deshacer.
+                </>
+              ),
+              confirmText: "Eliminar",
+              pendingText: "Eliminando…",
+              variant: "destructive",
+            }}
+            onAction={onEliminar}
+          />
+        </div>
       </div>
 
       {puedeAnalizar && (
@@ -567,7 +862,89 @@ function ArchivoCard({
           archivoNombre={archivo.nombre}
         />
       )}
+      {puedeAnalizar && (
+        <AnalisisVinculacionSheet
+          open={analisisOpen}
+          onClose={() => setAnalisisOpen(false)}
+          proyectoId={archivo.proyectoId}
+          archivoId={archivo.id}
+          archivoNombre={archivo.nombre}
+        />
+      )}
     </div>
+  )
+}
+
+/**
+ * Botón de acción sobre una maqueta: ícono + tooltip + (opcional) confirmación.
+ *
+ * Todas las acciones de la card comparten esta forma para que el usuario sepa qué
+ * hace cada ícono antes de apretarlo y qué consecuencias tiene después. El tooltip
+ * cuelga de un <span> envolvente y no del <button>: los botones deshabilitados no
+ * emiten eventos de puntero, así que sin el wrapper el tooltip no aparecería justo
+ * cuando más hace falta (explicar POR QUÉ está deshabilitado).
+ *
+ * El diálogo va en modo controlado en vez de usar su `trigger` propio, porque el
+ * TooltipTrigger necesita clonar un único elemento DOM y el ConfirmActionDialog
+ * renderiza su propia raíz.
+ */
+function AccionMaqueta({
+  tooltip, icono, tono, pending = false, disabled = false, confirmacion, onAction,
+}: {
+  tooltip: string
+  icono: React.ReactNode
+  /** Clases de color/borde propias de la acción (el layout lo pone el componente). */
+  tono: string
+  pending?: boolean
+  disabled?: boolean
+  /** Si se omite, la acción se dispara directo (solo para acciones sin efecto). */
+  confirmacion?: {
+    title: React.ReactNode
+    description: React.ReactNode
+    confirmText: string
+    pendingText: string
+    variant?: "default" | "destructive"
+  }
+  onAction: () => Promise<unknown>
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* shrink-0: sin esto el botón se deforma cuando la fila queda justa,
+              en vez de pasar a la línea siguiente por el flex-wrap del contenedor. */}
+          <span className="inline-flex shrink-0">
+            <button
+              type="button"
+              aria-label={tooltip}
+              disabled={disabled || pending}
+              onClick={() => { if (confirmacion) setConfirmOpen(true); else void onAction() }}
+              className={cn(
+                "inline-flex items-center justify-center h-8 w-8 rounded-md border transition-colors",
+                "cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                tono,
+              )}
+            >
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icono}
+            </button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+      {confirmacion && (
+        <ConfirmActionDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmacion.title}
+          description={confirmacion.description}
+          confirmText={confirmacion.confirmText}
+          pendingText={confirmacion.pendingText}
+          variant={confirmacion.variant ?? "default"}
+          onConfirm={onAction}
+        />
+      )}
+    </>
   )
 }
 
@@ -596,12 +973,9 @@ function EstadoProcesamientoBadge({ archivo }: { archivo: ProyectoIfcArchivo }) 
       )
     case EstadoProcesamientoIfc.Error:
       return (
-        <div
-          className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1"
-          title={archivo.errorProcesamiento ?? undefined}
-        >
+        <div className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1">
           <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-          <span className="truncate">
+          <span className="min-w-0 whitespace-pre-line wrap-break-word">
             Error: {archivo.errorProcesamiento ?? "fallo al procesar"}
           </span>
         </div>
@@ -639,22 +1013,34 @@ function ApsTranslationBadge({ archivo }: { archivo: ProyectoIfcArchivo }) {
         </div>
       )
     case ApsTranslationStatus.EnProceso: {
+      // El backend informa la fase real (subida / traducción / extracción de
+      // propiedades / guardado de entidades). El porcentaje solo tiene sentido
+      // durante la traducción — en las otras fases queda clavado en 100 y decía
+      // "Traduciendo a SVF2 (100%)" durante los ~20 min que en realidad estaba
+      // guardando entidades. Sin fase (archivos viejos) caemos al texto genérico.
+      // El % solo se muestra mientras avanza: apsTranslationProgress queda clavado
+      // en 100 apenas termina la traducción, y las fases que siguen son las largas.
+      // Así evitamos acoplar la UI al texto exacto de la fase.
+      const fase = archivo.apsFase ?? null
       const pct = archivo.apsTranslationProgress ?? null
       return (
-        <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 rounded-md px-2 py-1">
-          <Loader2 className="h-3 w-3 animate-spin" /> {accionLabel}
-          {pct !== null && ` (${pct}%)`}…
+        <div className="flex items-start gap-1.5 text-xs text-blue-700 bg-blue-50 rounded-md px-2 py-1">
+          <Loader2 className="h-3 w-3 animate-spin mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            {fase ?? `${accionLabel}…`}
+            {pct !== null && pct < 100 && ` (${pct}%)`}
+          </span>
         </div>
       )
     }
     case ApsTranslationStatus.Error:
       return (
-        <div
-          className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1"
-          title={archivo.apsTranslationError ?? undefined}
-        >
+        <div className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-md px-2 py-1">
           <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-          <span className="truncate">
+          {/* Sin truncate: el error del bootstrap trae la lista de properties
+              candidatas del modelo — cortarla a una línea la volvía inútil.
+              whitespace-pre-line respeta los saltos que arma el backend. */}
+          <span className="min-w-0 whitespace-pre-line wrap-break-word">
             Error APS: {archivo.apsTranslationError ?? "fallo al traducir"}
           </span>
         </div>

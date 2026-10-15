@@ -1,20 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   useReactTable,
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Search, UserPlus, ChevronRight } from "lucide-react"
+import { AlertTriangle, Search, UserPlus, ChevronRight } from "lucide-react"
 
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { EditUsuarioSheet } from "@/features/usuarios/components/edit-usuario-sheet"
 import { NewUsuarioSheet } from "@/features/usuarios/components/new-usuario-sheet"
 import type { Usuario } from "@/features/usuarios/types"
-import { columns } from "./columns"
+import { columns, necesitaEquipo, LOGIN_METHOD } from "./columns"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 
 import { Input } from "@/components/ui/input"
@@ -26,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
   FiltersTrigger,
   FiltersChips,
@@ -52,30 +58,54 @@ const ESTADO_LABELS: Record<EstadoFiltro, string> = {
 
 const ALL = "__all__"
 
-// Roles globales, alineados con lib/roles.ts (SuperAdmin > Admin > Supervisor > User).
+// Roles globales, alineados con lib/roles.ts:
+//   SuperAdmin > AdminGlobal > Admin > Supervisor > Coordinador > User > Auditor > Consultor.
 const ROLES: { value: string; label: string }[] = [
   { value: "SuperAdmin", label: "SuperAdmin" },
+  { value: "AdminGlobal", label: "AdminGlobal" },
   { value: "Admin", label: "Admin" },
   { value: "Supervisor", label: "Supervisor" },
+  { value: "Coordinador", label: "Coordinador" },
   { value: "User", label: "User" },
+  { value: "Auditor", label: "Auditor" },
+  { value: "Consultor", label: "Consultor" },
 ]
 
 export default function UsuariosPage() {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos")
-  const [clienteId, setClienteId] = useState<string>(ALL)
+  // Empresa usa "" como "todas" (y no el sentinel ALL) porque va en un Combobox,
+  // que es la convención del resto de los filtros con búsqueda.
+  const [clienteId, setClienteId] = useState<string>("")
   const [rol, setRol] = useState<string>(ALL)
   const pageSize = 10
 
+  // La estructura de equipos de administración se puede apagar en toda la plataforma.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
   // Empresa: clientes + contratistas (estos con badge en el label).
   const { data: empresasData } = useGetClientesSelect()
-  const empresas = [
-    ...(empresasData?.contratistas ?? []).map((c) => ({ id: c.id, nombre: `${c.nombre} (contratista)` })),
-    ...(empresasData?.clientes ?? []).map((c) => ({ id: c.id, nombre: c.nombre })),
-  ]
+  const empresas = useMemo(
+    () => [
+      ...(empresasData?.contratistas ?? []).map((c) => ({ id: c.id, nombre: `${c.nombre} (contratista)` })),
+      ...(empresasData?.clientes ?? []).map((c) => ({ id: c.id, nombre: c.nombre })),
+    ],
+    [empresasData],
+  )
+
+  // Con 57 empresas el Select sin búsqueda era inusable. Combobox es lo que ya
+  // usan los filtros largos (tipo de elemento, planilla, tarea).
+  const empresaOptions = useMemo<ComboboxOption[]>(
+    () => [
+      { value: "", label: "Todas las empresas" },
+      ...empresas.map((e) => ({ value: e.id, label: e.nombre })),
+    ],
+    [empresas],
+  )
 
   // "activos" → isLocked: false, "baja" → true, "todos" → undefined
   const isLockedParam = estadoFiltro === "activos" ? false
@@ -87,7 +117,7 @@ export default function UsuariosPage() {
     pageSize,
     nombre: search || undefined,
     isLocked: isLockedParam,
-    clienteId: clienteId === ALL ? undefined : clienteId,
+    clienteId: clienteId || undefined,
     rol: rol === ALL ? undefined : rol,
   })
 
@@ -95,9 +125,16 @@ export default function UsuariosPage() {
   const total = (data as any)?.total ?? 0
   const totalPages = Math.ceil(total / pageSize)
 
+  // Sin estructura de equipos la columna no dice nada: todos administran el mismo
+  // catálogo. Se filtra acá porque `columns` es estático y la decisión sale de un hook.
+  const columnasVisibles = useMemo(
+    () => columns.filter((c) => (c as { accessorKey?: string }).accessorKey !== "equipos" || hayEquipos),
+    [hayEquipos],
+  )
+
   const table = useReactTable({
     data: usuarios,
-    columns,
+    columns: columnasVisibles,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row: any) => row.id,
     manualPagination: true,
@@ -113,11 +150,11 @@ export default function UsuariosPage() {
       onRemove: () => { setEstadoFiltro("activos"); setPage(1) },
     })
   }
-  if (clienteId !== ALL) {
+  if (clienteId) {
     activeFilters.push({
       id: "empresa",
       label: `Empresa: ${empresas.find((e) => e.id === clienteId)?.nombre ?? "—"}`,
-      onRemove: () => { setClienteId(ALL); setPage(1) },
+      onRemove: () => { setClienteId(""); setPage(1) },
     })
   }
   if (rol !== ALL) {
@@ -130,7 +167,7 @@ export default function UsuariosPage() {
 
   function handleClearFiltros() {
     setEstadoFiltro("activos")
-    setClienteId(ALL)
+    setClienteId("")
     setRol(ALL)
     setPage(1)
   }
@@ -193,24 +230,14 @@ export default function UsuariosPage() {
           </FilterField>
 
           <FilterField label="Empresa">
-            <Select
+            <Combobox
+              options={empresaOptions}
               value={clienteId}
-              onValueChange={(v) => { setClienteId(v ?? ALL); setPage(1) }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {clienteId === ALL
-                    ? "Todas las empresas"
-                    : empresas.find((e) => e.id === clienteId)?.nombre ?? "Empresa"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas las empresas</SelectItem>
-                {empresas.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => { setClienteId(v); setPage(1) }}
+              placeholder="Todas las empresas"
+              searchPlaceholder="Buscar empresa..."
+              emptyMessage="Sin resultados"
+            />
           </FilterField>
 
           <FilterField label="Rol">
@@ -267,6 +294,22 @@ export default function UsuariosPage() {
                           {roles.join(", ")}
                         </span>
                       )}
+                      {/* Método de ingreso, misma abreviatura que la columna del desktop. */}
+                      {LOGIN_METHOD[u.loginMethod ?? 0] && (
+                        <span
+                          className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs ${LOGIN_METHOD[u.loginMethod ?? 0].clase}`}
+                          title={LOGIN_METHOD[u.loginMethod ?? 0].largo}
+                        >
+                          {LOGIN_METHOD[u.loginMethod ?? 0].corto}
+                        </span>
+                      )}
+                      {/* Mismo aviso que la columna "Equipo" del desktop. */}
+                      {hayEquipos && (u.equipos?.length ?? 0) === 0 && necesitaEquipo(roles) && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                          <AlertTriangle className="h-3 w-3" />
+                          Sin equipo
+                        </span>
+                      )}
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -296,19 +339,28 @@ export default function UsuariosPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                       Cargando...
                     </TableCell>
                   </TableRow>
                 ) : table.getRowModel().rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={columnasVisibles.length} className="text-center py-10 text-muted-foreground">
                       No se encontraron usuarios.
                     </TableCell>
                   </TableRow>
                 ) : (
                   table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} className="hover:bg-gray-50">
+                    // Fila clickeable, mismo patrón que la grilla de Avance por
+                    // proyectos. Reemplaza la columna de la rueda, que llevaba al
+                    // mismo lugar. El link del nombre se mantiene: sirve para
+                    // abrir en otra pestaña y para navegar por teclado, y apunta
+                    // a la misma URL, así que no compite con este handler.
+                    <TableRow
+                      key={row.id}
+                      onClick={() => router.push(`/configuracion/usuarios/${row.original.id}`)}
+                      className="cursor-pointer hover:bg-blue-50 transition-colors"
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -8,6 +8,7 @@ export function useUpdateTarea() {
     mutationFn: (data: TareaUpdateInput) => apiClient.put(`/api/tareas/${data.id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tareas"] })
+      qc.invalidateQueries({ queryKey: ["tareas-select"] })
     },
   })
 }

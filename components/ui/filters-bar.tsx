@@ -136,6 +136,30 @@ export function FiltersSheet({
 }
 
 /**
+ * Agrupa filtros afines bajo un título dentro del Sheet.
+ *
+ * Con más de seis o siete filtros la lista plana deja de ser una lista y pasa a ser
+ * una pared: el usuario sabe qué quiere filtrar pero no dónde está. Los títulos no
+ * agregan clics —a diferencia de un acordeón— y dan puntos de referencia para el ojo.
+ */
+export function FilterGroup({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 border-b pb-1">
+        {label}
+      </p>
+      {children}
+    </div>
+  )
+}
+
+/**
  * Wrapper para un control de filtro dentro del Sheet:
  * label arriba + el control (Select / Combobox / etc.) abajo.
  */

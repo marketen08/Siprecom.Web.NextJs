@@ -8,6 +8,7 @@ export function useCreateTarea() {
     mutationFn: (data: TareaCreateInput) => apiClient.post("/api/tareas", data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tareas"] })
+      qc.invalidateQueries({ queryKey: ["tareas-select"] })
     },
   })
 }

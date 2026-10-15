@@ -81,6 +81,22 @@ function ChartContainer({
   )
 }
 
+/**
+ * Deja sólo lo que puede ser un identificador CSS. Este componente arma un
+ * bloque <style> con dangerouslySetInnerHTML, así que la clave y el color se
+ * escriben tal cual en el documento: un valor con `</style>` adentro cierra la
+ * etiqueta y lo que sigue se parsea como HTML.
+ *
+ * Hoy ningún chart es explotable —el único que arma el config dinámicamente
+ * (donut-distribucion) usa GUIDs como clave— pero alcanza con que alguien use
+ * un nombre editable por el usuario para que se convierta en XSS almacenado.
+ * El componente es de shadcn y viene sin esta guarda.
+ */
+const soloIdentificadorCss = (v: string) => v.replace(/[^a-zA-Z0-9_-]/g, "")
+
+/** Ídem para el valor: colores del config, que podrían venir de datos. */
+const soloValorCss = (v: string) => v.replace(/[^a-zA-Z0-9#(),.%\s/_-]/g, "")
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme ?? config.color
@@ -96,13 +112,15 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart=${soloIdentificadorCss(id)}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ??
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    return color
+      ? `  --color-${soloIdentificadorCss(key)}: ${soloValorCss(color)};`
+      : null
   })
   .join("\n")}
 }

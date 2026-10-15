@@ -1,42 +1,75 @@
 "use client"
 
-import { use, useState, Suspense } from "react"
+import { use, useState, useMemo, Suspense } from "react"
 import {
   Save, Check, X, Search, FolderOpen,
   Loader2, CheckCircle2, Shield, User, Briefcase, Eye, EyeOff, KeyRound, Star,
-  UserX, UserCheck, AlertTriangle, Mail,
+  UserX, UserCheck, AlertTriangle, Mail, ArrowLeft, ArrowRight, Link as LinkIcon, Copy, Building2,
+  Users, Plus,
 } from "lucide-react"
-import { useRef, useEffect } from "react"
+import { useEffect } from "react"
+import Link from "next/link"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
+// Mismo criterio que la columna "Equipo" del listado: comparten el helper para no
+// duplicar la regla de a quién le falta equipo.
+import { necesitaEquipo } from "../columns"
 import { useGetUsuario } from "@/features/usuarios/api/use-get-usuario"
 import { useGetUsuarioProyectos } from "@/features/usuarios/api/use-get-usuario-proyectos"
-import { useAddProyectoUsuario } from "@/features/usuarios/api/use-add-proyecto-usuario"
 import { useRemoveProyectoUsuario } from "@/features/usuarios/api/use-remove-proyecto-usuario"
+import { useBulkAssignProyectosUsuario, useBulkUnassignProyectosUsuario } from "@/features/usuarios/api/use-bulk-proyectos-usuario"
 import { useGetUsuarioRol } from "@/features/usuarios/api/use-get-usuario-rol"
+import {
+  useGetEquipos,
+  useAgregarMiembrosEquipo,
+  useGetEquiposDeUsuario,
+  useAgregarUsuarioAEquipo,
+  useQuitarUsuarioDeEquipo,
+} from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { useSetUsuarioRol } from "@/features/usuarios/api/use-set-usuario-rol"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useRoles, useMeetsRole } from "@/lib/use-roles"
+import { meetsRole, puedeAsignarRol, puedeEditarRolesDe } from "@/lib/roles"
 import { useUpdateUsuarioAdmin } from "@/features/usuarios/api/use-update-usuario-admin"
 import { useResetPasswordAdmin } from "@/features/usuarios/api/use-reset-password-admin"
+import { useGetPasswordLink } from "@/features/usuarios/api/use-get-password-link"
 import { useResendInvite } from "@/features/usuarios/api/use-resend-invite"
+import { useCambiarLoginMethod } from "@/features/usuarios/api/use-cambiar-login-method"
+import { useMetodosLogin } from "@/features/auth/api/use-metodos-login"
 import { useSetProyectoActivoAdmin } from "@/features/usuarios/api/use-set-proyecto-activo-admin"
 import { useDeactivateUsuario } from "@/features/usuarios/api/use-deactivate-usuario"
 import { useDeactivateUsuarioPermanent } from "@/features/usuarios/api/use-deactivate-usuario-permanent"
 import { useReactivateUsuario } from "@/features/usuarios/api/use-reactivate-usuario"
 import { useGetProyectos } from "@/features/proyectos/api/use-get-proyectos"
+import type { Proyecto } from "@/features/proyectos/types"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Combobox } from "@/components/ui/combobox"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import {
+  FiltersTrigger, FiltersChips, FiltersSheet, FilterField, type FilterChip,
+} from "@/components/ui/filters-bar"
+import {
+  Select as UiSelect, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "datos" | "proyectos" | "rol"
+type Tab = "datos" | "proyectos" | "equipos" | "rol"
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "datos",     label: "Datos generales", icon: <User      className="h-4 w-4" /> },
   { id: "proyectos", label: "Proyectos",        icon: <Briefcase className="h-4 w-4" /> },
+  // El tab de equipos solo aplica a Admin+: para los demás roles el equipo no habilita
+  // nada, así que se arma la lista según el rol del usuario de la ficha (ver abajo).
+  { id: "equipos",   label: "Equipos",          icon: <Users     className="h-4 w-4" /> },
   { id: "rol",       label: "Rol",              icon: <Shield    className="h-4 w-4" /> },
 ]
 
@@ -52,6 +85,13 @@ function UsuarioDetailContent({ id }: { id: string }) {
   const { data: result, isLoading } = useGetUsuario(id)
   const usuario = (result as any)?.data?.[0] ?? null
   const fullName = [usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ")
+
+  // Los equipos de administración solo aplican de Admin para arriba: es lo que decide qué
+  // planillas administra. Para un User o un Supervisor el tab no diría nada, y además la
+  // estructura de equipos puede estar apagada en la plataforma.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const mostrarEquipos = hayEquipos && meetsRole(usuario?.roles, "Admin")
+  const tabs = mostrarEquipos ? TABS : TABS.filter((t) => t.id !== "equipos")
 
   // Breadcrumb dinámico: Configuración → Usuarios (link) → {nombre del usuario}
   useBreadcrumb(
@@ -77,7 +117,9 @@ function UsuarioDetailContent({ id }: { id: string }) {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    // Sin max-w global: TabDatos/TabRol se auto-limitan con max-w local; TabProyectos
+    // (split view con filtros) aprovecha todo el ancho disponible.
+    <div className="space-y-6">
 
       {/* Email — siempre visible (no editable), independiente de la tab activa. */}
       <div className="flex items-center gap-3 rounded-lg border bg-white px-4 py-3 shadow-sm">
@@ -90,10 +132,12 @@ function UsuarioDetailContent({ id }: { id: string }) {
         </div>
       </div>
 
+      <AvisoSinEquipo usuario={usuario} />
+
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="flex gap-0">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -114,7 +158,156 @@ function UsuarioDetailContent({ id }: { id: string }) {
       <div>
         {tab === "datos"     && <TabDatos     usuario={usuario} />}
         {tab === "proyectos" && <TabProyectos usuarioId={id} />}
+        {tab === "equipos" && mostrarEquipos && (
+          <TabEquipos usuarioId={id} roles={usuario.roles} />
+        )}
         {tab === "rol"       && <TabRol       usuarioId={id} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── Asignar equipo desde el tab Rol ──────────────────────────────────────────
+
+/**
+ * Atajo para resolver, en el mismo lugar donde se crea el problema, que un Admin
+ * recién promovido no pertenezca a ningún equipo de administración.
+ *
+ * Deliberadamente NO es automático. Se evaluó auto-agregarlo cuando existe un solo
+ * equipo y se descartó: "hay un solo equipo" es una condición sobre estado global y
+ * temporal, así que dos Admin promovidos la misma semana podrían terminar con
+ * accesos distintos según si alguien creó un segundo equipo en el medio — y la
+ * membresía es un permiso, no una preferencia. Acá la decisión siempre la toma
+ * quien asigna el rol; lo único que cambia es cuántos clics cuesta.
+ *
+ * Con UN equipo: botón que lo agrega en el acto. Con VARIOS: link a la pantalla de
+ * Equipos, porque elegir cuál es una decisión que necesita ver el padrón.
+ */
+function AsignarEquipoAlAdmin({
+  usuarioId,
+  roles,
+}: {
+  usuarioId: string
+  roles: string[]
+}) {
+  // El usuario trae sus equipos en el mismo payload que alimenta el aviso de arriba.
+  const { data: result } = useGetUsuario(usuarioId)
+  const usuario = (result as { data?: Array<{ equipos?: string[] }> } | undefined)?.data?.[0]
+  const yaTieneEquipo = (usuario?.equipos?.length ?? 0) > 0
+
+  // Quién está mirando, no de quién es la ficha. Dar acceso a un equipo es exclusivo
+  // de AdminGlobal (POST /equipos/{id}/miembros), y GET /equipos también: sin esto,
+  // un Admin recibía 403, la lista quedaba vacía y el componente le decía "todavía no
+  // hay ningún equipo" —falso— con un link a una pantalla que tampoco puede abrir.
+  const puedeAsignar = useMeetsRole("AdminGlobal")
+
+  // Con la estructura de equipos apagada en la plataforma, un Admin sin equipo puede
+  // administrar todo el catálogo: el aviso sería al revés de la realidad.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
+  const { data: equiposResp } = useGetEquipos(puedeAsignar && hayEquipos)
+  const equipos = equiposResp?.data ?? []
+
+  const agregar = useAgregarMiembrosEquipo(equipos.length === 1 ? equipos[0].id : null)
+
+  if (!hayEquipos || !necesitaEquipo(roles) || yaTieneEquipo) return null
+
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+      <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+      <div className="min-w-0 space-y-2">
+        <p className="text-sm text-amber-900">
+          Con rol Admin y sin equipo de administración no va a poder crear planillas.
+        </p>
+
+        {!puedeAsignar ? (
+          <p className="text-xs text-amber-800">
+            Sólo un AdminGlobal puede asignarlo a un equipo de administración.
+          </p>
+        ) : equipos.length === 1 ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => agregar.mutate([usuarioId])}
+              disabled={agregar.isPending}
+            >
+              {agregar.isPending ? "Agregando..." : `Agregar a ${equipos[0].nombre}`}
+            </Button>
+            {agregar.isError && (
+              <span className="text-xs text-red-700">
+                {(agregar.error as Error)?.message ?? "No se pudo agregar."}
+              </span>
+            )}
+          </div>
+        ) : equipos.length > 1 ? (
+          <Link
+            href="/configuracion/equipos"
+            className="inline-block text-xs font-medium text-amber-900 underline"
+          >
+            Elegir equipo en Configuración → Equipos
+          </Link>
+        ) : (
+          <Link
+            href="/configuracion/equipos"
+            className="inline-block text-xs font-medium text-amber-900 underline"
+          >
+            Todavía no hay ningún equipo: creá uno en Configuración → Equipos
+          </Link>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Aviso: Admin sin equipo de administración ────────────────────────────────
+
+/**
+ * Un Admin sin equipo de administración no puede crear NINGUNA planilla: el backend
+ * rechaza el alta porque no hay dónde guardarla. Antes eso se descubría recién cuando
+ * el propio Admin intentaba crear una, con un error al final del formulario.
+ *
+ * Se muestra fuera de las tabs, al lado del email, porque es una condición del usuario
+ * y no de una sección: quien entra a su ficha para configurarlo tiene que verlo sin
+ * tener que adivinar en qué tab está.
+ *
+ * No aplica a AdminGlobal ni SuperAdmin: ellos trabajan sobre las planillas globales,
+ * que es su default, así que no tener equipo es lo normal y avisarlo sería ruido.
+ */
+function AvisoSinEquipo({
+  usuario,
+}: {
+  usuario: { equipos?: string[]; roles?: string[] }
+}) {
+  // Quién mira, no de quién es la ficha: Configuración → Equipos es AdminGlobal-only
+  // (minRole en nav-menu, y el RouteGuard deriva de ahí), así que a un Admin el link
+  // lo dejaba contra una pantalla bloqueada.
+  const puedeAsignar = useMeetsRole("AdminGlobal")
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const equipos = usuario.equipos ?? []
+  if (!hayEquipos || equipos.length > 0 || !necesitaEquipo(usuario.roles)) return null
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+      <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+      <div className="min-w-0 space-y-1">
+        <p className="text-sm font-semibold text-amber-900">
+          No pertenece a ningún equipo de administradores
+        </p>
+        <p className="text-xs text-amber-800">
+          Con rol Admin y sin equipo asignado no puede crear planillas: el sistema no tiene
+          dónde guardarlas.{" "}
+          {puedeAsignar ? (
+            <>
+              Asignalo a un equipo desde{" "}
+              <Link href="/configuracion/equipos" className="font-medium underline">
+                Configuración → Equipos
+              </Link>
+              .
+            </>
+          ) : (
+            <>Sólo un AdminGlobal puede asignarlo a un equipo.</>
+          )}
+        </p>
       </div>
     </div>
   )
@@ -125,6 +318,7 @@ function UsuarioDetailContent({ id }: { id: string }) {
 function TabDatos({ usuario }: { usuario: any }) {
   const update = useUpdateUsuarioAdmin(usuario.id)
   const resetPassword = useResetPasswordAdmin(usuario.id)
+  const passwordLink = useGetPasswordLink(usuario.id)
   const resendInvite = useResendInvite(usuario.id)
   const [nombre, setNombre]   = useState(usuario.nombre ?? "")
   const [apellido, setApellido] = useState(usuario.apellido ?? "")
@@ -133,6 +327,26 @@ function TabDatos({ usuario }: { usuario: any }) {
   const [newPassword, setNewPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [passwordSaved, setPasswordSaved] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  // Microsoft (1) e YPF (2) son vias federadas: ninguna tiene contrasena local.
+  const sinPasswordLocal = (usuario.loginMethod ?? 0) !== 0
+  // El reset directo de contraseña (admin escribe una nueva) queda restringido a
+  // SuperAdmin — para el resto la forma canónica es "Generar link" (más seguro,
+  // el admin nunca conoce la contraseña del user).
+  const esSuperAdmin = useMeetsRole("SuperAdmin")
+  const linkUrl = passwordLink.data?.url ?? null
+
+  async function handleCopyLink() {
+    if (!linkUrl) return
+    try {
+      await navigator.clipboard.writeText(linkUrl)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2500)
+    } catch {
+      // Si clipboard falla (permiso/http), el usuario igual puede copiar del input.
+    }
+  }
 
   // Opciones de empresa: clientes + contratistas, con badge de rol en el label.
   // El backend admite "" para desasignar (lo interpretamos en el handleSave).
@@ -151,167 +365,423 @@ function TabDatos({ usuario }: { usuario: any }) {
 
   async function handleResetPassword() {
     if (!newPassword) return
-    await resetPassword.mutateAsync(newPassword)
-    setNewPassword("")
-    setPasswordSaved(true)
-    setTimeout(() => setPasswordSaved(false), 2500)
+    // Catcheamos el reject para no ensuciar la consola con
+    // `unhandledRejection`. El mensaje ya se muestra en el UI via
+    // `resetPassword.error.message` (el hook lo captura internamente).
+    try {
+      await resetPassword.mutateAsync(newPassword)
+      setNewPassword("")
+      setPasswordSaved(true)
+      setTimeout(() => setPasswordSaved(false), 2500)
+    } catch {
+      // No-op: TanStack Query ya guardó el error para renderizarlo.
+    }
   }
 
   return (
-    <div className="space-y-6 max-w-sm">
-      {/* Datos básicos */}
-      <div className="space-y-4">
-        {saved && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-            <CheckCircle2 className="h-4 w-4" /> Cambios guardados
-          </div>
-        )}
+    <div className="max-w-5xl grid gap-4 lg:grid-cols-2 items-start">
+      {/* ── Columna izquierda: Perfil ─────────────────────────────────────── */}
 
-        <div className="grid grid-cols-2 gap-3">
+      {/* Datos personales. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground" />
+            Datos personales
+          </CardTitle>
+          <CardDescription>Nombre visible del usuario en el sistema y en los PDFs firmados.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {saved && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-4 w-4" /> Cambios guardados
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Nombre</label>
+              <Input
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Juan"
+                disabled={update.isPending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Apellido</label>
+              <Input
+                value={apellido}
+                onChange={(e) => setApellido(e.target.value)}
+                placeholder="Pérez"
+                disabled={update.isPending}
+              />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Nombre</label>
-            <Input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Juan"
-              disabled={update.isPending}
+            <label className="text-sm font-medium text-gray-700">Empresa</label>
+            <Combobox
+              options={empresaOptions}
+              value={clienteId}
+              onChange={setClienteId}
+              placeholder={empresasLoading ? "Cargando empresas..." : "Seleccionar empresa..."}
+              searchPlaceholder="Buscar empresa..."
+              emptyMessage="Sin empresas"
+              disabled={update.isPending || empresasLoading}
             />
+            <p className="text-xs text-muted-foreground">
+              Se muestra en el PDF de los registros que firme el usuario.
+            </p>
           </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={update.isPending}
+            size="sm"
+            className="gap-1.5"
+          >
+            {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {update.isPending ? "Guardando..." : "Guardar"}
+          </Button>
+
+          {update.isError && (
+            <p className="text-sm text-red-600">{(update.error as Error)?.message ?? "Error al guardar"}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Método de ingreso (mail+contraseña / Microsoft / YPF) */}
+      <MetodoIngresoSection usuario={usuario} />
+
+      {/* ── Columna derecha: Acceso ────────────────────────────────────────── */}
+
+      {/* Restablecer contraseña + link para definir (misma card, mismo tema).
+          Se oculta cuando el usuario ingresa por una via federada (Microsoft o
+          YPF) — no tiene contraseña local y las 2 acciones (reset directo +
+          link) no aplican. Si el admin necesita habilitarla, primero tiene que
+          cambiar el método de ingreso a mail+contraseña desde la card arriba. */}
+      {!sinPasswordLocal && (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
+            Contraseña
+          </CardTitle>
+          <CardDescription>Restablecé la contraseña del usuario o generá un link para que la defina.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Apellido</label>
-            <Input
-              value={apellido}
-              onChange={(e) => setApellido(e.target.value)}
-              placeholder="Pérez"
-              disabled={update.isPending}
-            />
+            <label className="text-sm font-medium text-gray-700">Usuario</label>
+            <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border font-mono">
+              {usuario.userName}
+            </p>
           </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Empresa</label>
-          <Combobox
-            options={empresaOptions}
-            value={clienteId}
-            onChange={setClienteId}
-            placeholder={empresasLoading ? "Cargando empresas..." : "Seleccionar empresa..."}
-            searchPlaceholder="Buscar empresa..."
-            emptyMessage="Sin empresas"
-            disabled={update.isPending || empresasLoading}
-          />
-          <p className="text-xs text-muted-foreground">
-            Se muestra en el PDF de los registros que firme el usuario.
-          </p>
-        </div>
+          {/* Reset directo — solo SuperAdmin. El resto usa "Generar link" abajo. */}
+          {esSuperAdmin && (
+            <>
+              {passwordSaved && (
+                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                  <CheckCircle2 className="h-4 w-4" /> Contraseña restablecida
+                </div>
+              )}
 
-        <Button
-          onClick={handleSave}
-          disabled={update.isPending}
-          size="sm"
-          className="gap-1.5"
-        >
-          {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {update.isPending ? "Guardando..." : "Guardar"}
-        </Button>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
+                {/* Honeypot: Chrome/Firefox hacen un "reverse scan" desde cada <input
+                    type="password"> para adivinar el campo de usuario y autofillearlo.
+                    Al no encontrar un input marcado como username, elegían el Combobox
+                    de Empresa (que tiene un input de texto interno). Estos dos inputs
+                    ocultos son el señuelo: los toman como par username/password del
+                    autofill y dejan tranquilos a los reales. `tabIndex={-1}` +
+                    `aria-hidden` los sacan del foco y de screen readers. */}
+                <input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  value=""
+                  readOnly
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
+                />
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="new-password"
+                  value=""
+                  readOnly
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  style={{ position: "absolute", left: "-9999px", height: 0, width: 0, opacity: 0 }}
+                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 12 caracteres · mayúscula · número · símbolo"
+                    className="pr-10"
+                    disabled={resetPassword.isPending}
+                    autoComplete="new-password"
+                    name={`nueva-password-${usuario.id}`}
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                    onClick={() => setShowPassword(v => !v)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Requisitos: mínimo 12 caracteres, al menos una mayúscula, un número y un símbolo no alfanumérico.
+                </p>
+              </div>
 
-        {update.isError && (
-          <p className="text-sm text-red-600">{(update.error as Error)?.message ?? "Error al guardar"}</p>
-        )}
-      </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleResetPassword}
+                disabled={resetPassword.isPending || newPassword.length < 12}
+              >
+                {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
+              </Button>
 
-      {/* Restablecer contraseña */}
-      <div className="space-y-3">
-        <Separator />
-        <div className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-gray-700">Restablecer contraseña</h3>
-        </div>
+              {resetPassword.isError && (
+                <p className="text-sm text-red-600 whitespace-pre-line">
+                  {(resetPassword.error as Error)?.message ?? "Error al restablecer"}
+                </p>
+              )}
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Usuario</label>
-          <p className="text-sm text-muted-foreground bg-gray-50 rounded-md px-3 py-2 border font-mono">
-            {usuario.userName}
-          </p>
-        </div>
+              <Separator />
+            </>
+          )}
 
-        {passwordSaved && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-            <CheckCircle2 className="h-4 w-4" /> Contraseña restablecida
-          </div>
-        )}
+          {/* Link para definir contraseña (compartir manual, útil si el email no llega) */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <LinkIcon className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-gray-700">Link para definir contraseña</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Generá un link y compartíselo al usuario (por WhatsApp, chat, etc.) para que defina su
+              contraseña. Sirve cuando el email de invitación no llega.
+            </p>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">Nueva contraseña</label>
-          <div className="relative">
-            <Input
-              type={showPassword ? "text" : "password"}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
-              className="pr-10"
-              disabled={resetPassword.isPending}
-            />
-            <button
-              type="button"
-              className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-              onClick={() => setShowPassword(v => !v)}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => passwordLink.mutate()}
+              disabled={passwordLink.isPending}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+              {passwordLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+              {passwordLink.isPending ? "Generando..." : "Generar link"}
+            </Button>
+
+            {linkUrl && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={linkUrl}
+                    className="text-xs font-mono"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={handleCopyLink}>
+                    {linkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    {linkCopied ? "Copiado" : "Copiar"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  El link vence en ~1 día. Si expira, generá uno nuevo.
+                </p>
+              </div>
+            )}
+
+            {passwordLink.isError && (
+              <p className="text-sm text-red-600">{(passwordLink.error as Error)?.message ?? "No se pudo generar el link"}</p>
+            )}
           </div>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={handleResetPassword}
-          disabled={resetPassword.isPending || newPassword.length < 6}
-        >
-          {resetPassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-          {resetPassword.isPending ? "Restableciendo..." : "Restablecer contraseña"}
-        </Button>
-
-        {resetPassword.isError && (
-          <p className="text-sm text-red-600">{(resetPassword.error as Error)?.message ?? "Error al restablecer"}</p>
-        )}
-      </div>
+        </CardContent>
+      </Card>
+      )}
 
       {/* Reenviar email de alta (invitación / bienvenida Microsoft) */}
-      <div className="space-y-3">
-        <Separator />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            Email de alta
+          </CardTitle>
+          <CardDescription>Reenvía el email de activación (invitación o bienvenida Microsoft).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {resendInvite.isSuccess && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-4 w-4" /> Email reenviado
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => resendInvite.mutate()}
+            disabled={resendInvite.isPending}
+          >
+            {resendInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            {resendInvite.isPending ? "Enviando..." : "Reenviar email de alta"}
+          </Button>
+          {resendInvite.isError && (
+            <p className="text-sm text-red-600">{(resendInvite.error as Error)?.message ?? "Error al reenviar"}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Estado del usuario — baja / reactivación (acción sensible, ancho completo) */}
+      <div className="lg:col-span-2">
+        <EstadoUsuarioSection usuario={usuario} />
+      </div>
+    </div>
+  )
+}
+
+// ─── Método de ingreso (mail+contraseña / Microsoft / YPF) ───────────────────
+
+// Los tres métodos que soporta el backend (LoginMethod). El login federado exige
+// que el método del usuario coincida con la vía por la que entra: si no, devuelve
+// 403 WRONG_LOGIN_METHOD. Por eso esto es un cambio explícito del admin.
+const METODOS = [
+  {
+    v: 0,
+    label: "Mail + contraseña",
+    icon: KeyRound,
+    badge: "bg-gray-100 text-gray-700",
+    consecuencia: "El usuario pasará a ingresar con mail y contraseña. Le vamos a enviar un email para que defina su contraseña.",
+  },
+  {
+    v: 1,
+    label: "Microsoft (SSO)",
+    icon: Mail,
+    badge: "bg-blue-50 text-blue-700",
+    consecuencia: "El usuario pasará a ingresar con su cuenta de Microsoft (SSO).",
+  },
+  {
+    v: 2,
+    label: "YPF (IBM Verify)",
+    icon: Building2,
+    badge: "bg-emerald-50 text-emerald-700",
+    consecuencia: "El usuario pasará a ingresar con su usuario de YPF. Además del cambio acá, necesita tener asignado el grupo de acceso a SIPRECOM en YPF.",
+  },
+] as const
+
+function MetodoIngresoSection({ usuario }: { usuario: any }) {
+  const cambiar = useCambiarLoginMethod(usuario.id)
+  const { data: metodos } = useMetodosLogin()
+  const [destino, setDestino] = useState<number | null>(null)
+  const [mensaje, setMensaje] = useState<string | null>(null)
+
+  const actual = (usuario.loginMethod ?? 0) as number
+  const metodoActual = METODOS.find((m) => m.v === actual) ?? METODOS[0]
+
+  // Sólo ofrecemos cambiar a un método habilitado en este sitio. El actual se
+  // muestra siempre, aunque esté deshabilitado: si no, la card mentiría sobre
+  // cómo entra hoy el usuario.
+  const habilitado = (v: number) =>
+    v === 0 ? metodos?.password !== false : v === 1 ? Boolean(metodos?.microsoft) : Boolean(metodos?.ypf)
+  const alternativas = METODOS.filter((m) => m.v !== actual && habilitado(m.v))
+
+  async function handleConfirm() {
+    if (destino === null) return
+    setMensaje(null)
+    const resp = (await cambiar.mutateAsync(destino)) as any
+    setMensaje(resp?.message ?? "Método de ingreso actualizado.")
+    setDestino(null)
+  }
+
+  const metodoDestino = METODOS.find((m) => m.v === destino)
+  const IconActual = metodoActual.icon
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <IconActual className="h-4 w-4 text-muted-foreground" />
+          Método de ingreso
+        </CardTitle>
+        <CardDescription>Elegí cómo el usuario accede al sistema. Sólo puede usar uno.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
         <div className="flex items-center gap-2">
-          <Mail className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-gray-700">Email de alta</h3>
+          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${metodoActual.badge}`}>
+            {metodoActual.label}
+          </span>
+          <span className="text-xs text-muted-foreground">método actual</span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Reenvía el email de activación (invitación para definir contraseña, o bienvenida de Microsoft).
-        </p>
-        {resendInvite.isSuccess && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-            <CheckCircle2 className="h-4 w-4" /> Email reenviado
+
+        {mensaje && (
+          <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" /> <span>{mensaje}</span>
           </div>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => resendInvite.mutate()}
-          disabled={resendInvite.isPending}
-        >
-          {resendInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-          {resendInvite.isPending ? "Enviando..." : "Reenviar email de alta"}
-        </Button>
-        {resendInvite.isError && (
-          <p className="text-sm text-red-600">{(resendInvite.error as Error)?.message ?? "Error al reenviar"}</p>
+
+        {destino === null ? (
+          alternativas.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No hay otro método de ingreso habilitado en este sitio.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {alternativas.map((m) => {
+                const Icon = m.icon
+                return (
+                  <Button
+                    key={m.v}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => { setDestino(m.v); setMensaje(null) }}
+                    disabled={cambiar.isPending}
+                  >
+                    <Icon className="h-4 w-4" />
+                    Cambiar a {m.label}
+                  </Button>
+                )
+              })}
+            </div>
+          )
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+              <p className="text-sm">
+                {metodoDestino?.consecuencia}{" "}
+                {actual === 0
+                  ? "Se le quitará la contraseña local: ya no podrá entrar con mail y contraseña."
+                  : `Dejará de poder entrar con ${metodoActual.label}.`}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="gap-1.5" onClick={handleConfirm} disabled={cambiar.isPending}>
+                {cambiar.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {cambiar.isPending ? "Cambiando..." : "Sí, cambiar"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setDestino(null)} disabled={cambiar.isPending}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
         )}
-      </div>
 
-      <Separator />
-
-      {/* Estado del usuario — baja / reactivación */}
-      <EstadoUsuarioSection usuario={usuario} />
-    </div>
+        {cambiar.isError && (
+          <p className="text-sm text-red-600">{(cambiar.error as Error)?.message ?? "Error al cambiar el método"}</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -349,36 +819,40 @@ function EstadoUsuarioSection({ usuario }: { usuario: any }) {
   // Si está anonimizado, ya no hay nada que hacer — el user es permanente histórico.
   if (isPermanentlyDeactivated) {
     return (
-      <div className="space-y-2 rounded-lg border bg-gray-50 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <UserX className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-gray-700">Baja definitiva</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Este usuario fue dado de baja definitivamente — su email original fue liberado.
-          Permanece solo para preservar trazabilidad histórica (firmas, registros).
-          Si la persona vuelve, hay que crear un usuario nuevo.
-        </p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserX className="h-4 w-4 text-muted-foreground" />
+            Baja definitiva
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground">
+            Este usuario fue dado de baja definitivamente — su email original fue liberado.
+            Permanece solo para preservar trazabilidad histórica (firmas, registros).
+            Si la persona vuelve, hay que crear un usuario nuevo.
+          </p>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        {isLocked
-          ? <UserCheck className="h-4 w-4 text-muted-foreground" />
-          : <UserX     className="h-4 w-4 text-muted-foreground" />}
-        <h3 className="text-sm font-semibold text-gray-700">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {isLocked
+            ? <UserCheck className="h-4 w-4 text-muted-foreground" />
+            : <UserX className="h-4 w-4 text-muted-foreground" />}
           {isLocked ? "Reactivar o liberar email" : "Dar de baja"}
-        </h3>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        {isLocked
-          ? "El usuario está dado de baja. Reactivalo si vuelve a la organización, o liberá el email (baja definitiva) si el puesto va a re-asignarse a otra persona."
-          : "Da de baja al usuario impidiéndole iniciar sesión. El email se mantiene reservado y podés reactivarlo más adelante si vuelve."}
-      </p>
+        </CardTitle>
+        <CardDescription>
+          {isLocked
+            ? "El usuario está dado de baja. Reactivalo si vuelve a la organización, o liberá el email (baja definitiva) si el puesto va a re-asignarse a otra persona."
+            : "Da de baja al usuario impidiéndole iniciar sesión. El email se mantiene reservado y podés reactivarlo más adelante si vuelve."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
 
       {!confirming && !isLocked && (
         <Button
@@ -463,177 +937,674 @@ function EstadoUsuarioSection({ usuario }: { usuario: any }) {
           {(activeMutation.error as Error)?.message ?? "Error al cambiar el estado"}
         </p>
       )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Tab Equipos ──────────────────────────────────────────────────────────────
+
+/**
+ * Equipos de administración del usuario: a qué catálogos de planillas tiene acceso.
+ *
+ * Mismo transfer que el tab de proyectos —disponibles a la izquierda, asignados a la
+ * derecha— pero sin la barra de filtros: los equipos son un puñado, no cientos, así que
+ * filtrar sería ceremonia sin uso.
+ *
+ * Puede pertenecer a varios. Lo normal es uno; dos existe para el caso real de alguien que
+ * cubre dos equipos (una suplencia, una consultora con dos clientes) sin tener que darle
+ * AdminGlobal. El equipo ACTIVO —cuál usa por defecto— lo elige la persona desde el menú de
+ * su perfil, no se decide acá.
+ *
+ * Quien opera tiene que ser AdminGlobal: dar acceso a un equipo es lo único que acota el
+ * modelo, y el backend lo exige. Un Admin ve la lista en lectura.
+ */
+function TabEquipos({ usuarioId, roles }: { usuarioId: string; roles?: string[] }) {
+  const puedeAsignar = useMeetsRole("AdminGlobal")
+
+  const { data: asignadosResp, isLoading: cargandoAsignados } = useGetEquiposDeUsuario(usuarioId)
+  const { data: todosResp, isLoading: cargandoTodos } = useGetEquipos(puedeAsignar)
+  const agregar = useAgregarUsuarioAEquipo(usuarioId)
+  const quitar = useQuitarUsuarioDeEquipo(usuarioId)
+  const [error, setError] = useState<string | null>(null)
+
+  // Memoizado porque alimenta el useMemo de abajo: recrear el array en cada render lo
+  // invalidaría siempre.
+  const asignados = useMemo(() => asignadosResp?.data ?? [], [asignadosResp])
+  const asignadosIds = useMemo(() => new Set(asignados.map((e) => e.id)), [asignados])
+  const disponibles = (todosResp?.data ?? []).filter((e) => !asignadosIds.has(e.id))
+
+  // AdminGlobal y SuperAdmin administran todo el catálogo sin pertenecer a ningún equipo.
+  // Se puede asignarlos igual —no molesta— pero decirlo evita que alguien ande buscando por
+  // qué "no tiene equipo" alguien que no lo necesita.
+  const bypasea = meetsRole(roles, "AdminGlobal")
+
+  async function agregarA(equipoId: string) {
+    setError(null)
+    try { await agregar.mutateAsync(equipoId) } catch (e) { setError((e as Error).message) }
+  }
+
+  async function quitarDe(equipoId: string) {
+    setError(null)
+    try { await quitar.mutateAsync(equipoId) } catch (e) { setError((e as Error).message) }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="max-w-3xl text-sm text-muted-foreground">
+        Los equipos de administración definen <span className="font-medium">qué planillas
+        administra</span> este usuario: las de sus equipos, más las globales en lectura. Puede
+        pertenecer a más de uno. Cuál usa por defecto lo elige él desde el menú de su perfil.
+      </p>
+
+      {bypasea && (
+        <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          Con rol AdminGlobal ya administra todas las planillas, de cualquier equipo, así que
+          no necesita que le asignes ninguno.
+        </p>
+      )}
+
+      {!puedeAsignar ? (
+        // Lectura para un Admin: ver a qué equipos pertenece es útil; asignarlos es de
+        // AdminGlobal y el backend lo rechaza, así que no se ofrecen los botones.
+        <div className="rounded-lg border bg-white p-4">
+          <p className="mb-2 text-sm font-semibold text-gray-700">Equipos asignados</p>
+          {cargandoAsignados ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : asignados.length === 0 ? (
+            <p className="text-sm italic text-muted-foreground">No pertenece a ningún equipo.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {asignados.map((e) => (
+                <span
+                  key={e.id}
+                  className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+                >
+                  {e.nombre}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Sólo un AdminGlobal puede asignar o quitar equipos.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Disponibles */}
+          <section className="flex flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">Disponibles</h3>
+              <p className="text-xs text-muted-foreground">Equipos a los que todavía no pertenece.</p>
+            </header>
+            <ul className="max-h-96 space-y-1 overflow-y-auto p-2">
+              {cargandoTodos ? (
+                <li className="p-2 text-sm text-muted-foreground">Cargando…</li>
+              ) : disponibles.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  {(todosResp?.data ?? []).length === 0
+                    ? "Todavía no hay equipos creados."
+                    : "Ya pertenece a todos los equipos."}
+                </li>
+              ) : (
+                disponibles.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-center gap-2 rounded-md border border-gray-100 px-2 py-1.5 text-sm hover:bg-gray-50"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium">{e.nombre}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 gap-1"
+                      disabled={agregar.isPending}
+                      onClick={() => agregarA(e.id)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar
+                    </Button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+
+          {/* Asignados */}
+          <section className="flex flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">
+                Asignados{" "}
+                <span className="font-normal tabular-nums text-muted-foreground">
+                  ({asignados.length})
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Quitarlo no lo da de baja: deja de administrar ese catálogo.
+              </p>
+            </header>
+            <ul className="max-h-96 space-y-1 overflow-y-auto p-2">
+              {cargandoAsignados ? (
+                <li className="p-2 text-sm text-muted-foreground">Cargando…</li>
+              ) : asignados.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  No pertenece a ningún equipo{necesitaEquipo(roles) ? ", así que no puede crear planillas" : ""}.
+                </li>
+              ) : (
+                asignados.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1.5 text-sm"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium">{e.nombre}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                      disabled={quitar.isPending}
+                      onClick={() => quitarDe(e.id)}
+                      aria-label={`Quitar de ${e.nombre}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+        </div>
+      )}
+
+      {error && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
 
 // ─── Tab Proyectos ────────────────────────────────────────────────────────────
+//
+// Layout tipo "elementos a área" en versión compacta: dos columnas (Disponibles /
+// Asignados) con filtro por cliente + búsqueda por nombre. Multi-check + bulk
+// asignar/quitar. Se mantienen los shortcuts individuales (★ activo, X quitar).
+// No paginamos: cargamos hasta 500 proyectos accesibles por request; para un
+// tenant con más volumen habría que sumar paginación server-side.
+
+const CLIENTE_ALL = "__all__"
+const CONTRATISTA_ALL = "__all__"
+const ESTADO_ABIERTOS = "__abiertos__"
+const ESTADO_ALL = "__all__"
+
+// "Abiertos" = todos los estados que NO son terminales (Cancelado 5, Cerrado 7).
+// Incluye Pausado por default — si un cliente quiere excluirlo, puede usar el
+// select individual del estado. Ver EstadoProyecto.cs para los IDs.
+const ESTADOS_ABIERTOS: number[] = [1, 2, 3, 4, 6]
+
+// Opciones individuales del select: {value, label}. Para "abiertos" y "todos"
+// usamos strings sentinel para distinguirlos de los IDs numéricos del enum.
+const ESTADO_OPCIONES: { value: string; label: string }[] = [
+  { value: ESTADO_ABIERTOS, label: "Todos los abiertos" },
+  { value: ESTADO_ALL,      label: "Todos" },
+  { value: "1", label: "Preparación" },
+  { value: "2", label: "En curso" },
+  { value: "3", label: "Pausado" },
+  { value: "4", label: "Completado" },
+  { value: "5", label: "Cancelado" },
+  { value: "6", label: "En cierre" },
+  { value: "7", label: "Cerrado" },
+]
 
 function TabProyectos({ usuarioId }: { usuarioId: string }) {
-  const { data: asignadosData, isLoading } = useGetUsuarioProyectos(usuarioId)
-  const addMutation    = useAddProyectoUsuario(usuarioId)
-  const removeMutation = useRemoveProyectoUsuario(usuarioId)
+  const { data: asignadosData, isLoading: loadingAsignados } = useGetUsuarioProyectos(usuarioId)
+  const { data: proyectosData, isLoading: loadingProyectos } = useGetProyectos({ pageSize: 500 })
+  const removeMutation   = useRemoveProyectoUsuario(usuarioId)
   const setActivoMutation = useSetProyectoActivoAdmin(usuarioId)
+  const bulkAdd    = useBulkAssignProyectosUsuario(usuarioId)
+  const bulkRemove = useBulkUnassignProyectosUsuario(usuarioId)
 
   const asignados = Array.isArray(asignadosData) ? asignadosData : []
   const asignadosIds = new Set(asignados.map((p) => p.proyectoId))
+  const proyectosAccesibles: Proyecto[] = (proyectosData as any)?.data ?? []
+
+  // Filtros de la columna izquierda (Disponibles) y derecha (Asignados) son
+  // simétricos: comparten todos los filtros para ver el mismo scope en ambos.
+  const [clienteFilter, setClienteFilter] = useState<string>(CLIENTE_ALL)
+  const [contratistaFilter, setContratistaFilter] = useState<string>(CONTRATISTA_ALL)
+  const [estadoFilter, setEstadoFilter] = useState<string>(ESTADO_ABIERTOS)
+  const [search, setSearch] = useState("")
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Selecciones bulk (Sets separados por columna).
+  const [selectedDisp, setSelectedDisp] = useState<Set<string>>(new Set())
+  const [selectedAsig, setSelectedAsig] = useState<Set<string>>(new Set())
+
+  // Reset de selecciones al cambiar filtros — evita "asignar" ítems que ya no
+  // están visibles bajo los filtros nuevos.
+  useEffect(() => {
+    setSelectedDisp(new Set())
+    setSelectedAsig(new Set())
+  }, [clienteFilter, contratistaFilter, estadoFilter, search])
+
+  // Sets de clientes/contratistas que aparecen en proyectos accesibles — así los
+  // dropdowns solo ofrecen empresas con al menos un proyecto visible.
+  const clientesOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const p of proyectosAccesibles) {
+      if (p.clienteId && p.clienteNombre) map.set(p.clienteId, p.clienteNombre)
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }))
+  }, [proyectosAccesibles])
+
+  const contratistasOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const p of proyectosAccesibles) {
+      if (p.contratistaId && p.contratistaNombre) map.set(p.contratistaId, p.contratistaNombre)
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }))
+  }, [proyectosAccesibles])
+
+  // Índice por ID para enriquecer los asignados (que solo traen proyectoId+nombre)
+  // con el clienteNombre — lo necesitamos para el filtro por cliente en Asignados.
+  const proyectoIndex = useMemo(() => {
+    const m = new Map<string, Proyecto>()
+    for (const p of proyectosAccesibles) m.set(p.id, p)
+    return m
+  }, [proyectosAccesibles])
+
+  const matchFilters = (proyectoId: string, nombre: string): boolean => {
+    if (search && !nombre.toLowerCase().includes(search.toLowerCase())) return false
+    const p = proyectoIndex.get(proyectoId)
+    if (clienteFilter !== CLIENTE_ALL && p?.clienteId !== clienteFilter) return false
+    if (contratistaFilter !== CONTRATISTA_ALL && p?.contratistaId !== contratistaFilter) return false
+    if (estadoFilter !== ESTADO_ALL) {
+      // "Abiertos" es un conjunto; los estados individuales vienen como string
+      // numérico del enum EstadoProyecto.
+      if (estadoFilter === ESTADO_ABIERTOS) {
+        if (p == null || !ESTADOS_ABIERTOS.includes(p.estado as number)) return false
+      } else {
+        if (p == null || String(p.estado) !== estadoFilter) return false
+      }
+    }
+    return true
+  }
+
+  const disponibles = useMemo(() => {
+    return proyectosAccesibles
+      .filter((p) => !asignadosIds.has(p.id))
+      .filter((p) => matchFilters(p.id, p.nombre))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyectosAccesibles, asignadosData, clienteFilter, contratistaFilter, estadoFilter, search])
+
+  const asignadosFiltrados = useMemo(() => {
+    return asignados
+      .filter((p) => matchFilters(p.proyectoId, p.proyectoNombre))
+      .sort((a, b) => a.proyectoNombre.localeCompare(b.proyectoNombre))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asignados, clienteFilter, contratistaFilter, estadoFilter, search])
+
+  const toggleDisp = (id: string) => {
+    setSelectedDisp((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const toggleAsig = (id: string) => {
+    setSelectedAsig((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const handleAsignarBulk = async () => {
+    if (selectedDisp.size === 0) return
+    await bulkAdd.mutateAsync(Array.from(selectedDisp))
+    setSelectedDisp(new Set())
+  }
+  const handleQuitarBulk = async () => {
+    if (selectedAsig.size === 0) return
+    await bulkRemove.mutateAsync(Array.from(selectedAsig))
+    setSelectedAsig(new Set())
+  }
+
+  const isLoading = loadingAsignados || loadingProyectos
+  const busy = bulkAdd.isPending || bulkRemove.isPending || removeMutation.isPending
+
+  // Chips de filtros activos. La búsqueda es independiente (input siempre visible),
+  // así que NO genera chip — se limpia desde su propio input.
+  const activeFilters: FilterChip[] = []
+  if (clienteFilter !== CLIENTE_ALL) {
+    activeFilters.push({
+      id: "cliente",
+      label: `Cliente: ${clientesOptions.find((c) => c.id === clienteFilter)?.nombre ?? "—"}`,
+      onRemove: () => setClienteFilter(CLIENTE_ALL),
+    })
+  }
+  if (contratistaFilter !== CONTRATISTA_ALL) {
+    activeFilters.push({
+      id: "contratista",
+      label: `Contratista: ${contratistasOptions.find((c) => c.id === contratistaFilter)?.nombre ?? "—"}`,
+      onRemove: () => setContratistaFilter(CONTRATISTA_ALL),
+    })
+  }
+  if (estadoFilter !== ESTADO_ABIERTOS) {
+    activeFilters.push({
+      id: "estado",
+      label: `Estado: ${ESTADO_OPCIONES.find((o) => o.value === estadoFilter)?.label ?? "—"}`,
+      onRemove: () => setEstadoFilter(ESTADO_ABIERTOS),
+    })
+  }
+
+  function handleClearFiltros() {
+    setClienteFilter(CLIENTE_ALL)
+    setContratistaFilter(CONTRATISTA_ALL)
+    setEstadoFilter(ESTADO_ABIERTOS)
+  }
 
   return (
-    <div className="space-y-4 max-w-lg">
-      <p className="text-sm text-muted-foreground">
-        Proyectos a los que tiene acceso este usuario. El proyecto activo determina qué datos ve al iniciar sesión.
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground max-w-3xl">
+        Proyectos a los que tiene acceso este usuario. El proyecto activo determina
+        qué datos ve al iniciar sesión — usá la <Star className="h-3 w-3 inline mb-0.5" /> para
+        cambiarlo. Filtrá por cliente para acotar y usá los checkboxes para asignar
+        o quitar varios de una.
       </p>
 
-      {/* Buscador para agregar */}
-      <ProyectoCombobox
-        asignadosIds={asignadosIds}
-        onAdd={(proyectoId) => addMutation.mutate(proyectoId)}
-        isPending={addMutation.isPending}
-      />
+      {/* Barra compacta: buscador a la izquierda + botón filtros a la derecha */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-56 max-w-md">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="pl-9"
+          />
+        </div>
+        <FiltersTrigger
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          activeCount={activeFilters.length}
+        />
+      </div>
 
-      {/* Lista */}
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+      {/* Chips de filtros activos (línea propia, solo si hay alguno) */}
+      <FiltersChips activeFilters={activeFilters} onClearAll={handleClearFiltros} />
+
+      {/* Sheet lateral con los controles */}
+      <FiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        onClearAll={handleClearFiltros}
+        hasActiveFilters={activeFilters.length > 0}
+      >
+        <FilterField label="Cliente">
+          <UiSelect value={clienteFilter} onValueChange={(v) => setClienteFilter(v ?? CLIENTE_ALL)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {clienteFilter === CLIENTE_ALL
+                  ? "Todos los clientes"
+                  : clientesOptions.find((c) => c.id === clienteFilter)?.nombre ?? "—"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CLIENTE_ALL}>Todos los clientes</SelectItem>
+              {clientesOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </UiSelect>
+        </FilterField>
+
+        <FilterField label="Contratista">
+          <UiSelect value={contratistaFilter} onValueChange={(v) => setContratistaFilter(v ?? CONTRATISTA_ALL)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {contratistaFilter === CONTRATISTA_ALL
+                  ? "Todos los contratistas"
+                  : contratistasOptions.find((c) => c.id === contratistaFilter)?.nombre ?? "—"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CONTRATISTA_ALL}>Todos los contratistas</SelectItem>
+              {contratistasOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </UiSelect>
+        </FilterField>
+
+        <FilterField label="Estado del proyecto">
+          <UiSelect value={estadoFilter} onValueChange={(v) => setEstadoFilter(v ?? ESTADO_ABIERTOS)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {ESTADO_OPCIONES.find((o) => o.value === estadoFilter)?.label ?? "—"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ESTADO_OPCIONES.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </UiSelect>
+        </FilterField>
+      </FiltersSheet>
+
+      {/* Split view */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-3 items-stretch">
+        {/* Disponibles */}
+        <ListaBulk
+          titulo="Disponibles"
+          vacio={isLoading ? "Cargando..." : "Sin proyectos disponibles que coincidan con los filtros."}
+          items={disponibles.map((p) => ({
+            id: p.id,
+            nombre: p.nombre,
+            clienteNombre: p.clienteNombre ?? null,
+          }))}
+          selected={selectedDisp}
+          onToggle={toggleDisp}
+          onReplace={setSelectedDisp}
+          isLoading={isLoading}
+        />
+
+        {/* Botones bulk (aparecen verticales en desktop, entre las columnas) */}
+        <div className="hidden lg:flex flex-col justify-center items-center gap-2 self-center px-1">
+          <Button
+            size="sm"
+            className="w-9 h-9 p-0"
+            onClick={handleAsignarBulk}
+            disabled={selectedDisp.size === 0 || busy}
+            title={selectedDisp.size > 0 ? `Asignar ${selectedDisp.size}` : "Elegí items de la izquierda"}
+          >
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-9 h-9 p-0"
+            onClick={handleQuitarBulk}
+            disabled={selectedAsig.size === 0 || busy}
+            title={selectedAsig.size > 0 ? `Quitar ${selectedAsig.size}` : "Elegí items de la derecha"}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
         </div>
-      ) : asignados.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-gray-50 p-6 text-center text-sm text-muted-foreground">
-          Sin proyectos asignados. Usá el buscador para agregar.
+
+        {/* Asignados */}
+        <ListaBulk
+          titulo="Asignados"
+          vacio={isLoading ? "Cargando..." : "Sin proyectos asignados. Marcá items de Disponibles y usá →."}
+          items={asignadosFiltrados.map((p) => ({
+            id: p.proyectoId,
+            nombre: p.proyectoNombre,
+            clienteNombre: proyectoIndex.get(p.proyectoId)?.clienteNombre ?? null,
+            esActivo: p.esActivo,
+            onSetActivo: p.esActivo ? undefined : () => setActivoMutation.mutate(p.proyectoId),
+            onRemoveIndividual: () => removeMutation.mutate(p.proyectoId),
+          }))}
+          selected={selectedAsig}
+          onToggle={toggleAsig}
+          onReplace={setSelectedAsig}
+          isLoading={isLoading}
+        />
+
+        {/* Botones bulk en mobile — abajo de todo, horizontales */}
+        <div className="lg:hidden col-span-full flex justify-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleAsignarBulk}
+            disabled={selectedDisp.size === 0 || busy}
+            className="gap-1"
+          >
+            <ArrowRight className="h-4 w-4" /> Asignar ({selectedDisp.size})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleQuitarBulk}
+            disabled={selectedAsig.size === 0 || busy}
+            className="gap-1"
+          >
+            <ArrowLeft className="h-4 w-4" /> Quitar ({selectedAsig.size})
+          </Button>
         </div>
-      ) : (
-        <div className="space-y-1.5">
-          {asignados.map((p) => (
-            <div
-              key={p.proyectoId}
-              className="flex items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2.5"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <FolderOpen className="h-4 w-4 text-blue-600 shrink-0" />
-                <span className="text-sm font-medium truncate">{p.proyectoNombre}</span>
-                {p.esActivo && (
-                  <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
-                    <Check className="h-3 w-3" /> Activo
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {!p.esActivo && (
-                  <button
-                    type="button"
-                    onClick={() => setActivoMutation.mutate(p.proyectoId)}
-                    disabled={setActivoMutation.isPending}
-                    className="text-gray-400 hover:text-blue-500 transition-colors"
-                    title="Establecer como proyecto activo"
-                  >
-                    <Star className="h-4 w-4" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeMutation.mutate(p.proyectoId)}
-                  disabled={removeMutation.isPending}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
-                  aria-label="Quitar"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
 
-// ─── Combobox de proyectos ────────────────────────────────────────────────────
+interface ItemBulk {
+  id: string
+  nombre: string
+  clienteNombre: string | null
+  esActivo?: boolean
+  onSetActivo?: () => void
+  onRemoveIndividual?: () => void
+}
 
-function ProyectoCombobox({
-  asignadosIds, onAdd, isPending,
+function ListaBulk({
+  titulo, vacio, items, selected, onToggle, onReplace, isLoading,
 }: {
-  asignadosIds: Set<string>
-  onAdd: (id: string) => void
-  isPending: boolean
+  titulo: string
+  vacio: string
+  items: ItemBulk[]
+  selected: Set<string>
+  onToggle: (id: string) => void
+  onReplace: (ids: Set<string>) => void
+  isLoading: boolean
 }) {
-  const [search, setSearch] = useState("")
-  const [open, setOpen]     = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  // Los proyectos activos quedan protegidos: no se pueden marcar en el checkbox
+  // ni quitar con el ✕ individual. El backend replica el guard (fail-closed).
+  const itemsSeleccionables = items.filter((x) => !x.esActivo)
+  const seleccionadosVisibles = itemsSeleccionables.reduce(
+    (acc, x) => acc + (selected.has(x.id) ? 1 : 0), 0,
+  )
+  const hayItems = items.length > 0
+  const haySeleccionables = itemsSeleccionables.length > 0
+  const todosSeleccionados = haySeleccionables && seleccionadosVisibles === itemsSeleccionables.length
 
-  const { data, isFetching } = useGetProyectos({ nombre: search || undefined, pageSize: 10, page: 1 })
-  const resultados = (data as any)?.data ?? []
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node))
-        setOpen(false)
+  function toggleAll() {
+    if (todosSeleccionados) {
+      onReplace(new Set())
+    } else {
+      // Nunca marcamos el proyecto activo — queda excluido del bulk remove.
+      onReplace(new Set(itemsSeleccionables.map((x) => x.id)))
     }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
+  }
 
   return (
-    <div ref={containerRef} className="relative">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar proyecto para agregar..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          className="pl-9"
-          autoComplete="off"
-        />
-        {search && (
-          <button
-            type="button"
-            onClick={() => { setSearch(""); setOpen(false) }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+    <div className="rounded-lg border bg-white overflow-hidden flex flex-col min-h-64">
+      {/* Header con contador y "seleccionar todos" */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-gray-50">
+        <div className="flex items-center gap-2 min-w-0">
+          <input
+            type="checkbox"
+            checked={todosSeleccionados}
+            onChange={toggleAll}
+            disabled={!haySeleccionables}
+            className="h-3.5 w-3.5 shrink-0"
+            aria-label={`Seleccionar todos los ${titulo.toLowerCase()}`}
+            title={!haySeleccionables && hayItems ? "El proyecto activo no se puede quitar; cambiá el activo (★) primero." : undefined}
+          />
+          <span className="text-sm font-semibold text-gray-800 truncate">{titulo}</span>
+        </div>
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+          {seleccionadosVisibles > 0
+            ? `${seleccionadosVisibles} / ${items.length}`
+            : items.length}
+        </span>
       </div>
 
-      {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
-          {isFetching && resultados.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Buscando...</p>
-          ) : resultados.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              {search ? "Sin resultados." : "Escribí para buscar proyectos."}
-            </p>
-          ) : (
-            <ul className="divide-y max-h-56 overflow-y-auto">
-              {resultados.map((p: any) => {
-                const yaAsignado = asignadosIds.has(p.id)
-                return (
-                  <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-50">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm font-medium truncate">{p.nombre}</span>
-                    </div>
-                    {yaAsignado ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded shrink-0">
-                        <Check className="h-3 w-3" /> Asignado
+      {/* Lista scrolleable */}
+      <div className="flex-1 max-h-96 overflow-y-auto">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+            <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+          </div>
+        ) : !hayItems ? (
+          <p className="text-xs text-muted-foreground italic p-4 text-center">{vacio}</p>
+        ) : (
+          <ul className="divide-y">
+            {items.map((it) => (
+              <li key={it.id} className="flex items-center gap-2 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={!it.esActivo && selected.has(it.id)}
+                  onChange={() => onToggle(it.id)}
+                  disabled={it.esActivo}
+                  className="h-3.5 w-3.5 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label={`Seleccionar ${it.nombre}`}
+                  title={it.esActivo ? "El proyecto activo no se puede quitar; cambiá el activo (★) primero." : undefined}
+                />
+                <FolderOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium truncate">{it.nombre}</span>
+                    {it.esActivo && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-700 bg-blue-50 px-1 py-0 rounded shrink-0">
+                        <Check className="h-2.5 w-2.5" /> Activo
                       </span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs shrink-0"
-                        disabled={isPending}
-                        onClick={() => { onAdd(p.id); setOpen(false); setSearch("") }}
-                      >
-                        Agregar
-                      </Button>
                     )}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-      )}
+                  </div>
+                  {it.clienteNombre && (
+                    <p className="text-[11px] text-muted-foreground truncate">{it.clienteNombre}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {it.onSetActivo && (
+                    <button
+                      type="button"
+                      onClick={it.onSetActivo}
+                      className="text-gray-300 hover:text-blue-500 transition-colors p-0.5"
+                      title="Establecer como proyecto activo"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {it.onRemoveIndividual && !it.esActivo && (
+                    <button
+                      type="button"
+                      onClick={it.onRemoveIndividual}
+                      className="text-gray-300 hover:text-red-500 transition-colors p-0.5"
+                      title="Quitar solo este"
+                      aria-label="Quitar"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
@@ -641,9 +1612,48 @@ function ProyectoCombobox({
 // ─── Tab Rol ──────────────────────────────────────────────────────────────────
 
 const ROLES = [
-  { value: "Admin",      label: "Administrador", descripcion: "Acceso completo: puede gestionar usuarios, configuración, proyectos y todos los datos." },
-  { value: "Supervisor", label: "Supervisor",    descripcion: "Acceso intermedio: gestiona usuarios y proyectos a los que tiene acceso, pero no la configuración global del sistema." },
-  { value: "User",       label: "Usuario",       descripcion: "Acceso operativo: puede registrar avances, completar tareas y firmar registros." },
+  {
+    value: "AdminGlobal",
+    label: "Administrador global",
+    descripcion:
+      "Como Administrador pero con acceso a TODOS los proyectos del tenant (no sólo los asignados). Ideal para el administrador corporativo del cliente.",
+  },
+  {
+    value: "Admin",
+    label: "Administrador",
+    descripcion:
+      "Acceso completo dentro de los proyectos donde está asignado: crea, edita y desactiva usuarios; asigna roles; configura alcance, planillas y catálogos; coordina tareas y opera todos los flujos operativos.",
+  },
+  {
+    value: "Supervisor",
+    label: "Supervisor",
+    descripcion:
+      "Gestiona sus proyectos asignados (alcance, planificación, coordinación de tareas, reportes, certificados). Puede asignar usuarios EXISTENTES a sus proyectos (o quitarlos), pero NO puede crear usuarios, editar sus datos ni cambiar roles.",
+  },
+  {
+    value: "Coordinador",
+    label: "Coordinador",
+    descripcion:
+      "Coordinación operativa de tareas dentro del proyecto: asignación masiva de responsables, cambios de fecha planificada, cancelaciones y reactivaciones, generación de tareas faltantes. Escalón entre Usuario y Supervisor.",
+  },
+  {
+    value: "User",
+    label: "Usuario",
+    descripcion:
+      "Ejecución operativa: registra avances, completa y firma registros, crea pendientes y ejecuta las tareas que tiene asignadas.",
+  },
+  {
+    value: "Auditor",
+    label: "Auditor",
+    descripcion:
+      "Solo lectura de todo el proyecto (dashboard, avance, planillas, registros, pendientes, certificados, 3D) más acceso al Control de cambios. No puede escribir nada.",
+  },
+  {
+    value: "Consultor",
+    label: "Consultor",
+    descripcion:
+      "Solo lectura de todo el proyecto (dashboard, avance, planillas, registros, pendientes, certificados, 3D). Sin acceso al Control de cambios. No puede modificar nada.",
+  },
 ]
 
 // SuperAdmin es un rol del proveedor: no se ofrece como asignación normal, pero
@@ -651,19 +1661,48 @@ const ROLES = [
 const ROL_SUPERADMIN = {
   value: "SuperAdmin",
   label: "Super Admin",
-  descripcion: "Acceso total del proveedor: licenciamiento, migraciones, datos de muestra y toda la administración del sistema.",
+  descripcion:
+    "Rol del proveedor de SIPRECOM: bypass total del scope de proyectos, panel de licenciamiento/migraciones/datos de muestra, y capacidad exclusiva de restablecer contraseñas directamente. Reservado al equipo del proveedor.",
 }
 
 function TabRol({ usuarioId }: { usuarioId: string }) {
   const { data, isLoading } = useGetUsuarioRol(usuarioId)
+  const { data: perfil } = useGetPerfil()
   const setRol = useSetUsuarioRol(usuarioId)
   const [saved, setSaved] = useState(false)
 
   const rolActual = data?.roles?.[0] ?? ""
   const [rolSeleccionado, setRolSeleccionado] = useState<string | null>(null)
 
-  // Si el usuario es SuperAdmin, mostramos esa card además de las asignables.
-  const rolesVisibles = rolActual === "SuperAdmin" ? [ROL_SUPERADMIN, ...ROLES] : ROLES
+  // ── Gates de escalada (espejan AuthController.SetUserRol) ────────────────
+  // 1) No podés editarte a vos mismo.
+  // 2) No podés editar un peer/superior.
+  // 3) Sólo podés asignar roles ESTRICTAMENTE inferiores al tuyo.
+  const callerRoles = useRoles()
+  const targetRoles = data?.roles ?? []
+  const esSelf = !!perfil?.id && perfil.id === usuarioId
+  const puedeEditar = !esSelf && puedeEditarRolesDe(callerRoles, targetRoles)
+
+  // Cuando puede editar, mostramos SOLO los roles asignables por el caller.
+  // Si el user destino ya tiene un rol que el caller no puede asignar (ej. el
+  // caller es Admin y el target es SuperAdmin) el bloqueo del gate se ocupa;
+  // igual mostramos ese rol arriba para que se vea el estado actual.
+  const rolesAsignables = ROLES.filter((r) => puedeAsignarRol(callerRoles, r.value))
+  const rolesVisibles = (() => {
+    if (!rolActual) return rolesAsignables
+    // Si el rol actual no está en la lista de asignables (ej. SuperAdmin, o un
+    // rol superior al del caller), lo agregamos arriba para verlo pero se rendera
+    // deshabilitado por el gate.
+    if (rolActual === "SuperAdmin" && !rolesAsignables.some((r) => r.value === "SuperAdmin")) {
+      return [ROL_SUPERADMIN, ...rolesAsignables]
+    }
+    if (!rolesAsignables.some((r) => r.value === rolActual)) {
+      const rolFuera = ROLES.find((r) => r.value === rolActual)
+        ?? (rolActual === "SuperAdmin" ? ROL_SUPERADMIN : null)
+      if (rolFuera) return [rolFuera, ...rolesAsignables]
+    }
+    return rolesAsignables
+  })()
 
   // Inicializar selección cuando llegan los datos
   if (rolActual && rolSeleccionado === null) {
@@ -691,40 +1730,72 @@ function TabRol({ usuarioId }: { usuarioId: string }) {
         El rol determina los permisos del usuario en todo el sistema.
       </p>
 
+      {esSelf && (
+        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            No podés editar tu propio rol. Pedile a otro administrador que lo haga.
+          </span>
+        </div>
+      )}
+      {!esSelf && !puedeEditar && (
+        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            No podés editar el rol de este usuario porque tiene un rol igual o superior al tuyo.
+          </span>
+        </div>
+      )}
+
       {saved && (
         <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
           <CheckCircle2 className="h-4 w-4" /> Rol actualizado correctamente
         </div>
       )}
 
+      <AsignarEquipoAlAdmin usuarioId={usuarioId} roles={targetRoles} />
+
       <div className="space-y-2">
-        {rolesVisibles.map((r) => (
-          <button
-            key={r.value}
-            type="button"
-            onClick={() => setRolSeleccionado(r.value)}
-            className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
-              rolSeleccionado === r.value
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-200 bg-white hover:bg-gray-50"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900">{r.label}</span>
-              {rolSeleccionado === r.value && (
-                <Check className="h-4 w-4 text-blue-600" />
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{r.descripcion}</p>
-          </button>
-        ))}
+        {rolesVisibles.map((r) => {
+          const asignable = puedeEditar && puedeAsignarRol(callerRoles, r.value)
+          const activo = rolSeleccionado === r.value
+          const readonly = !asignable
+          return (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => { if (asignable) setRolSeleccionado(r.value) }}
+              disabled={readonly}
+              className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
+                activo
+                  ? "border-blue-500 bg-blue-50"
+                  : readonly
+                    ? "border-gray-200 bg-gray-50 opacity-70 cursor-not-allowed"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+              }`}
+              title={readonly ? "No podés asignar este rol." : undefined}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-900">{r.label}</span>
+                {activo && <Check className="h-4 w-4 text-blue-600" />}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{r.descripcion}</p>
+            </button>
+          )
+        })}
       </div>
 
       <Button
         size="sm"
         className="gap-1.5"
         onClick={handleSave}
-        disabled={setRol.isPending || rolSeleccionado === rolActual}
+        disabled={
+          setRol.isPending
+          || rolSeleccionado === rolActual
+          || !puedeEditar
+          || !rolSeleccionado
+          || !puedeAsignarRol(callerRoles, rolSeleccionado)
+        }
       >
         {setRol.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         {setRol.isPending ? "Guardando..." : "Guardar rol"}

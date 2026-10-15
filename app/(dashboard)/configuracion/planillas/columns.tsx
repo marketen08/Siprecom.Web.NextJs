@@ -29,7 +29,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-function RowActions({ planilla }: { planilla: Planilla }) {
+/** Exportado porque las tarjetas de mobile usan el mismo menú que la fila del desktop:
+    duplicarlo garantizaba que una acción nueva apareciera en uno y no en el otro. */
+export function RowActions({ planilla }: { planilla: Planilla }) {
   const router = useRouter()
   const { open } = useOpenPlanilla()
   const deleteMutation = useDeletePlanilla()
@@ -52,6 +54,17 @@ function RowActions({ planilla }: { planilla: Planilla }) {
     window.open(`/api/planillas/${planilla.id}/pdf/blanco`, "_blank", "noopener,noreferrer")
   }
 
+  // El backend ya resolvió si esta fila es editable (es de un equipo del usuario). Las
+  // acciones que escriben se deshabilitan con el motivo a la vista: dejar que el error
+  // aparezca al guardar es peor, porque se descubre con el trabajo ya hecho.
+  //
+  // Clonar, exportar y descargar quedan siempre: son de lectura, y clonar es justamente el
+  // camino para tener una versión propia de una planilla ajena o global.
+  const puedeEditar = planilla.puedeEditar !== false
+  const motivoNoEditable = planilla.equipoNombre
+    ? `La administra el equipo ${planilla.equipoNombre}`
+    : "Es una planilla global: la administra un AdminGlobal"
+
   return (
     <div className="flex justify-end">
       <DropdownMenu>
@@ -62,13 +75,23 @@ function RowActions({ planilla }: { planilla: Planilla }) {
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem className="cursor-pointer" onClick={() => open(planilla.id)}>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            disabled={!puedeEditar}
+            title={puedeEditar ? undefined : motivoNoEditable}
+            onClick={() => open(planilla.id)}
+          >
             <Pencil className="h-4 w-4" />
             Editar datos
           </DropdownMenuItem>
-          <DropdownMenuItem className="cursor-pointer" onClick={() => router.push(`/configuracion/planillas/${planilla.id}`)}>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onClick={() => router.push(`/configuracion/planillas/${planilla.id}`)}
+          >
             <Settings className="h-4 w-4" />
-            Diseñar planilla
+            {/* El diseñador se abre igual: ver la planilla de otro equipo es lo que permite
+                copiarla. Lo que corta las escrituras es el backend. */}
+            {puedeEditar ? "Diseñar planilla" : "Ver diseño"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -91,6 +114,8 @@ function RowActions({ planilla }: { planilla: Planilla }) {
           <DropdownMenuItem
             className="cursor-pointer"
             variant="destructive"
+            disabled={!puedeEditar}
+            title={puedeEditar ? undefined : motivoNoEditable}
             onClick={() => setDeleteOpen(true)}
           >
             <Trash2 className="h-4 w-4" />
@@ -105,7 +130,7 @@ function RowActions({ planilla }: { planilla: Planilla }) {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Clonar planilla?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo "(copia)" en el nombre.
+              Se creará una copia de <strong>{planilla.nombre}</strong> con todas sus secciones y campos. La nueva planilla tendrá el sufijo “(copia)” en el nombre.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -150,6 +175,93 @@ function formatFecha(iso?: string) {
   return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Badges. Están acá y exportados porque los usan las dos vistas —la tabla del
+// desktop y las tarjetas de mobile— y si cada una tuviera su copia, el día que
+// cambie un color o un título quedarían distintas sin que nadie se entere.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Cuántas tareas usan la planilla. `undefined` = el endpoint no lo manda. */
+export function UsoBadge({ cantidad }: { cantidad?: number }) {
+  // `undefined` no es lo mismo que 0: los selects no mandan el conteo, y ahí mostrar
+  // "Sin uso" sería afirmar algo que el backend no dijo.
+  if (cantidad === undefined) return <span className="text-xs text-muted-foreground">—</span>
+
+  if (cantidad === 0) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full border border-dashed border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-500"
+        title="Ninguna tarea la usa. Se puede eliminar sin afectar nada."
+      >
+        Sin uso
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium tabular-nums text-emerald-800"
+      title={`${cantidad} ${cantidad === 1 ? "tarea usa" : "tareas usan"} esta planilla`}
+    >
+      {cantidad}
+    </span>
+  )
+}
+
+/**
+ * Equipo dueño. Dos ejes distintos en dos badges: el equipo dice de quién es la
+ * planilla, las colecciones de qué tipo es. Verlos juntos es lo que explica por qué
+ * una planilla no aparece en un proyecto: puede ser por cualquiera de los dos.
+ */
+export function EquipoBadge({ planilla }: { planilla: Planilla }) {
+  if (!planilla.equipoId) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+        title="Global: la ve y la usa todo el mundo. La administra un AdminGlobal."
+      >
+        Global
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+      title={planilla.puedeEditar === false
+        ? `La administra el equipo ${planilla.equipoNombre}`
+        : "La administra tu equipo"}
+    >
+      {planilla.equipoNombre}
+    </span>
+  )
+}
+
+export function ColeccionesBadges({ planilla }: { planilla: Planilla }) {
+  const grupos = planilla.grupos ?? []
+  if (grupos.length === 0) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500 italic"
+        title="Sin colección — visible en todos los proyectos (comodín)."
+      >
+        Sin colección
+      </span>
+    )
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {grupos.map((g) => (
+        <span
+          key={g.id}
+          className="inline-flex items-center rounded-full bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 text-[11px] font-medium"
+          title={g.nombre}
+        >
+          {g.nombre}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 export const columns: ColumnDef<Planilla>[] = [
   {
     accessorKey: "codigo",
@@ -175,6 +287,21 @@ export const columns: ColumnDef<Planilla>[] = [
         {row.original.descripcion || "—"}
       </span>
     ),
+  },
+  {
+    id: "grupos",
+    header: "Colecciones",
+    cell: ({ row }) => <ColeccionesBadges planilla={row.original} />,
+  },
+  {
+    id: "equipo",
+    header: "Equipo",
+    cell: ({ row }) => <EquipoBadge planilla={row.original} />,
+  },
+  {
+    id: "uso",
+    header: "Tareas",
+    cell: ({ row }) => <UsoBadge cantidad={row.original.cantidadTareas} />,
   },
   {
     accessorKey: "orientacionPdf",

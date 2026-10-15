@@ -1,7 +1,27 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
-import type { ApsCodificacion } from "../types"
+import type { ApsAnalisisVinculacion, ApsCodificacion } from "../types"
+
+/**
+ * Análisis de vinculación: para los Elementos sin pieza, en qué property del
+ * modelo aparece su TAG. Es una acción MANUAL (el usuario aprieta el botón), así
+ * que `enabled` lo dispara el sheet al abrirse.
+ *
+ * Rápido: cruza el índice que dejó el procesamiento contra los Elementos del
+ * momento, sin llamar a APS. Si la maqueta se procesó antes de que existiera el
+ * índice, el backend responde pidiendo re-procesar.
+ */
+export function useGetAnalisisVinculacion(archivoId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["aps", "analisis-vinculacion", archivoId],
+    queryFn: () =>
+      apiClient.get<ApiResponse<ApsAnalisisVinculacion>>(`/api/aps/analisis-vinculacion/${archivoId}`),
+    enabled: enabled && !!archivoId,
+    staleTime: 0,
+    retry: false,
+  })
+}
 
 /**
  * Analiza un NWD traducido y trae las codificaciones de TAG (formas de Item.Name)

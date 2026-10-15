@@ -4,6 +4,8 @@ export interface Campo {
   id: string
   codigo: string
   etiqueta: string
+  /** Etiqueta alternativa opcional (traducción/comentario). Se dibuja debajo del label en itálica. */
+  etiquetaAlt?: string
   tipoDato: CampoTipoDato
   tipoDatoNombre?: string
   unidad?: string
@@ -14,6 +16,17 @@ export interface Campo {
   imagenUrl?: string
   /** Filas por defecto para Tabla dinámica (sólo cuando tipoDato === 9). */
   numeroFilas?: number
+  /** Líneas para TextoArea (sólo cuando tipoDato === 12). Default 3, rango 1-20. */
+  numeroLineas?: number
+  /** Alto en mm para Espacio (sólo cuando tipoDato === 13). Default 20, rango 5-200. */
+  altoMm?: number
+  /** Texto fijo multilínea (sólo cuando tipoDato === 15 / Nota). */
+  textoLargo?: string | null
+  /**
+   * Sólo Boolean (tipoDato === 4): se presenta como casilla de marca (X / vacío) en
+   * vez de un Sí/No. El valor sigue siendo un booleano — cambia sólo la presentación.
+   */
+  mostrarComoMarca?: boolean
   /** Estilo de Label (sólo cuando tipoDato === 10). */
   negrita?: boolean
   conBorde?: boolean
@@ -23,6 +36,19 @@ export interface Campo {
   sinMargen?: boolean
   /** Cantidad de planillas activas que usan este campo. */
   usoCount?: number
+
+  /**
+   * Equipo de administración dueño. Null/undefined = global: lo comparten todas las
+   * planillas y lo administra un AdminGlobal. Mismo contrato que `Planilla.equipoId`.
+   */
+  equipoId?: string | null
+  equipoNombre?: string | null
+  /**
+   * Si quien mira puede editarlo. Lo resuelve el backend — no reimplementar la regla acá,
+   * porque las dos se desincronizan.
+   */
+  puedeEditar?: boolean
+
   createdAt: string
   updatedAt: string
 }
@@ -36,11 +62,21 @@ export interface CampoUsoPlanilla {
 export interface CampoCreateInput {
   codigo: string
   etiqueta: string
+  /** Etiqueta alternativa opcional (traducción/comentario). Se dibuja debajo del label en itálica. */
+  etiquetaAlt?: string
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string
   imagenUrl?: string
   numeroFilas?: number
+  /** Líneas para TextoArea (sólo tipoDato === 12). Default 3, rango 1-20. */
+  numeroLineas?: number
+  /** Alto en mm para Espacio (sólo tipoDato === 13). Default 20, rango 5-200. */
+  altoMm?: number
+  /** Texto fijo multilínea (sólo tipoDato === 15 / Nota). */
+  textoLargo?: string | null
+  /** Sólo Boolean (tipoDato === 4): casilla de marca (X / vacío) en vez de Sí/No. */
+  mostrarComoMarca?: boolean
   esObligatorioDefault?: boolean
   negrita?: boolean
   conBorde?: boolean
@@ -54,11 +90,21 @@ export interface CampoUpdateInput {
   id: string
   codigo: string
   etiqueta: string
+  /** Etiqueta alternativa opcional (traducción/comentario). Se dibuja debajo del label en itálica. */
+  etiquetaAlt?: string
   tipoDato: CampoTipoDato
   unidad?: string
   descripcion?: string
   imagenUrl?: string
   numeroFilas?: number
+  /** Líneas para TextoArea (sólo tipoDato === 12). Default 3, rango 1-20. */
+  numeroLineas?: number
+  /** Alto en mm para Espacio (sólo tipoDato === 13). Default 20, rango 5-200. */
+  altoMm?: number
+  /** Texto fijo multilínea (sólo tipoDato === 15 / Nota). */
+  textoLargo?: string | null
+  /** Sólo Boolean (tipoDato === 4): casilla de marca (X / vacío) en vez de Sí/No. */
+  mostrarComoMarca?: boolean
   esObligatorioDefault?: boolean
   negrita?: boolean
   conBorde?: boolean
@@ -88,6 +134,10 @@ export interface CampoTablaColumnaCreateInput {
   encabezado: string
   orden: number
   esColumnaEtiqueta: boolean
+  /** Header agrupador opcional. Ver docstring en `types` (planillas). */
+  grupo?: string | null
+  /** Peso relativo del ancho (1..12). Default 2 si no se manda. */
+  ancho?: number
 }
 
 export interface CampoTablaColumnaUpdateInput {
@@ -96,6 +146,13 @@ export interface CampoTablaColumnaUpdateInput {
   encabezado: string
   orden: number
   esColumnaEtiqueta: boolean
+  /** Header agrupador opcional. Ver docstring en `types` (planillas). */
+  grupo?: string | null
+  /**
+   * Peso relativo del ancho (1..12). El PUT reemplaza la fila entera, así que hay
+   * que reenviarlo siempre o el backend lo vuelve al default.
+   */
+  ancho?: number
 }
 
 export interface CampoTablaFilaCreateInput {

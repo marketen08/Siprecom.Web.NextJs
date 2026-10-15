@@ -11,6 +11,11 @@ export interface AvanceDTO {
   aprobado: number
   rechazado: number
   cancelado: number
+  /**
+   * Estado del proyecto (ver ESTADO_PROYECTO). Sólo viene cuando la entidad es un
+   * proyecto; en sistemas, subsistemas y elementos es null.
+   */
+  estado?: number | null
 }
 
 export interface AvanceElementoDTO extends AvanceDTO {
@@ -19,16 +24,31 @@ export interface AvanceElementoDTO extends AvanceDTO {
   elementoTipoEspecialidadNombre: string | null
   prioridadTexto: string
   pid: string | null
-  testpack: string | null
   subSistemaCodigo: string | null
   subSistemaNombre: string | null
 }
 
+export interface AvanceSubSistemaNivelDTO {
+  nivelId: string
+  nivelNombre: string
+  nivelPosicion: number
+  fechaInicio: string | null
+  fechaFin: string | null
+  totalTareas: number
+  tareasTerminales: number
+  porcentajeAvance: number
+  completado: boolean
+}
+
 export interface AvanceSubSistemaDTO extends AvanceDTO {
-  /** True si el subsistema tiene un PDF de plano cargado. */
-  tienePlano: boolean
-  /** Nombre del archivo (para tooltip). Null si no hay plano. */
-  planoNombreArchivo: string | null
+  /** Cantidad de PIDs vinculados al subsistema. */
+  cantidadPids: number
+  /** Desglose por nivel: fechas planificadas + avance parcial. Ordenado por posicion. */
+  niveles?: AvanceSubSistemaNivelDTO[]
+  /** Sistema padre (poblado en el endpoint de detalle). */
+  sistemaId?: string
+  sistemaCodigo?: string | null
+  sistemaNombre?: string | null
 }
 
 export interface AvanceSistemaDTO extends AvanceDTO {
@@ -37,4 +57,63 @@ export interface AvanceSistemaDTO extends AvanceDTO {
 
 export interface AvanceProyectoDTO extends AvanceDTO {
   sistemas: AvanceSistemaDTO[]
+}
+
+export interface AvanceAgrupacionDTO extends AvanceDTO {
+  descripcion: string | null
+  cantidadElementos: number
+  /** Desglose por nivel (áreas/módulos) — mismo shape que subsistemas. */
+  niveles?: AvanceSubSistemaNivelDTO[]
+}
+
+/** KPIs complementarios al avance operativo: hitos por categoría + fases por Nivel. */
+export interface AvanceHitosFasesDTO {
+  rfc: HitoCategoriaDTO
+  rfsu: HitoCategoriaDTO
+  aoc: HitoCategoriaDTO
+  fases: AvanceFaseDTO[]
+  /** Tareas del proyecto cuyo catálogo no tiene NivelId — quedan fuera de fases. */
+  tareasSinNivel: number
+  /**
+   * TestGroups que no entran en ningún hito: el ElementoTipo de su elemento
+   * sintético no declara «Certificado que alimenta», o declara MC (que el panel
+   * no grafica). Distingue "no hay packs" de "hay packs sin clasificar".
+   */
+  packsSinCertificado?: number
+}
+
+export interface HitoCategoriaDTO {
+  total: number
+  terminales: number
+  porcentaje: number
+}
+
+export interface AvanceFaseDTO {
+  nivelId: string
+  nivelNombre: string
+  posicion: number
+  total: number
+  completadas: number
+  porcentaje: number
+}
+
+/** Hitos del proyecto: agrupados por Nivel → Tarea, con avance y fechas por tarea. */
+export interface HitosPorNivelDTO {
+  nivelId: string | null
+  nivelNombre: string
+  posicion: number
+  tareas: TareaHitoDTO[]
+}
+
+export interface TareaHitoDTO {
+  /** Nombre de la tarea; clave de agrupación (consolida tareas homónimas del catálogo). */
+  nombre: string
+  completadas: number
+  total: number
+  porcentaje: number
+  /** MIN(FechaPlanificada) entre las ElementoTareas no terminadas. */
+  proximaMeta: string | null
+  /** MAX(UpdatedAt) de las ElementoTareas de la tarea. */
+  ultimoAvance: string | null
+  estadoResumen: "NoIniciado" | "EnCurso" | "Completado"
 }

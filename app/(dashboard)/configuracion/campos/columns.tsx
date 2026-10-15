@@ -16,19 +16,38 @@ function RowActions({ campo }: { campo: Campo }) {
   const deleteMutation = useDeleteCampoGlobal()
   const enUso = (campo.usoCount ?? 0) > 0
 
+  // El backend ya resolvió si esta fila es editable. Deshabilitamos con el motivo a la
+  // vista en vez de dejar que el error aparezca al guardar: descubrirlo con el trabajo
+  // hecho es peor. Mismo criterio que la lista de planillas.
+  const puedeEditar = campo.puedeEditar !== false
+  const motivo = campo.equipoNombre
+    ? `Lo administra el equipo ${campo.equipoNombre}`
+    : "Es un campo global: lo administra un AdminGlobal. Para modificarlo en una planilla tuya, apropiate del campo desde el diseñador."
+
   return (
     <div className="flex items-center gap-1 justify-end">
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8"
-        title="Editar"
+        disabled={!puedeEditar}
+        title={puedeEditar ? "Editar" : motivo}
         onClick={() => open(campo.id)}
       >
         <Pencil className="h-4 w-4" />
       </Button>
 
-      {enUso ? (
+      {!puedeEditar ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground"
+          disabled
+          title={motivo}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ) : enUso ? (
         <Button
           variant="ghost"
           size="icon"
@@ -104,6 +123,35 @@ export const columns: ColumnDef<Campo>[] = [
       return (
         <span className="text-xs px-1.5 py-0.5 rounded bg-green-50 text-green-700 font-medium">
           {n} planilla{n !== 1 ? "s" : ""}
+        </span>
+      )
+    },
+  },
+  {
+    id: "equipo",
+    header: "Equipo",
+    cell: ({ row }) => {
+      const c = row.original
+      // Mismo badge que la columna "Equipo" del catálogo de planillas, a propósito: es el
+      // mismo concepto y el usuario ya lo aprendió ahí.
+      if (!c.equipoId) {
+        return (
+          <span
+            className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+            title="Global: lo comparten todas las planillas. Lo administra un AdminGlobal; para modificarlo en una planilla tuya, apropiate del campo desde el diseñador."
+          >
+            Global
+          </span>
+        )
+      }
+      return (
+        <span
+          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800"
+          title={c.puedeEditar === false
+            ? `Lo administra el equipo ${c.equipoNombre}`
+            : "Lo administra tu equipo"}
+        >
+          {c.equipoNombre}
         </span>
       )
     },

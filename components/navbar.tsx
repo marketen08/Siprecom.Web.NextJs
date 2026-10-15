@@ -20,7 +20,7 @@ export function Navbar({ ocultarHamburger = false }: { ocultarHamburger?: boolea
       {!ocultarHamburger && (
         <button
           onClick={toggle}
-          className="md:hidden -ml-1 p-2 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
+          className="lg:hidden -ml-1 p-2 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
           aria-label="Abrir menú"
         >
           <Menu className="h-5 w-5" />

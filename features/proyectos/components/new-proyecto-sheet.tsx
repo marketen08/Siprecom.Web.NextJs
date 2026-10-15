@@ -33,6 +33,7 @@ export function NewProyectoSheet() {
           firmas: values.clonar.firmas ?? true,
           acceso: values.clonar.acceso ?? true,
           estructura: values.clonar.estructura ?? false,
+          funcionalidades: values.clonar.funcionalidades ?? true,
         } : undefined,
       },
       { onSuccess: close }

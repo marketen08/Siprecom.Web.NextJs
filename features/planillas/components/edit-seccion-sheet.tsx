@@ -29,7 +29,9 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
   const seccion = secciones.find((s) => s.id === id) ?? null
 
   const [nombre, setNombre] = useState("")
+  const [nombreAlt, setNombreAlt] = useState("")
   const [descripcion, setDescripcion] = useState("")
+  const [mostrarTitulo, setMostrarTitulo] = useState(true)
 
   const mutation = useUpdateSeccion()
 
@@ -37,9 +39,12 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
   useEffect(() => {
     if (seccion) {
       setNombre(seccion.nombre)
+      setNombreAlt(seccion.nombreAlt ?? "")
       setDescripcion(seccion.descripcion ?? "")
+      // Default true por compat con secciones viejas (backend hace lo mismo).
+      setMostrarTitulo(seccion.mostrarTitulo ?? true)
     }
-  }, [seccion?.id, seccion?.nombre, seccion?.descripcion])
+  }, [seccion?.id, seccion?.nombre, seccion?.nombreAlt, seccion?.descripcion, seccion?.mostrarTitulo])
 
   const handleSave = () => {
     if (!seccion || !nombre.trim()) return
@@ -48,8 +53,10 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
         id: seccion.id,
         planillaId,
         nombre: nombre.trim(),
+        nombreAlt: nombreAlt.trim() || null,
         descripcion: descripcion.trim() || undefined,
         orden: seccion.orden,
+        mostrarTitulo,
       },
       { onSuccess: close }
     )
@@ -82,6 +89,22 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
               </div>
 
               <div className="space-y-1.5">
+                <Label htmlFor="seccion-nombre-alt">Nombre alternativo</Label>
+                <Input
+                  id="seccion-nombre-alt"
+                  value={nombreAlt}
+                  onChange={(e) => setNombreAlt(e.target.value)}
+                  placeholder="General information (traducción o aclaración)"
+                  maxLength={200}
+                  disabled={mutation.isPending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se renderiza debajo del título en itálica. Útil para traducciones o
+                  aclaraciones. Dejalo vacío para no mostrar.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
                 <Label htmlFor="seccion-descripcion">Descripción</Label>
                 <Textarea
                   id="seccion-descripcion"
@@ -92,6 +115,23 @@ export function EditSeccionSheet({ secciones, planillaId }: EditSeccionSheetProp
                   disabled={mutation.isPending}
                 />
               </div>
+
+              <label className="flex items-start gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 mt-0.5"
+                  checked={mostrarTitulo}
+                  onChange={(e) => setMostrarTitulo(e.target.checked)}
+                  disabled={mutation.isPending}
+                />
+                <span>
+                  Mostrar título en el PDF
+                  <span className="block text-xs text-muted-foreground">
+                    Si lo desactivás, la sección funciona sólo como agrupador en el
+                    editor — los campos se emiten al PDF sin el bloque de título.
+                  </span>
+                </span>
+              </label>
 
               {mutation.isError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">

@@ -1,0 +1,73 @@
+/**
+ * Acciones del workflow de Pendiente que se pueden autorizar por grupo.
+ * Espeja el enum backend `AccionPendiente`. Los valores derivados
+ * (Rechazar/Cancelar/AsignarResponsable) chequean el mismo permiso que Aprobar
+ * — no aparecen en el enum, se resuelven en el service.
+ */
+export enum AccionPendiente {
+  Crear = 1,
+  Iniciar = 2,
+  EnviarAprobacion = 3,
+  Aprobar = 4,
+  Rechazar = 5,
+  Cancelar = 6,
+  PreAprobar = 7,
+}
+
+export const ACCIONES_LIST: { value: AccionPendiente; label: string; descripcion: string }[] = [
+  { value: AccionPendiente.Crear, label: "Crear", descripcion: "Reportar un pendiente nuevo." },
+  {
+    value: AccionPendiente.Iniciar,
+    label: "Iniciar",
+    descripcion:
+      "Tomar el pendiente y ponerlo en proceso. El responsable y el grupo responsable del " +
+      "pendiente pueden iniciarlo siempre, estén o no en esta lista.",
+  },
+  {
+    value: AccionPendiente.EnviarAprobacion,
+    label: "Enviar a aprobación",
+    descripcion:
+      "Revisión interna: el trabajo terminado se manda a la aprobación del cliente. Es un " +
+      "paso distinto del de quien ejecutó el pendiente.",
+  },
+  {
+    value: AccionPendiente.PreAprobar,
+    label: "Pre-aprobar",
+    descripcion:
+      "Revisión interna: confirma que el trabajo está bien hecho y recién ahí el " +
+      "pendiente pasa a la aprobación final. No tiene atajo por responsable — el punto " +
+      "del paso es que lo haga alguien distinto de quien ejecutó.",
+  },
+  {
+    value: AccionPendiente.Aprobar,
+    label: "Aprobar",
+    descripcion:
+      "Aprobación final, del lado del cliente (queda CERRADO). Incluye reasignar responsable.",
+  },
+  {
+    value: AccionPendiente.Rechazar,
+    label: "Rechazar",
+    descripcion: "Rechazar el cierre con motivo: vuelve a EN_PROCESO para que el responsable continúe.",
+  },
+  {
+    value: AccionPendiente.Cancelar,
+    label: "Cancelar",
+    descripcion: "Descartar el pendiente (queda CANCELADO). Requiere motivo.",
+  },
+]
+
+export interface PendienteAccionGrupo {
+  id: string
+  accion: AccionPendiente
+  grupoId: string
+  grupoNombre: string
+}
+
+export interface PendienteAccionAsignacion {
+  accion: AccionPendiente
+  grupoIds: string[]
+}
+
+export interface PendienteAutorizacionSet {
+  asignaciones: PendienteAccionAsignacion[]
+}

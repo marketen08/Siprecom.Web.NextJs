@@ -147,6 +147,8 @@ export interface PlanificacionTareaItem {
   nivelId: string | null
   nivelNombre: string | null
   nivelPosicion: number | null
+  elementoTipoId: string | null
+  elementoTipoNombre: string | null
   especialidadId: string | null
   especialidadNombre: string | null
   especialidadColor: string | null
@@ -164,10 +166,13 @@ export interface PlanificacionTareasFiltros {
   subSistemaId?: string
   nivelId?: string
   especialidadId?: string
+  elementoTipoId?: string
   estado?: number
   /** 0=Manual, 1=Generada */
   origen?: number
   sinFecha?: boolean
+  page?: number
+  pageSize?: number
 }
 
 export interface PlanificacionFechaCambio {

@@ -7,14 +7,21 @@ import {
   flexRender,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { ImageIcon, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { ImageIcon, Pencil, Plus, Search, Trash2, Upload } from "lucide-react"
+
+import {
+  AvisoCatalogoSoloLectura,
+  useCatalogoSoloLectura,
+} from "@/components/catalogo-solo-lectura"
 
 import { useGetClientes } from "../api/use-get-clientes"
 import { useNewCliente } from "../hooks/use-new-cliente"
 import { useOpenCliente } from "../hooks/use-open-cliente"
+import { useOpenClienteLogo } from "../hooks/use-open-cliente-logo"
 import { useDeleteCliente } from "../api/use-delete-cliente"
 import { NewClienteSheet } from "./new-cliente-sheet"
 import { EditClienteSheet } from "./edit-cliente-sheet"
+import { SubirLogoSheet } from "./subir-logo-sheet"
 import type { Cliente } from "../types"
 
 import { DataTableWrapper } from "@/components/data-table-wrapper"
@@ -97,6 +104,7 @@ export function EmpresasTable({ kind }: EmpresasTableProps) {
     <>
       <NewClienteSheet esContratista={esContratista} />
       <EditClienteSheet />
+      <SubirLogoSheet />
 
       <div className="space-y-4">
         {/* Buscador + Nuevo */}
@@ -110,11 +118,22 @@ export function EmpresasTable({ kind }: EmpresasTableProps) {
               className="pl-9"
             />
           </div>
+          {/* El alta NO se deshabilita: una empresa nueva no le cambia nada a nadie, y sin
+              esto el Admin no puede crear un proyecto hasta que alguien le cargue el cliente. */}
           <Button onClick={openNew} className="gap-2 ml-auto">
             <Plus className="h-4 w-4" />
             Nuevo {tipoSingular}
           </Button>
         </div>
+
+        <AvisoCatalogoSoloLectura
+
+          que={esContratista ? "los contratistas" : "los clientes"}
+
+          puedeCrear
+
+        />
+
 
         {/* Tabla */}
         <DataTableWrapper isFetching={isFetching && !isLoading}>
@@ -209,18 +228,52 @@ function RowActions({ cliente, kind }: { cliente: Cliente; kind: "cliente" | "co
   const { open } = useOpenCliente()
   const deleteMutation = useDeleteCliente()
   const tipoSingular = kind === "contratista" ? "contratista" : "cliente"
+  // El Admin da de alta, pero no edita ni borra lo que ya existe: el nombre sale en los
+  // reportes y certificados de los proyectos de todos los equipos.
+  const { soloLectura, motivo } = useCatalogoSoloLectura()
+  // El logo de las empresas que dio de alta él sí lo puede cargar: si no, su alta con logo
+  // quedaba a mitad -la empresa creada y el logo afuera- y el aviso lo mandaba a "Editar",
+  // que no puede abrir. El backend decide la fila; acá solo se muestra.
+  const { abrirLogo } = useOpenClienteLogo()
+  const puedeLogo = cliente.puedeSubirLogo !== false
 
   return (
     <div className="flex items-center gap-1 justify-end">
+      {soloLectura && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          disabled={!puedeLogo}
+          title={puedeLogo
+            ? "Cargar o cambiar el logo"
+            : "Solo podés cargar el logo de las empresas que diste de alta vos"}
+          onClick={() => abrirLogo(cliente.id)}
+          aria-label="Cargar logo"
+        >
+          <Upload className="h-4 w-4" />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8"
+        disabled={soloLectura}
+        title={soloLectura ? motivo : "Editar"}
         onClick={() => open(cliente.id)}
       >
         <Pencil className="h-4 w-4" />
       </Button>
 
+      {soloLectura ? (
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/40"
+          title={motivo}
+          aria-label={motivo}
+        >
+          <Trash2 className="h-4 w-4" />
+        </span>
+      ) : (
       <ConfirmActionDialog
         trigger={<Trash2 className="h-4 w-4" />}
         triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
@@ -235,6 +288,7 @@ function RowActions({ cliente, kind }: { cliente: Cliente; kind: "cliente" | "co
         variant="destructive"
         onConfirm={() => deleteMutation.mutateAsync(cliente.id)}
       />
+      )}
     </div>
   )
 }

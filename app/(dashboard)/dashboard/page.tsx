@@ -1,10 +1,20 @@
 "use client"
 
+import Link from "next/link"
+
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proyecto"
+import { useGetAvanceHitosYFases } from "@/features/avance/api/use-get-avance-hitos-fases"
+import { useGetHitosTareas } from "@/features/avance/api/use-get-hitos-tareas"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
+import { useRouter } from "next/navigation"
+import { BarChart3 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { BarraAvance } from "@/components/barra-avance"
-import type { AvanceSistemaDTO, AvanceDTO } from "@/features/avance/types"
+import type {
+  AvanceSistemaDTO, AvanceDTO, AvanceHitosFasesDTO, HitoCategoriaDTO, AvanceFaseDTO,
+  HitosPorNivelDTO, TareaHitoDTO,
+} from "@/features/avance/types"
 import { ESTADO_PROYECTO } from "@/features/proyectos/types"
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -132,15 +142,283 @@ function SistemaRow({ sistema }: { sistema: AvanceSistemaDTO }) {
   )
 }
 
+// ─── Hitos + Fases ───────────────────────────────────────────────────────────
+
+/**
+ * Panel complementario al avance operativo. Muestra:
+ * - Hitos: %packs terminales por categoría (RFC/RFSU/AOC).
+ * - Fases: %tareas por Nivel del catálogo (Precom/Comm/…).
+ *
+ * No reemplaza el % de proyecto (tareas individuales), es una vista paralela.
+ */
+function HitosFasesPanel({
+  hitosFases,
+  isLoading,
+}: {
+  hitosFases: AvanceHitosFasesDTO | undefined
+  isLoading: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-56" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Skeleton className="h-40" />
+          <Skeleton className="h-40" />
+        </div>
+      </div>
+    )
+  }
+
+  if (!hitosFases) return null
+
+  const totalHitos =
+    hitosFases.rfc.total + hitosFases.rfsu.total + hitosFases.aoc.total
+  const hayFases = hitosFases.fases.length > 0
+  // Packs cargados que no entran en ningún hito por falta de configuración.
+  const sinCertificado = hitosFases.packsSinCertificado ?? 0
+
+  // Ojo con esconder el panel: si hay packs sin clasificar, esconderlo deja al
+  // usuario sin ningún indicio de que le falta configurar algo.
+  if (totalHitos === 0 && sinCertificado === 0 && !hayFases) return null
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-gray-800">
+          Avance por hitos y fases
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Complemento al avance operativo — no lo reemplaza. Los hitos son los TestGroups
+          terminales por categoría; las fases agrupan tareas por Nivel del catálogo.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Hitos */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Hitos (de TestGroups)</h3>
+            <span className="text-[11px] text-muted-foreground">
+              % de packs terminales (Completado o Cerrado)
+            </span>
+          </div>
+          {totalHitos === 0 && sinCertificado === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-4 text-center">
+              El proyecto todavía no tiene TestGroups cargados.
+            </p>
+          ) : totalHitos === 0 ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-1">
+              <p className="font-medium">
+                Hay {sinCertificado} TestGroup{sinCertificado === 1 ? "" : "s"} cargado
+                {sinCertificado === 1 ? "" : "s"}, pero ninguno alimenta un hito.
+              </p>
+              <p className="text-amber-800">
+                Un pack cuenta como hito según el <strong>Certificado que alimenta</strong> del
+                tipo de su elemento sintético. Cargalo en{" "}
+                <Link href="/configuracion/elementos-tipos" className="underline underline-offset-2">
+                  Configuración → Tipos de elemento
+                </Link>
+                . El panel grafica RFC, RFSU y AOC; los tipos marcados como MC no aparecen acá.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <HitoRow label="RFC" nombre="Ready For Commissioning" hito={hitosFases.rfc} />
+              <HitoRow label="RFSU" nombre="Ready For Start-Up" hito={hitosFases.rfsu} />
+              <HitoRow label="AOC" nombre="Acceptance Of Commissioning" hito={hitosFases.aoc} />
+              {sinCertificado > 0 && (
+                <p className="text-[11px] text-amber-700 pt-1 border-t border-gray-100">
+                  {sinCertificado} pack{sinCertificado === 1 ? "" : "s"} no {sinCertificado === 1 ? "está" : "están"}{" "}
+                  contado{sinCertificado === 1 ? "" : "s"}: su tipo de elemento no declara certificado, o declara MC.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Fases */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Fases (por Nivel)</h3>
+            <span className="text-[11px] text-muted-foreground">% de tareas terminadas</span>
+          </div>
+          {!hayFases ? (
+            <p className="text-xs text-muted-foreground italic py-4 text-center">
+              Ninguna tarea del catálogo tiene Nivel asignado.
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {hitosFases.fases.map((f) => (
+                <FaseRow key={f.nivelId} fase={f} />
+              ))}
+              {hitosFases.tareasSinNivel > 0 && (
+                <p className="text-[11px] text-muted-foreground pt-1">
+                  {fmt(hitosFases.tareasSinNivel)} tarea(s) sin Nivel asignado (no computan
+                  en fases).
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HitoRow({
+  label,
+  nombre,
+  hito,
+}: {
+  label: string
+  nombre: string
+  hito: HitoCategoriaDTO
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-24 shrink-0">
+        <div className="font-mono text-xs font-semibold text-blue-800">{label}</div>
+        <div className="text-[10px] text-muted-foreground truncate">{nombre}</div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <BarraAvance porcentaje={Number(hito.porcentaje)} />
+      </div>
+      <div className="min-w-24 text-right shrink-0">
+        <div className="text-sm font-semibold tabular-nums text-gray-800">
+          {Number(hito.porcentaje).toFixed(1)}%
+        </div>
+        <div className="text-[10px] text-muted-foreground tabular-nums">
+          {fmt(hito.terminales)}/{fmt(hito.total)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FaseRow({ fase }: { fase: AvanceFaseDTO }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-32 shrink-0 truncate">
+        <span className="text-xs font-medium text-gray-800">{fase.nivelNombre}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <BarraAvance porcentaje={Number(fase.porcentaje)} />
+      </div>
+      <div className="min-w-24 text-right shrink-0">
+        <div className="text-sm font-semibold tabular-nums text-gray-800">
+          {Number(fase.porcentaje).toFixed(1)}%
+        </div>
+        <div className="text-[10px] text-muted-foreground tabular-nums">
+          {fmt(fase.completadas)}/{fmt(fase.total)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Hitos por tarea (agrupado por nivel) ────────────────────────────────────
+
+function fmtFecha(s: string | null): string {
+  if (!s) return "—"
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
+
+const ESTADO_HITO: Record<TareaHitoDTO["estadoResumen"], { label: string; className: string }> = {
+  NoIniciado: { label: "No iniciado", className: "bg-gray-100 text-gray-600" },
+  EnCurso:    { label: "En curso",    className: "bg-blue-100 text-blue-700" },
+  Completado: { label: "Completado",  className: "bg-green-100 text-green-700" },
+}
+
+function TareaHitoRow({ tarea }: { tarea: TareaHitoDTO }) {
+  const estado = ESTADO_HITO[tarea.estadoResumen] ?? ESTADO_HITO.NoIniciado
+  return (
+    <tr className="border-t border-gray-100 hover:bg-gray-50">
+      <td className="py-2 pr-3">
+        <span className="text-sm text-gray-800">{tarea.nombre}</span>
+      </td>
+      <td className="py-2 px-3 text-sm tabular-nums text-gray-600 whitespace-nowrap">{fmtFecha(tarea.proximaMeta)}</td>
+      <td className="py-2 px-3 text-sm tabular-nums text-gray-600 whitespace-nowrap">{fmtFecha(tarea.ultimoAvance)}</td>
+      <td className="py-2 px-3">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${estado.className}`}>{estado.label}</span>
+      </td>
+      <td className="py-2 pl-3 w-48">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0"><BarraAvance porcentaje={Number(tarea.porcentaje)} /></div>
+          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+            {fmt(tarea.completadas)}/{fmt(tarea.total)}
+          </span>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function HitosTareasPanel({ niveles, isLoading }: { niveles: HitosPorNivelDTO[]; isLoading: boolean }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-gray-800">Hitos por tarea</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Tareas agrupadas por nivel — próxima meta, último avance, estado y completadas sobre el total
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+        </div>
+      ) : niveles.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-muted-foreground">
+          No hay tareas con avance para el proyecto activo.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {niveles.map((nivel) => (
+            <details key={nivel.nivelId ?? "sin-nivel"} open className="rounded-lg border border-gray-200 bg-white">
+              <summary className="cursor-pointer select-none px-4 py-2.5 flex items-center justify-between">
+                <span className="text-sm font-semibold text-blue-900">{nivel.nivelNombre}</span>
+                <span className="text-xs text-muted-foreground">{nivel.tareas.length} tarea{nivel.tareas.length === 1 ? "" : "s"}</span>
+              </summary>
+              <div className="px-4 pb-3 overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                      <th className="font-medium py-1 pr-3">Tarea</th>
+                      <th className="font-medium py-1 px-3">Próxima meta</th>
+                      <th className="font-medium py-1 px-3">Último avance</th>
+                      <th className="font-medium py-1 px-3">Estado</th>
+                      <th className="font-medium py-1 pl-3">Avance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nivel.tareas.map((t) => <TareaHitoRow key={t.nombre} tarea={t} />)}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const router = useRouter()
   const { data: perfil } = useGetPerfil()
   const { data: proyectosData } = useGetMisProyectos()
   const { data, isLoading } = useGetAvanceProyecto(perfil?.proyectoId)
+  const { data: hitosFasesData, isLoading: isLoadingHitos } = useGetAvanceHitosYFases()
+  const { data: hitosTareasData, isLoading: isLoadingHitosTareas } = useGetHitosTareas()
 
   const avance = data?.data
   const sistemas: AvanceSistemaDTO[] = avance?.sistemas ?? []
+  const hitosFases = hitosFasesData?.data
+  const hitosTareas: HitosPorNivelDTO[] = hitosTareasData?.data ?? []
 
   const proyectoActivo = proyectosData?.find((p) => p.esActivo)
   const estadoTexto = proyectoActivo
@@ -152,6 +430,10 @@ export default function DashboardPage() {
   const completadas = avance
     ? avance.completado + avance.firmado + avance.aprobado
     : 0
+  // Firmadas = firma electrónica (FIRMADO) + firmado físico en papel (APROBADO).
+  const firmadas = avance ? avance.firmado + avance.aprobado : 0
+  // Pendientes de firma = trabajo terminado pero sin firmar (estado COMPLETADO).
+  const pendientesFirma = avance?.completado ?? 0
   const riesgo = avance ? nivelRiesgo(avance.porcentajeAvance) : null
 
   return (
@@ -171,21 +453,31 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 shrink-0"
+          onClick={() => router.push("/ejecucion/sistemas")}
+        >
+          <BarChart3 className="h-4 w-4" />
+          Avance por sistemas
+        </Button>
       </div>
 
       {/* KPI cards */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-24" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard
             label="Avance general"
             value={pct}
-            sub={`${fmt(completadas)} de ${fmt(avance?.totalTareas ?? 0)} tareas completadas`}
+            sub={`${fmt(completadas)} de ${fmt(avance?.totalTareas ?? 0)} tareas completadas o firmadas`}
             badge={
               riesgo
                 ? { text: riesgo.label, className: riesgo.className }
@@ -193,9 +485,14 @@ export default function DashboardPage() {
             }
           />
           <KpiCard
-            label="Tareas completadas"
-            value={fmt(completadas)}
-            sub={`Completado · Firmado · Aprobado`}
+            label="Firmadas"
+            value={fmt(firmadas)}
+            sub="Firma electrónica · físico"
+          />
+          <KpiCard
+            label="Completadas"
+            value={fmt(pendientesFirma)}
+            sub="Pendientes de firma"
           />
           <KpiCard
             label="En proceso"
@@ -213,61 +510,14 @@ export default function DashboardPage() {
       {/* separador */}
       <div className="border-t border-dashed border-gray-200" />
 
-      {/* breakdown por sistema */}
-      <div className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold text-gray-800">Avance por sistema</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Expandí cada sistema para ver el detalle por subsistema
-          </p>
-        </div>
+      {/* Hitos + fases (complementarios al avance operativo) */}
+      <HitosFasesPanel hitosFases={hitosFases} isLoading={isLoadingHitos} />
 
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-14" />
-            ))}
-          </div>
-        ) : sistemas.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-muted-foreground">
-            No hay datos de avance para el proyecto activo.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {sistemas.map((s) => (
-              <SistemaRow key={s.id} sistema={s} />
-            ))}
-          </div>
-        )}
-      </div>
+      {/* separador */}
+      <div className="border-t border-dashed border-gray-200" />
 
-      {/* resumen de estados */}
-      {avance && !isLoading && (
-        <>
-          <div className="border-t border-dashed border-gray-200" />
-          <div className="space-y-3">
-            <h2 className="text-base font-semibold text-gray-800">Resumen de estados</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[
-                { label: "Pendiente",      value: avance.pendiente,  className: "bg-white text-gray-700 border-gray-200" },
-                { label: "En proceso",     value: avance.enProceso,  className: "bg-blue-50 text-blue-700 border-blue-100" },
-                { label: "Completado",     value: avance.completado, className: "bg-yellow-50 text-yellow-700 border-yellow-100" },
-                { label: "Firmado",        value: avance.firmado,    className: "bg-emerald-50 text-emerald-700 border-emerald-100" },
-                { label: "Firmado físico", value: avance.aprobado,   className: "bg-teal-50 text-teal-700 border-teal-100" },
-                { label: "Rechazado",      value: avance.rechazado,  className: "bg-red-50 text-red-700 border-red-100" },
-              ].map(({ label, value, className }) => (
-                <div
-                  key={label}
-                  className={`rounded-lg border p-3 flex flex-col gap-0.5 ${className}`}
-                >
-                  <span className="text-xs font-medium uppercase tracking-wide opacity-70">{label}</span>
-                  <span className="text-2xl font-bold tabular-nums">{fmt(value)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+      {/* Hitos por tarea (agrupado por nivel) */}
+      <HitosTareasPanel niveles={hitosTareas} isLoading={isLoadingHitosTareas} />
     </div>
   )
 }

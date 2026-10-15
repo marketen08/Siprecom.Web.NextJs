@@ -20,19 +20,31 @@ export interface Proyecto {
   estado: EstadoProyecto
   estadoTexto: string
   observaciones: string
+  /**
+   * Equipo de administración del que el proyecto toma su catálogo de planillas (las de ese
+   * equipo + las globales). Null = sin equipo: manda la configuración de colecciones de planillas.
+   * No tiene relación con quién administra el proyecto, que es la asignación de usuarios.
+   */
+  equipoId?: string | null
+  equipoNombre?: string | null
+  /** @deprecated Espejo de `funcionalidadesEfectivas.AVANCE_SIN_REGISTRO`, que es la
+   *  fuente de verdad. Lo sigue mandando el backend solo para las builds instaladas
+   *  de la app mobile; en la web leé el mapa. Viene en false en los listados. */
   permitirAvanceSinRegistro: boolean
   permitirDescargarPlanillas: boolean
-  permitirDescargarProcedimientos: boolean
+  // permitirDescargarProcedimientos, nivelesSecuenciales y avanceSinRegistro viven en
+  // `funcionalidadesEfectivas` (claves DESCARGAR_PROCEDIMIENTOS, NIVELES_SECUENCIALES
+  // y AVANCE_SIN_REGISTRO).
   permitirDescargarRegistros: boolean
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean
   permitirRegistroDigital: boolean
   /** Si está activo, los PDFs físicos cargados se asumen firmados en papel y la tarea pasa directo a "Firmado físico" sin firmas digitales. Sólo aplica si permitirRegistroFisico = true. */
   registrosFisicosPreFirmados: boolean
+  /** Si está activo, las firmas electrónicas de registros físicos se pintan superpuestas en el recuadro de firmas del escaneo (además de la página de certificado al final). Sólo aplica si permitirRegistroFisico = true. */
+  renderizarFirmasDigitalesEnRecuadro: boolean
   /** Si está en false, ningún registro del proyecto acepta adjuntos. Default true. */
   permiteAdjuntos: boolean
-  /** Si está en true, cada nivel debe iniciar después del fin del nivel anterior (mismo subsistema). */
-  nivelesSecuenciales: boolean
   /** Calendario laboral: lun-vie son siempre laborables. Estos flags habilitan sábado y/o domingo. */
   incluirSabado: boolean
   incluirDomingo: boolean
@@ -42,6 +54,18 @@ export interface Proyecto {
    * vacío, el extractor usa el default: "AutoCad.Tag,CADWorx.Line Number,AutoCad.Line Number".
    */
   apsTagProperties: string | null
+  /**
+   * URL canónica del logo combinado del proyecto. Cuando está seteado, el PDF
+   * de planillas muestra solo esta imagen en el header (reemplaza al par
+   * cliente+contratista). Null = comportamiento default.
+   */
+  urlLogoHeader: string | null
+  /**
+   * Nivel del catálogo que representa "Mechanical Completion" en este proyecto.
+   * Cuando es null, el certificado MC queda en "no aplica" en todo el proyecto.
+   */
+  nivelMcId: string | null
+  nivelMcNombre: string | null
   /**
    * Estado efectivo (global AND proyecto) de cada funcionalidad toggleable, por
    * clave del catálogo. Ej: { MAQUETA_3D: true }. Solo viene en el detalle del
@@ -61,6 +85,7 @@ export interface ProyectoClonOptions {
   firmas: boolean
   acceso: boolean
   estructura: boolean
+  funcionalidades: boolean
 }
 
 export interface ProyectoCreateInput {
@@ -101,12 +126,27 @@ export interface ProyectoBoolUpdateInput {
   valor: boolean
 }
 
+/** Espejo del enum TipoFirmaConfig del backend. */
+export const TIPO_FIRMA_CONFIG = {
+  DIGITAL: 1,
+  FISICA: 2,
+} as const
+
+export type TipoFirmaConfig = (typeof TIPO_FIRMA_CONFIG)[keyof typeof TIPO_FIRMA_CONFIG]
+
+export const TIPO_FIRMA_CONFIG_LABEL: Record<number, string> = {
+  1: "Digital",
+  2: "En papel",
+}
+
 export interface FirmaConfigItem {
   id?: string
   orden: number
   rolNombre: string
   descripcion: string
   esObligatorio: boolean
+  /** Digital (1, default) = firma electrónica en la app. Fisica (2) = firma manuscrita en el papel. */
+  tipoFirma: TipoFirmaConfig
 }
 
 export interface ProyectoUsuarioRol {

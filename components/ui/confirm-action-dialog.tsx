@@ -16,10 +16,21 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 
 interface ConfirmActionDialogProps {
-  /** Elemento que abre el diálogo (usualmente un botón con ícono) */
-  trigger: React.ReactNode
+  /**
+   * Elemento que abre el diálogo (usualmente un botón con ícono).
+   * Omitir cuando el diálogo se controla externamente vía `open`/`onOpenChange`
+   * — típico al disparar desde un DropdownMenuItem.
+   */
+  trigger?: React.ReactNode
   /** className aplicado al AlertDialogTrigger */
   triggerClassName?: string
+  /**
+   * Control externo del diálogo. Si están seteados, el componente pasa a modo
+   * controlado y no renderiza el AlertDialogTrigger. El caller es responsable
+   * de setear `open` en `true` y de escuchar `onOpenChange(false)` para cerrar.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   /** Título del diálogo */
   title: React.ReactNode
   /** Descripción / cuerpo del diálogo */
@@ -69,6 +80,8 @@ interface ConfirmActionDialogProps {
 export function ConfirmActionDialog({
   trigger,
   triggerClassName,
+  open: openProp,
+  onOpenChange,
   title,
   description,
   confirmText = "Confirmar",
@@ -78,11 +91,26 @@ export function ConfirmActionDialog({
   confirmPhrase,
   onConfirm,
 }: ConfirmActionDialogProps) {
-  const [open, setOpen] = React.useState(false)
+  const [internalOpen, setInternalOpen] = React.useState(false)
+  const controlado = openProp !== undefined
+  const open = controlado ? openProp : internalOpen
+  const setOpen = (next: boolean) => {
+    if (controlado) onOpenChange?.(next)
+    else setInternalOpen(next)
+  }
   const [pending, setPending] = React.useState(false)
   const [typed, setTyped] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
   const phraseOk = !confirmPhrase || typed.trim() === confirmPhrase
+
+  // Reset del input y error cuando se abre el diálogo (útil en modo controlado
+  // donde el open puede alternar sin recrear el componente).
+  React.useEffect(() => {
+    if (open) {
+      setTyped("")
+      setError(null)
+    }
+  }, [open])
 
   const handleConfirm = async () => {
     setPending(true)
@@ -102,10 +130,6 @@ export function ConfirmActionDialog({
   const handleOpenChange = (next: boolean) => {
     // Bloquear cierre por click afuera / Esc mientras la mutación está en curso.
     if (pending && !next) return
-    if (next) {
-      setTyped("") // resetear el input de confirmación al abrir
-      setError(null)
-    }
     setOpen(next)
   }
 
@@ -114,9 +138,11 @@ export function ConfirmActionDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogTrigger className={cn("cursor-pointer", triggerClassName)}>
-        {trigger}
-      </AlertDialogTrigger>
+      {trigger !== undefined && (
+        <AlertDialogTrigger className={cn("cursor-pointer", triggerClassName)}>
+          {trigger}
+        </AlertDialogTrigger>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

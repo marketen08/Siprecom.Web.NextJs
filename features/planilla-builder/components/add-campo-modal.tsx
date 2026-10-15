@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -12,8 +12,17 @@ import { useAddCampo } from "@/features/planillas/api/use-add-campo"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 import { campoSchema, type CampoFormValues } from "@/features/campos/schema"
 import {
+  applyServerErrorsToForm,
+  CAMPO_FIELD_MAP,
+} from "@/features/campos/lib/apply-server-errors"
+import type { ApiError } from "@/lib/api-client"
+import { slugifyCodigoCampo } from "@/features/campos/lib/slugify-codigo"
+import { CHECKLIST_PRESETS } from "@/features/campos/lib/checklist-presets"
+import {
   CAMPO_TIPO_DATO,
+  CAMPO_TIPO_DATO_ENTRIES_SORTED,
   CAMPO_LISTA_RENDER_MODE_LABEL,
+  CAMPO_LISTA_RENDER_MODE_OPCIONES,
   CAMPO_TAMANO_OPCIONES,
   CAMPO_TAMANO_DEFAULT,
   ALINEACION_TEXTO_LABEL,
@@ -22,7 +31,8 @@ import {
   type CampoListaRenderMode,
   type PlanillaSeccion,
 } from "@/features/planillas/types"
-import { ArrowDown, ArrowUp, ImageIcon, Trash2, Plus, Star } from "lucide-react"
+import { ArrowDown, ArrowUp, ClipboardPaste, ImageIcon, Trash2, Plus, Star } from "lucide-react"
+import { BulkPasteOpcionesDialog } from "@/features/campos/components/bulk-paste-opciones-dialog"
 
 import {
   Sheet,
@@ -33,6 +43,7 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -44,6 +55,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -61,7 +73,19 @@ interface AddCampoModalProps {
   nextOrden: number
 }
 
-type Tab = "existing" | "new"
+type Tab = "existing" | "new" | "bulk"
+type BulkTipo = 1 | 4 | 11 // Texto | Marca (Boolean con casilla) | Checklist
+
+/**
+ * Tipos que usan CampoOpcion: Lista (5), Checklist (11) y Leyenda (16).
+ * Una sola fuente para el gate que MUESTRA el editor de opciones y el que las CREA
+ * al guardar — tenerlos duplicados hizo que la Leyenda dejara cargar opciones y
+ * después las descartara en silencio.
+ */
+const TIPOS_CON_OPCIONES = [5, 11, 16]
+
+/** Opciones precargadas para el bloque compartido de Checklist en el tab "bulk". */
+const BULK_CHECKLIST_DEFAULT_OPCIONES = CHECKLIST_PRESETS[0].opciones
 
 export function AddCampoModal({
   open,
@@ -76,14 +100,36 @@ export function AddCampoModal({
   const [selectedCampoId, setSelectedCampoId] = useState<string>("")
   const [seccionId, setSeccionId] = useState<string>(selectedSeccionId ?? "__none__")
   const [campoSearch, setCampoSearch] = useState("")
-  const [renderMode, setRenderMode] = useState<CampoListaRenderMode>(0)
+  // Default: Inline (1). `Auto` (0) fue deprecado — para "checklist" el usuario
+  // ahora elige Checklist como tipo dedicado en el picker visual.
+  const [renderMode, setRenderMode] = useState<CampoListaRenderMode>(1)
   const [tamano, setTamano] = useState<number>(CAMPO_TAMANO_DEFAULT)
+  // Flag para forzar modo Personalizado aunque el valor coincida con una opción
+  // predefinida — necesario para que el input numérico aparezca al elegir
+  // "Personalizado" con un tamaño que ya está en la lista.
+  const [modoPersonalizado, setModoPersonalizado] = useState(false)
   // Opciones temporales para nuevo campo Lista (se crean tras crear el Campo).
   const [tempOpciones, setTempOpciones] = useState<Array<{ valor: string; etiqueta: string }>>([])
   // Opción marcada como valor por defecto (por su `valor`). Se persiste como
   // PlanillaCampo.ValorDefault al agregar el campo. null = sin default.
   const [opcionDefaultValor, setOpcionDefaultValor] = useState<string | null>(null)
   const [opcionInput, setOpcionInput] = useState({ valor: "", etiqueta: "" })
+  const [bulkPasteOpen, setBulkPasteOpen] = useState(false)
+
+  // ── Tab "En lote" ─────────────────────────────────────────────────────────
+  // Crea N campos de golpe (Checklist o Texto) desde una lista de etiquetas.
+  // Todos comparten sección, obligatoriedad y — para Checklist — el mismo set
+  // de opciones (default Sí/No/NA, editable).
+  const [bulkTipo, setBulkTipo] = useState<BulkTipo>(11)
+  const [bulkEtiquetas, setBulkEtiquetas] = useState("")
+  const [bulkReusar, setBulkReusar] = useState(true)
+  const [bulkChecklistOpciones, setBulkChecklistOpciones] = useState<
+    Array<{ valor: string; etiqueta: string }>
+  >(BULK_CHECKLIST_DEFAULT_OPCIONES)
+  const [bulkOpcionInput, setBulkOpcionInput] = useState({ valor: "", etiqueta: "" })
+  const [bulkPending, setBulkPending] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+  const [bulkResumen, setBulkResumen] = useState<string | null>(null)
   // Mientras esté en false, cada opción nueva se inserta alfabéticamente por etiqueta.
   // En cuanto el usuario use las flechas, pasa a true y se respeta su orden manual.
   const [opcionesManualOrder, setOpcionesManualOrder] = useState(false)
@@ -96,6 +142,9 @@ export function AddCampoModal({
   // Obligatoriedad del campo en ESTA planilla. En "Existente" se precarga del
   // EsObligatorioDefault del campo; en "Nuevo" además se guarda como default del campo.
   const [esObligatorio, setEsObligatorio] = useState(false)
+  // Auto-derivar `codigo` desde `etiqueta` mientras el user no toque el input
+  // del código. En el tab "Nuevo" arrancamos siempre limpio (no hay defaultValues).
+  const [codigoSucio, setCodigoSucio] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // El initializer de useState sólo corre en el primer montaje (cuando aún no hay
@@ -126,11 +175,25 @@ export function AddCampoModal({
     defaultValues: {
       codigo: "",
       etiqueta: "",
+      etiquetaAlt: "",
       tipoDato: 1,
       unidad: "",
       descripcion: "",
+      numeroLineas: 3,
+      mostrarComoMarca: false,
+      altoMm: 20,
+      textoLargo: "",
     },
   })
+
+  // Aplica los errores de validación del backend a los fields del form. Al
+  // fallar `createCampoMutation` con status 400, el user ve el mensaje inline
+  // en el input correspondiente (ej. "El código ya existe." bajo Código).
+  useEffect(() => {
+    const serverErrors = (createCampoMutation.error as ApiError | null)?.body?.errors
+    applyServerErrorsToForm(form, serverErrors, CAMPO_FIELD_MAP)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createCampoMutation.error])
 
   const availableCampos = campos.filter(
     (c) => !existingCampoIds.includes(c.id) &&
@@ -142,8 +205,9 @@ export function AddCampoModal({
   const handleClose = () => {
     setSelectedCampoId("")
     setCampoSearch("")
-    setRenderMode(0)
+    setRenderMode(1)
     setTamano(CAMPO_TAMANO_DEFAULT)
+    setModoPersonalizado(false)
     setTempOpciones([])
     setOpcionDefaultValor(null)
     setOpcionInput({ valor: "", etiqueta: "" })
@@ -151,16 +215,42 @@ export function AddCampoModal({
     setImagenUrl(undefined)
     setLabelStyle({ negrita: false, conBorde: false, fondoGris: false, alineacion: 0, sinPadding: false, sinMargen: false })
     setEsObligatorio(false)
+    setCodigoSucio(false)
+    setBulkTipo(11)
+    setBulkEtiquetas("")
+    setBulkReusar(true)
+    setBulkChecklistOpciones(BULK_CHECKLIST_DEFAULT_OPCIONES)
+    setBulkOpcionInput({ valor: "", etiqueta: "" })
+    setBulkError(null)
+    setBulkResumen(null)
     form.reset()
     onClose()
   }
 
   const selectedCampoExistente = campos.find((c: any) => c.id === selectedCampoId)
   const tipoDatoFormulario = form.watch("tipoDato") as CampoTipoDato
-  const isListaExistente = selectedCampoExistente?.tipoDato === 5
+  // Tanto Lista (5) como Checklist (11) tienen opciones. Los usamos como "familia"
+  // para decidir cuándo mostrar el editor de opciones y el sub-selector de render.
+  const isListaExistente = selectedCampoExistente?.tipoDato === 5 || selectedCampoExistente?.tipoDato === 11
+  const isChecklistExistente = selectedCampoExistente?.tipoDato === 11
+  const isTextoAreaExistente = selectedCampoExistente?.tipoDato === 12
   const isListaNuevo = tipoDatoFormulario === 5
+  const isChecklistNuevo = tipoDatoFormulario === 11
+  const isLeyendaNueva = tipoDatoFormulario === 16
+  const isTextoAreaNuevo = tipoDatoFormulario === 12
+  const isBooleanNuevo = tipoDatoFormulario === 4
+  const isEspacioNuevo = tipoDatoFormulario === 13 || tipoDatoFormulario === 14
+  const isNotaNueva = tipoDatoFormulario === 15
+  // La Leyenda reusa CampoOpcion, así que también carga opciones al crearse.
+  const tieneOpcionesNuevo = TIPOS_CON_OPCIONES.includes(tipoDatoFormulario)
   const isImagenNuevo = tipoDatoFormulario === 8
   const isLabelNuevo = tipoDatoFormulario === 10
+  // Ancho fijo 12 (full-width) forzado: Checklist y TextoArea deben tomar toda
+  // la fila. Se refleja en el disabled del selector de ancho y en el payload.
+  // Leyenda NO entra acá a propósito: arranca en 12 (ver el onValueChange del tipo)
+  // pero el ancho queda elegible — una leyenda de pocos códigos puede ir a media fila.
+  const anchoForzadoCompleto =
+    isChecklistExistente || isChecklistNuevo || isTextoAreaExistente || isTextoAreaNuevo
 
   const handleUploadImagen = async (file: File) => {
     const url = await uploadMutation.mutateAsync(file)
@@ -169,6 +259,9 @@ export function AddCampoModal({
 
   const handleAddExisting = () => {
     if (!selectedCampoId) return
+    // Para Lista tradicional, el usuario elige el renderMode. Para Checklist el
+    // modo es fijo (el backend lo ignora) y el ancho es 12.
+    const esListaReal = selectedCampoExistente?.tipoDato === 5
     addCampoMutation.mutate(
       {
         planillaId,
@@ -178,9 +271,9 @@ export function AddCampoModal({
         esObligatorio,
         visible: true,
         soloLectura: false,
-        renderMode: isListaExistente ? renderMode : undefined,
-        // Checklist siempre ocupa ancho completo (12), independiente del control.
-        tamano: isListaExistente && renderMode === 3 ? 12 : tamano,
+        renderMode: esListaReal ? renderMode : undefined,
+        // Checklist y TextoArea siempre ancho completo (12).
+        tamano: (isChecklistExistente || isTextoAreaExistente) ? 12 : tamano,
       },
       { onSuccess: handleClose }
     )
@@ -203,8 +296,10 @@ export function AddCampoModal({
       const newCampoId = res?.data?.id ?? res?.id
       if (!newCampoId) return
 
-      // Si es Lista y hay opciones cargadas, crearlas en serie antes de agregar a la planilla.
-      if (values.tipoDato === 5 && tempOpciones.length > 0) {
+      // Si el tipo usa opciones y hay cargadas, crearlas en serie antes de agregar
+      // a la planilla. Mismo predicado que decide mostrar el editor arriba.
+      const esConOpciones = TIPOS_CON_OPCIONES.includes(values.tipoDato)
+      if (esConOpciones && tempOpciones.length > 0) {
         for (let i = 0; i < tempOpciones.length; i++) {
           const op = tempOpciones[i]
           await createOpcionMutation.mutateAsync({
@@ -224,11 +319,12 @@ export function AddCampoModal({
         esObligatorio,
         visible: true,
         soloLectura: false,
-        // Para Lista, la opción marcada con la estrella es el valor por defecto.
-        valorDefault: values.tipoDato === 5 ? (opcionDefaultValor ?? undefined) : undefined,
+        // Para Lista/Checklist, la opción marcada con la estrella es el valor por defecto.
+        valorDefault: esConOpciones ? (opcionDefaultValor ?? undefined) : undefined,
+        // Solo Lista (5) usa renderMode; Checklist (11) lo ignora en runtime.
         renderMode: values.tipoDato === 5 ? renderMode : undefined,
-        // Checklist siempre ocupa ancho completo (12), independiente del control.
-        tamano: values.tipoDato === 5 && renderMode === 3 ? 12 : tamano,
+        // Checklist y TextoArea siempre ancho completo (12).
+        tamano: (values.tipoDato === 11 || values.tipoDato === 12) ? 12 : tamano,
       })
       handleClose()
     } catch {
@@ -249,23 +345,10 @@ export function AddCampoModal({
     setOpcionInput({ valor: "", etiqueta: "" })
   }
 
-  // Si elige Checklist y aún no cargó opciones, sugerir SI/NO/NA por defecto
-  // (solo aplica al tab "Nuevo"; en "Existente" las opciones ya están definidas en el Campo).
+  // Solo aplica a Lista real (5). Para Checklist (11) el modo es fijo y este
+  // handler no se dispara — el picker de tipo ya oculta el sub-selector.
   const handleRenderModeChange = (next: CampoListaRenderMode) => {
     setRenderMode(next)
-    // Checklist (3) se renderiza siempre como tabla a ancho completo (ignora el
-    // Tamano en el PDF/web). Forzamos el ancho a 12 para que la config refleje la
-    // realidad y no quede, p.ej., en un tercio.
-    if (next === 3) setTamano(12)
-    if (tab === "new" && next === 3 && tempOpciones.length === 0) {
-      // Sí/No/NA es un orden semántico explícito, no alfabético: activamos manual.
-      setTempOpciones([
-        { valor: "SI", etiqueta: "Sí" },
-        { valor: "NO", etiqueta: "No" },
-        { valor: "NA", etiqueta: "No Aplica" },
-      ])
-      setOpcionesManualOrder(true)
-    }
   }
 
   const handleRemoveOpcion = (index: number) => {
@@ -288,6 +371,208 @@ export function AddCampoModal({
     setOpcionesManualOrder(true)
   }
 
+  // ── Parse + estado por línea del tab "En lote" ────────────────────────────
+  // Cada línea puede terminar en uno de 4 estados:
+  //   - "reusa"       — reuso activo + matcheo por etiqueta case-insensitive
+  //   - "nuevo"       — se crea un Campo nuevo (con opciones si es Checklist)
+  //   - "en_planilla" — reuso encontró el campo, pero ya está en esta planilla
+  //   - "dup"         — la etiqueta ya apareció más arriba en el mismo pegado
+  const bulkParsed = useMemo(() => {
+    // Cada línea es "Etiqueta" o "Etiqueta | Traducción". Partimos por el PRIMER
+    // pipe nomás, así una traducción que contenga "|" no se corta al medio.
+    const lineas = bulkEtiquetas
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+      .map((l) => {
+        const i = l.indexOf("|")
+        return i === -1
+          ? { etiqueta: l, etiquetaAlt: "" }
+          : { etiqueta: l.slice(0, i).trim(), etiquetaAlt: l.slice(i + 1).trim() }
+      })
+      .filter((l) => l.etiqueta.length > 0)
+
+    // Catálogo filtrado por tipo, indexado por etiqueta lowercase. Sólo con
+    // reuso activo — sino, forzamos crear cada campo aunque exista.
+    const catalogo = new Map<string, (typeof campos)[number]>()
+    if (bulkReusar) {
+      for (const c of campos) {
+        // Para tipo Marca exigimos además que el campo del catálogo sea marca: un
+        // Boolean común (Sí/No) con la misma etiqueta NO es intercambiable.
+        const mismoTipo =
+          c.tipoDato === bulkTipo &&
+          (bulkTipo !== 4 || Boolean(c.mostrarComoMarca))
+        if (mismoTipo) {
+          catalogo.set(String(c.etiqueta ?? "").trim().toLowerCase(), c)
+        }
+      }
+    }
+
+    // Códigos ya tomados: los del catálogo entero + los que vayamos generando
+    // en esta corrida. Comparamos uppercase.
+    const codigosDB = new Set(
+      campos.map((c) => String(c.codigo ?? "").toUpperCase()),
+    )
+    const codigosGenerados = new Set<string>()
+    const generarCodigo = (etiqueta: string): string => {
+      const base =
+        slugifyCodigoCampo(etiqueta, 30) || etiqueta.toUpperCase().slice(0, 30) || "CAMPO"
+      let candidato = base
+      let n = 2
+      while (
+        codigosDB.has(candidato.toUpperCase()) ||
+        codigosGenerados.has(candidato.toUpperCase())
+      ) {
+        // Recortamos el base para dejar lugar al sufijo y no pasar 30 chars.
+        const sufijo = `_${n}`
+        candidato = base.slice(0, Math.max(1, 30 - sufijo.length)) + sufijo
+        n += 1
+      }
+      codigosGenerados.add(candidato.toUpperCase())
+      return candidato
+    }
+
+    const vistos = new Set<string>()
+    return lineas.map(({ etiqueta, etiquetaAlt }) => {
+      const key = etiqueta.toLowerCase()
+      if (vistos.has(key)) {
+        return { etiqueta, estado: "dup" as const }
+      }
+      vistos.add(key)
+
+      const existente = catalogo.get(key)
+      if (existente) {
+        if (existingCampoIds.includes(existente.id)) {
+          return {
+            etiqueta,
+            estado: "en_planilla" as const,
+            campoIdExistente: existente.id,
+          }
+        }
+        return {
+          etiqueta,
+          estado: "reusa" as const,
+          campoIdExistente: existente.id,
+          codigoExistente: existente.codigo,
+        }
+      }
+
+      return {
+        etiqueta,
+        etiquetaAlt,
+        estado: "nuevo" as const,
+        codigoNuevo: generarCodigo(etiqueta),
+      }
+    })
+  }, [bulkEtiquetas, bulkTipo, bulkReusar, campos, existingCampoIds])
+
+  const bulkAInsertar = bulkParsed.filter(
+    (p) => p.estado === "reusa" || p.estado === "nuevo",
+  )
+
+  const handleBulkCreateAndAdd = async () => {
+    if (bulkAInsertar.length === 0) return
+    setBulkPending(true)
+    setBulkError(null)
+    setBulkResumen(null)
+    try {
+      let creados = 0
+      let reusados = 0
+      let orden = nextOrden
+      for (const item of bulkAInsertar) {
+        let campoId: string
+        if (item.estado === "reusa") {
+          campoId = item.campoIdExistente
+          reusados += 1
+        } else {
+          // Crear Campo. Para Checklist, además creamos las opciones compartidas.
+          const res: any = await createCampoMutation.mutateAsync({
+            codigo: item.codigoNuevo,
+            etiqueta: item.etiqueta,
+            etiquetaAlt: item.etiquetaAlt || undefined,
+            tipoDato: bulkTipo as CampoTipoDato,
+            unidad: "",
+            descripcion: "",
+            esObligatorioDefault: esObligatorio,
+            // Tipo "Marca" = Boolean presentado como casilla que se tilda con X.
+            mostrarComoMarca: bulkTipo === 4,
+          } as any)
+          const newId = res?.data?.id ?? res?.id
+          if (!newId) throw new Error(`No se pudo crear el campo "${item.etiqueta}"`)
+          if (bulkTipo === 11 && bulkChecklistOpciones.length > 0) {
+            for (let i = 0; i < bulkChecklistOpciones.length; i++) {
+              const op = bulkChecklistOpciones[i]
+              await createOpcionMutation.mutateAsync({
+                campoId: newId,
+                valor: op.valor.trim(),
+                etiqueta: op.etiqueta.trim(),
+                orden: i + 1,
+              })
+            }
+          }
+          campoId = newId
+          creados += 1
+        }
+
+        await addCampoMutation.mutateAsync({
+          planillaId,
+          campoId,
+          planillaSeccionId: seccionId === "__none__" ? undefined : seccionId,
+          orden,
+          esObligatorio,
+          visible: true,
+          soloLectura: false,
+          // Checklist siempre 12; Texto respeta 12 también (default de este flujo).
+          tamano: 12,
+        })
+        orden += 1
+      }
+      setBulkResumen(
+        `Se agregaron ${creados + reusados} campo${creados + reusados !== 1 ? "s" : ""}` +
+          (reusados > 0 ? ` (${creados} nuevo${creados !== 1 ? "s" : ""}, ${reusados} reusado${reusados !== 1 ? "s" : ""})` : ""),
+      )
+      // Cerramos al terminar; el resumen se pierde con el reset. Es intencional:
+      // el user verá los campos aparecer en la planilla al volver al builder.
+      handleClose()
+    } catch (err) {
+      setBulkError((err as Error)?.message ?? "No se pudieron crear los campos.")
+    } finally {
+      setBulkPending(false)
+    }
+  }
+
+  const handleAddBulkOpcion = () => {
+    if (!bulkOpcionInput.valor.trim() || !bulkOpcionInput.etiqueta.trim()) return
+    setBulkChecklistOpciones((prev) => [
+      ...prev,
+      { valor: bulkOpcionInput.valor.trim(), etiqueta: bulkOpcionInput.etiqueta.trim() },
+    ])
+    setBulkOpcionInput({ valor: "", etiqueta: "" })
+  }
+
+  const handleBulkPasteConfirm = (
+    nuevas: Array<{ valor: string; etiqueta: string }>,
+    modo: "append" | "replace",
+  ) => {
+    // Bulk paste respeta el orden pegado — pasa a modo manual para que futuras
+    // altas se agreguen al final en lugar de reordenarse alfabéticamente.
+    setOpcionesManualOrder(true)
+    setTempOpciones((prev) => {
+      if (modo === "replace") {
+        // Limpiar el default si el valor previo ya no está en la nueva lista.
+        if (
+          opcionDefaultValor &&
+          !nuevas.some((n) => n.valor === opcionDefaultValor)
+        ) {
+          setOpcionDefaultValor(null)
+        }
+        return nuevas
+      }
+      return [...prev, ...nuevas]
+    })
+    setBulkPasteOpen(false)
+  }
+
   const isPending = createCampoMutation.isPending || createOpcionMutation.isPending || addCampoMutation.isPending
 
   return (
@@ -296,7 +581,8 @@ export function AddCampoModal({
         <SheetHeader>
           <SheetTitle>Agregar campo</SheetTitle>
           <SheetDescription>
-            Seleccioná un campo existente o creá uno nuevo.
+            Seleccioná un campo existente, creá uno nuevo, o cargá varios de una
+            vez pegando una lista.
           </SheetDescription>
         </SheetHeader>
 
@@ -325,6 +611,17 @@ export function AddCampoModal({
             >
               Crear nuevo campo
             </button>
+            <button
+              className={cn(
+                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                tab === "bulk"
+                  ? "border-blue-900 text-blue-900"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setTab("bulk")}
+            >
+              En lote
+            </button>
           </div>
 
           {/* Sección destino (shared) */}
@@ -347,22 +644,26 @@ export function AddCampoModal({
             </Select>
           </div>
 
-          {/* Ancho del campo (shared) */}
+          {/* Ancho del campo (shared) — deshabilitado cuando el campo es Checklist
+              o TextoArea (ambos siempre ancho completo). El tab "En lote" usa
+              ancho 12 fijo, así que ocultamos el selector ahí. */}
+          {tab !== "bulk" && (
           <div className="space-y-1.5">
             <Label>Ancho del campo</Label>
             <div className="flex items-center gap-2">
               <Select
-                disabled={renderMode === 3}
+                disabled={anchoForzadoCompleto}
                 value={(() => {
+                  if (modoPersonalizado) return "-1"
                   const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
                   return String(match?.value ?? -1)
                 })()}
                 onValueChange={(v) => {
                   const num = Number(v)
                   if (num === -1) {
-                    // Personalizado: dejá el actual, mostrar input numérico
-                    if (CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano)) setTamano(tamano)
+                    setModoPersonalizado(true)
                   } else {
+                    setModoPersonalizado(false)
                     setTamano(num)
                   }
                 }}
@@ -370,6 +671,7 @@ export function AddCampoModal({
                 <SelectTrigger className="flex-1">
                   <SelectValue>
                     {(() => {
+                      if (modoPersonalizado) return `Personalizado (${tamano})`
                       const match = CAMPO_TAMANO_OPCIONES.find((o) => o.value === tamano)
                       return match ? match.label : `Personalizado (${tamano})`
                     })()}
@@ -381,7 +683,7 @@ export function AddCampoModal({
                   ))}
                 </SelectContent>
               </Select>
-              {!CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano) && (
+              {(modoPersonalizado || !CAMPO_TAMANO_OPCIONES.some((o) => o.value === tamano)) && (
                 <Input
                   type="number"
                   min={1}
@@ -396,14 +698,18 @@ export function AddCampoModal({
               )}
             </div>
             <p className="text-[10px] text-muted-foreground">
-              {renderMode === 3
-                ? "El modo Checklist (tabla) siempre ocupa el ancho completo (12)."
-                : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
+              {(isChecklistExistente || isChecklistNuevo)
+                ? "Los campos Checklist siempre ocupan el ancho completo (12) para renderizarse como tabla."
+                : (isTextoAreaExistente || isTextoAreaNuevo)
+                  ? "Los campos Texto multilínea siempre ocupan el ancho completo (12)."
+                  : "Grilla de 12. Los campos consecutivos se agrupan automáticamente."}
             </p>
           </div>
+          )}
 
-          {/* Obligatorio (compartido entre ambas tabs). En "Nuevo" se guarda además
-              como default del campo; en "Existente" se precarga de ese default. */}
+          {/* Obligatorio (compartido entre las tres tabs). En "Nuevo"/"Bulk" se
+              guarda además como default del campo; en "Existente" se precarga
+              de ese default. */}
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"
@@ -459,8 +765,8 @@ export function AddCampoModal({
                       <SelectValue>{CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      {CAMPO_LISTA_RENDER_MODE_OPCIONES.map((o) => (
+                        <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -480,10 +786,125 @@ export function AddCampoModal({
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : tab === "new" ? (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleCreateAndAdd)} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                {/* Orden: tipo → etiqueta → código (autoderivado) → unidad. */}
+                <FormField
+                  control={form.control}
+                  name="tipoDato"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de dato</FormLabel>
+                      <Select
+                        value={String(field.value)}
+                        onValueChange={(v) => {
+                          const nuevoTipo = Number(v) as CampoTipoDato
+                          field.onChange(nuevoTipo)
+                          // Checklist forza ancho completo; el renderMode se ignora
+                          // en runtime pero mantenemos el state consistente (Inline).
+                          if (nuevoTipo === 11) {
+                            setTamano(12)
+                            setRenderMode(1)
+                            setModoPersonalizado(false)
+                            // Precargar Sí/No/N/A si el usuario aún no cargó opciones.
+                            if (tempOpciones.length === 0) {
+                              setTempOpciones([
+                                { valor: "SI", etiqueta: "Sí" },
+                                { valor: "NO", etiqueta: "No" },
+                                { valor: "NA", etiqueta: "No Aplica" },
+                              ])
+                              setOpcionesManualOrder(true)
+                            }
+                          }
+                          // TextoArea también forza ancho completo (mismo criterio que Checklist).
+                          if (nuevoTipo === 12) {
+                            setTamano(12)
+                            setModoPersonalizado(false)
+                          }
+                          // Leyenda: arranca a ancho completo porque la fila de códigos
+                          // se reparte a lo ancho, pero se puede achicar si son pocos.
+                          // Precargamos OK/NC/NA, que es el uso típico.
+                          if (nuevoTipo === 16) {
+                            setTamano(12)
+                            setModoPersonalizado(false)
+                            if (tempOpciones.length === 0) {
+                              setTempOpciones(CHECKLIST_PRESETS[1].opciones)
+                              setOpcionesManualOrder(true)
+                            }
+                          }
+                        }}
+                        disabled={isPending}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue>
+                              {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
+                            </SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {CAMPO_TIPO_DATO_ENTRIES_SORTED.map(([k, v]) => (
+                            <SelectItem key={k} value={k}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="etiqueta"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Etiqueta</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Temperatura de aceite"
+                          disabled={isPending}
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e)
+                            // Auto-derivar `codigo` mientras el user no lo haya
+                            // tocado manualmente.
+                            if (!codigoSucio) {
+                              form.setValue("codigo", slugifyCodigoCampo(e.target.value), {
+                                shouldValidate: false,
+                              })
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="etiquetaAlt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Etiqueta alternativa</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Oil temperature"
+                          disabled={isPending}
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormDescription className="text-[10px]">
+                        Opcional. Traducción o comentario que aparece debajo del label en el PDF, en itálica.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-[2fr_1fr] gap-3">
                   <FormField
                     control={form.control}
                     name="codigo"
@@ -491,51 +912,18 @@ export function AddCampoModal({
                       <FormItem>
                         <FormLabel>Código</FormLabel>
                         <FormControl>
-                          <Input placeholder="TEMP-001" disabled={isPending} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tipoDato"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de dato</FormLabel>
-                        <Select
-                          value={String(field.value)}
-                          onValueChange={(v) => field.onChange(Number(v))}
-                          disabled={isPending}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue>
-                                {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
-                              </SelectValue>
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
-                              <SelectItem key={k} value={k}>{v}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-[2fr_1fr] gap-3">
-                  <FormField
-                    control={form.control}
-                    name="etiqueta"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Etiqueta</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Temperatura de aceite" disabled={isPending} {...field} />
+                          <Input
+                            placeholder="Auto — o escribí uno"
+                            disabled={isPending}
+                            className="font-mono"
+                            {...field}
+                            onChange={(e) => {
+                              // Cualquier edición manual detiene el auto-derivado.
+                              // Vaciarlo lo reactiva.
+                              setCodigoSucio(e.target.value.trim().length > 0)
+                              field.onChange(e)
+                            }}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -555,6 +943,129 @@ export function AddCampoModal({
                     )}
                   />
                 </div>
+
+                {/* Solo Nota: el texto que se imprime (multilínea). */}
+                {isNotaNueva && (
+                  <FormField
+                    control={form.control}
+                    name="textoLargo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Texto de la nota *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={"Verificar torque según especificación.\nAnotar desvíos en el reverso."}
+                            rows={4}
+                            disabled={isPending}
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-[10px]">
+                          Se imprime respetando los saltos de línea. La etiqueta no se imprime.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Solo Espacio: alto del bloque vacío. El recuadro y demás flags se
+                    configuran después desde la card del campo. */}
+                {isEspacioNuevo && (
+                  <FormField
+                    control={form.control}
+                    name="altoMm"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Alto (mm)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={5}
+                            max={200}
+                            placeholder="20"
+                            disabled={isPending}
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const n = Number(e.target.value)
+                              field.onChange(Number.isFinite(n) ? n : undefined)
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-[10px]">
+                          Alto del bloque vacío en el PDF (5-200 mm). El recuadro para dibujar
+                          se activa después, en la card del campo.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Solo TextoArea: cantidad de líneas de escritura. */}
+                {isTextoAreaNuevo && (
+                  <FormField
+                    control={form.control}
+                    name="numeroLineas"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Número de líneas</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={20}
+                            placeholder="3"
+                            disabled={isPending}
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const n = Number(e.target.value)
+                              field.onChange(Number.isFinite(n) ? n : undefined)
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-[10px]">
+                          Cantidad de renglones en la planilla en blanco (rango 1-20, default 3).
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Solo Boolean: presentarlo como casilla de marca en vez de Sí/No.
+                    Para listas de "marcar lo que corresponda" — un campo por ítem,
+                    con la traducción en Etiqueta alternativa. Ver la tab "En lote"
+                    para cargar la lista entera de una. */}
+                {isBooleanNuevo && (
+                  <FormField
+                    control={form.control}
+                    name="mostrarComoMarca"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex flex-row items-center gap-2 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={!!field.value}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                              disabled={isPending}
+                              className="h-4 w-4 cursor-pointer"
+                            />
+                          </FormControl>
+                          <FormLabel className="mt-0! cursor-pointer font-normal">
+                            Mostrar como casilla de marca
+                          </FormLabel>
+                        </div>
+                        <FormDescription className="text-[10px]">
+                          Un cuadrito que se tilda con una X, en vez de elegir Sí/No.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {/* Sub-sección Imagen: subir archivo + preview */}
                 {isImagenNuevo && (
@@ -672,33 +1183,82 @@ export function AddCampoModal({
                   </div>
                 )}
 
-                {/* Sub-sección Lista: opciones + render mode */}
-                {isListaNuevo && (
+                {/* Sub-sección Lista/Checklist: opciones + (solo Lista) render mode.
+                    Checklist se renderiza siempre como tabla — no muestra el sub-selector. */}
+                {tieneOpcionesNuevo && (
                   <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Cómo se muestra</Label>
-                      <Select
-                        value={String(renderMode)}
-                        onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
+                    {isListaNuevo && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Cómo se muestra</Label>
+                        <Select
+                          value={String(renderMode)}
+                          onValueChange={(v) => handleRenderModeChange(Number(v) as CampoListaRenderMode)}
+                          disabled={isPending}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue>
+                              {CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CAMPO_LISTA_RENDER_MODE_OPCIONES.map((o) => (
+                              <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold text-blue-900">
+                          Opciones {isChecklistNuevo ? "del checklist" : "de la lista"}
+                        </p>
+                        <p className="text-[10px] text-blue-700/70">
+                          Tocá la ★ para marcar el valor por defecto.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 shrink-0"
+                        onClick={() => setBulkPasteOpen(true)}
                         disabled={isPending}
                       >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue>
-                            {CAMPO_LISTA_RENDER_MODE_LABEL[renderMode]}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(CAMPO_LISTA_RENDER_MODE_LABEL).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <ClipboardPaste className="h-3.5 w-3.5" /> Pegar en lote
+                      </Button>
                     </div>
 
-                    <p className="text-xs font-semibold text-blue-900">Opciones de la lista</p>
-                    <p className="text-[10px] text-blue-700/70 -mt-1">
-                      Tocá la ★ para marcar el valor por defecto.
-                    </p>
+                    {/* Presets rápidos — sólo para Checklist. Reemplazan la lista
+                        actual y limpian el default si el valor previo ya no está. */}
+                    {(isChecklistNuevo || isLeyendaNueva) && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-blue-700/70">Preset:</span>
+                        {CHECKLIST_PRESETS.map((p) => (
+                          <Button
+                            key={p.id}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => {
+                              setTempOpciones(p.opciones)
+                              setOpcionesManualOrder(true)
+                              if (
+                                opcionDefaultValor &&
+                                !p.opciones.some((o) => o.valor === opcionDefaultValor)
+                              ) {
+                                setOpcionDefaultValor(null)
+                              }
+                            }}
+                            disabled={isPending}
+                          >
+                            {p.label}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
 
                     {tempOpciones.length > 0 && (
                       <div className="space-y-1">
@@ -786,6 +1346,23 @@ export function AddCampoModal({
                   </div>
                 )}
 
+                {/* Error root del backend (no atribuible a un field) + fallback
+                    para errores de otros mutations que corren en el mismo submit
+                    (createOpcion, addCampo). Los errores por field ya se muestran
+                    inline via applyServerErrorsToForm. */}
+                {form.formState.errors.root?.message && (
+                  <p className="text-sm text-red-600 whitespace-pre-line">
+                    {form.formState.errors.root.message}
+                  </p>
+                )}
+                {(createOpcionMutation.isError || addCampoMutation.isError) && (
+                  <p className="text-sm text-red-600 whitespace-pre-line">
+                    {(createOpcionMutation.error as Error)?.message
+                      ?? (addCampoMutation.error as Error)?.message
+                      ?? "Error al crear el campo."}
+                  </p>
+                )}
+
                 <div className="flex gap-2 pt-1">
                   <Button
                     type="submit"
@@ -800,9 +1377,287 @@ export function AddCampoModal({
                 </div>
               </form>
             </Form>
+          ) : (
+            // ─── Tab "En lote" ──────────────────────────────────────────────
+            <div className="space-y-3">
+              <div className="rounded-md border border-blue-100 bg-blue-50/40 p-3 space-y-3">
+                <p className="text-xs text-blue-900">
+                  Pegá una lista de etiquetas — cada línea se convierte en un campo
+                  independiente en esta planilla. Para agregarle la traducción a cada
+                  una, escribí <code className="font-mono">Etiqueta | Traducción</code>.
+                </p>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tipo de campo</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulk-tipo"
+                        checked={bulkTipo === 11}
+                        onChange={() => setBulkTipo(11)}
+                        disabled={bulkPending}
+                        className="h-3.5 w-3.5"
+                      />
+                      Checklist
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulk-tipo"
+                        checked={bulkTipo === 4}
+                        onChange={() => setBulkTipo(4)}
+                        disabled={bulkPending}
+                        className="h-3.5 w-3.5"
+                      />
+                      Marca (X)
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulk-tipo"
+                        checked={bulkTipo === 1}
+                        onChange={() => setBulkTipo(1)}
+                        disabled={bulkPending}
+                        className="h-3.5 w-3.5"
+                      />
+                      Texto
+                    </label>
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={bulkReusar}
+                    onChange={(e) => setBulkReusar(e.target.checked)}
+                    disabled={bulkPending}
+                    className="h-3.5 w-3.5 mt-0.5"
+                  />
+                  <span>
+                    Reusar campos existentes del catálogo cuando la etiqueta coincida
+                    (case-insensitive).
+                  </span>
+                </label>
+              </div>
+
+              {/* Opciones compartidas — sólo Checklist. Precarga Sí/No/N/A. */}
+              {bulkTipo === 11 && (
+                <div className="rounded-md border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-blue-900">
+                    Opciones compartidas del checklist
+                  </p>
+                  <p className="text-[10px] text-blue-700/70 -mt-1">
+                    Se aplican a todos los campos que se creen. Los reusados
+                    conservan sus opciones actuales.
+                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-blue-700/70">Preset:</span>
+                    {CHECKLIST_PRESETS.map((p) => (
+                      <Button
+                        key={p.id}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => setBulkChecklistOpciones(p.opciones)}
+                        disabled={bulkPending}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
+                  {bulkChecklistOpciones.length > 0 && (
+                    <div className="space-y-1">
+                      {bulkChecklistOpciones.map((op, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1"
+                        >
+                          <span className="font-mono text-gray-500 shrink-0 w-16 truncate">
+                            {op.valor}
+                          </span>
+                          <span className="flex-1 truncate">{op.etiqueta}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setBulkChecklistOpciones((prev) => prev.filter((_, j) => j !== i))
+                            }
+                            className="text-gray-400 hover:text-red-500 shrink-0"
+                            aria-label="Quitar"
+                            disabled={bulkPending}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-end gap-1.5">
+                    <div className="space-y-1 w-24 shrink-0">
+                      <Label className="text-xs">Valor</Label>
+                      <Input
+                        value={bulkOpcionInput.valor}
+                        onChange={(e) =>
+                          setBulkOpcionInput((p) => ({ ...p, valor: e.target.value }))
+                        }
+                        placeholder="SI"
+                        className="h-7 text-xs font-mono"
+                        disabled={bulkPending}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); handleAddBulkOpcion() }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <Label className="text-xs">Etiqueta</Label>
+                      <Input
+                        value={bulkOpcionInput.etiqueta}
+                        onChange={(e) =>
+                          setBulkOpcionInput((p) => ({ ...p, etiqueta: e.target.value }))
+                        }
+                        placeholder="Sí"
+                        className="h-7 text-xs"
+                        disabled={bulkPending}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); handleAddBulkOpcion() }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 shrink-0"
+                      onClick={handleAddBulkOpcion}
+                      disabled={
+                        bulkPending ||
+                        !bulkOpcionInput.valor.trim() ||
+                        !bulkOpcionInput.etiqueta.trim()
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Etiquetas — una por línea</Label>
+                <textarea
+                  value={bulkEtiquetas}
+                  onChange={(e) => setBulkEtiquetas(e.target.value)}
+                  rows={8}
+                  placeholder={"Verificar torque de bulones\nInspeccionar sello mecánico\nMedir alineación acople"}
+                  disabled={bulkPending}
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 font-sans"
+                />
+              </div>
+
+              {bulkParsed.length > 0 && (
+                <div className="rounded-md border max-h-64 overflow-y-auto bg-white">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr className="border-b">
+                        <th className="text-left px-2 py-1.5 font-medium text-gray-600">
+                          Etiqueta
+                        </th>
+                        <th className="text-left px-2 py-1.5 font-medium text-gray-600 w-40">
+                          Código
+                        </th>
+                        <th className="text-right px-2 py-1.5 font-medium text-gray-600 w-28">
+                          Acción
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkParsed.map((it, i) => (
+                        <tr
+                          key={i}
+                          className={cn(
+                            "border-t",
+                            (it.estado === "dup" || it.estado === "en_planilla") &&
+                              "bg-amber-50/50",
+                          )}
+                        >
+                          <td className="px-2 py-1">{it.etiqueta}</td>
+                          <td className="px-2 py-1 font-mono text-gray-700">
+                            {it.estado === "nuevo"
+                              ? it.codigoNuevo
+                              : it.estado === "reusa"
+                                ? it.codigoExistente
+                                : "—"}
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            {it.estado === "nuevo" ? (
+                              <span className="text-emerald-700 text-[10px] uppercase font-semibold">
+                                crear
+                              </span>
+                            ) : it.estado === "reusa" ? (
+                              <span className="text-blue-700 text-[10px] uppercase font-semibold">
+                                reusar
+                              </span>
+                            ) : it.estado === "en_planilla" ? (
+                              <span className="text-amber-700 text-[10px] uppercase font-semibold">
+                                ya en planilla
+                              </span>
+                            ) : (
+                              <span className="text-amber-700 text-[10px] uppercase font-semibold">
+                                duplicado
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bulkError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 whitespace-pre-line">
+                  {bulkError}
+                </div>
+              )}
+
+              {bulkResumen && !bulkError && (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                  {bulkResumen}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  className="flex-1 bg-blue-900 hover:bg-blue-800"
+                  onClick={handleBulkCreateAndAdd}
+                  disabled={bulkPending || bulkAInsertar.length === 0}
+                >
+                  {bulkPending
+                    ? "Creando..."
+                    : `Crear y agregar ${bulkAInsertar.length} campo${bulkAInsertar.length !== 1 ? "s" : ""}`}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={bulkPending}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </SheetContent>
+
+      <BulkPasteOpcionesDialog
+        open={bulkPasteOpen}
+        onOpenChange={setBulkPasteOpen}
+        existingValores={tempOpciones.map((o) => o.valor)}
+        allowReplace
+        onConfirm={handleBulkPasteConfirm}
+      />
     </Sheet>
   )
 }

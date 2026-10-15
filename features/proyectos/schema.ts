@@ -6,6 +6,7 @@ export const proyectoClonOptionsSchema = z.object({
   firmas: z.boolean().default(true),
   acceso: z.boolean().default(true),
   estructura: z.boolean().default(false),
+  funcionalidades: z.boolean().default(true),
 })
 
 export const proyectoSchema = z.object({

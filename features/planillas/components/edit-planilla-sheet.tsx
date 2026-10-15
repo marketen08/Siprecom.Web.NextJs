@@ -5,6 +5,7 @@ import { useGetPlanilla } from "../api/use-get-planilla"
 import { useUpdatePlanilla } from "../api/use-update-planilla"
 import { PlanillaForm } from "./planilla-form"
 import type { PlanillaFormValues } from "../schema"
+import type { ApiError } from "@/lib/api-client"
 
 import {
   Sheet,
@@ -37,12 +38,20 @@ export function EditPlanillaSheet() {
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : planilla ? (
-            <PlanillaForm
-              defaultValues={planilla}
-              onSubmit={onSubmit}
-              isPending={mutation.isPending}
-              onCancel={close}
-            />
+            <>
+              <PlanillaForm
+                defaultValues={planilla}
+                onSubmit={onSubmit}
+                isPending={mutation.isPending}
+                onCancel={close}
+                serverErrors={(mutation.error as ApiError | null)?.body?.errors}
+              />
+              {mutation.isError && (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">
+                  {(mutation.error as Error)?.message ?? "Error al guardar la planilla."}
+                </div>
+              )}
+            </>
           ) : null}
         </div>
       </SheetContent>

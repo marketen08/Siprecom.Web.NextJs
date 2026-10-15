@@ -7,28 +7,18 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation } from "@tanstack/react-query"
-import { useMsal } from "@azure/msal-react"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
+import { useMsalEstado } from "@/components/msal-provider"
+import { useMetodosLogin } from "@/features/auth/api/use-metodos-login"
+import { BotonLoginMicrosoft } from "@/components/boton-login-microsoft"
 import type { LoginRequest, LoginApiResponse } from "@/types/auth"
-import { loginRequest as msalLoginRequest } from "@/lib/msal-config"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-
-function MicrosoftIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 23 23" className={className} xmlns="http://www.w3.org/2000/svg">
-      <path fill="#f25022" d="M1 1h10v10H1z" />
-      <path fill="#7fba00" d="M12 1h10v10H12z" />
-      <path fill="#00a4ef" d="M1 12h10v10H1z" />
-      <path fill="#ffb900" d="M12 12h10v10H12z" />
-    </svg>
-  )
-}
 
 const formSchema = z.object({
   email: z
@@ -56,11 +46,62 @@ async function loginRequest(data: LoginRequest): Promise<LoginApiResponse> {
   return res.json()
 }
 
+/**
+ * El BFF vuelve al login con ?error=<code> cuando el ingreso federado falla. Los
+ * codes los emite la API (/auth/ypf) o el propio callback; traducirlos acá evita
+ * mostrar jerga del protocolo al usuario.
+ *
+ * Cualquier code que no esté en el mapa cae en el mensaje genérico: es preferible
+ * a filtrar detalle interno en la pantalla de login.
+ */
+const ERRORES_FEDERADOS: Record<string, string> = {
+  ACCESS_NOT_PROVISIONED:
+    "Tu cuenta no está habilitada en la plataforma. Solicitá el acceso a un administrador.",
+  NOT_IN_ALLOWED_GROUP:
+    "Tu usuario no tiene asignado el grupo de acceso a SIPRECOM. Solicitalo a tu administrador de YPF.",
+  // La API arma un texto segun el metodo real del usuario ("ingresa con
+  // Microsoft" / "con mail y contraseña"), pero ese texto no llega hasta aca: el
+  // callback propaga solo el code, a proposito. Por eso el mensaje tiene que ser
+  // correcto para cualquier metodo — el anterior afirmaba "mail y contraseña" y
+  // mentia con un usuario de Microsoft. El detalle exacto no le sirve a quien
+  // esta loguandose (la accion es la misma); queda del lado del admin.
+  WRONG_LOGIN_METHOD:
+    "Tu cuenta no está habilitada para ingresar con YPF. Pedile a un administrador que cambie tu método de ingreso.",
+  MISSING_EMAIL_CLAIM:
+    "El proveedor de identidad no envió tu email. Contactá a un administrador.",
+  INVALID_STATE: "La sesión de login expiró. Volvé a intentar.",
+  INVALID_NONCE: "La sesión de login no es válida. Volvé a intentar.",
+  INVALID_ID_TOKEN: "La sesión de login no es válida. Volvé a intentar.",
+  INVALID_ACCESS_TOKEN: "La sesión de login no es válida. Volvé a intentar.",
+  IDP_ERROR: "No se pudo completar el ingreso con YPF.",
+  IDP_UNREACHABLE:
+    "No se pudo contactar al proveedor de identidad. Reintentá en unos minutos.",
+  API_UNREACHABLE: "No se pudo contactar al servidor. Reintentá en unos minutos.",
+  TOKEN_EXCHANGE_FAILED: "No se pudo completar el ingreso con YPF.",
+  FEDERATION_NOT_CONFIGURED:
+    "El ingreso federado no está configurado en este sitio.",
+}
+
 export default function LoginPage() {
   const setUser = useAuthStore((s) => s.setUser)
   const clearUser = useAuthStore((s) => s.clearUser)
   const [showPassword, setShowPassword] = useState(false)
-  const { instance: msalInstance } = useMsal()
+  const { disponible: msalDisponible } = useMsalEstado()
+
+  // Qué métodos de ingreso ofrece este ambiente. El backend combina el toggle del
+  // SuperAdmin (Licenciamiento → Funcionalidades) con si el IDP está configurado,
+  // así que acá solo hay que dibujar lo que venga.
+  //
+  // Mientras carga no mostramos nada: pintar los botones y sacarlos medio segundo
+  // después es peor que esperar. El proxy degrada a solo-password si la API no
+  // responde, así que la pantalla nunca queda sin ninguna vía de entrada.
+  const { data: metodos } = useMetodosLogin()
+
+  // Cuenta solo los botones que REALMENTE se van a dibujar: Microsoft puede estar
+  // encendido en el toggle pero sin MSAL montado. De esto depende si mostramos el
+  // separador "o", que no tiene sentido con un solo lado.
+  const mostrarMicrosoft = Boolean(metodos?.microsoft && msalDisponible)
+  const hayFederado = mostrarMicrosoft || Boolean(metodos?.ypf)
 
   // Aviso por sesión reemplazada (login en otro dispositivo). Se calcula en
   // render (no setState-in-effect) y solo tras montar (hydration-safe), leyendo
@@ -70,6 +111,15 @@ export default function LoginPage() {
     mounted && new URLSearchParams(window.location.search).get("reason") === "session_superseded"
       ? "Tu sesión se cerró porque iniciaste sesión en otro dispositivo."
       : null
+
+  // Mismo criterio que "aviso": se calcula en render y solo tras montar, leyendo
+  // window.location en vez de useSearchParams (evita envolver la página en Suspense).
+  const codigoError = mounted
+    ? new URLSearchParams(window.location.search).get("error")
+    : null
+  const errorFederado = codigoError
+    ? (ERRORES_FEDERADOS[codigoError] ?? "No se pudo iniciar sesión.")
+    : null
 
   const form = useForm<FormValues>({
     mode: "onSubmit",
@@ -92,6 +142,16 @@ export default function LoginPage() {
   })
 
   const [redirectingToMicrosoft, setRedirectingToMicrosoft] = useState(false)
+  const [redirectingToYpf, setRedirectingToYpf] = useState(false)
+
+  /**
+   * Navegación real (no fetch): el flujo entero vive server-side y arranca con un
+   * redirect al IDP. Con fetch, el 302 al dominio de YPF no navegaría el browser.
+   */
+  const handleYpfLogin = () => {
+    setRedirectingToYpf(true)
+    window.location.href = "/api/auth/ypf/login"
+  }
 
   // Si llegamos por sesión reemplazada, limpiamos el user persistido (logout
   // total). clearUser es una acción de zustand (no setState de React), así que
@@ -100,29 +160,12 @@ export default function LoginPage() {
     if (aviso) clearUser()
   }, [aviso, clearUser])
 
-  const handleMicrosoftLogin = async () => {
-    form.clearErrors("root.serverError")
-    setRedirectingToMicrosoft(true)
-    try {
-      // Redirect flow: la página se va a Microsoft. El callback procesa el response.
-      await msalInstance.loginRedirect(msalLoginRequest)
-    } catch (err: unknown) {
-      setRedirectingToMicrosoft(false)
-      const e = err as { errorCode?: string; message?: string }
-      if (e?.errorCode === "user_cancelled") return
-      form.setError("root.serverError", {
-        type: "server",
-        message: e?.message ?? "No se pudo iniciar sesión con Microsoft",
-      })
-    }
-  }
-
   const onSubmit = (values: FormValues) => {
     form.clearErrors("root.serverError")
     mutation.mutate(values)
   }
 
-  const isAnyPending = mutation.isPending || redirectingToMicrosoft
+  const isAnyPending = mutation.isPending || redirectingToMicrosoft || redirectingToYpf
 
   return (
     <Card className="grid w-full max-w-4xl gap-0 overflow-hidden border-0 p-0 shadow-2xl lg:grid-cols-5">
@@ -191,6 +234,22 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Fuera del form: si el ingreso con contraseña está apagado, el form no se
+            renderiza y estos avisos igual tienen que verse — el error federado
+            justamente llega cuando el único método es el federado. */}
+        {aviso && (
+          <div className="mt-6 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {aviso}
+          </div>
+        )}
+
+        {errorFederado && (
+          <div className="mt-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {errorFederado}
+          </div>
+        )}
+
+        {metodos?.password && (
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
@@ -254,12 +313,6 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {aviso && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                {aviso}
-              </div>
-            )}
-
             {form.formState.errors.root?.serverError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 {form.formState.errors.root.serverError.message}
@@ -276,28 +329,47 @@ export default function LoginPage() {
             </Button>
           </form>
         </Form>
+        )}
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+        {/* El separador solo tiene sentido si hay algo a ambos lados. */}
+        {metodos?.password && hayFederado && (
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">o</span>
+            </div>
           </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">o</span>
-          </div>
-        </div>
+        )}
 
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full gap-2"
-          disabled={isAnyPending}
-          onClick={handleMicrosoftLogin}
-        >
-          {redirectingToMicrosoft
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <MicrosoftIcon className="h-4 w-4" />}
-          {redirectingToMicrosoft ? "Redirigiendo a Microsoft..." : "Continuar con Microsoft"}
-        </Button>
+        {/* msalDisponible además del toggle: si el sitio no tiene Microsoft
+            configurado no hay contexto de MSAL montado, y el useMsal() de adentro
+            del botón tiraría. */}
+        {mostrarMicrosoft && (
+          <BotonLoginMicrosoft
+            className={metodos?.password && hayFederado ? "" : "mt-6"}
+            disabled={isAnyPending}
+            redirigiendo={redirectingToMicrosoft}
+            onRedirigiendoChange={setRedirectingToMicrosoft}
+            onError={(mensaje) =>
+              form.setError("root.serverError", { type: "server", message: mensaje })
+            }
+          />
+        )}
+
+        {metodos?.ypf && (
+          <Button
+            type="button"
+            variant="outline"
+            className={`w-full gap-2 ${mostrarMicrosoft ? "mt-3" : metodos?.password && hayFederado ? "" : "mt-6"}`}
+            disabled={isAnyPending}
+            onClick={handleYpfLogin}
+          >
+            {redirectingToYpf && <Loader2 className="h-4 w-4 animate-spin" />}
+            {redirectingToYpf ? "Redirigiendo a YPF..." : "Continuar con YPF"}
+          </Button>
+        )}
 
         <p className="mt-6 text-center text-xs text-muted-foreground lg:hidden">
           © Siprecom

@@ -4,8 +4,14 @@ import { backendFetch } from "@/lib/server/backend-fetch"
 export async function POST(request: NextRequest) {
   const body = await request.json()
   const modo = request.nextUrl.searchParams.get("modo") ?? "crear"
-  const path = `/planillas/import-all?modo=${encodeURIComponent(modo)}`
-  const res = await backendFetch(request, path, {
+  // Equipo destino: los campos y planillas que en el origen eran de un equipo aterrizan acá.
+  // Lo que era global queda global. Sin equipo destino, todo aterriza global.
+  const equipoDestino = request.nextUrl.searchParams.get("equipoDestino")
+
+  const qs = new URLSearchParams({ modo })
+  if (equipoDestino) qs.set("equipoDestino", equipoDestino)
+
+  const res = await backendFetch(request, `/planillas/import-all?${qs}`, {
     method: "POST",
     body: JSON.stringify(body),
   })

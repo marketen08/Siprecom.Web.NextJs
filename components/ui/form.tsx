@@ -76,7 +76,11 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
   const id = React.useId()
   return (
     <FormItemContext.Provider value={{ id }}>
-      <div className={cn("grid gap-2", className)} {...props} />
+      {/* `min-w-0` en el FormItem para que hijos con contenido intrínseco
+          ancho (labels largos de select/combobox, valores mono-espaciados sin
+          espacios) no empujen al grid/flex parent hacia afuera del viewport
+          en mobile. Grid children tienen min-width: auto por default. */}
+      <div className={cn("grid gap-2 min-w-0", className)} {...props} />
     </FormItemContext.Provider>
   )
 }

@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server"
 import { backendFetch } from "@/lib/server/backend-fetch"
 
-// Acciones de workflow del pendiente: iniciar / enviar-aprobacion / aprobar / rechazar / cancelar.
+// Acciones de workflow: iniciar / enviar-aprobacion / pre-aprobar / aprobar / rechazar / cancelar.
 // También aplica al endpoint `comentarios` que recibe POST.
 const ACCIONES_PERMITIDAS = new Set([
   "iniciar",
   "enviar-aprobacion",
+  "pre-aprobar",
   "aprobar",
   "rechazar",
   "cancelar",

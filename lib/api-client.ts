@@ -9,6 +9,8 @@
  *  3. Si el refresh falla, redirige a /login
  */
 
+import { useAuthStore } from "@/store/auth-store"
+
 // Singleton promise para evitar múltiples llamadas simultáneas al refresh
 let refreshPromise: Promise<boolean> | null = null
 
@@ -24,9 +26,46 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise
 }
 
+// Latch global: sin esto, cuando llegan N respuestas 401 concurrentes (el user
+// tiene múltiples queries en la página cuando se cierra la sesión en otro
+// dispositivo), cada una reasigna `window.location` y el browser queda con la
+// navegación "en curso" reiniciándose → pantalla en blanco recargando en loop.
+let redirecting = false
+
 function redirectToLogin(reason?: string): never {
-  window.location.href = reason ? `/login?reason=${reason}` : "/login"
-  throw new Error("Sesión expirada")
+  const target = reason ? `/login?reason=${reason}` : "/login"
+  const err = new Error("Sesión expirada") as ApiError
+  err.status = 401
+  err.body = reason ? { code: "SESSION_SUPERSEDED" } : undefined
+
+  if (redirecting) throw err
+  redirecting = true
+
+  // Logout local SIEMPRE: si el user persiste en el store (localStorage), los
+  // componentes/queries siguen actuando como "logueado" y el RouteGuard rebota a
+  // /dashboard → loop de 401 (había que borrar datos del navegador a mano). Al
+  // limpiarlo, /login se queda y muestra el form. getState() funciona fuera de React.
+  try { useAuthStore.getState().clearUser() } catch { /* noop */ }
+
+  // Borrar cookies httpOnly desde el server: los proxies /api/* hacen
+  // `Response.json(data, {status})` y descartan el Set-Cookie que backendFetch
+  // inyecta al recibir SESSION_SUPERSEDED. Por eso las cookies quedan vivas y
+  // al volver a /dashboard el user aparece "logueado" → loop. El endpoint
+  // /api/auth/logout las borra desde su propio response (Set-Cookie válido).
+  // `keepalive: true` deja que el fetch termine aunque estemos navegando.
+  if (typeof window !== "undefined") {
+    try { fetch("/api/auth/logout", { method: "POST", keepalive: true }) } catch { /* noop */ }
+
+    // Si ya estamos en /login no navegamos: reasignar la misma URL reinicia el
+    // parseo del documento y se ve como "recarga infinita" cuando llegan varios
+    // 401 en fila. .replace() para no acumular history entries.
+    if (window.location.pathname !== "/login") {
+      window.location.replace(target)
+    } else if (reason && !window.location.search.includes(`reason=${reason}`)) {
+      window.location.replace(target)
+    }
+  }
+  throw err
 }
 
 interface ValidationErrorItem {

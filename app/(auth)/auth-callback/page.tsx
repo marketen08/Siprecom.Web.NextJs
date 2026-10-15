@@ -5,11 +5,43 @@ import { useMsal } from "@azure/msal-react"
 import { InteractionStatus } from "@azure/msal-browser"
 import { useAuthStore } from "@/store/auth-store"
 import { loginRequest } from "@/lib/msal-config"
+import { useMsalEstado } from "@/components/msal-provider"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
+/**
+ * Esta página es el aterrizaje del redirect de Microsoft, así que solo se alcanza
+ * durante un login con MSAL. En un sitio sin Microsoft configurado no hay contexto
+ * de MSAL montado y el `useMsal()` de adentro tiraría — por eso el chequeo va en
+ * un wrapper: los hooks no se pueden llamar condicionalmente, pero un componente
+ * sí se puede no renderizar.
+ */
 export default function AuthCallbackPage() {
+  const { disponible } = useMsalEstado()
+
+  if (!disponible) {
+    return (
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Ingreso no disponible</CardTitle>
+          <CardDescription>
+            El ingreso con Microsoft no está habilitado en este sitio.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button className="w-full" onClick={() => (window.location.href = "/login")}>
+            Volver al inicio de sesión
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return <AuthCallbackConMsal />
+}
+
+function AuthCallbackConMsal() {
   const { instance, inProgress } = useMsal()
   const setUser = useAuthStore((s) => s.setUser)
   const [status, setStatus] = useState<string>("Iniciando sesión...")

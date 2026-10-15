@@ -37,9 +37,29 @@ export function RowActions({ elemento }: { elemento: Elemento }) {
         triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-accent transition-colors"
         title="¿Eliminar elemento?"
         description={
-          <>
-            Esta acción eliminará <strong>{elemento.tag} — {elemento.nombre}</strong>. Podés reactivarlo después.
-          </>
+          <div className="space-y-2">
+            <p>
+              Esta acción eliminará <strong>{elemento.tag} — {elemento.nombre}</strong>.
+              Podés reactivarlo después.
+            </p>
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-1">
+              <p className="font-medium">Qué pasa con sus tareas:</p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>
+                  Las tareas <strong>pendientes</strong> se cancelan automáticamente.
+                </li>
+                <li>
+                  Si el elemento tiene tareas <strong>iniciadas</strong> (en curso, completadas,
+                  aprobadas, rechazadas o firmadas), el borrado se <strong>bloquea</strong>. Revertí
+                  o cancelá esas tareas primero desde la vista de tareas.
+                </li>
+                <li>
+                  Si el elemento tiene <strong>registros cargados</strong> (aunque estén en
+                  borrador), el borrado se bloquea  — desestimalos o eliminalos antes.
+                </li>
+              </ul>
+            </div>
+          </div>
         }
         confirmText="Eliminar"
         pendingText="Eliminando..."
@@ -109,13 +129,6 @@ export const columns: ColumnDef<Elemento>[] = [
     header: "PID",
     cell: ({ row }) => (
       <span className="font-mono text-xs text-muted-foreground">{row.original.pid || "—"}</span>
-    ),
-  },
-  {
-    accessorKey: "testpack",
-    header: "Testpack",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs text-muted-foreground">{row.original.testpack || "—"}</span>
     ),
   },
   {

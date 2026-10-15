@@ -69,6 +69,9 @@ function TabDatos() {
     setTimeout(() => setGuardado(false), 3000)
   }
 
+  const metodoIngreso = perfil?.loginMethod === 1 ? "Microsoft (SSO)" : "Email + contraseña"
+  const rolesTexto = perfil?.roles?.length ? perfil.roles.join(", ") : "—"
+
   return (
     <Card>
       <CardHeader>
@@ -80,17 +83,11 @@ function TabDatos() {
             <CheckCircle2 className="h-4 w-4" /> Guardado correctamente
           </div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>Email</Label>
-            <Input value={perfil?.email ?? ""} disabled />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Usuario</Label>
-            <Input value={perfil?.userName ?? ""} disabled />
-          </div>
-        </div>
-        <Separator />
+
+        {/* Editable: nombre + apellido. Es lo único que el usuario puede cambiar
+            de sí mismo desde acá. El resto (email, empresa, rol, proyecto, método
+            de ingreso) es readonly — se cambia desde /configuracion/usuarios/[id]
+            por un admin, o pasando por el flujo de asignación al proyecto. */}
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -110,6 +107,36 @@ function TabDatos() {
             {update.isError && <span className="text-sm text-destructive">Error al guardar</span>}
           </div>
         </form>
+
+        <Separator />
+
+        {/* Readonly — datos de identidad / acceso. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input value={perfil?.email ?? ""} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Usuario</Label>
+            <Input value={perfil?.userName ?? ""} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Empresa</Label>
+            <Input value={perfil?.clienteNombre ?? "—"} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Proyecto activo</Label>
+            <Input value={perfil?.proyectoNombre ?? "—"} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Rol</Label>
+            <Input value={rolesTexto} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Método de ingreso</Label>
+            <Input value={metodoIngreso} disabled />
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
@@ -370,6 +397,15 @@ function TabFirma() {
 
 export default function PerfilPage() {
   const [tab, setTab] = useState<Tab>("datos")
+  const { data: perfil } = useGetPerfil()
+  // Tab Seguridad = cambiar contraseña propia. No aplica a usuarios Microsoft
+  // (la contraseña se gestiona desde la cuenta MS, no desde acá).
+  const esMicrosoft = perfil?.loginMethod === 1
+  const tabsVisibles = TABS.filter((t) => !(t.id === "seguridad" && esMicrosoft))
+
+  // Si el user cambia a Microsoft mientras está parado en el tab Seguridad,
+  // caemos al primer tab visible para no dejarlo mirando un tab que ya no está.
+  const tabActual = tabsVisibles.some((t) => t.id === tab) ? tab : "datos"
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -381,12 +417,12 @@ export default function PerfilPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="flex gap-0">
-          {TABS.map((t) => (
+          {tabsVisibles.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                tab === t.id
+                tabActual === t.id
                   ? "border-blue-600 text-blue-700"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
@@ -399,10 +435,10 @@ export default function PerfilPage() {
       </div>
 
       <div>
-        {tab === "datos"     && <TabDatos />}
-        {tab === "seguridad" && <TabSeguridad />}
-        {tab === "firma"     && <TabFirma />}
-        {tab === "accesos"   && <TabAccesos />}
+        {tabActual === "datos"     && <TabDatos />}
+        {tabActual === "seguridad" && <TabSeguridad />}
+        {tabActual === "firma"     && <TabFirma />}
+        {tabActual === "accesos"   && <TabAccesos />}
       </div>
     </div>
   )

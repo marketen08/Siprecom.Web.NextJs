@@ -1,13 +1,19 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ImageIcon } from "lucide-react"
 
 import { campoSchema, type CampoFormValues } from "../schema"
 import type { Campo } from "../types"
-import { CAMPO_TIPO_DATO, type CampoTipoDato } from "@/features/planillas/types"
+import { slugifyCodigoCampo } from "../lib/slugify-codigo"
+import {
+  applyServerErrorsToForm,
+  CAMPO_FIELD_MAP,
+  type ServerValidationError,
+} from "../lib/apply-server-errors"
+import { CAMPO_TIPO_DATO, CAMPO_TIPO_DATO_ENTRIES_SORTED, type CampoTipoDato } from "@/features/planillas/types"
 import { useUploadImagenCampo } from "@/features/planillas/api/use-upload-imagen-campo"
 
 import { Button } from "@/components/ui/button"
@@ -41,6 +47,12 @@ interface CampoFormProps {
   onSubmit: (values: CampoFormValues) => void
   onCancel: () => void
   isPending: boolean
+  /**
+   * Errores de validación del backend. El shape espera `field` (nombre server, ej. "Codigo")
+   * y una lista de mensajes. El form los mapea al field del form (lowerCamel) y los setea
+   * con `form.setError` para mostrarlos inline. Ver `applyServerErrorsToForm`.
+   */
+  serverErrors?: ServerValidationError[]
 }
 
 export function CampoForm({
@@ -49,6 +61,7 @@ export function CampoForm({
   onSubmit,
   onCancel,
   isPending,
+  serverErrors,
 }: CampoFormProps) {
   const enUso = usoCount > 0
 
@@ -57,7 +70,12 @@ export function CampoForm({
     defaultValues: {
       codigo: defaultValues?.codigo ?? "",
       etiqueta: defaultValues?.etiqueta ?? "",
+      etiquetaAlt: defaultValues?.etiquetaAlt ?? "",
       tipoDato: (defaultValues?.tipoDato ?? 1) as CampoTipoDato,
+      numeroLineas: defaultValues?.numeroLineas ?? 3,
+      altoMm: defaultValues?.altoMm ?? 20,
+      textoLargo: defaultValues?.textoLargo ?? "",
+      mostrarComoMarca: defaultValues?.mostrarComoMarca ?? false,
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
       imagenUrl: defaultValues?.imagenUrl ?? "",
@@ -70,6 +88,19 @@ export function CampoForm({
   const isImagen = tipoDato === 8
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadMutation = useUploadImagenCampo()
+
+  // Aplica los errores de validación del backend a los fields del form.
+  useEffect(() => {
+    applyServerErrorsToForm(form, serverErrors, CAMPO_FIELD_MAP)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverErrors])
+
+  // Autogenerar `codigo` mientras el user tipea `etiqueta`, hasta que toque
+  // el input del código manualmente. En modo edición (defaultValues.codigo
+  // presente) arrancamos en modo "sucio" para nunca pisar códigos existentes.
+  const [codigoSucio, setCodigoSucio] = useState<boolean>(
+    Boolean(defaultValues?.codigo?.trim()),
+  )
 
   const handleUploadImagen = async (file: File) => {
     const url = await uploadMutation.mutateAsync(file)
@@ -86,57 +117,37 @@ export function CampoForm({
           </div>
         )}
 
-        <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
-          <FormField
-            control={form.control}
-            name="codigo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código *</FormLabel>
+        {/* Orden del form: tipo → etiqueta → código (autogenerado desde etiqueta) → unidad.
+            Elegir el tipo primero acota lo que el user espera en los siguientes campos
+            (ej. tipo Imagen deshabilita etiqueta como texto útil, etc.). */}
+        <FormField
+          control={form.control}
+          name="tipoDato"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de dato *</FormLabel>
+              <Select
+                value={String(field.value)}
+                onValueChange={(v) => field.onChange(Number(v) as CampoTipoDato)}
+                disabled={isPending || enUso}
+              >
                 <FormControl>
-                  <Input
-                    placeholder="TEMP_ACEITE"
-                    disabled={isPending || enUso}
-                    className="font-mono"
-                    {...field}
-                  />
+                  <SelectTrigger>
+                    <SelectValue>
+                      {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
+                    </SelectValue>
+                  </SelectTrigger>
                 </FormControl>
-                <FormDescription className="text-xs">
-                  Identificador técnico único. Usado en integraciones.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="tipoDato"
-            render={({ field }) => (
-              <FormItem className="min-w-[180px]">
-                <FormLabel>Tipo de dato *</FormLabel>
-                <Select
-                  value={String(field.value)}
-                  onValueChange={(v) => field.onChange(Number(v) as CampoTipoDato)}
-                  disabled={isPending || enUso}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue>
-                        {CAMPO_TIPO_DATO[field.value as CampoTipoDato] ?? ""}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(CAMPO_TIPO_DATO).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+                <SelectContent>
+                  {CAMPO_TIPO_DATO_ENTRIES_SORTED.map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -145,10 +156,78 @@ export function CampoForm({
             <FormItem>
               <FormLabel>Etiqueta *</FormLabel>
               <FormControl>
-                <Input placeholder="Temperatura del aceite" disabled={isPending} {...field} />
+                <Input
+                  placeholder="Temperatura del aceite"
+                  disabled={isPending}
+                  {...field}
+                  onChange={(e) => {
+                    field.onChange(e)
+                    // Si el user no tocó el código manualmente, lo re-derivamos
+                    // desde la etiqueta en tiempo real.
+                    if (!codigoSucio) {
+                      form.setValue("codigo", slugifyCodigoCampo(e.target.value), {
+                        shouldValidate: false,
+                      })
+                    }
+                  }}
+                />
               </FormControl>
               <FormDescription className="text-xs">
                 Texto que ve el usuario en formularios y PDF.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="etiquetaAlt"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Etiqueta alternativa</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Oil temperature"
+                  disabled={isPending}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription className="text-xs">
+                Opcional. Traducción o comentario que aparece debajo del label en el PDF,
+                en itálica y más chico.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="codigo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Código *</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="TEMP_ACEITE"
+                  disabled={isPending || enUso}
+                  className="font-mono"
+                  {...field}
+                  onChange={(e) => {
+                    // Cualquier edición manual del código lo marca como
+                    // "sucio" y detiene el auto-derivado desde la etiqueta.
+                    // Vaciarlo restaura el auto-derivado (útil para volver a
+                    // sincronizar si cambiaste la etiqueta después).
+                    setCodigoSucio(e.target.value.trim().length > 0)
+                    field.onChange(e)
+                  }}
+                />
+              </FormControl>
+              <FormDescription className="text-xs">
+                {codigoSucio || enUso
+                  ? "Identificador técnico único. Usado en integraciones."
+                  : "Se genera automáticamente desde la etiqueta. Editalo si querés otro código."}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -168,6 +247,133 @@ export function CampoForm({
             </FormItem>
           )}
         />
+
+        {/* Solo Nota (tipoDato === 15): el texto que se imprime. Es el contenido real
+            del campo — la Etiqueta solo lo nombra en el catálogo y no se imprime. */}
+        {tipoDato === 15 && (
+          <FormField
+            control={form.control}
+            name="textoLargo"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Texto de la nota *</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder={"Verificar torque según especificación.\nAnotar desvíos en el reverso."}
+                    rows={5}
+                    disabled={isPending}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Se imprime tal cual en el PDF, respetando los saltos de línea. La etiqueta
+                  del campo no se imprime — solo sirve para encontrarlo en el catálogo.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {/* Espacio (13) y Croquis (14): alto del bloque en mm. */}
+        {(tipoDato === 13 || tipoDato === 14) && (
+          <FormField
+            control={form.control}
+            name="altoMm"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Alto (mm)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={200}
+                    placeholder="20"
+                    disabled={isPending}
+                    value={field.value ?? ""}
+                    onChange={(e) => {
+                      const n = Number(e.target.value)
+                      field.onChange(Number.isFinite(n) ? n : undefined)
+                    }}
+                  />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Alto del bloque vacío en el PDF. Rango 5-200 mm, default 20 (media hoja
+                  A4 ≈ 140 mm). Tildá «Recuadro» abajo si querés el borde para dibujar.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {/* Solo TextoArea (tipoDato === 12): número de líneas de escritura. */}
+        {tipoDato === 12 && (
+          <FormField
+            control={form.control}
+            name="numeroLineas"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Número de líneas</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    placeholder="3"
+                    disabled={isPending}
+                    value={field.value ?? ""}
+                    onChange={(e) => {
+                      const n = Number(e.target.value)
+                      field.onChange(Number.isFinite(n) ? n : undefined)
+                    }}
+                  />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Cantidad de renglones (líneas de puntos) que se dibujan en la planilla en blanco.
+                  Rango 1-20, default 3.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {/* Solo Boolean (tipoDato === 4): presentarlo como casilla de marca.
+            Sirve para listas donde el operador tilda con una X todos los ítems que
+            corresponden — un Campo por ítem, así se pueden marcar varios, y cada uno
+            lleva su traducción en "Etiqueta alternativa". */}
+        {tipoDato === 4 && (
+          <FormField
+            control={form.control}
+            name="mostrarComoMarca"
+            render={({ field }) => (
+              <FormItem className="space-y-1">
+                <div className="flex flex-row items-center gap-2 space-y-0">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      checked={!!field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      disabled={isPending}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                  </FormControl>
+                  <FormLabel className="mt-0! cursor-pointer font-normal">
+                    Mostrar como casilla de marca
+                  </FormLabel>
+                </div>
+                <FormDescription className="text-xs">
+                  En vez de elegir Sí/No, se muestra un cuadrito que se tilda con una X.
+                  Para listas de «marcar lo que corresponda»: creá un campo por ítem y
+                  el operador puede marcar varios.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={form.control}
@@ -260,6 +466,13 @@ export function CampoForm({
               Formatos: JPG, PNG, WEBP, SVG, GIF. Máximo 5 MB.
             </p>
           </div>
+        )}
+
+        {/* Error "root" del backend (no atribuible a un field específico). */}
+        {form.formState.errors.root?.message && (
+          <p className="text-sm text-red-600 whitespace-pre-line">
+            {form.formState.errors.root.message}
+          </p>
         )}
 
         <div className="flex gap-2 pt-2">

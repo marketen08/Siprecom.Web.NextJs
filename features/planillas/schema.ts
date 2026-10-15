@@ -11,6 +11,22 @@ export const planillaSchema = z.object({
   generaPdfFinal: z.boolean().optional(),
   // 0 = Vertical, 1 = Horizontal (apaisado)
   orientacionPdf: z.union([z.literal(0), z.literal(1)]).optional(),
+  // Ajustes para caber en 1 hoja: modo compacto (padding/tamaños reducidos) y
+  // preset de margen de página (0=Normal, 1=Estrecho, 2=UltraEstrecho).
+  modoCompacto: z.boolean().optional(),
+  margenPagina: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  // Especialidad opcional: string ID o null = "Sin especialidad (genérica)".
+  especialidadId: z.string().nullable().optional(),
+  // True = candidata al select "Planilla del encabezado" del ElementoTipo sintético.
+  esEncabezadoTG: z.boolean().optional(),
+  // Carátula: la planilla no tiene datos propios, solo avisa que el respaldo va adjunto.
+  // El PDF imprime la leyenda en grande y lista los adjuntos del registro.
+  esCaratula: z.boolean().optional(),
+  caratulaTexto: z.string().nullable().optional(),
+  exigeDocumentacionAdjunta: z.boolean().optional(),
+  // Equipo de administración dueño. Solo se manda cuando el usuario tiene más de uno: si
+  // no, el backend usa su equipo activo. Null para AdminGlobal = planilla global.
+  equipoId: z.string().nullable().optional(),
 })
 
 export type PlanillaFormValues = z.infer<typeof planillaSchema>

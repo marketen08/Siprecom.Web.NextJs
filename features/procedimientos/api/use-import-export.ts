@@ -27,10 +27,18 @@ export interface ProcedimientosBulkImportResultado {
   mensaje: string
 }
 
-/** Descarga el JSON con todos los procedimientos (SuperAdmin). */
-export function exportarTodosLosProcedimientos() {
+/**
+ * Descarga el JSON con los procedimientos (SuperAdmin).
+ *
+ * @param equipoOrigen Acota el export al catálogo de un equipo; `"__none__"` son los
+ *   globales. Vacío = todos. El equipo elegido NO viaja en el archivo: lo que viaja es si
+ *   cada procedimiento era global, y el equipo destino lo elige quien importa.
+ */
+export function exportarTodosLosProcedimientos(equipoOrigen?: string) {
   const a = document.createElement("a")
-  a.href = `/api/procedimientos/export-all`
+  a.href = equipoOrigen
+    ? `/api/procedimientos/export-all?equipoOrigen=${encodeURIComponent(equipoOrigen)}`
+    : `/api/procedimientos/export-all`
   a.download = ""
   document.body.appendChild(a)
   a.click()
@@ -56,11 +64,19 @@ export function useImportProcedimientosPreview() {
 export function useImportProcedimientosApply() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ data, modo }: { data: unknown; modo: ProcedimientoModo }) =>
-      apiClient.post<ApiResponse<ProcedimientosBulkImportResultado>>(
-        `/api/procedimientos/import-all?modo=${encodeURIComponent(modo)}`,
+    mutationFn: ({ data, modo, equipoDestino }: {
+      data: unknown
+      modo: ProcedimientoModo
+      /** Equipo al que aterriza lo que en el origen era de un equipo. */
+      equipoDestino?: string
+    }) => {
+      const qs = new URLSearchParams({ modo })
+      if (equipoDestino) qs.set("equipoDestino", equipoDestino)
+      return apiClient.post<ApiResponse<ProcedimientosBulkImportResultado>>(
+        `/api/procedimientos/import-all?${qs}`,
         data,
-      ),
+      )
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["procedimientos"] })
     },

@@ -52,6 +52,13 @@ export interface ProyectoIfcArchivo {
   apsTranslationStatus: ApsTranslationStatusValue
   apsTranslationProgress: number | null
   apsTranslationError: string | null
+  /**
+   * Fase actual dentro de apsTranslationStatus = EnProceso ("Extrayendo
+   * propiedades…", "Guardando entidades (10.000 de 194.741)…"). Null cuando no
+   * hay nada en curso, y también en archivos procesados antes de que existiera
+   * el campo — el badge cae al texto genérico en ese caso.
+   */
+  apsFase?: string | null
 }
 
 export interface ProyectoIfcArchivoCreateInput {
@@ -70,6 +77,8 @@ export interface ProyectoIfcEntidad {
   id: string
   proyectoIfcArchivoId: string
   ifcGuid: string
+  /** dbId de la pieza en el visor. Null en entidades previas a la columna. */
+  apsObjectId?: number | null
   ifcType: string | null
   tagDetectado: string | null
   nombre: string | null
@@ -107,6 +116,17 @@ export interface FiltroVisor {
    * el viewer aplica el ghost aunque no haya otros criterios.
    */
   ocultarNoVinculadas: boolean
+  /**
+   * IDs de TestGroups (Paquetes de prueba, Fase 7). Filtra Elementos que están
+   * asignados a alguno de los packs indicados (via TestGroupElemento activa).
+   */
+  testGroupIds: string[]
+  /**
+   * Solo Elementos con al menos un Pendiente ABIERTO (ni cerrado ni cancelado).
+   * Complemento del coloreado por pendientes: pintar muestra dónde están,
+   * este filtro deja únicamente esos.
+   */
+  soloConPendientesAbiertos: boolean
 }
 
 /** Valores del enum EstadoVisualElemento del backend. Sin "Rechazado": una tarea
@@ -117,10 +137,44 @@ export const EstadoVisualIds = {
   Completado: 3,
 } as const
 
+/**
+ * Elemento con geometría en la maqueta. Lo devuelve el endpoint que aplica el
+ * filtro del visor sobre ELEMENTOS (no sobre piezas 3D).
+ */
+export interface ElementoEnMaqueta {
+  id: string
+  tag: string | null
+  nombre: string | null
+  subSistemaCodigo: string | null
+  subSistemaNombre: string | null
+  /** Piezas 3D vinculadas a este elemento en el archivo. */
+  piezas: number
+}
+
+export interface ElementosEnMaquetaPage {
+  items: ElementoEnMaqueta[]
+  page: number
+  pageSize: number
+  total: number
+}
+
 export interface FiltroResultado {
   guidsCoinciden: string[]
+  /**
+   * dbIds de las mismas entidades. El visor los usa directo y así evita construir
+   * el índice externalId → dbId, que en maquetas grandes tarda minutos. Vacío en
+   * maquetas procesadas antes de la columna ApsObjectId → se cae al índice.
+   */
+  idsCoinciden?: number[]
   totalCoinciden: number
   totalEntidades: number
+  /**
+   * Elementos distintos que pasan el filtro, y total con geometría en la
+   * maqueta. Un Elemento agrupa N piezas 3D: el usuario razona en elementos,
+   * así que el contador del panel muestra esto y no las piezas.
+   */
+  elementosCoinciden: number
+  totalElementos: number
 }
 
 export function isFiltroVacio(f: FiltroVisor): boolean {
@@ -130,6 +184,8 @@ export function isFiltroVacio(f: FiltroVisor): boolean {
     && f.nivelIds.length === 0
     && f.estadosVisuales.length === 0
     && !f.ocultarNoVinculadas
+    && f.testGroupIds.length === 0
+    && !f.soloConPendientesAbiertos
 }
 
 export function filtroVacio(): FiltroVisor {
@@ -140,6 +196,8 @@ export function filtroVacio(): FiltroVisor {
     nivelIds: [],
     estadosVisuales: [],
     ocultarNoVinculadas: false,
+    testGroupIds: [],
+    soloConPendientesAbiertos: false,
   }
 }
 
@@ -153,6 +211,10 @@ export interface ColoresPorEstado {
   noIniciados: string[]
   enCurso: string[]
   completados: string[]
+  /** dbIds paralelos a los buckets de guids — ver FiltroResultado.idsCoinciden. */
+  noIniciadosIds?: number[]
+  enCursoIds?: number[]
+  completadosIds?: number[]
   /** Total de PIEZAS/GUIDs vinculadas (para pintar el visor). NO es cantidad de elementos. */
   totalConVinculo: number
   /** Conteos por ELEMENTOS distintos (no piezas). La leyenda usa estos para coincidir con la lista de elementos. */
@@ -168,6 +230,63 @@ export interface ColoresPorEstado {
   /** ElementoTarea en estado terminal (COMPLETADO / FIRMADO / APROBADO). */
   tareasCompletadas: number
 }
+
+/**
+ * F7 del roadmap TestGroups: buckets de IfcGuids agrupados por TestGroup.
+ * Un elemento en más de un pack se asigna al primero por (tipo asc, código asc).
+ */
+export interface ColoresPorTestGroupBucket {
+  testGroupId: string
+  codigo: string
+  nombre: string
+  tipo: number
+  tipoTexto: string
+  guids: string[]
+  /** dbIds (ApsObjectId) paralelos a guids — evitan construir el índice del visor. */
+  ids: number[]
+  cantidadElementos: number
+}
+
+export interface ColoresPorTestGroup {
+  buckets: ColoresPorTestGroupBucket[]
+  /** GUIDs de elementos sin pack asignado. Vacío cuando se filtra por TestGroupIds. */
+  sinTestGroup: string[]
+  sinTestGroupIds: number[]
+  sinTestGroupElementos: number
+}
+
+/**
+ * Coloreado por PENDIENTES, agrupado por categoría del punch (A/B/C/D).
+ * Cada Elemento cae en el bucket de la categoría más crítica entre sus
+ * pendientes abiertos. Los buckets vienen ordenados de más a menos crítica;
+ * el color se asigna por posición, así funciona con cualquier nomenclatura.
+ */
+export interface ColoresPorPendienteBucket {
+  categoriaId: string | null
+  categoriaNombre: string
+  cantidadElementos: number
+  cantidadPendientes: number
+  guids: string[]
+  ids: number[]
+}
+
+export interface ColoresPorPendiente {
+  buckets: ColoresPorPendienteBucket[]
+  /** Tuvieron pendientes y no les queda ninguno abierto. */
+  resueltos: ColoresPorPendienteBucket
+  /** Nunca tuvieron pendientes (o solo cancelados). No se pintan. */
+  sinPendientesElementos: number
+  totalPendientesAbiertos: number
+}
+
+/** Modos de coloreado del visor. Excluyentes — los maneja un solo selector. */
+export const MODO_COLOR = {
+  ninguno: "ninguno",
+  estado: "estado",
+  pendientes: "pendientes",
+  testgroup: "testgroup",
+} as const
+export type ModoColor = (typeof MODO_COLOR)[keyof typeof MODO_COLOR]
 
 export interface CrearProyectoDesdeIfcInput {
   nombre: string
@@ -197,8 +316,50 @@ export interface NwdUploadSas {
   expiraEnMinutos: number
 }
 
+/** Un Elemento sin pieza, con las properties donde aparece su valor. */
+export interface ApsAnalisisElementoAnalisis {
+  elementoId: string
+  tag: string
+  nombre: string | null
+  /** Vacío = el TAG no aparece en ninguna property del modelo. */
+  properties: string[]
+}
+
+/**
+ * Resultado del botón "Analizar vinculación": para los Elementos sin pieza,
+ * en qué property del modelo aparece su TAG.
+ */
+export interface ApsAnalisisVinculacion {
+  indiceCalculadoEn: string
+  elementosSinPieza: number
+  conCoincidencia: number
+  /** Cuántos vincularían agregando todas las properties sugeridas. */
+  coberturaMaxima: number
+  /** La cadena de Property names de hoy, verbatim y en orden (puede traer `~regex`). */
+  cadenaActual: string[]
+  /** True si `porProperty[].cobertura` viene completa y se puede recalcular acá. */
+  coberturaDetallada: boolean
+  porProperty: {
+    property: string
+    elementos: number
+    /** Elementos que suma sobre las de más arriba. Es el número que importa. */
+    elementosNuevos: number
+    /** Ya está en «Property names» del proyecto. */
+    yaConfigurada: boolean
+    /** Índices opacos de los elementos que cubre, para recalcular el aporte. */
+    cobertura: number[]
+  }[]
+  elementos: ApsAnalisisElementoAnalisis[]
+  /** Elementos cuyo NOMBRE (no su TAG) está en el modelo. No se arreglan con la cadena. */
+  porNombre: ApsAnalisisElementoAnalisis[]
+  elementosNombreCoincide: number
+  mensaje: string
+}
+
 /** Una codificación de TAG detectada en el modelo (forma del Item.Name). */
 export interface ApsCodificacion {
+  /** Property de la que salió la forma, ej. `CADWorx.Tag`. */
+  property: string
   /** Forma regex del nombre, ej. `\d+-[A-Z]+-\d+`. */
   patron: string
   /** Entrada lista para apsTagProperties, ej. `Item.Name~^\d+-[A-Z]+-\d+$`. */

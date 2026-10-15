@@ -27,12 +27,16 @@ interface NivelFormProps {
   errorMessage?: string | null
 }
 
+/** Color default cuando el user no eligió uno todavía. Neutro, evita imponer color. */
+const COLOR_DEFAULT = "#6b7280"
+
 export function NivelForm({ defaultValues, onSubmit, isPending, onCancel, errorMessage }: NivelFormProps) {
   const form = useForm<NivelFormValues>({
     resolver: zodResolver(nivelSchema),
     defaultValues: {
       nombre: defaultValues?.nombre ?? "",
       posicion: defaultValues?.posicion ?? 0,
+      color: defaultValues?.color ?? null,
     },
   })
 
@@ -83,6 +87,40 @@ export function NivelForm({ defaultValues, onSubmit, isPending, onCancel, errorM
                 </FormControl>
                 <FormDescription>
                   Define el orden de los niveles (menor primero). Debe ser único.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="color"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Color</FormLabel>
+                <FormControl>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={field.value || COLOR_DEFAULT}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      disabled={isPending}
+                      className="h-9 w-12 rounded border border-gray-200 cursor-pointer disabled:opacity-60"
+                      aria-label="Elegir color"
+                    />
+                    <Input
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value || null)}
+                      placeholder="#2563eb"
+                      disabled={isPending}
+                      maxLength={9}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Hex #RRGGBB. Se usa para identificar el nivel en chips, agrupaciones y charts.
                 </FormDescription>
                 <FormMessage />
               </FormItem>

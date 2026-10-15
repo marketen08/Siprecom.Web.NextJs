@@ -3,7 +3,7 @@
 import { use, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Save, Upload, CheckCircle2, Loader2, FileUp, Download, PenLine, Clock, Check, Lock } from "lucide-react"
+import { Save, CheckCircle2, Loader2, Download, PenLine, Clock, Check, Lock } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 
@@ -20,12 +20,19 @@ import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
 import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
+import { CampoCroquisInput } from "@/features/registros/components/campo-croquis-input"
+import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
+import {
+  CargaFisicaUploader,
+  type CargaFisicaSubmitParams,
+} from "@/features/registros/components/carga-fisica-uploader"
+import { useGetFirmasConfigEfectiva } from "@/features/registros/api/use-get-firmas-config-efectiva"
+import { useCanWrite } from "@/lib/use-roles"
 
-import { useGetTestpackGrupo } from "@/features/elementos-tareas/api/use-get-testpack-grupo"
-
-import type { RegistroValorInput } from "@/features/registros/types"
-import type { ElementoTarea, TestpackPropagacionResult } from "@/features/elementos-tareas/types"
-import type { PlanillaCampoDetalle } from "@/features/planillas/types"
+import type { RegistroValorInput, RegistroDetalle } from "@/features/registros/types"
+import type { ElementoTarea } from "@/features/elementos-tareas/types"
+import type { PlanillaCampoDetalle, TamanoTexto } from "@/features/planillas/types"
+import { TAMANO_TEXTO_CLASS } from "@/features/planillas/types"
 
 // Hook local: la lista por elemento ya existe pero no hay uno por ID; lo inlineamos acá.
 function useGetElementoTarea(id: string | null) {
@@ -107,13 +114,15 @@ export default function RegistroFormPage({ params }: PageProps) {
   // Coincide con el comportamiento previo cuando solo existía permitirRegistroFisico.
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
-  // Adjuntos: AND entre proyecto y planilla. Si alguno veta, no se aceptan.
-  const permiteAdjuntosProyecto = proyecto?.permiteAdjuntos ?? true
-  const permiteAdjuntosPlanilla = (estructura as any)?.planilla?.permiteAdjuntos ?? true
-  const permiteAdjuntos = permiteAdjuntosProyecto && permiteAdjuntosPlanilla
+  // Adjuntos: siempre permitidos. Los flags PermiteAdjuntos del proyecto y de la
+  // planilla se dejaron de gatear en el backend — cualquier registro acepta adjuntos.
+  const permiteAdjuntos = true
 
   const completarDigital = useCompletarDigital(registroId)
   const completarFisico = useCompletarFisico(registroId)
+  // Consultor/Auditor: solo lectura del registro (form navegable, adjuntos y firmas
+  // visibles, pero sin poder guardar/completar/firmar/subir).
+  const canWrite = useCanWrite()
 
   // Form state: { [planillaCampoId]: value }
   const [valores, setValores] = useState<Record<string, string>>({})
@@ -149,20 +158,27 @@ export default function RegistroFormPage({ params }: PageProps) {
   const modo = userModo ?? defaultModo
   const showToggle = permitirDigital && permitirFisico
 
-  const [archivoFisico, setArchivoFisico] = useState<File | null>(null)
+  const { data: firmasConfigRaw } = useGetFirmasConfigEfectiva(registroId)
+  const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
+  const cantidadFirmasFisicas = firmasConfigRaw?.data?.cantidadSlotsFisica ?? 0
+  const rechazarBajaResolucion = firmasConfigRaw?.data?.rechazarBajaResolucion ?? false
+  const anchoMinimoImagen = firmasConfigRaw?.data?.anchoMinimoImagen ?? 1500
 
-  // Testpack: grupo de hermanos con la misma tarea. Si hay afectables, ofrecemos el
-  // checkbox "aplicar a todo el testpack" (pre-marcado, el usuario puede destildarlo).
-  const { data: grupoRaw } = useGetTestpackGrupo(elementoTareaId)
-  const grupoTestpack = grupoRaw?.data
-  const testpackAfectables = grupoTestpack?.cantidadAfectables ?? 0
-  const testpackInmutables = grupoTestpack?.cantidadInmutables ?? 0
-  const mostrarTestpack = (grupoTestpack?.tieneTestpack ?? false) && testpackAfectables > 0
-  const [aplicarATestpack, setAplicarATestpack] = useState(true)
-  const [propagacion, setPropagacion] = useState<TestpackPropagacionResult | null>(null)
+  // Info del próximo ciclo de preservación generado por completar/firmar. Cuando
+  // viene con generado=true mostramos el dialog y postergamos el router.back()
+  // hasta que el usuario lo cierre (así ve la fecha antes de perder la pantalla).
+  const [proximoCicloFecha, setProximoCicloFecha] = useState<string | null>(null)
 
   const isLoading = loadingDetalle || loadingEstructura
-  const isReadOnly = registro?.estado === "COMPLETADO" || registro?.estado === "FIRMADO" || registro?.estado === "APROBADO"
+  // Consultor/Auditor fuerzan modo readonly aunque el registro esté editable.
+  // Excepción: encabezado de TestGroup es siempre re-editable (no firma, no cierra).
+  const esEncabezadoTg = !!registro?.esEncabezadoTg
+  const isReadOnly = !canWrite
+    || (!esEncabezadoTg && (
+      registro?.estado === "COMPLETADO"
+      || registro?.estado === "FIRMADO"
+      || registro?.estado === "APROBADO"
+    ))
 
   // Breadcrumb dinámico: Ejecución → Registros → {Elemento (link)} → {Tarea}
   // El nombre del elemento es link a la pantalla de elementos con el sheet
@@ -230,9 +246,13 @@ export default function RegistroFormPage({ params }: PageProps) {
   }
 
   function buildValores(): RegistroValorInput[] {
-    // Excluimos tipos que NO son inputs digitales: Imagen (8) y Label (10).
+    // Excluimos tipos que NO son inputs digitales: Imagen (8), Label (10),
+    // Espacio (13), Nota (15) y Leyenda (16) — son layout, no dato.
     return campos
-      .filter((c) => c.visible && !c.soloLectura && c.campoTipoDato !== 8 && c.campoTipoDato !== 10)
+      .filter((c) => c.visible && !c.soloLectura
+                      && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
+                      && c.campoTipoDato !== 13 && c.campoTipoDato !== 15
+                      && c.campoTipoDato !== 16)
       .map((c) => {
         const raw = valores[c.id] ?? c.valorDefault ?? ""
         const input: RegistroValorInput = {
@@ -243,7 +263,11 @@ export default function RegistroFormPage({ params }: PageProps) {
           case 2: input.valorNumero = raw !== "" ? Number(raw) : null; break
           case 3: input.valorFecha  = raw || null; break
           case 4: input.valorBit    = raw === "true" ? true : raw === "false" ? false : null; break
-          case 9: input.valorJson   = raw || null; break
+          // 9 = Tabla (matriz de celdas), 14 = Croquis (data URL PNG del dibujo).
+          // Los dos van a ValorJson porque es la única columna sin tope de largo
+          // (ValorTexto está capado en 1000 chars).
+          case 9:
+          case 14: input.valorJson = raw || null; break
           default: input.valorTexto = raw || null
         }
         return input
@@ -252,7 +276,9 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   function validate(): boolean {
     const camposObligatorios = campos.filter(
-      (c) => c.visible && !c.soloLectura && c.esObligatorio && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
+      (c) => c.visible && !c.soloLectura && c.esObligatorio
+             && c.campoTipoDato !== 8 && c.campoTipoDato !== 10
+             && c.campoTipoDato !== 13 && c.campoTipoDato !== 15 && c.campoTipoDato !== 16
     )
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
@@ -268,17 +294,13 @@ export default function RegistroFormPage({ params }: PageProps) {
     return Object.keys(newErrors).length === 0
   }
 
-  // Tras completar: si hubo propagación al testpack, nos quedamos y mostramos el
-  // resumen; si no, volvemos como antes.
-  function handlePostCompletar(res: any) {
-    const prop: TestpackPropagacionResult | null =
-      res?.data?.testpackPropagacion ?? res?.testpackPropagacion ?? null
-    if (prop && (prop.cantidadPropagados > 0 || prop.cantidadSalteados > 0)) {
-      setPropagacion(prop)
-      window.scrollTo({ top: 0, behavior: "smooth" })
-    } else {
-      router.back()
-    }
+  // Extrae la fecha del próximo ciclo del response de completar/firmar, si el
+  // backend disparó el generador de preservación. Retorna null cuando no
+  // corresponde (registro no era de preservación, flag off, elemento retirado).
+  function extraerFechaProximoCiclo(res: unknown): string | null {
+    const data = (res as { data?: RegistroDetalle } | undefined)?.data
+    const info = data?.preservacionCicloGenerado
+    return info?.generado && info.fechaPlanificadaProximo ? info.fechaPlanificadaProximo : null
   }
 
   async function handleSubmitDigital() {
@@ -286,19 +308,25 @@ export default function RegistroFormPage({ params }: PageProps) {
     const res = await completarDigital.mutateAsync({
       observaciones: observaciones || null,
       valores: buildValores(),
-      aplicarATestpack: mostrarTestpack && aplicarATestpack,
     })
-    handlePostCompletar(res)
+    const fecha = extraerFechaProximoCiclo(res)
+    if (fecha) setProximoCicloFecha(fecha)
+    else router.back()
   }
 
-  async function handleSubmitFisico() {
-    if (!archivoFisico) return
+  // Callback que le pasamos al <CargaFisicaUploader>. Los gates (QR mismatch,
+  // firma no detectada) y la rotación pre-subida los maneja el componente; acá
+  // solo armamos el FormData, mandamos y manejamos el response.
+  async function handleSubmitFisico(params: CargaFisicaSubmitParams) {
     const fd = new FormData()
-    fd.append("Archivo", archivoFisico)
+    fd.append("Archivo", params.archivoFinal)
     if (observaciones) fd.append("Observaciones", observaciones)
-    if (mostrarTestpack && aplicarATestpack) fd.append("AplicarATestpack", "true")
+    if (params.qrOverrideDetalle) fd.append("QrOverrideDetalle", params.qrOverrideDetalle)
+    if (params.firmaOverrideDetalle) fd.append("FirmaOverrideDetalle", params.firmaOverrideDetalle)
     const res = await completarFisico.mutateAsync(fd)
-    handlePostCompletar(res)
+    const fecha = extraerFechaProximoCiclo(res)
+    if (fecha) setProximoCicloFecha(fecha)
+    else router.back()
   }
 
   const isSaving = completarDigital.isPending || completarFisico.isPending
@@ -310,67 +338,22 @@ export default function RegistroFormPage({ params }: PageProps) {
     elemento?.elementoTipoEspecialidadNombre,
   ].filter(Boolean) as string[]
 
-  const tagsAfectables = (grupoTestpack?.miembros ?? [])
-    .filter((m) => !m.esInmutable)
-    .map((m) => m.tag)
-    .filter(Boolean)
-    .join(", ")
-
-  // Checkbox "aplicar a todo el testpack": mismo bloque para el form digital y el físico.
-  const testpackCheckbox = mostrarTestpack && !isReadOnly ? (
-    <label className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 p-3 cursor-pointer">
-      <input
-        type="checkbox"
-        checked={aplicarATestpack}
-        onChange={(e) => setAplicarATestpack(e.target.checked)}
-        className="mt-0.5 h-4 w-4 accent-blue-700"
-      />
-      <div className="text-sm">
-        <span className="font-medium text-gray-800">
-          Aplicar a todo el testpack{grupoTestpack?.testpack ? ` (${grupoTestpack.testpack})` : ""}
-        </span>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Marca como completados los {testpackAfectables} elemento(s) con esta misma tarea:{" "}
-          <span className="font-mono">{tagsAfectables}</span>.
-          {testpackInmutables > 0 && ` ${testpackInmutables} ya firmado(s) se omiten.`}
-        </p>
-      </div>
-    </label>
-  ) : null
-
-  // Banner de resultado tras propagar al testpack.
-  const propagacionBanner = propagacion ? (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-1.5">
-      <p className="text-sm font-semibold text-emerald-800 inline-flex items-center gap-1.5">
-        <CheckCircle2 className="h-4 w-4" />
-        Aplicado a {propagacion.cantidadPropagados} elemento(s) del testpack
-        {propagacion.testpack ? ` (${propagacion.testpack})` : ""}
-      </p>
-      {propagacion.cantidadPropagados > 0 && (
-        <p className="text-xs text-emerald-700">
-          <span className="font-mono">
-            {propagacion.propagados.map((m) => m.tag).filter(Boolean).join(", ")}
-          </span>
-        </p>
-      )}
-      {propagacion.cantidadSalteados > 0 && (
-        <p className="text-xs text-amber-700">
-          {propagacion.cantidadSalteados} omitido(s) por estar ya firmados:{" "}
-          <span className="font-mono">
-            {propagacion.salteados.map((m) => m.tag).filter(Boolean).join(", ")}
-          </span>
-        </p>
-      )}
-      <div className="pt-1">
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
-          Volver
-        </Button>
-      </div>
-    </div>
-  ) : null
-
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {/* Banner de solo lectura para Consultor/Auditor: el registro se ve completo
+          (formulario navegable, adjuntos, firmas) pero sin poder guardar ni firmar. */}
+      {!canWrite && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2 text-sm text-blue-900">
+          <Lock className="h-4 w-4 mt-0.5 shrink-0 text-blue-700" />
+          <div>
+            <p className="font-medium">Modo solo lectura</p>
+            <p className="text-xs">
+              Podés ver el registro y descargar el PDF, pero no cargar valores, firmar ni subir archivos.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header de contexto */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-1">
@@ -426,8 +409,6 @@ export default function RegistroFormPage({ params }: PageProps) {
         )}
       </div>
 
-      {propagacionBanner}
-
       {!isReadOnly && showToggle && (
         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
           <button
@@ -449,28 +430,25 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── Modo PDF físico ── */}
+      {/* ── Modo PDF físico ──
+          Todo el flow (drop zone, chequeos QR, detección firma, dialogs, rotación)
+          vive en <CargaFisicaUploader>. Este componente le entrega el archivo listo
+          y los detalles de override para auditoría a través del callback onSubmit. */}
       {modo === "fisico" && !isReadOnly && permitirFisico && (
-        <div className="rounded-xl border bg-white p-6 space-y-4">
-          <h2 className="font-semibold text-gray-800">Cargar planilla física escaneada</h2>
-          <p className="text-sm text-muted-foreground">
-            Adjuntá el archivo PDF o imagen (JPG/PNG) de la planilla completada a mano.
-          </p>
-
-          <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-            <FileUp className="h-8 w-8 text-gray-400 mb-2" />
-            <span className="text-sm font-medium text-gray-700">
-              {archivoFisico ? archivoFisico.name : "Seleccioná o arrastrá el archivo aquí"}
-            </span>
-            <span className="text-xs text-muted-foreground mt-1">PDF, JPG o PNG · máx. 20 MB</span>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              className="sr-only"
-              onChange={(e) => setArchivoFisico(e.target.files?.[0] ?? null)}
-            />
-          </label>
-
+        <CargaFisicaUploader
+          esperadoPlanillaId={(registro.planillaId ?? "").toLowerCase()}
+          esperadoElementoTareaId={(registro.elementoTareaId ?? "").toLowerCase()}
+          hayFirmasFisicas={hayFirmasFisicas}
+          cantidadFirmasFisicas={cantidadFirmasFisicas}
+          rechazarBajaResolucion={rechazarBajaResolucion}
+          anchoMinimoImagen={anchoMinimoImagen}
+          onSubmit={handleSubmitFisico}
+          isSubmitting={isSaving}
+          submitLabel="Subir y completar"
+          submittingLabel="Subiendo..."
+          titulo="Cargar planilla física escaneada"
+          descripcion="Adjuntá el archivo PDF o imagen (JPG/PNG) de la planilla completada a mano."
+        >
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
             <Textarea
@@ -480,18 +458,7 @@ export default function RegistroFormPage({ params }: PageProps) {
               rows={3}
             />
           </div>
-
-          {testpackCheckbox}
-
-          <Button
-            onClick={handleSubmitFisico}
-            disabled={!archivoFisico || isSaving}
-            className="gap-2"
-          >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Subir y completar
-          </Button>
-        </div>
+        </CargaFisicaUploader>
       )}
 
       {/* ── Observaciones del registro físico (read-only) ──
@@ -565,8 +532,6 @@ export default function RegistroFormPage({ params }: PageProps) {
             />
           </div>
 
-          {!isReadOnly && testpackCheckbox}
-
           {!isReadOnly && (
             <div className="flex flex-col items-end gap-2 pb-4">
               {Object.values(errors).some(Boolean) && (
@@ -591,40 +556,76 @@ export default function RegistroFormPage({ params }: PageProps) {
           sigue aceptando adjuntos para sumar evidencia/fotos posteriores. */}
       <RegistroAdjuntos
         registroId={registroId}
-        permiteSubir={permiteAdjuntos}
-        readOnly={registro.estado === "RECHAZADO"}
+        permiteSubir={permiteAdjuntos && canWrite}
+        readOnly={registro.estado === "RECHAZADO" || !canWrite}
       />
 
       {/* ── Firmas ── */}
       {(registro.estado === "COMPLETADO" || registro.estado === "FIRMADO") && (
-        <FirmasSection registroId={registroId} />
+        <FirmasSection registroId={registroId} canWrite={canWrite} esRegistroFisico={registro.esFisico} />
       )}
+
+      {/* Dialog de "próximo ciclo de preservación" — se abre cuando el backend
+          confirma que generó el próximo ElementoTarea al completar/firmar. En
+          los flujos de completar hacemos router.back() al cerrarlo. */}
+      <ProximoCicloDialog
+        open={!!proximoCicloFecha}
+        fecha={proximoCicloFecha}
+        onClose={() => {
+          setProximoCicloFecha(null)
+          router.back()
+        }}
+      />
     </div>
   )
 }
 
 // ─── Sección de firmas ────────────────────────────────────────────────────────
 
-function FirmasSection({ registroId }: { registroId: string }) {
+function FirmasSection({
+  registroId,
+  canWrite,
+  esRegistroFisico,
+}: {
+  registroId: string
+  canWrite: boolean
+  /** Si el registro se completó como físico (escaneo). Slots Fisica solo se
+   * auto-firman con el escaneo en registros físicos — si el registro es digital,
+   * los slots Fisica se firman electrónicamente como cualquier otro. */
+  esRegistroFisico: boolean
+}) {
   const { data: raw, isLoading } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
-  const miFirmaQuery = useGetMiFirma()
-  const uploadMiFirma = useUploadMiFirma()
   const status = (raw as any)?.data ?? raw
+
+  // Flag global — decide si se pide/muestra garabato al firmar. Cuando OFF, no
+  // consultamos la firma guardada del perfil ni ofrecemos el pad para dibujar.
+  const renderizarGarabato: boolean = status?.renderizarGarabatoFirma ?? false
+  const firmaVisualFallo: boolean = status?.firmaVisualFallo ?? false
+  const miFirmaQuery = useGetMiFirma(renderizarGarabato)
+  const uploadMiFirma = useUploadMiFirma()
 
   const [slotFirmando, setSlotFirmando] = useState<string | null>(null)
   const [rolLibre, setRolLibre] = useState("")
   const [observacionFirma, setObservacionFirma] = useState("")
-  const [modoFirma, setModoFirma] = useState<"guardada" | "dibujar">("guardada")
-  const [guardarPerfil, setGuardarPerfil] = useState(false)
   const [padIsEmpty, setPadIsEmpty] = useState(true)
   const padRef = useRef<SignaturePadHandle | null>(null)
 
-  const firmaGuardadaUrl = miFirmaQuery.data?.data?.url ?? null
-  const modoEfectivo = firmaGuardadaUrl ? modoFirma : "dibujar"
+  // Preservación: la última firma electrónica puede haber gatillado el próximo
+  // ciclo. Cuando el response lo indica, mostramos el dialog con la fecha; el
+  // usuario ya está en la pantalla del registro y no hace falta navegar.
+  const [proximoCicloFecha, setProximoCicloFecha] = useState<string | null>(null)
+
+  const firmaGuardadaUrl = renderizarGarabato ? (miFirmaQuery.data?.data?.url ?? null) : null
+  // 3 modos: sin-garabato (flag OFF), guardada (flag ON + perfil), dibujar (flag ON + sin perfil).
+  const modoEfectivo: "sin-garabato" | "guardada" | "dibujar" =
+    !renderizarGarabato ? "sin-garabato" : firmaGuardadaUrl ? "guardada" : "dibujar"
 
   async function handleFirmar(rolNombre: string) {
-    // Resolver firma según el modo: el "guardada" lo resuelve el backend (evita CORS browser→Azure).
+    // Resolver firma según el modo:
+    //  - "sin-garabato" → sin dato visual (flag global OFF).
+    //  - "guardada"     → backend usa la firma del perfil (evita CORS browser→Azure).
+    //  - "dibujar"      → mandamos el dataURL del pad y lo guardamos en perfil.
     let datosFirma: string | null = null
     let usarFirmaGuardada = false
     if (modoEfectivo === "guardada" && firmaGuardadaUrl) {
@@ -632,12 +633,12 @@ function FirmasSection({ registroId }: { registroId: string }) {
     } else if (modoEfectivo === "dibujar") {
       datosFirma = padRef.current?.getDataUrl() ?? null
       if (!datosFirma) return
-      if (guardarPerfil) {
-        try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
-      }
+      // Auto-guardado en perfil: la primera firma dibujada queda en el perfil
+      // y las próximas caen automáticamente en modo "guardada".
+      try { await uploadMiFirma.mutateAsync(datosFirma) } catch { /* ignore */ }
     }
 
-    await firmar.mutateAsync({
+    const res = await firmar.mutateAsync({
       rolFirmante: rolNombre,
       observaciones: observacionFirma || null,
       datosFirma,
@@ -646,7 +647,11 @@ function FirmasSection({ registroId }: { registroId: string }) {
     setSlotFirmando(null)
     setObservacionFirma("")
     setRolLibre("")
-    setGuardarPerfil(false)
+
+    const info = (res as { data?: RegistroDetalle } | undefined)?.data?.preservacionCicloGenerado
+    if (info?.generado && info.fechaPlanificadaProximo) {
+      setProximoCicloFecha(info.fechaPlanificadaProximo)
+    }
   }
 
   if (isLoading) return null
@@ -655,9 +660,18 @@ function FirmasSection({ registroId }: { registroId: string }) {
   const sinSlots = slots.length === 0
   const yaFirmadoLibre = status?.todasLasFirmasCompletadas && sinSlots
 
+  const proximoCicloDialog = (
+    <ProximoCicloDialog
+      open={!!proximoCicloFecha}
+      fecha={proximoCicloFecha}
+      onClose={() => setProximoCicloFecha(null)}
+    />
+  )
+
   // Sin slots configurados: formulario libre
   if (sinSlots) {
     return (
+      <>
       <div className="rounded-xl border bg-white overflow-hidden">
         <div className="px-5 py-3 bg-gray-50 border-b">
           <h2 className="font-semibold text-gray-800">Firma del registro</h2>
@@ -681,9 +695,6 @@ function FirmasSection({ registroId }: { registroId: string }) {
               <FirmaCapturaInline
                 firmaGuardadaUrl={firmaGuardadaUrl}
                 modoEfectivo={modoEfectivo}
-                setModoFirma={setModoFirma}
-                guardarPerfil={guardarPerfil}
-                setGuardarPerfil={setGuardarPerfil}
                 padRef={padRef}
                 setPadIsEmpty={setPadIsEmpty}
               />
@@ -720,7 +731,7 @@ function FirmasSection({ registroId }: { registroId: string }) {
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : canWrite ? (
             <Button
               size="sm"
               variant="outline"
@@ -730,13 +741,21 @@ function FirmasSection({ registroId }: { registroId: string }) {
               <PenLine className="h-3.5 w-3.5" />
               Firmar registro
             </Button>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+              <Lock className="h-3 w-3" />
+              Sin firmas cargadas
+            </span>
           )}
         </div>
       </div>
+      {proximoCicloDialog}
+      </>
     )
   }
 
   return (
+    <>
     <div className="rounded-xl border bg-white overflow-hidden">
       <div className="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
         <h2 className="font-semibold text-gray-800">Firmas</h2>
@@ -763,7 +782,16 @@ function FirmasSection({ registroId }: { registroId: string }) {
                     </span>
                   )}
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{slot.rolNombre}</p>
+                    <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                      {slot.rolNombre}
+                      {/* Badge "En papel" solo cuando el registro es físico —
+                          en registros digitales el slot Fisica se firma electrónicamente. */}
+                      {slot.tipoFirma === 2 && esRegistroFisico && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">
+                          En papel
+                        </span>
+                      )}
+                    </p>
                     {slot.descripcion && (
                       <p className="text-xs text-muted-foreground">{slot.descripcion}</p>
                     )}
@@ -775,7 +803,18 @@ function FirmasSection({ registroId }: { registroId: string }) {
                     <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
                     <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
-                ) : slot.puedeFirearUsuarioActual ? (
+                ) : slot.tipoFirma === 2 && esRegistroFisico && !firmaVisualFallo ? (
+                  // Slot configurado como Fisica + registro físico → se auto-firma al subir
+                  // el PDF escaneado. Excepción: cuando FirmaVisualFallo=true (detección
+                  // visual falló + flag FIRMA_DIGITAL_SI_VISUAL_FALLA ON), el slot debe
+                  // firmarse digitalmente — cae al botón "Firmar" de abajo.
+                  // Si el registro es digital, no bloqueamos: el user firma electrónicamente
+                  // como cualquier slot Digital (el backend ya lo permite).
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-700 shrink-0">
+                    <Clock className="h-3 w-3" />
+                    Se marca al subir el PDF físico
+                  </span>
+                ) : canWrite && slot.puedeFirearUsuarioActual ? (
                   !esActivo && (
                     <Button
                       size="sm"
@@ -800,9 +839,6 @@ function FirmasSection({ registroId }: { registroId: string }) {
                   <FirmaCapturaInline
                     firmaGuardadaUrl={firmaGuardadaUrl}
                     modoEfectivo={modoEfectivo}
-                    setModoFirma={setModoFirma}
-                    guardarPerfil={guardarPerfil}
-                    setGuardarPerfil={setGuardarPerfil}
                     padRef={padRef}
                     setPadIsEmpty={setPadIsEmpty}
                   />
@@ -850,6 +886,8 @@ function FirmasSection({ registroId }: { registroId: string }) {
         })}
       </div>
     </div>
+    {proximoCicloDialog}
+    </>
   )
 }
 
@@ -858,65 +896,34 @@ function FirmasSection({ registroId }: { registroId: string }) {
 function FirmaCapturaInline({
   firmaGuardadaUrl,
   modoEfectivo,
-  setModoFirma,
-  guardarPerfil,
-  setGuardarPerfil,
   padRef,
   setPadIsEmpty,
 }: {
   firmaGuardadaUrl: string | null
-  modoEfectivo: "guardada" | "dibujar"
-  setModoFirma: (m: "guardada" | "dibujar") => void
-  guardarPerfil: boolean
-  setGuardarPerfil: (v: boolean) => void
+  modoEfectivo: "sin-garabato" | "guardada" | "dibujar"
   padRef: React.RefObject<SignaturePadHandle | null>
   setPadIsEmpty: (v: boolean) => void
 }) {
+  // "sin-garabato" → flag global OFF; no mostramos ninguna UI de captura.
+  if (modoEfectivo === "sin-garabato") return null
+
   return (
     <div className="space-y-2">
-      {firmaGuardadaUrl && (
-        <div className="flex gap-1 p-0.5 bg-gray-100 border rounded-md w-fit">
-          <button
-            type="button"
-            onClick={() => setModoFirma("guardada")}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              modoEfectivo === "guardada" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Mi firma guardada
-          </button>
-          <button
-            type="button"
-            onClick={() => setModoFirma("dibujar")}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              modoEfectivo === "dibujar" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Dibujar nueva
-          </button>
-        </div>
-      )}
-
       {modoEfectivo === "guardada" && firmaGuardadaUrl && (
         <div className="rounded-md border bg-white p-2 max-w-sm">
           <img src={firmaGuardadaUrl} alt="Tu firma" className="max-h-28 max-w-full object-contain mx-auto" />
+          <p className="mt-1 text-[11px] text-center text-muted-foreground">
+            Se usará tu firma guardada en el perfil.
+          </p>
         </div>
       )}
 
       {modoEfectivo === "dibujar" && (
         <div className="space-y-1.5">
           <SignaturePad ref={padRef} height={140} onChange={(empty) => setPadIsEmpty(empty)} />
-          {!firmaGuardadaUrl && (
-            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 rounded border-gray-300"
-                checked={guardarPerfil}
-                onChange={(e) => setGuardarPerfil(e.target.checked)}
-              />
-              Guardar esta firma en mi perfil para próximas veces
-            </label>
-          )}
+          <p className="text-[11px] text-muted-foreground">
+            Esta firma se guardará en tu perfil para próximas veces.
+          </p>
         </div>
       )}
     </div>
@@ -937,13 +944,18 @@ function CampoInput({
   hasError?: boolean
 }) {
   const label = (
-    <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-      {campo.campoEtiqueta}
-      {campo.esObligatorio && <span className="text-red-500">*</span>}
-      {campo.campoUnidad && (
-        <span className="text-xs text-muted-foreground font-normal">({campo.campoUnidad})</span>
+    <div className="flex flex-col gap-0.5">
+      <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+        {campo.campoEtiqueta}
+        {campo.esObligatorio && <span className="text-red-500">*</span>}
+        {campo.campoUnidad && (
+          <span className="text-xs text-muted-foreground font-normal">({campo.campoUnidad})</span>
+        )}
+      </label>
+      {campo.campoEtiquetaAlt && (
+        <span className="text-xs italic text-muted-foreground">{campo.campoEtiquetaAlt}</span>
       )}
-    </label>
+    </div>
   )
 
   let input: React.ReactNode
@@ -971,6 +983,50 @@ function CampoInput({
       )
       break
     case 4: // Boolean
+      // Variante "casilla de marca": un único checkbox que se tilda o no, en vez del
+      // Sí/No. El valor persistido es el mismo booleano ("true"/"" ), así que prender
+      // o apagar el flag en el Campo no invalida registros ya cargados.
+      //
+      // Devolvemos temprano porque el label va A LA DERECHA del checkbox, no arriba
+      // como en el resto de los tipos.
+      if (campo.campoMostrarComoMarca) {
+        const marcado = value === "true"
+        return (
+          <div id={`campo-${campo.id}`} className="space-y-1">
+            <label
+              className={`flex items-start gap-2 rounded-md border px-3 py-2 transition-colors ${
+                readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-gray-50"
+              } ${marcado ? "border-blue-600 bg-blue-50" : "border-gray-200 bg-white"} ${
+                hasError ? "border-red-500" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-blue-600"
+                checked={marcado}
+                disabled={readOnly}
+                onChange={(e) => !readOnly && onChange(e.target.checked ? "true" : "")}
+              />
+              <span className="flex flex-col gap-0.5">
+                <span
+                  className={`text-sm ${marcado ? "font-medium text-blue-900" : "text-gray-700"}`}
+                >
+                  {campo.campoEtiqueta}
+                  {campo.esObligatorio && <span className="text-red-500"> *</span>}
+                </span>
+                {campo.campoEtiquetaAlt && (
+                  <span className="text-xs italic text-muted-foreground">
+                    {campo.campoEtiquetaAlt}
+                  </span>
+                )}
+              </span>
+            </label>
+            {hasError && (
+              <p className="text-xs text-red-500">Este campo es obligatorio.</p>
+            )}
+          </div>
+        )
+      }
       input = (
         <Select value={value} onValueChange={(v) => onChange(v ?? "")} disabled={readOnly}>
           <SelectTrigger>
@@ -1039,6 +1095,49 @@ function CampoInput({
       }
       break
     }
+    case 11: { // Checklist — opciones como checkboxes seleccionables (una única
+      //         respuesta a la vez). El valor persistido es el `valor` de la opción
+      //         tildada, o cadena vacía si ninguna. Click sobre la ya tildada la
+      //         limpia — así el user puede corregirse sin necesitar un botón extra.
+      const opcionesOrdenadas = [...campo.opciones].sort((a, b) => a.orden - b.orden)
+      input = (
+        <div className="flex flex-col gap-1.5">
+          {opcionesOrdenadas.map((op) => {
+            const checked = value === op.valor
+            return (
+              <label
+                key={op.id}
+                className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                  readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-gray-50"
+                } ${checked ? "border-blue-600 bg-blue-50" : "border-gray-200 bg-white"}`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 rounded border-gray-300 accent-blue-600"
+                  checked={checked}
+                  disabled={readOnly}
+                  onChange={() => !readOnly && onChange(checked ? "" : op.valor)}
+                />
+                <span className={checked ? "font-medium text-blue-900" : "text-gray-700"}>
+                  {op.etiqueta}
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      )
+      break
+    }
+    case 14: // Croquis — el operador dibuja; se guarda el PNG en base64.
+      input = (
+        <CampoCroquisInput
+          value={value}
+          onChange={onChange}
+          readOnly={readOnly}
+          altoMm={campo.campoAltoMm ?? 20}
+        />
+      )
+      break
     case 9: // Tabla — celdas de texto (matriz fija o dinámica)
       input = (
         <CampoTablaInput
@@ -1053,12 +1152,73 @@ function CampoInput({
       return (
         <div
           id={`campo-${campo.id}`}
-          className={`text-sm ${campo.campoSinPadding ? "" : "px-2 py-1.5"} ${campo.campoSinMargen ? "-my-2.5" : ""} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300 rounded" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
+          className={`${TAMANO_TEXTO_CLASS[(campo.campoTamanoTexto ?? 0) as TamanoTexto]} ${campo.campoSinPadding ? "" : "px-2 py-1.5"} ${campo.campoSinMargen ? "-my-2.5" : ""} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300 rounded" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
           style={{ textAlign: campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left" }}
         >
           {campo.campoEtiqueta}
         </div>
       )
+    case 16: { // Leyenda — fila de códigos que explica las respuestas válidas de los
+      //         campos de arriba. Display-only: mismas opciones que usa el PDF.
+      const opcionesLeyenda = [...campo.opciones].sort((a, b) => a.orden - b.orden)
+      return (
+        <div id={`campo-${campo.id}`} className="py-1">
+          {opcionesLeyenda.length === 0 ? (
+            <p className="text-xs italic text-muted-foreground">Leyenda sin códigos definidos.</p>
+          ) : (
+            <div className="flex flex-wrap overflow-hidden rounded-md border border-gray-300">
+              {opcionesLeyenda.map((op) => (
+                <div key={op.id} className="flex min-w-0 flex-1 items-stretch border-r last:border-r-0">
+                  <span className="shrink-0 border-r bg-gray-100 px-2 py-1 text-xs font-bold text-gray-800">
+                    {op.valor}
+                  </span>
+                  <span className="min-w-0 flex-1 px-2 py-1 text-xs text-gray-700">
+                    {op.etiqueta}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 15: // Nota — texto fijo del diseño. Se muestra igual que en el PDF, con los
+      //        saltos de línea respetados (whitespace-pre-line).
+      return (
+        <div
+          id={`campo-${campo.id}`}
+          className={`${TAMANO_TEXTO_CLASS[(campo.campoTamanoTexto ?? 0) as TamanoTexto]} whitespace-pre-line ${campo.campoSinPadding ? "" : "px-3 py-2"} ${
+            campo.campoSinMargen ? "-my-2.5" : ""
+          } ${campo.campoFondoGris ? "bg-gray-100" : ""} ${
+            campo.campoConBorde ? "border border-gray-300 rounded" : ""
+          } ${campo.campoNegrita ? "font-bold" : ""}`}
+          style={{
+            textAlign:
+              campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left",
+          }}
+        >
+          {campo.campoTextoLargo ?? ""}
+        </div>
+      )
+    case 13: { // Espacio — bloque vacío del PDF. Acá no hay nada que completar, pero
+      //         dejamos un placeholder para que el que carga digital entienda por qué
+      //         hay un hueco en vez de un input. El alto NO se replica: en pantalla
+      //         reservar 140mm de aire no aporta nada, solo obliga a scrollear.
+      const conRecuadro = campo.campoConBorde
+      return (
+        <div id={`campo-${campo.id}`} className="py-1">
+          <div
+            className={`rounded-md px-3 py-3 text-center text-xs text-muted-foreground ${
+              conRecuadro ? "border border-dashed border-gray-300" : "bg-gray-50"
+            }`}
+          >
+            {conRecuadro
+              ? `Espacio para dibujar (${campo.campoAltoMm ?? 20} mm) — se completa en el PDF impreso.`
+              : `Espacio en blanco (${campo.campoAltoMm ?? 20} mm) en el PDF.`}
+          </div>
+        </div>
+      )
+    }
     case 8: // Imagen — parte de la planilla (global del Campo), sin input
       return (
         <div id={`campo-${campo.id}`} className="space-y-1">
@@ -1075,6 +1235,19 @@ function CampoInput({
           )}
         </div>
       )
+    case 12: { // TextoArea — multilínea, respeta saltos de línea
+      const rows = Math.max(1, Math.min(20, campo.campoNumeroLineas ?? 3))
+      input = (
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={readOnly}
+          placeholder={campo.valorDefault ?? ""}
+          rows={rows}
+        />
+      )
+      break
+    }
     default: // 1 = Texto
       input = (
         <Input

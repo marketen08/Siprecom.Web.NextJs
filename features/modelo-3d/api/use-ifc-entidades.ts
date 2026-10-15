@@ -1,8 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   ColoresPorEstado,
+  ColoresPorPendiente,
+  ColoresPorTestGroup,
+  ElementosEnMaquetaPage,
   EntidadFiltro,
   FiltroResultado,
   FiltroVisor,
@@ -21,6 +24,34 @@ const QK_PAGE = (
 
 const QK_ARCHIVO = (proyectoId: string | null) =>
   ["proyectos", proyectoId, "ifc"] as const
+
+/**
+ * Elementos de la maqueta que pasan el filtro del visor. El panel "Ver elementos"
+ * usa esto en vez del listado general de /api/elementos: así muestra exactamente
+ * el mismo subconjunto que está resaltado en pantalla, incluidas las dimensiones
+ * que el listado general no sabe expresar (nivel, estado visual, testgroup).
+ */
+export function useGetElementosEnMaqueta(
+  proyectoId: string | null,
+  archivoId: string | null,
+  filtro: FiltroVisor | null,
+  busqueda: string,
+  page: number,
+  pageSize = 50,
+) {
+  return useQuery({
+    queryKey: ["ifc-elementos", archivoId, filtro, busqueda, page, pageSize],
+    enabled: !!proyectoId && !!archivoId,
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+      if (busqueda.trim()) params.set("busqueda", busqueda.trim())
+      return apiClient.post<ApiResponse<ElementosEnMaquetaPage>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/elementos-filtrados?${params.toString()}`,
+        filtro ?? {},
+      )
+    },
+  })
+}
 
 export function useGetIfcEntidades(
   proyectoId: string,
@@ -111,6 +142,42 @@ export function useReBootstrapIfcArchivo(proyectoId: string) {
   })
 }
 
+/** Resultado del /rematch — el backend devuelve estos contadores. */
+export interface RematchEntidadesResultado {
+  entidadesVinculadas: number
+  totalEntidades: number
+  elementosConTag: number
+  /** Elementos del proyecto sin ninguna pieza en una maqueta activa. */
+  elementosSinPieza: number
+  elementosEnMaqueta: number
+  /** De los sin pieza: cuántos tienen el identificador del modelo en la columna Nombre. */
+  elementosTagEnNombre: number
+  /** Hasta 20 TAG de ejemplo, para mostrar el patrón sin abrir el listado. */
+  ejemplosTagEnNombre: string[]
+  mensaje: string
+}
+
+/**
+ * Re-vincula bulk las entidades del archivo contra los Elementos actuales del
+ * proyecto por TAG. NO destructivo — solo toca entidades sin vincular. Se usa
+ * cuando el modelo se cargó (o se importó de otro proyecto) DESPUÉS de tener
+ * los elementos, y el auto-match reactivo nunca se disparó para ellos.
+ */
+export function useRematchIfcArchivo(proyectoId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (archivoId: string) =>
+      apiClient.post<ApiResponse<RematchEntidadesResultado>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/rematch`,
+        {},
+      ),
+    onSuccess: (_data, archivoId) => {
+      qc.invalidateQueries({ queryKey: QK_ARCHIVO(proyectoId) })
+      qc.invalidateQueries({ queryKey: ["ifc", archivoId, "entidades"] })
+    },
+  })
+}
+
 /**
  * Devuelve todos los IfcGuid del archivo vinculados a un mismo Elemento. El visor
  * lo usa para seleccionar la línea/equipo COMPLETO al clickear una de sus piezas
@@ -190,6 +257,99 @@ export function useColoresPorEstado(
 }
 
 /**
+ * F7 del roadmap TestGroups: trae buckets de GUIDs agrupados por TestGroup.
+ * Respeta Sistema/SubSistema/Especialidad del filtro visor y — si vienen —
+ * los TestGroupIds seleccionados (solo esos packs aparecen).
+ * NivelIds no aplica: un TestGroup no tiene "nivel" semánticamente.
+ */
+/**
+ * Invalida el coloreado por pendientes de la maqueta.
+ *
+ * Lo llaman las mutaciones de pendientes (alta, edición, transiciones de estado):
+ * crear un pendiente, cambiarle la categoría o cerrarlo cambia el bucket en el que
+ * cae su Elemento, y sin esto el visor seguía pintando la foto vieja hasta recargar
+ * la página. Vive acá porque la forma de la query key es de modelo-3d; el módulo de
+ * pendientes no debería conocerla.
+ *
+ * Usa un predicado y no un prefijo `["ifc"]` para no arrastrar el resto de las
+ * queries del visor — la de filtrado devuelve cientos de miles de guids y no hay
+ * por qué volver a pedirla.
+ */
+export function invalidarColoresPorPendiente(qc: QueryClient) {
+  return qc.invalidateQueries({
+    predicate: (q) => q.queryKey[0] === "ifc" && q.queryKey[2] === "colores-por-pendiente",
+  })
+}
+
+/**
+ * Coloreado por PENDIENTES, agrupado por categoría del punch (A/B/C/D).
+ * Respeta todas las dimensiones del filtro visual — a diferencia del de packs,
+ * acá el nivel sí tiene sentido (un pendiente cuelga de un elemento, y el
+ * elemento se filtra por nivel como en el resto del visor).
+ */
+export function useColoresPorPendiente(
+  proyectoId: string | null,
+  archivoId: string | null,
+  activo: boolean,
+  filtro?: FiltroVisor | null,
+) {
+  const body = {
+    sistemaIds:      filtro?.sistemaIds      ?? [],
+    subSistemaIds:   filtro?.subSistemaIds   ?? [],
+    especialidadIds: filtro?.especialidadIds ?? [],
+    nivelIds:        filtro?.nivelIds        ?? [],
+    testGroupIds:    filtro?.testGroupIds    ?? [],
+    soloConPendientesAbiertos: filtro?.soloConPendientesAbiertos ?? false,
+  }
+  return useQuery({
+    queryKey: [
+      "ifc", archivoId, "colores-por-pendiente",
+      body.sistemaIds.join(","),
+      body.subSistemaIds.join(","),
+      body.especialidadIds.join(","),
+      body.nivelIds.join(","),
+      body.testGroupIds.join(","),
+      body.soloConPendientesAbiertos,
+    ],
+    enabled: activo && !!proyectoId && !!archivoId,
+    queryFn: () =>
+      apiClient.post<ApiResponse<ColoresPorPendiente>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-pendiente`,
+        body,
+      ),
+  })
+}
+
+export function useColoresPorTestGroup(
+  proyectoId: string | null,
+  archivoId: string | null,
+  activo: boolean,
+  filtro?: FiltroVisor | null,
+) {
+  const body = {
+    sistemaIds:      filtro?.sistemaIds      ?? [],
+    subSistemaIds:   filtro?.subSistemaIds   ?? [],
+    especialidadIds: filtro?.especialidadIds ?? [],
+    testGroupIds:    filtro?.testGroupIds    ?? [],
+  }
+  return useQuery({
+    queryKey: [
+      "ifc", archivoId, "colores-por-testgroup",
+      body.sistemaIds.join(","),
+      body.subSistemaIds.join(","),
+      body.especialidadIds.join(","),
+      body.testGroupIds.join(","),
+    ],
+    enabled: activo && !!proyectoId && !!archivoId,
+    queryFn: () =>
+      apiClient.post<ApiResponse<ColoresPorTestGroup>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/colores-por-testgroup`,
+        body,
+      ),
+  })
+}
+
+/**
  * Resuelve los IfcGuids que cumplen los filtros visuales (sistema/subsistema/
  * especialidad). El visor los usa para aplicar el modo "ghost": las entidades
  * fuera del filtro quedan grises/transparentes.
@@ -203,5 +363,57 @@ export async function filtrarEntidades(
     `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/filtrar`,
     filtro,
   )
-  return resp?.data ?? { guidsCoinciden: [], totalCoinciden: 0, totalEntidades: 0 }
+  return resp?.data ?? {
+    guidsCoinciden: [], totalCoinciden: 0, totalEntidades: 0,
+    elementosCoinciden: 0, totalElementos: 0,
+  }
+}
+
+/**
+ * Sistemas y SubSistemas que tienen geometría en el archivo. El panel de filtros
+ * acota sus combos con esto: un proyecto puede tener cientos de SubSistemas y que
+ * solo un puñado esté en la maqueta — ofrecer el resto es ofrecer opciones que
+ * devuelven 0 sí o sí, y un filtro sin resultados se lee como "se rompió".
+ */
+export function useGetDimensionesUsadas(proyectoId: string | null, archivoId: string | null) {
+  return useQuery({
+    queryKey: ["ifc", archivoId, "dimensiones-usadas"],
+    enabled: !!proyectoId && !!archivoId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: () =>
+      apiClient.get<ApiResponse<{ sistemaIds: string[]; subSistemaIds: string[] }>>(
+        `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/dimensiones-usadas`,
+      ),
+  })
+}
+
+/**
+ * Resuelve entidades a partir de la cadena de dbIds que devuelve el click del
+ * visor. Es el camino rápido: no requiere que el visor haya construido el índice
+ * externalId → dbId, que en maquetas de más de un millón de objetos tarda minutos.
+ * El backend matchea contra ProyectoIfcEntidad.ApsObjectId.
+ */
+export async function resolverEntidadesPorIds(
+  proyectoId: string,
+  archivoId: string,
+  apsObjectIds: number[],
+): Promise<ProyectoIfcEntidad[]> {
+  if (apsObjectIds.length === 0) return []
+  const resp = await apiClient.post<ApiResponse<ProyectoIfcEntidad[]>>(
+    `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/resolver-ids`,
+    { apsObjectIds },
+  )
+  return resp?.data ?? []
+}
+
+/** dbIds de las piezas de un Elemento — para seleccionar/encuadrar sin índice. */
+export async function getIdsPorElemento(
+  proyectoId: string,
+  archivoId: string,
+  elementoId: string,
+): Promise<number[]> {
+  const resp = await apiClient.get<ApiResponse<number[]>>(
+    `/api/proyectos/${proyectoId}/ifc/${archivoId}/entidades/ids-por-elemento/${elementoId}`,
+  )
+  return resp?.data ?? []
 }

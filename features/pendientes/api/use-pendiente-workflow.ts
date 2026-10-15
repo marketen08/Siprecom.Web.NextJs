@@ -2,10 +2,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type { Pendiente } from "../types"
+import { invalidarColoresPorPendiente } from "@/features/modelo-3d/api/use-ifc-entidades"
 
 type TransicionAccion =
   | "iniciar"
   | "enviar-aprobacion"
+  | "pre-aprobar"
   | "aprobar"
   | "rechazar"
   | "cancelar"
@@ -27,6 +29,12 @@ export function usePendienteTransicion() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["pendientes"] })
       qc.invalidateQueries({ queryKey: ["pendientes", vars.id] })
+      // Los pines del visor de PID cachean el estado del pendiente para
+      // pintar su color — refrescamos para que cambie en el acto.
+      qc.invalidateQueries({ queryKey: ["pid-archivos"] })
+      // El coloreado por pendientes de la maqueta 3D cachea el bucket de cada
+      // Elemento — sin esto había que recargar la página para verlo pintado.
+      void invalidarColoresPorPendiente(qc)
     },
   })
 }
@@ -34,18 +42,24 @@ export function usePendienteTransicion() {
 interface AsignarInput {
   id: string
   responsableId: string
+  /** Grupo co-responsable. null/"" = quitar el grupo (la asignación reemplaza, no parchea). */
+  grupoResponsableId?: string | null
 }
 
 export function useAsignarResponsable() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, responsableId }: AsignarInput) =>
+    mutationFn: ({ id, responsableId, grupoResponsableId }: AsignarInput) =>
       apiClient.put<ApiResponse<Pendiente>>(`/api/pendientes/${id}/responsable`, {
         responsableId,
+        grupoResponsableId: grupoResponsableId || null,
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["pendientes"] })
       qc.invalidateQueries({ queryKey: ["pendientes", vars.id] })
+      // Los pines del visor de PID cachean el estado del pendiente para
+      // pintar su color — refrescamos para que cambie en el acto.
+      qc.invalidateQueries({ queryKey: ["pid-archivos"] })
     },
   })
 }

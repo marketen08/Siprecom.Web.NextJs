@@ -41,14 +41,22 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  hideOverlay = false,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /**
+   * Omite el backdrop (fondo negro + blur). Útil cuando lo que hay detrás
+   * es contenido que el usuario quiere seguir viendo mientras interactúa
+   * con el sheet — por ejemplo el visor de PID: el operador consulta el
+   * pendiente y a la vez sigue viendo el plano.
+   */
+  hideOverlay?: boolean
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {!hideOverlay && <SheetOverlay />}
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         data-side={side}
@@ -65,7 +73,9 @@ function SheetContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-3 right-3"
+                // z-20 para quedar arriba de headers sticky (z-10) que usan
+                // algunos sheets para mantener el título visible al scrollear.
+                className="absolute top-3 right-3 z-20"
                 size="icon-sm"
               />
             }

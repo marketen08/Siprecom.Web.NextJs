@@ -4,5 +4,5 @@ import { redirect } from "next/navigation"
 // Sin esta página, navegar/prefetch a /alcance devuelve 404.
 // Redirigimos al primer hijo real de la sección.
 export default function AlcanceIndexPage() {
-  redirect("/alcance/proyectos")
+  redirect("/alcance/proyecto")
 }

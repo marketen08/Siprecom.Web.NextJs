@@ -19,7 +19,10 @@ interface Options {
    * del filtro: true = invisibles, false (default) = semi-transparentes.
    * El hook lo deriva de `filtro.ocultarNoVinculadas`.
    */
-  applyGhost: (visibleGuids: string[] | null, opts?: { hide?: boolean }) => Promise<void> | void
+  applyGhost: (
+    visibleGuids: string[] | null,
+    opts?: { hide?: boolean; dbIds?: number[] },
+  ) => Promise<void> | void
 }
 
 /**
@@ -65,7 +68,11 @@ export function useFiltroVisor({
         // Cuando el modo "ocultar no vinculadas" está activo, le pedimos al
         // viewer que oculte los no-isolated en vez de atenuarlos. El backend
         // ya excluye las no-vinculadas de los GUIDs cuando ese flag está set.
-        await applyGhost(r.guidsCoinciden, { hide: filtro.ocultarNoVinculadas })
+        // dbIds del backend: el visor los usa directo y se saltea el índice.
+        await applyGhost(r.guidsCoinciden, {
+          hide: filtro.ocultarNoVinculadas,
+          dbIds: r.idsCoinciden,
+        })
       } catch (e) {
         if (!cancelled) setError((e as Error).message)
       } finally {

@@ -27,7 +27,7 @@ export function EditElementoTipoSheet() {
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-2xl! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Editar tipo de elemento</SheetTitle>
           <SheetDescription>

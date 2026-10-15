@@ -12,5 +12,9 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const clientId = process.env.MICROSOFT_CLIENT_ID ?? ""
   const tenantId = process.env.MICROSOFT_TENANT_ID ?? "common"
+
+  // Qué métodos de ingreso se ofrecen NO sale de acá: lo decide el backend
+  // combinando el toggle del SuperAdmin con si el IDP está configurado, y se
+  // consulta en /api/auth/metodos. Este endpoint quedó solo para MSAL.
   return NextResponse.json({ clientId, tenantId })
 }

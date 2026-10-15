@@ -12,6 +12,22 @@ import {
   useImportProcedimientosApply,
   type ProcedimientoModo,
 } from "@/features/procedimientos/api/use-import-export"
+import { useGetEquipos } from "@/features/equipos/api/use-equipos"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+/** Sentinelas de los selectores de equipo — Base UI Select no acepta "" como value. */
+const TODOS = "__all__"
+const GLOBALES = "__none__"
 
 const MODOS: { value: ProcedimientoModo; label: string; help: string }[] = [
   { value: "omitir", label: "Omitir los que ya existen", help: "Saltea los procedimientos cuyo nombre ya existe." },
@@ -24,6 +40,20 @@ export default function ProcedimientosExportImportPage() {
   const [fileName, setFileName] = useState("")
   const [parseError, setParseError] = useState<string | null>(null)
   const [modo, setModo] = useState<ProcedimientoModo>("omitir")
+
+  // Equipos: el export se puede acotar al catálogo de uno (origen) y el import elige a cuál
+  // aterrizan (destino). El archivo no arrastra el equipo de origen porque el destino es
+  // otro tenant. Ver Siprecom.Server.Api/Docs/ANALISIS-CAMPOS-POR-EQUIPO.md.
+  const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+  const { data: equiposResp } = useGetEquipos(hayEquipos)
+  const equipos = equiposResp?.data ?? []
+  const [equipoOrigen, setEquipoOrigen] = useState<string>(TODOS)
+  const [equipoDestino, setEquipoDestino] = useState<string>(GLOBALES)
+
+  // Con cero equipos todo es global y los dos selectores serían una pregunta con una sola
+  // respuesta.
+  const ofrecerEquipos = hayEquipos && equipos.length > 0
+  const destinoReal = ofrecerEquipos && equipoDestino !== GLOBALES ? equipoDestino : undefined
 
   const previewMut = useImportProcedimientosPreview()
   const applyMut = useImportProcedimientosApply()
@@ -40,6 +70,25 @@ export default function ProcedimientosExportImportPage() {
     previewMut.reset()
     try {
       const json = await parseFileJson<unknown>(file)
+
+      // Validación local: la deserialización de .NET es case-insensitive pero exige
+      // que la propiedad exista con el nombre correcto. Chequeamos formato mínimo
+      // para dar un error claro antes de mandarlo al backend.
+      const obj = json as Record<string, unknown> | null
+      const procs = obj?.procedimientos ?? obj?.Procedimientos
+      if (!Array.isArray(procs)) {
+        setData(null)
+        setParseError(
+          "El JSON no tiene la propiedad 'procedimientos'. ¿Es un archivo exportado desde esta pantalla?",
+        )
+        return
+      }
+      if (procs.length === 0) {
+        setData(null)
+        setParseError("El archivo no contiene procedimientos.")
+        return
+      }
+
       setData(json)
       previewMut.mutate(json)
     } catch (err) {
@@ -79,8 +128,38 @@ export default function ProcedimientosExportImportPage() {
             Descarga un JSON con todos los procedimientos activos y sus PDF embebidos (base64).
           </p>
         </div>
-        <Button onClick={exportarTodosLosProcedimientos} className="gap-2">
-          <Download className="h-4 w-4" /> Exportar todos los procedimientos
+        {ofrecerEquipos && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-gray-600">Equipo de origen</p>
+            <Select value={equipoOrigen} onValueChange={(v) => setEquipoOrigen(v ?? TODOS)}>
+              <SelectTrigger className="w-full sm:w-80">
+                <SelectValue>
+                  {equipoOrigen === TODOS
+                    ? "Todos los procedimientos"
+                    : equipoOrigen === GLOBALES
+                      ? "Sólo los globales"
+                      : equipos.find((e) => e.id === equipoOrigen)?.nombre ?? "—"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todos los procedimientos</SelectItem>
+                <SelectItem value={GLOBALES}>Sólo los globales</SelectItem>
+                {equipos.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <Button
+          onClick={() => exportarTodosLosProcedimientos(
+            ofrecerEquipos && equipoOrigen !== TODOS ? equipoOrigen : undefined)}
+          className="gap-2"
+        >
+          <Download className="h-4 w-4" />
+          {ofrecerEquipos && equipoOrigen !== TODOS
+            ? "Exportar los procedimientos del equipo"
+            : "Exportar todos los procedimientos"}
         </Button>
       </Card>
 
@@ -105,6 +184,31 @@ export default function ProcedimientosExportImportPage() {
             </Button>
           )}
         </div>
+
+        {ofrecerEquipos && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-gray-600">Equipo de destino</p>
+            <Select value={equipoDestino} onValueChange={(v) => setEquipoDestino(v ?? GLOBALES)}>
+              <SelectTrigger className="w-full sm:w-80">
+                <SelectValue>
+                  {equipoDestino === GLOBALES
+                    ? "Global (sin equipo)"
+                    : equipos.find((e) => e.id === equipoDestino)?.nombre ?? "—"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={GLOBALES}>Global (sin equipo)</SelectItem>
+                {equipos.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Los procedimientos que en el origen eran de un equipo quedan en éste. Los que
+              eran globales quedan globales, sin importar lo que elijas acá.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-gray-600">Qué hacer con los que ya existen:</p>
@@ -140,6 +244,18 @@ export default function ProcedimientosExportImportPage() {
           </div>
         )}
 
+        {previewMut.isError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-medium">No se pudo validar el archivo.</p>
+              <p className="text-xs whitespace-pre-wrap">
+                {previewMut.error instanceof Error ? previewMut.error.message : "Error inesperado."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {preview && (
           <div className="space-y-3">
             <p className="text-sm">
@@ -163,7 +279,7 @@ export default function ProcedimientosExportImportPage() {
             </ul>
 
             {!resultado && (
-              <Button onClick={() => data && applyMut.mutate({ data, modo })} disabled={applyMut.isPending} className="gap-2">
+              <Button onClick={() => data && applyMut.mutate({ data, modo, equipoDestino: destinoReal })} disabled={applyMut.isPending} className="gap-2">
                 {applyMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Importar
               </Button>

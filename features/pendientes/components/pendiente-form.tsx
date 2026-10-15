@@ -1,24 +1,48 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { ChevronDown, Info } from "lucide-react"
 
-import { pendienteCreateSchema, type PendienteFormValues } from "../schema"
-import { useGetPendienteCategorias, useGetPendienteTipos } from "../api/use-catalogos"
-import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { makePendienteCreateSchema, type PendienteFormValues } from "../schema"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
+import { useGetPendienteCategorias } from "../api/use-catalogos"
+import { useGetPendienteCatalogoArbol } from "../api/use-catalogo-maestro"
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
+import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
+import { useGetGruposResponsables } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import {
+  enAudienciaDelAmbito, etiquetaGrupoResponsable, seOfreceComoResponsable,
+} from "@/features/usuarios-grupos/etiqueta-responsable"
+import { useGetMisAmbitos } from "@/features/pendientes-ambitos/api/use-pendientes-ambitos"
+import { AudienciaAmbito } from "@/features/pendientes-ambitos/types"
+import { colorDeAmbito, iconoDeAmbito } from "@/features/pendientes-ambitos/presentacion"
 import { PRIORIDAD } from "../types"
+import {
+  CAMPO_DIMENSION,
+  DIMENSIONES,
+  LABEL_DIMENSION,
+  SELECCION_VACIA,
+  aplanarArbol,
+  filaCoincide,
+  reconciliarSeleccion,
+  SACRIFICIO_CON_ESPECIALIDAD,
+  seleccionAlcanzable,
+  type Dimension,
+  type FilaCatalogo,
+  type OpcionDimension,
+  type SeleccionDimensiones,
+} from "../catalogo-facetas"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import {
   Form,
@@ -41,222 +65,703 @@ interface PendienteFormProps {
   onSubmit: (values: PendienteFormValues) => void
   isPending: boolean
   onCancel: () => void
+  /**
+   * Alta o edición. La diferencia no es cosmética: en edición el formulario NO
+   * muestra responsable, grupo responsable ni ámbito.
+   *
+   * Los tres se cambian con acciones propias del detalle —Reasignar y Cambiar
+   * ámbito— porque tienen permisos más altos que editar: cualquiera con permiso
+   * de escritura puede corregir una descripción, pero reasignar comparte permiso
+   * con Aprobar y reclasificar exige pertenecer al ámbito destino. Tenerlos acá
+   * deshabilitados era ruido: ocupaban lugar sin poder usarse.
+   */
+  modo?: "alta" | "edicion"
 }
-
-const NONE = "__none__"
 
 export function PendienteForm({
   defaultValues,
   onSubmit,
   isPending,
   onCancel,
+  modo = "alta",
 }: PendienteFormProps) {
+  const esAlta = modo === "alta"
   const { data: perfil } = useGetPerfil()
+  const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
+  const elementoRequerido = proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTE_ELEMENTO_REQUERIDO === true
+  const permiteDescripcionManual =
+    proyectoRaw?.data?.funcionalidadesEfectivas?.PENDIENTES_DESCRIPCION_MANUAL !== false
   const { data: categoriasRaw } = useGetPendienteCategorias()
-  const { data: tiposRaw } = useGetPendienteTipos()
+  // Catálogo maestro — única fuente de las opciones de los 5 selects del wizard
+  // y de la descripción/categoría autopobladas. Ver `catalogo-facetas.ts`.
+  const { data: arbolRaw } = useGetPendienteCatalogoArbol()
   const { data: sistemasRaw } = useGetSistemasSelect()
   const { data: subSistemasRaw } = useGetSubSistemasSelect()
   const { data: usuariosRaw } = useGetProyectoUsuarios(perfil?.proyectoId ?? null)
-  const { data: especialidadesRaw } = useGetEspecialidades()
+  // Grupos declarados para uso en Pendientes, por el endpoint OPERATIVO: el de
+  // administración exige rol Admin, y quien crea pendientes es User o Supervisor —
+  // recibía 403 y el select salía vacío. Este además trae cuántos miembros ven el
+  // proyecto, que es lo que importa al asignar.
+  const { data: gruposResp } = useGetGruposResponsables()
+  // Ojo: la lista completa. La que se OFRECE se filtra más abajo por la audiencia
+  // del ámbito elegido — ver `gruposResponsables`.
+  const todosLosGrupos = gruposResp?.data ?? []
 
   const categorias = categoriasRaw?.data ?? []
-  const tipos = tiposRaw?.data ?? []
   const sistemas = sistemasRaw?.data ?? []
   const subSistemas = subSistemasRaw?.data ?? []
   const usuarios = usuariosRaw ?? []
-  const especialidades = especialidadesRaw?.data ?? []
 
   const hoy = new Date()
   const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000)
   const fechaDefault = en30dias.toISOString().substring(0, 10)
 
+  // Schema condicional: Elemento pasa a requerido si el proyecto tiene el
+  // feature flag PENDIENTE_ELEMENTO_REQUERIDO activo. `useMemo` para no
+  // recrear el resolver en cada render.
+  const schema = useMemo(() => makePendienteCreateSchema(elementoRequerido), [elementoRequerido])
+
   const form = useForm<PendienteFormValues>({
-    resolver: zodResolver(pendienteCreateSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
-      categoriaId: defaultValues?.categoriaId ?? "",
+      nivelId: defaultValues?.nivelId ?? "",
+      especialidadId: defaultValues?.especialidadId ?? "",
       tipoId: defaultValues?.tipoId ?? "",
-      responsableId: defaultValues?.responsableId ?? "",
+      accionId: defaultValues?.accionId ?? "",
+      motivoId: defaultValues?.motivoId ?? "",
+      categoriaId: defaultValues?.categoriaId ?? "",
       descripcion: defaultValues?.descripcion ?? "",
-      prioridad: defaultValues?.prioridad ?? 2,
+      descripcionManual: defaultValues?.descripcionManual ?? false,
+      ubicacion: defaultValues?.ubicacion ?? null,
+      responsableId: defaultValues?.responsableId ?? "",
+      grupoResponsableId: defaultValues?.grupoResponsableId ?? null,
+      ambitoId: defaultValues?.ambitoId ?? null,
       fechaCierreEstimado: defaultValues?.fechaCierreEstimado ?? fechaDefault,
-      subSistemaId: defaultValues?.subSistemaId ?? null,
-      elementoId: defaultValues?.elementoId ?? null,
-      especialidadId: defaultValues?.especialidadId ?? null,
+      prioridad: defaultValues?.prioridad ?? 2,
+      // Sistema se infiere del subsistema del defaultValues (edición) o queda vacío
+      // al crear. La sincronización sistema→subsistema la maneja el useEffect abajo.
+      sistemaId: defaultValues?.sistemaId
+        ?? subSistemas.find((ss) => ss.id === defaultValues?.subSistemaId)?.sistemaId
+        ?? "",
+      subSistemaId: defaultValues?.subSistemaId ?? "",
+      elementoId: defaultValues?.elementoId ?? (elementoRequerido ? "" : null),
       pid: defaultValues?.pid ?? null,
-      circuito: defaultValues?.circuito ?? null,
     },
   })
 
-  // Watch subsistema para filtrar elementos.
+  // Watch de las 5 dimensiones del wizard.
+  const nivelId = form.watch("nivelId")
+  const especialidadId = form.watch("especialidadId")
+  const tipoId = form.watch("tipoId")
+  const accionId = form.watch("accionId")
+  const motivoId = form.watch("motivoId")
+  const descripcionManual = form.watch("descripcionManual") ?? false
+
+  // ── Filtrado cruzado entre las 5 dimensiones ─────────────────────────
+  // El catálogo maestro es una tabla PLANA de 5-tuplas: el "árbol" que devuelve
+  // el backend es sólo un agrupamiento de presentación, no una jerarquía real.
+  // Por eso no imponemos un orden: aplanamos de vuelta y cada select ofrece los
+  // valores que siguen siendo alcanzables dadas LAS OTRAS dimensiones elegidas.
+  //
+  // Esto vale por dos motivos concretos:
+  //  - El usuario puede empezar por donde quiera (típicamente por Especialidad,
+  //    cuando ésta viene del Elemento).
+  //  - Mientras falte alguna dimensión, elegir dentro de lo ofrecido deja SIEMPRE
+  //    una tupla que existe en el catálogo, así que no hay que limpiar nada.
+  //
+  // La excepción es tener las 5 completas: ahí el filtrado se muerde la cola y los
+  // selects pasan a ofrecer el catálogo entero, con reconciliación al elegir. Ver
+  // `opciones` y `onDimensionChange`.
+  const filas = useMemo<FilaCatalogo[]>(() => aplanarArbol(arbolRaw?.data ?? []), [arbolRaw])
+
+  const seleccion = useMemo<SeleccionDimensiones>(
+    () => ({ nivel: nivelId, especialidad: especialidadId, tipo: tipoId, accion: accionId, motivo: motivoId }),
+    [nivelId, especialidadId, tipoId, accionId, motivoId],
+  )
+
+  // Un pendiente viejo puede tener una combinación que el catálogo ya no
+  // contiene. Si filtráramos por ella, los 5 selects quedarían vacíos y sin
+  // salida: en ese caso ofrecemos todo el catálogo para poder re-anclar.
+  const seleccionValida = useMemo(
+    () => seleccionAlcanzable(filas, seleccion),
+    [filas, seleccion],
+  )
+
+  const opciones = useMemo(() => {
+    // Con las 5 dimensiones cargadas, el filtrado cruzado se muerde la cola: cada
+    // eje queda determinado por los otros cuatro y el select ofrece una sola opción
+    // — la actual. Pasa siempre al editar, y también en el alta si te equivocaste en
+    // el último select. Ahí abrimos el catálogo completo: elegir algo incompatible
+    // no rompe nada porque `onDimensionChange` reconcilia el resto.
+    //
+    // Mientras falte alguna, el filtrado cruzado sigue guiando como hasta ahora.
+    const completas = DIMENSIONES.every((d) => Boolean(seleccion[d]))
+    const base = seleccionValida && !completas ? seleccion : SELECCION_VACIA
+    const out = {} as Record<Dimension, OpcionDimension[]>
+    for (const dim of DIMENSIONES) {
+      const vistos = new Set<string>()
+      const acc: OpcionDimension[] = []
+      // Filtramos por todas las dimensiones MENOS la propia: así el select
+      // siempre muestra alternativas para su eje sin auto-restringirse.
+      for (const fila of filas) {
+        if (!filaCoincide(fila, base, dim)) continue
+        const id = fila[`${dim}Id`]
+        if (vistos.has(id)) continue
+        vistos.add(id)
+        acc.push({ id, label: fila[`${dim}Nombre`], orden: dim === "nivel" ? fila.nivelPosicion : 0 })
+      }
+      acc.sort((a, b) => a.orden - b.orden || a.label.localeCompare(b.label))
+      out[dim] = acc
+    }
+    return out
+  }, [filas, seleccion, seleccionValida])
+
+  // Fila exacta del catálogo cuando las 5 dimensiones cierran. De acá salen la
+  // categoría y la descripción autopobladas.
+  const filaSeleccionada = useMemo(
+    () => (DIMENSIONES.every((d) => seleccion[d])
+      ? filas.find((f) => DIMENSIONES.every((d) => f[`${d}Id`] === seleccion[d])) ?? null
+      : null),
+    [filas, seleccion],
+  )
+
+  // Retrocompat en edición: el pendiente puede haberse cargado antes de que el
+  // catálogo tuviera esa combinación. Mostramos aviso y dejamos los selects
+  // visibles con los valores actuales — nunca los pisamos solos, para no perder
+  // datos históricos. Si el user cambia alguno, el filtrado cruzado lo reencauza.
+  const dimensionesCompletas = DIMENSIONES.every((d) => Boolean(seleccion[d]))
+  const comboFueraDeCatalogo = dimensionesCompletas && !filaSeleccionada && filas.length > 0
+
+  // Al cerrarse las 5 dimensiones sobre una fila del catálogo, autopoblamos
+  // categoría y descripción (esta última solo si el user NO está overrideando
+  // manualmente — el checkbox lo controla).
+  useEffect(() => {
+    if (!filaSeleccionada) return
+    if (form.getValues("categoriaId") !== filaSeleccionada.categoriaId) {
+      form.setValue("categoriaId", filaSeleccionada.categoriaId, { shouldValidate: true, shouldDirty: true })
+    }
+    if (!descripcionManual && form.getValues("descripcion") !== filaSeleccionada.descripcion) {
+      form.setValue("descripcion", filaSeleccionada.descripcion, { shouldValidate: true, shouldDirty: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filaSeleccionada?.motivoId, filaSeleccionada?.categoriaId, descripcionManual])
+
+  /** Limpia las 5 dimensiones para volver a elegir dentro del catálogo. */
+  const reiniciarWizard = () => {
+    for (const d of DIMENSIONES) {
+      form.setValue(CAMPO_DIMENSION[d], "", { shouldDirty: true, shouldValidate: true })
+    }
+    setAjusteWizard([])
+    setAjusteOrigen(null)
+  }
+
+  /**
+   * Cambio de una de las 5 dimensiones desde su select.
+   *
+   * Con las 5 completas el select ofrece todo el catálogo (ver `opciones`), así que
+   * el valor elegido puede no convivir con el resto. Reconciliamos: anclamos lo que
+   * el usuario acaba de elegir y soltamos las mínimas dimensiones necesarias para
+   * que la combinación vuelva a existir, en el orden Motivo → Acción → Tipo → Nivel.
+   *
+   * Después intentamos recompletar solas las que quedaron sueltas cuando les queda
+   * una única opción compatible. En la práctica cambiás el Tipo y te queda uno o dos
+   * campos para elegir, no cuatro — que es la diferencia entre ajustar y rehacer.
+   */
+  const onDimensionChange = (dim: Dimension, valor: string) => {
+    form.setValue(CAMPO_DIMENSION[dim], valor, { shouldDirty: true, shouldValidate: true })
+    setEspecialidadSinCatalogo(false)
+
+    if (!valor || filas.length === 0) {
+      setAjusteWizard([])
+      setAjusteOrigen(null)
+      return
+    }
+
+    const { seleccion: saneada, soltadas } = reconciliarSeleccion(
+      filas,
+      { ...seleccion, [dim]: valor },
+      [dim],
+      SACRIFICIO_CON_ESPECIALIDAD,
+    )
+
+    // Recompletar lo que quedó con una sola alternativa. Se recalcula en cada
+    // vuelta porque fijar una dimensión puede dejar la siguiente también en una.
+    const final = { ...saneada }
+    const pendientesDeElegir: Dimension[] = []
+    for (const d of soltadas) {
+      const compatibles = new Set<string>()
+      for (const fila of filas) {
+        if (filaCoincide(fila, final, d)) compatibles.add(fila[`${d}Id`])
+      }
+      if (compatibles.size === 1) final[d] = [...compatibles][0]
+      else pendientesDeElegir.push(d)
+    }
+
+    for (const d of DIMENSIONES) {
+      if (final[d] !== seleccion[d]) {
+        form.setValue(CAMPO_DIMENSION[d], final[d], { shouldDirty: true, shouldValidate: true })
+      }
+    }
+
+    setAjusteWizard(pendientesDeElegir)
+    setAjusteOrigen(pendientesDeElegir.length > 0 ? "wizard" : null)
+  }
+
+  // Toggle del checkbox "Modificar descripción manualmente":
+  //  - Al desactivar → restaura la descripción del catálogo (si hay match).
+  //  - Al activar → deja el textarea editable con el valor actual (o vacío).
+  const onToggleDescripcionManual = (nuevo: boolean) => {
+    form.setValue("descripcionManual", nuevo, { shouldDirty: true })
+    if (!nuevo && filaSeleccionada) {
+      form.setValue("descripcion", filaSeleccionada.descripcion, { shouldValidate: true, shouldDirty: true })
+    }
+  }
+
+  // ── Localización ────────────────────────────────────────────────
   const subSistemaIdActual = form.watch("subSistemaId")
+  const elementoIdActual = form.watch("elementoId")
   const { data: elementosRaw } = useGetElementos({
     page: 1,
     pageSize: 500,
     subSistemaId: subSistemaIdActual ?? undefined,
+    especialidadId: especialidadId || undefined,
   })
   const elementos = elementosRaw?.data ?? []
 
-  // Filtramos subsistemas por sistema (UI extra: select de sistema para acotar lista).
-  const [sistemaId, setSistemaId] = useStateLike(defaultValues?.subSistemaId, subSistemas)
-  const subSistemasFiltrados = useMemo(
-    () => (sistemaId ? subSistemas.filter((ss) => ss.sistemaId === sistemaId) : subSistemas),
-    [sistemas, subSistemas, sistemaId],
+  // El elemento elegido puede quedar fuera de la lista filtrada (típico al venir
+  // pre-cargado desde la maqueta 3D y después tocar la especialidad del wizard).
+  // NO lo limpiamos: era el dato de partida del usuario. Lo resolvemos aparte
+  // para poder seguir mostrándolo y avisamos que no matchea el filtro.
+  const elementoElegidoQuery = useGetElemento(elementoIdActual ?? null)
+  const elementoElegido = elementoElegidoQuery.data?.data ?? null
+  const elementoFueraDelFiltro = Boolean(
+    elementoIdActual && elementos.length > 0 && !elementos.some((e) => e.id === elementoIdActual),
   )
 
-  // Opciones para Combobox de elementos (búsqueda).
-  const elementoOptions = useMemo(
-    () => [
+  // Al elegir un elemento con especialidad definida a nivel de ElementoTipo,
+  // la imponemos sobre el wizard: el elemento es el dato más concreto que dio
+  // el usuario. Es la ÚNICA escritura externa sobre las 5 dimensiones, así que
+  // es el único lugar donde la selección puede quedar inconsistente y hay que
+  // reconciliarla (elegir dentro de las opciones ofrecidas nunca la rompe).
+  // shouldValidate: true es crítico — sin él, el error "Elemento requerido"
+  // queda pegado aunque el user ya haya elegido uno.
+  const [ajusteWizard, setAjusteWizard] = useState<Dimension[]>([])
+  // Quién disparó el ajuste: el elemento imponiendo su especialidad, o el propio
+  // usuario cambiando una dimensión. El aviso dice cosas distintas en cada caso —
+  // uno explica algo que pasó solo, el otro confirma lo que el usuario pidió.
+  const [ajusteOrigen, setAjusteOrigen] = useState<"elemento" | "wizard" | null>(null)
+  const [especialidadSinCatalogo, setEspecialidadSinCatalogo] = useState(false)
+
+  // La especialidad puede llegar PRE-CARGADA (prefill desde la maqueta 3D) apuntando
+  // a una que el catálogo maestro no cubre — hoy solo Cañerías y CIVIL tienen filas.
+  // Ahí el select no puede ofrecerla y el valor quedaría seteado pero invisible.
+  // La soltamos y avisamos, en vez de dejar un valor fantasma filtrando elementos.
+  useEffect(() => {
+    if (filas.length === 0 || !especialidadId) return
+    if (filas.some((f) => f.especialidadId === especialidadId)) return
+    form.setValue("especialidadId", "", { shouldDirty: false, shouldValidate: false })
+    setEspecialidadSinCatalogo(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filas.length, especialidadId])
+
+  const onElementoChange = (nuevoElementoId: string | null) => {
+    form.setValue("elementoId", nuevoElementoId, { shouldDirty: true, shouldValidate: true })
+    setAjusteWizard([])
+    setAjusteOrigen(null)
+    setEspecialidadSinCatalogo(false)
+    if (!nuevoElementoId) return
+    const el = elementos.find((e) => e.id === nuevoElementoId)
+    const espDelElemento = el?.elementoTipoEspecialidadId
+    if (!espDelElemento || espDelElemento === especialidadId) return
+
+    // Si el catálogo no tiene ninguna fila para esa especialidad, aplicarla
+    // dejaría los 5 selects sin opciones. Preferimos no tocar el wizard y avisar.
+    if (filas.length > 0 && !filas.some((f) => f.especialidadId === espDelElemento)) {
+      setEspecialidadSinCatalogo(true)
+      return
+    }
+
+    const { seleccion: saneada, soltadas } = reconciliarSeleccion(
+      filas,
+      { ...seleccion, especialidad: espDelElemento },
+      ["especialidad"],
+    )
+    for (const d of DIMENSIONES) {
+      if (saneada[d] !== seleccion[d]) {
+        form.setValue(CAMPO_DIMENSION[d], saneada[d], { shouldDirty: true, shouldValidate: true })
+      }
+    }
+    setAjusteWizard(soltadas)
+    setAjusteOrigen(soltadas.length > 0 ? "elemento" : null)
+  }
+
+  // Sistema y Subsistema viven en el form (para tener validación uniforme).
+  // El sistema solo filtra el select de subsistemas — el backend consume subSistemaId.
+  const sistemaId = form.watch("sistemaId")
+  const subSistemasFiltrados = useMemo(
+    () => (sistemaId ? subSistemas.filter((ss) => ss.sistemaId === sistemaId) : subSistemas),
+    [subSistemas, sistemaId],
+  )
+  // Cuando cargan los subsistemas después del defaultValue (edición), inferimos
+  // el sistema desde el subsistema si no está seteado — necesario porque el
+  // defaultValue del form se resuelve una vez y las queries pueden llegar después.
+  useEffect(() => {
+    if (sistemaId) return
+    const currentSubId = form.getValues("subSistemaId")
+    if (!currentSubId) return
+    const ss = subSistemas.find((s) => s.id === currentSubId)
+    if (ss?.sistemaId) {
+      form.setValue("sistemaId", ss.sistemaId, { shouldValidate: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subSistemas.length])
+  const elementoOptions = useMemo(() => {
+    const opts = [
       { value: "", label: "Sin elemento asignado" },
       ...elementos.map((e) => ({ value: e.id, label: `${e.tag} — ${e.nombre}` })),
-    ],
-    [elementos],
-  )
+    ]
+    // El elegido va sí o sí, aunque el filtro por especialidad lo deje afuera:
+    // sin la opción, el Combobox mostraría vacío y parecería que se perdió.
+    if (elementoElegido && !opts.some((o) => o.value === elementoElegido.id)) {
+      opts.push({ value: elementoElegido.id, label: `${elementoElegido.tag} — ${elementoElegido.nombre}` })
+    }
+    return opts
+  }, [elementos, elementoElegido])
+
+  const [avanzadoAbierto, setAvanzadoAbierto] = useState(false)
+
+  // Ámbito — la primera decisión del formulario: define quién va a ver el
+  // pendiente. El selector ofrece solo los ámbitos donde este usuario puede
+  // clasificar (endpoint /mios), así que nadie manda un pendiente a un lugar
+  // donde después no lo va a ver.
+  //
+  // Con dos ámbitos se dibuja como un checkbox —igual que el viejo "interno"—
+  // y el selector aparece recién cuando hay tres o más. La generalidad del
+  // modelo no se le cobra al usuario hasta que la necesita.
+  const { data: ambitosResp } = useGetMisAmbitos()
+  const misAmbitos = ambitosResp?.data ?? []
+  const ambitoIdActual = form.watch("ambitoId")
+  const ambitoPrincipal = misAmbitos.find((a) => a.esPrincipal) ?? null
+  const ambitoActual = misAmbitos.find((a) => a.id === ambitoIdActual) ?? null
+
+  // Ámbito por defecto DEL USUARIO: el principal cuando lo tiene —que es siempre,
+  // porque su audiencia es abierta por invariante— y si no, el primero de su lista.
+  // `/mios` ya devuelve el principal primero, así que `misAmbitos[0]` cubre los dos
+  // casos y espeja lo que hace el backend cuando el alta no manda ámbito. Elegir el
+  // principal a ciegas dejaba al usuario sin acceso rebotando contra un default que
+  // él no había elegido.
+  const ambitoPorDefecto = ambitoPrincipal ?? misAmbitos[0] ?? null
+
+  useEffect(() => {
+    if (!ambitoIdActual && ambitoPorDefecto) {
+      form.setValue("ambitoId", ambitoPorDefecto.id)
+    }
+  }, [ambitoIdActual, ambitoPorDefecto, form])
+
+  // Grupos que se pueden asignar como co-responsables: solo los que están en la
+  // audiencia del ámbito elegido.
+  //
+  // Asignarle un pendiente a un grupo que no ve ese ámbito deja la asignación
+  // inerte — el filtro de "Míos" lo incluye y el de visibilidad lo saca un paso
+  // después, así que no aparece en el listado de nadie. El backend lo rechaza;
+  // acá directamente no se ofrece, que es el mismo criterio que usan las columnas
+  // de la matriz de autorización.
+  const ambitoElegido = ambitoActual ?? ambitoPorDefecto
+  // Dos filtros: que alguien lo vea en este proyecto, y —en un ámbito restringido— que
+  // esté en su audiencia. En el alta no hay grupo previo, así que ningún vacío se salva.
+  const gruposResponsables = useMemo(
+    () => todosLosGrupos.filter((g) =>
+      seOfreceComoResponsable(g) && enAudienciaDelAmbito(g, ambitoElegido)),
+    [todosLosGrupos, ambitoElegido])
+
+  // Cambiar el ámbito puede dejar al grupo co-responsable fuera de la audiencia
+  // nueva. Se limpia y se avisa, en vez de mandarlo y que el backend rebote con un
+  // error sobre un campo que el usuario no tocó.
+  const [grupoSoltadoPorAmbito, setGrupoSoltadoPorAmbito] = useState<string | null>(null)
+
+  function onAmbitoChange(nuevoAmbitoId: string) {
+    form.setValue("ambitoId", nuevoAmbitoId, { shouldDirty: true, shouldValidate: true })
+    setGrupoSoltadoPorAmbito(null)
+
+    const grupoActual = form.getValues("grupoResponsableId")
+    if (!grupoActual) return
+
+    const destino = misAmbitos.find((a) => a.id === nuevoAmbitoId)
+    if (!destino || destino.audiencia === AudienciaAmbito.TodoElProyecto) return
+    if (destino.grupos.some((ag) => ag.grupoId === grupoActual)) return
+
+    setGrupoSoltadoPorAmbito(todosLosGrupos.find((g) => g.id === grupoActual)?.nombre ?? null)
+    form.setValue("grupoResponsableId", null, { shouldDirty: true })
+  }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
-        {/* Datos principales */}
-        <div className="flex flex-col gap-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Información principal
-          </p>
+      <form
+        onSubmit={form.handleSubmit((values) => {
+          onSubmit(values)
+        })}
+        className="flex flex-col gap-6 pb-24 sm:pb-4"
+      >
+        {/* Ámbito — define quién va a ver el pendiente. Va antes que el grupo
+            responsable porque lo filtra: elegirlo después soltaría el grupo ya elegido.
 
+            Una sola fila de chips, con todas las opciones a la vista. Antes eran dos
+            controles distintos según la cantidad —checkbox con dos ámbitos, select con
+            tres o más—, así que el mismo concepto se veía distinto según la
+            configuración.
+
+            Cada chip usa el ícono y el color que se eligieron en la pantalla de
+            ámbitos, igual que la marca del listado. El principal activo va en el acento
+            de la app y no en su color: el color queda para señalar lo restringido.
+
+            Se dibuja sólo con más de un ámbito: con uno no hay nada que elegir, y el
+            pendiente nace en el principal, que el efecto de arriba deja seteado. Y sólo
+            en el alta: reclasificar cambia quién lo ve retroactivamente, y eso tiene su
+            propia acción en el detalle. */}
+        {esAlta && misAmbitos.length > 1 && (
+        <FormField
+          control={form.control}
+          name="ambitoId"
+          render={({ field }) => (
+            <FormItem className="space-y-1.5 m-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">Visible para:</span>
+                {misAmbitos.map((a) => {
+                  const activo = field.value === a.id
+                  const Icono = iconoDeAmbito(a.icono)
+                  const estiloActivo = a.esPrincipal
+                    ? "bg-blue-50 text-blue-800 border-blue-300"
+                    : colorDeAmbito(a.color).chip
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => onAmbitoChange(a.id)}
+                      disabled={isPending}
+                      aria-pressed={activo}
+                      className={
+                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+                        (activo ? estiloActivo : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+                      }
+                    >
+                      {Icono && <Icono className="h-3.5 w-3.5" />}
+                      {a.nombre}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Sólo para los restringidos: el principal no necesita explicación, y
+                  repetirla en cada alta sería ruido que se aprende a no leer. */}
+              {ambitoActual && !ambitoActual.esPrincipal && (
+                <p className="text-xs text-muted-foreground">
+                  {ambitoActual.descripcion
+                    ?? `Sólo lo ven quienes están en la audiencia de ${ambitoActual.nombre}.`}
+                </p>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        )}
+
+        {grupoSoltadoPorAmbito && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start gap-2">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              Quitamos el grupo <span className="font-medium">{grupoSoltadoPorAmbito}</span>: no está
+              en la audiencia de este ámbito, así que no vería el pendiente. Si querés asignarlo a un
+              grupo, elegí otro más abajo, junto al responsable.
+            </span>
+          </div>
+        )}
+
+        {/* ── Wizard de descripción (filtrado cruzado desde el catálogo) ── */}
+        <div className="flex flex-col gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Wizard de descripción
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Elegí las 5 dimensiones en el orden que quieras — cada una filtra a las demás y
+              solo se ofrecen las combinaciones cargadas en el catálogo maestro. La descripción
+              y la categoría salen del catálogo.
+            </p>
+          </div>
+
+          {/* Con las 5 completas los selects abren el catálogo entero, así que cambiar
+              una es posible sin rehacer todo. El reinicio queda como salida para el que
+              prefiere empezar de cero en vez de pelear con la reconciliación. */}
+          {dimensionesCompletas && !comboFueraDeCatalogo && (
+            <p className="text-xs text-muted-foreground">
+              Las cinco están completas: los selects muestran el catálogo entero. Si cambiás una y
+              la combinación deja de existir, soltamos las mínimas necesarias y te avisamos.{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 font-medium cursor-pointer"
+                onClick={reiniciarWizard}
+              >
+                Reiniciar las cinco
+              </button>
+            </p>
+          )}
+
+          {comboFueraDeCatalogo && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Este pendiente tiene una combinación de dimensiones que ya no existe en el catálogo actual.
+                Podés dejarla como está o reiniciar el wizard para elegir dentro del catálogo.
+              </span>
+              <button
+                type="button"
+                className="ml-auto shrink-0 underline underline-offset-2 font-medium cursor-pointer"
+                onClick={reiniciarWizard}
+              >
+                Reiniciar
+              </button>
+            </div>
+          )}
+
+          {especialidadSinCatalogo && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                La especialidad del elemento no tiene combinaciones cargadas en el catálogo maestro
+                de pendientes, así que el wizard no puede ofrecerla. Elegí las 5 dimensiones a mano —
+                el elemento queda seleccionado igual.
+              </span>
+            </div>
+          )}
+
+          {ajusteWizard.length > 0 && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                {ajusteOrigen === "elemento"
+                  ? "Ajustamos la especialidad según el elemento elegido."
+                  : "El cambio no convive con el resto de la combinación, así que soltamos lo mínimo necesario."}{" "}
+                Volvé a elegir: {ajusteWizard.map((d) => LABEL_DIMENSION[d]).join(", ")}.
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {DIMENSIONES.map((dim) => {
+              // Distinguimos "el catálogo no tiene nada" de "no queda nada compatible
+              // con lo ya elegido" — el segundo caso se resuelve destildando otro select.
+              const hayOtrasElegidas = DIMENSIONES.some((d) => d !== dim && seleccion[d])
+              return (
+                <FormField
+                  key={dim}
+                  control={form.control}
+                  name={CAMPO_DIMENSION[dim]}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{LABEL_DIMENSION[dim]} *</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          options={opciones[dim].map((o) => ({ value: o.id, label: o.label }))}
+                          value={field.value ?? ""}
+                          onChange={(v) => onDimensionChange(dim, v || "")}
+                          placeholder={`Elegí ${LABEL_DIMENSION[dim].toLowerCase()}`}
+                          searchPlaceholder="Buscar..."
+                          emptyMessage={
+                            hayOtrasElegidas
+                              ? "Sin opciones para la combinación elegida"
+                              : "Sin datos en el catálogo"
+                          }
+                          disabled={isPending || filas.length === 0}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )
+            })}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Descripción + Categoría (del catálogo) ── */}
+        <div className="flex flex-col gap-4">
           <FormField
             control={form.control}
             name="descripcion"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Descripción</FormLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FormLabel>Descripción *</FormLabel>
+                  {permiteDescripcionManual && (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={descripcionManual}
+                        onChange={(e) => onToggleDescripcionManual(e.target.checked)}
+                        disabled={isPending}
+                        className="h-3.5 w-3.5 accent-blue-900"
+                      />
+                      Modificar descripción manualmente
+                    </label>
+                  )}
+                </div>
                 <FormControl>
                   <Textarea
-                    placeholder="Describí el pendiente con detalle..."
-                    rows={4}
-                    disabled={isPending}
                     {...field}
+                    value={field.value ?? ""}
+                    disabled={isPending}
+                    readOnly={!descripcionManual}
+                    rows={3}
+                    className={!descripcionManual ? "bg-muted/40" : ""}
+                    placeholder={filaSeleccionada ? undefined : "Elegí las 5 dimensiones — la descripción viene del catálogo."}
                   />
+                </FormControl>
+                {!descripcionManual && filaSeleccionada && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Texto sugerido por el catálogo. Tildá "Modificar descripción manualmente" para editarlo.
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="categoriaId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Categoría *</FormLabel>
+                <FormControl>
+                  <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-gray-700">
+                    {categorias.find((c) => c.id === field.value)?.nombre
+                      ?? (filaSeleccionada ? filaSeleccionada.categoriaNombre : <span className="text-muted-foreground">Sale del catálogo al completar el wizard</span>)}
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField
-              control={form.control}
-              name="categoriaId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Categoría</FormLabel>
-                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Elegí categoría">
-                          {categorias.find((c) => c.id === field.value)?.nombre ?? "Elegí categoría"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categorias.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="tipoId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo</FormLabel>
-                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Elegí tipo">
-                          {tipos.find((t) => t.id === field.value)?.tipo ?? "Elegí tipo"}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {tipos.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.tipo}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField
-              control={form.control}
-              name="prioridad"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prioridad</FormLabel>
-                  <Select
-                    value={String(field.value)}
-                    onValueChange={(v) => v && field.onChange(Number(v))}
-                    disabled={isPending}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue>{PRIORIDAD[field.value] ?? "Prioridad"}</SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.entries(PRIORIDAD).map(([id, nombre]) => (
-                        <SelectItem key={id} value={id}>{nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="fechaCierreEstimado"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cierre estimado</FormLabel>
-                  <FormControl>
-                    <Input type="date" disabled={isPending} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
+          {/* Ubicación geográfica — opcional. Texto libre para ayudar a encontrar
+              el equipo o el lugar del pendiente cuando el PID + TAG no alcanzan. */}
           <FormField
             control={form.control}
-            name="responsableId"
+            name="ubicacion"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Responsable</FormLabel>
-                <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} disabled={isPending}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Asignar a un usuario del proyecto">
-                        {usuarios.find((u) => u.usuarioId === field.value)?.userName ?? "Asignar"}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {usuarios.map((u) => (
-                      <SelectItem key={u.usuarioId} value={u.usuarioId}>
-                        {u.userName} — {u.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormLabel>Ubicación (opcional)</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(e.target.value || null)}
+                    placeholder="Ej.: sala de bombas, nivel -3, cerca de la escalera oeste"
+                    rows={2}
+                    disabled={isPending}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -265,54 +770,175 @@ export function PendienteForm({
 
         <Separator />
 
-        {/* Localización (opcional) */}
+        {/* ── Asignación + Fecha ── */}
+        {/* En ALTA: responsable + grupo a la izquierda, fecha a la derecha.
+            En EDICIÓN queda solo la fecha — responsable y grupo se cambian con
+            Reasignar, que pide permisos más altos que editar.
+            (El ámbito vive arriba de todo: es la primera decisión del alta.) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          {esAlta && (
+          <div className="flex flex-col gap-3">
+            <FormField
+              control={form.control}
+              name="responsableId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Responsable *</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={usuarios.map((u) => {
+                        const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
+                        // En SIPRECOM el userName suele ser el email — evitamos duplicarlo.
+                        const identificador = u.userName && u.userName !== u.email ? u.userName : u.email
+                        const label = nombreCompleto
+                          ? `${nombreCompleto} — ${identificador}`
+                          : identificador
+                        return { value: u.usuarioId, label }
+                      })}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || "")}
+                      placeholder="Asignar a un usuario"
+                      searchPlaceholder="Buscar por nombre, apellido, usuario o email..."
+                      emptyMessage="Sin usuarios en el proyecto"
+                      disabled={isPending}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+  
+            {/* Grupo responsable (opcional). No otorga permisos: solo hace que el
+                pendiente aparezca en "Míos" a todos los miembros del grupo. Va
+                pegado al responsable porque extiende esa misma asignación.
+
+                La lista ya viene acotada a la audiencia del ámbito elegido — un
+                grupo fuera de esa audiencia no vería el pendiente que se le
+                asigna, así que el backend lo rechaza. */}
+            <FormField
+              control={form.control}
+              name="grupoResponsableId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>👥 Grupo responsable</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={gruposResponsables.map((g) => ({ value: g.id, label: etiquetaGrupoResponsable(g) }))}
+                      value={field.value ?? ""}
+                      onChange={(v) => field.onChange(v || null)}
+                      placeholder="Sin grupo"
+                      searchPlaceholder="Buscar grupo..."
+                      emptyMessage="Ningún grupo de Pendientes tiene miembros en este proyecto y ámbito"
+                      disabled={isPending}
+                    />
+                  </FormControl>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Opcional. Si elegís uno, el pendiente aparece en &quot;Míos&quot; a todo el
+                    grupo, además del responsable. No cambia permisos.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            <FormField
+              control={form.control}
+              name="fechaCierreEstimado"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cierre estimado *</FormLabel>
+                  <FormControl>
+                    <Input type="date" disabled={isPending} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Localización ── */}
         <div className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Localización (opcional)
+            Localización
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="grid gap-2 content-start">
-              <Label>Sistema</Label>
-              <Select value={sistemaId || NONE} onValueChange={(v) => { const value = v ?? NONE; setSistemaId(value === NONE ? "" : value) }}>
-                <SelectTrigger>
-                  <SelectValue>
-                    {sistemaId
-                      ? sistemas.find((s) => s.id === sistemaId)?.nombre ?? "Sistema"
-                      : "Todos"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>Todos</SelectItem>
-                  {sistemas.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <FormField
+              control={form.control}
+              name="sistemaId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sistema *</FormLabel>
+                  <Select
+                    value={field.value || ""}
+                    onValueChange={(v) => {
+                      if (!v) return
+                      field.onChange(v)
+                      // Al cambiar el sistema limpiamos el subsistema — así se
+                      // fuerza al user a elegir uno dentro del nuevo sistema.
+                      form.setValue("subSistemaId", "", { shouldDirty: true, shouldValidate: true })
+                    }}
+                    disabled={isPending}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Elegí sistema">
+                          {field.value
+                            ? sistemas.find((s) => s.id === field.value)?.nombre ?? "Sistema"
+                            : "Elegí sistema"}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {sistemas.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
               name="subSistemaId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Subsistema</FormLabel>
+                  <FormLabel>Subsistema *</FormLabel>
                   <Select
-                    value={field.value || NONE}
-                    onValueChange={(v) => field.onChange(v === NONE ? null : v)}
-                    disabled={isPending}
+                    value={field.value || ""}
+                    onValueChange={(v) => {
+                      if (!v) return
+                      // Usamos form.setValue con shouldValidate en vez de
+                      // field.onChange — el field.onChange de RHF no dispara
+                      // revalidación en modo submit-only con Zod resolver, y
+                      // el error del schema queda pegado aunque el value ya
+                      // sea válido. Mismo patrón que el select de Sistema.
+                      form.setValue("subSistemaId", v, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }}
+                    disabled={isPending || !sistemaId}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Sin subsistema">
+                        <SelectValue placeholder={sistemaId ? "Elegí subsistema" : "Elegí sistema primero"}>
                           {field.value
                             ? subSistemas.find((ss) => ss.id === field.value)?.nombre ?? "Subsistema"
-                            : "Sin subsistema"}
+                            : (sistemaId ? "Elegí subsistema" : "Elegí sistema primero")}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={NONE}>Sin subsistema</SelectItem>
                       {subSistemasFiltrados.map((ss) => (
                         <SelectItem key={ss.id} value={ss.id}>{ss.codigo} — {ss.nombre}</SelectItem>
                       ))}
@@ -329,13 +955,26 @@ export function PendienteForm({
             name="elementoId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Elemento</FormLabel>
+                <FormLabel>
+                  Elemento{elementoRequerido ? " *" : ""}
+                  {especialidadId && (
+                    <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                      (filtrado por especialidad)
+                    </span>
+                  )}
+                </FormLabel>
+                {elementoFueraDelFiltro && (
+                  <p className="text-[11px] text-amber-700">
+                    Este elemento es de otra especialidad que la elegida en el wizard. Se mantiene
+                    seleccionado; cambiá la especialidad si querés ver los elementos que sí matchean.
+                  </p>
+                )}
                 <FormControl>
                   <Combobox
                     options={elementoOptions}
                     value={field.value ?? ""}
-                    onChange={(v) => field.onChange(v || null)}
-                    placeholder="Sin elemento asignado"
+                    onChange={(v) => onElementoChange(v || null)}
+                    placeholder={elementoRequerido ? "Elegí elemento" : "Sin elemento asignado"}
                     searchPlaceholder="Buscar elemento..."
                     emptyMessage="Sin resultados"
                   />
@@ -345,57 +984,12 @@ export function PendienteForm({
             )}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField
-              control={form.control}
-              name="especialidadId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Especialidad</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={especialidades.map((e) => ({
-                        value: e.id,
-                        label: e.codigo ? `${e.codigo} — ${e.nombre}` : e.nombre,
-                      }))}
-                      value={field.value ?? ""}
-                      onChange={(v) => field.onChange(v || null)}
-                      placeholder="Seleccionar especialidad"
-                      searchPlaceholder="Buscar..."
-                      emptyMessage="No hay especialidades cargadas"
-                      disabled={isPending}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="pid"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>PID</FormLabel>
-                  <FormControl>
-                    <Input
-                      disabled={isPending}
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value || null)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
           <FormField
             control={form.control}
-            name="circuito"
+            name="pid"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Circuito</FormLabel>
+                <FormLabel>PID</FormLabel>
                 <FormControl>
                   <Input
                     disabled={isPending}
@@ -409,37 +1003,71 @@ export function PendienteForm({
           />
         </div>
 
-        {/* Botones */}
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={isPending} className="flex-1 bg-blue-900 hover:bg-blue-800">
+        {/* ── Avanzado (colapsable) ── */}
+        <div className="rounded-md border bg-muted/30">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium text-muted-foreground"
+            onClick={() => setAvanzadoAbierto((v) => !v)}
+          >
+            <span>Opciones avanzadas</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${avanzadoAbierto ? "rotate-180" : ""}`} />
+          </button>
+          {avanzadoAbierto && (
+            <div className="px-3 pb-3 space-y-4">
+              <FormField
+                control={form.control}
+                name="prioridad"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prioridad</FormLabel>
+                    <Select
+                      value={String(field.value)}
+                      onValueChange={(v) => v && field.onChange(Number(v))}
+                      disabled={isPending}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue>{PRIORIDAD[field.value] ?? "Prioridad"}</SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.entries(PRIORIDAD).map(([id, nombre]) => (
+                          <SelectItem key={id} value={id}>{nombre}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Botones sticky */}
+        <div
+          className="fixed sm:relative inset-x-0 bottom-0 z-10 flex flex-row-reverse sm:flex-row gap-3 border-t border-border bg-background/95 px-4 py-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-2 backdrop-blur supports-backdrop-filter:sm:backdrop-blur-none"
+          style={{ paddingBottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px))` }}
+        >
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="flex-1 h-11 sm:h-10 bg-blue-900 hover:bg-blue-800"
+          >
             {isPending ? "Guardando..." : "Guardar"}
           </Button>
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isPending} className="flex-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isPending}
+            className="flex-1 h-11 sm:h-10"
+          >
             Cancelar
           </Button>
         </div>
       </form>
     </Form>
   )
-}
-
-// Mini-helper para state local del select de sistema (no afecta el formulario).
-import { useState } from "react"
-function useStateLike(
-  initialSubSistemaId: string | null | undefined,
-  subsistemas: Array<{ id: string; sistemaId: string }>,
-) {
-  const inferido = initialSubSistemaId
-    ? subsistemas.find((ss) => ss.id === initialSubSistemaId)?.sistemaId ?? ""
-    : ""
-  const [val, setVal] = useState<string>(inferido)
-  // Si llegan nuevos subsistemas y todavía no había inferencia, intentamos inferir de nuevo.
-  useEffect(() => {
-    if (!val && initialSubSistemaId) {
-      const ss = subsistemas.find((s) => s.id === initialSubSistemaId)
-      if (ss?.sistemaId) setVal(ss.sistemaId)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsistemas.length, initialSubSistemaId])
-  return [val, setVal] as const
 }

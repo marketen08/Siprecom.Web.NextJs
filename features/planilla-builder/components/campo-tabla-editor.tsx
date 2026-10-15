@@ -3,13 +3,18 @@
 import { useState } from "react"
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react"
 
-import type { PlanillaCampoDetalle } from "@/features/planillas/types"
+import type { CampoTablaColumna, PlanillaCampoDetalle } from "@/features/planillas/types"
 import { useCreateTablaColumna } from "@/features/campos/api/use-create-tabla-columna"
 import { useDeleteTablaColumna } from "@/features/campos/api/use-delete-tabla-columna"
 import { useReorderTablaColumnas } from "@/features/campos/api/use-reorder-tabla-columnas"
+import { useUpdateTablaColumna } from "@/features/campos/api/use-update-tabla-columna"
 import { useCreateTablaFila } from "@/features/campos/api/use-create-tabla-fila"
 import { useDeleteTablaFila } from "@/features/campos/api/use-delete-tabla-fila"
 import { useReorderTablaFilas } from "@/features/campos/api/use-reorder-tabla-filas"
+import {
+  ErrorEscrituraCampo,
+  primerErrorDeMutaciones,
+} from "@/features/campos/components/error-escritura-campo"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,14 +38,27 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
 
   const [newColumna, setNewColumna] = useState("")
   const [newColumnaEsEtiqueta, setNewColumnaEsEtiqueta] = useState(false)
+  const [newColumnaGrupo, setNewColumnaGrupo] = useState("")
   const [newFila, setNewFila] = useState("")
+  // Estado local para edición inline del Grupo por columna: mantenemos un
+  // draft para no dispararle un PUT por cada tecla. Committéa al blur.
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
 
   const createColumna = useCreateTablaColumna()
+  const updateColumna = useUpdateTablaColumna()
   const deleteColumna = useDeleteTablaColumna()
   const reorderColumnas = useReorderTablaColumnas()
   const createFila = useCreateTablaFila()
   const deleteFila = useDeleteTablaFila()
   const reorderFilas = useReorderTablaFilas()
+
+  // Columnas y filas cuelgan del Campo global, así que un campo compartido con una
+  // planilla de otro equipo rechaza estas escrituras con 403. Sin el cartel, la
+  // columna "se agregaba" en pantalla y desaparecía al refrescar.
+  const errorEscritura = primerErrorDeMutaciones(
+    createColumna, updateColumna, deleteColumna, reorderColumnas,
+    createFila, deleteFila, reorderFilas,
+  )
 
   const handleAddColumna = () => {
     if (!newColumna.trim()) return
@@ -50,14 +68,68 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
         encabezado: newColumna.trim(),
         esColumnaEtiqueta: newColumnaEsEtiqueta,
         orden: columnas.reduce((m, c) => Math.max(m, c.orden), 0) + 1,
+        grupo: newColumnaGrupo.trim() || null,
+        // Mismo default que el backend: la columna de etiquetas arranca más ancha.
+        ancho: newColumnaEsEtiqueta ? 3 : 2,
       },
       {
         onSuccess: () => {
           setNewColumna("")
           setNewColumnaEsEtiqueta(false)
+          setNewColumnaGrupo("")
         },
       }
     )
+  }
+
+  // El PUT de columna REEMPLAZA la fila entera, así que cualquier update tiene que
+  // reenviar todos los campos — mandar solo el que cambió pisa el resto con los
+  // defaults del DTO. Este helper arma el payload completo y aplica el override.
+  const commitColumna = (
+    col: CampoTablaColumna,
+    overrides: Partial<Pick<CampoTablaColumna, "grupo" | "ancho" | "esColumnaEtiqueta">>,
+    onDone?: () => void,
+  ) => {
+    updateColumna.mutate({
+      id: col.id,
+      campoId: col.campoId,
+      encabezado: col.encabezado,
+      orden: col.orden,
+      esColumnaEtiqueta: col.esColumnaEtiqueta,
+      grupo: col.grupo ?? null,
+      ancho: col.ancho,
+      ...overrides,
+    }, { onSuccess: onDone })
+  }
+
+  // Persiste el Grupo de una columna cuando cambia (blur del input).
+  const commitGrupo = (col: CampoTablaColumna) => {
+    const draft = drafts[col.id]
+    if (draft === undefined) return
+    const nuevoGrupo = draft.trim() || null
+    // Sin cambios efectivos: limpiamos el draft sin pegarle al backend.
+    if ((col.grupo ?? null) === nuevoGrupo) {
+      setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c })
+      return
+    }
+    commitColumna(col, { grupo: nuevoGrupo }, () =>
+      setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c }),
+    )
+  }
+
+  // Marca/desmarca la columna de etiquetas. El backend garantiza que sea única:
+  // al marcar una, desmarca las otras del mismo campo (ver
+  // DesmarcarOtrasColumnasEtiquetaAsync). Por eso invalidamos y refetcheamos —
+  // el cambio puede afectar a una columna distinta de la que se tocó.
+  const commitEsEtiqueta = (col: CampoTablaColumna, valor: boolean) => {
+    commitColumna(col, { esColumnaEtiqueta: valor })
+  }
+
+  // Ancho: se persiste en el acto (es un stepper acotado, no texto libre).
+  const commitAncho = (col: CampoTablaColumna, nuevo: number) => {
+    const clamped = Math.min(12, Math.max(1, Math.round(nuevo)))
+    if (clamped === col.ancho) return
+    commitColumna(col, { ancho: clamped })
   }
 
   const handleAddFila = () => {
@@ -90,22 +162,81 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
 
   const esMatriz = filas.length > 0
 
+  // Suma de pesos: es el denominador del % que mostramos al lado de cada columna.
+  // Guardamos contra 0 (tabla recién creada) para no dividir por cero.
+  const totalAncho = columnas.reduce((sum, c) => sum + (c.ancho || 0), 0)
+  const porcentaje = (ancho: number) =>
+    totalAncho > 0 ? Math.round((ancho / totalAncho) * 100) : 0
+
   return (
     <div className="space-y-3 rounded-md border border-indigo-100 bg-indigo-50/40 p-3">
       <Label className="text-xs font-semibold text-indigo-900">Definición de la tabla</Label>
 
+      <ErrorEscrituraCampo error={errorEscritura} />
+
       {/* Columnas */}
       <div>
         <Label className="text-xs">Columnas</Label>
+        <p className="text-[10px] text-muted-foreground">
+          El ancho es un peso relativo: cada columna ocupa su peso sobre la suma de todos.
+          No hace falta que sumen un total — el % de al lado se recalcula solo.
+        </p>
         <div className="mt-1 space-y-1">
           {columnas.map((c, i, arr) => (
             <div key={c.id} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
-              <span className="flex-1">{c.encabezado}</span>
-              {c.esColumnaEtiqueta && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">
-                  etiquetas
+              <span className="flex-1 truncate">{c.encabezado}</span>
+              {/* Toggle de columna de etiquetas. Antes era un badge de solo lectura y
+                  la única forma de cambiarlo era borrar la columna y recrearla. */}
+              <label
+                className={`shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] cursor-pointer transition-colors ${
+                  c.esColumnaEtiqueta
+                    ? "bg-amber-100 text-amber-700"
+                    : "text-muted-foreground hover:bg-gray-100"
+                } ${updateColumna.isPending ? "opacity-60 cursor-not-allowed" : ""}`}
+                title="Columna de etiquetas: primera columna read-only con las etiquetas de fila (tabla matriz). Sólo puede haber una por tabla."
+              >
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 rounded border-gray-300"
+                  checked={c.esColumnaEtiqueta}
+                  disabled={updateColumna.isPending}
+                  onChange={(e) => commitEsEtiqueta(c, e.target.checked)}
+                />
+                etiquetas
+              </label>
+              <Input
+                value={drafts[c.id] ?? c.grupo ?? ""}
+                onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
+                onBlur={() => commitGrupo(c)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+                  if (e.key === "Escape") setDrafts((d) => { const cp = { ...d }; delete cp[c.id]; return cp })
+                }}
+                placeholder="grupo (opcional)"
+                className="h-6 text-[11px] w-28 shrink-0"
+                disabled={updateColumna.isPending}
+                title="Header agrupador. Columnas consecutivas con el mismo grupo se dibujan bajo un encabezado extra."
+              />
+              {/* Ancho: peso relativo + el % que representa hoy. El % es informativo
+                  y se recalcula solo al agregar/quitar columnas — no hay total que
+                  cuadrar a mano. */}
+              <div
+                className="flex items-center gap-1 shrink-0"
+                title="Ancho relativo de la columna (1-12). El ancho real es este peso dividido la suma de todos."
+              >
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={c.ancho}
+                  onChange={(e) => commitAncho(c, Number(e.target.value))}
+                  className="h-6 text-[11px] w-12"
+                  disabled={updateColumna.isPending}
+                />
+                <span className="text-[10px] text-muted-foreground w-8 tabular-nums">
+                  {porcentaje(c.ancho)}%
                 </span>
-              )}
+              </div>
               <Button
                 variant="ghost"
                 size="icon"
@@ -146,8 +277,16 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
               className="h-7 text-xs flex-1"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAddColumna()
-                if (e.key === "Escape") setNewColumna("")
+                if (e.key === "Escape") { setNewColumna(""); setNewColumnaGrupo("") }
               }}
+            />
+            <Input
+              value={newColumnaGrupo}
+              onChange={(e) => setNewColumnaGrupo(e.target.value)}
+              placeholder="grupo"
+              className="h-7 text-[11px] w-24 shrink-0"
+              title="Header agrupador (opcional). Columnas consecutivas con el mismo grupo se agrupan."
+              onKeyDown={(e) => { if (e.key === "Enter") handleAddColumna() }}
             />
             <label className="flex items-center gap-1 text-[10px] shrink-0 cursor-pointer" title="Primera columna read-only con etiquetas por fila (tabla matriz)">
               <input

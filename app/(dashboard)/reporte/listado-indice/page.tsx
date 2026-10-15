@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2 } from "lucide-react"
+
+import { descargarTareasExcel } from "@/features/tareas-listado/api/use-tareas-listado"
+import type { EstadoET } from "@/features/tareas-listado/types"
 
 import {
   buildListadoIndicePdfUrl,
@@ -77,6 +80,7 @@ function ListadoIndiceContent() {
   const [especialidadId, setEspecialidadId] = useState<string>("")
   const [elementoTipoId, setElementoTipoId] = useState<string>("")
   const [estado, setEstado] = useState<string>("")
+  const [ocultarSinTareas, setOcultarSinTareas] = useState<boolean>(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -139,7 +143,8 @@ function ListadoIndiceContent() {
     especialidadId: especialidadId || undefined,
     elementoTipoId: elementoTipoId || undefined,
     estado:         estado ? Number(estado) : undefined,
-  }), [nivelId, sistemaId, subSistemaId, especialidadId, elementoTipoId, estado])
+    ocultarSinTareas: ocultarSinTareas || undefined,
+  }), [nivelId, sistemaId, subSistemaId, especialidadId, elementoTipoId, estado, ocultarSinTareas])
 
   const { data, isLoading, isFetching } = useGetListadoIndicePreview(filtros)
   const preview = data?.data
@@ -182,6 +187,7 @@ function ListadoIndiceContent() {
     setEspecialidadId("")
     setElementoTipoId("")
     setEstado("")
+    setOcultarSinTareas(false)
     syncUrl("", "")
   }
 
@@ -236,6 +242,13 @@ function ListadoIndiceContent() {
       onRemove: () => setEstado(""),
     })
   }
+  if (ocultarSinTareas) {
+    activeFilters.push({
+      id: "ocultarSinTareas",
+      label: "Ocultar elementos sin tareas",
+      onRemove: () => setOcultarSinTareas(false),
+    })
+  }
 
   async function descargar() {
     setDownloadError(null)
@@ -260,6 +273,23 @@ function ListadoIndiceContent() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => descargarTareasExcel({
+              // Mismos filtros que el PDF, adaptando `estado` (singular) a `estados` (array).
+              sistemaId: filtros.sistemaId,
+              subSistemaId: filtros.subSistemaId,
+              especialidadId: filtros.especialidadId,
+              elementoTipoId: filtros.elementoTipoId,
+              nivelId: filtros.nivelId,
+              estados: filtros.estado != null ? [filtros.estado as EstadoET] : undefined,
+            })}
+            disabled={isLoading}
+            className="gap-2"
+            title="Descarga las mismas tareas del reporte como .xlsx"
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Excel
+          </Button>
           <Button onClick={descargar} disabled={downloading || isLoading} className="gap-2">
             {downloading
               ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -394,6 +424,23 @@ function ListadoIndiceContent() {
               ))}
             </SelectContent>
           </Select>
+        </FilterField>
+
+        <FilterField label="Opciones">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300"
+              checked={ocultarSinTareas}
+              onChange={(e) => setOcultarSinTareas(e.target.checked)}
+            />
+            <span>
+              Ocultar elementos sin tareas
+              <span className="block text-xs text-muted-foreground">
+                Descarta ramas vacías del reporte (útil al filtrar por estado).
+              </span>
+            </span>
+          </label>
         </FilterField>
       </FiltersSheet>
 

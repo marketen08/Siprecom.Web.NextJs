@@ -10,6 +10,8 @@ import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-s
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetModulosSelect } from "@/features/modulos/api/use-get-modulos-select"
+import { useGetAreasSelect } from "@/features/areas/api/use-get-areas-select"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -49,8 +51,16 @@ export function ElementoForm({
   const { data: subSistemasData, isLoading: loadingSubSistemas } = useGetSubSistemasSelect()
   const { data: tiposData, isLoading: loadingTipos } = useGetElementosTiposSelect()
   const { data: especialidadesData } = useGetEspecialidades()
+  const { data: modulosData, isLoading: loadingModulos } = useGetModulosSelect()
+  const { data: areasData, isLoading: loadingAreas } = useGetAreasSelect()
 
-  const tipos = (tiposData as any)?.data ?? []
+  const modulos = modulosData?.data ?? []
+  const areas = areasData?.data ?? []
+
+  // Excluimos los ElementoTipo sintéticos (portadores de TestGroup). Se crean
+  // solo desde el flujo del pack y no deben aparecer al armar un elemento físico.
+  const tipos = ((tiposData as any)?.data ?? [])
+    .filter((t: { esSintetico?: boolean }) => !t.esSintetico)
   const especialidades = especialidadesData?.data ?? []
 
   const ALL_ESP = "__all__"
@@ -70,8 +80,12 @@ export function ElementoForm({
       horasAdicionales: defaultValues?.horasAdicionales ?? 0,
       impactoFactor: defaultValues?.impactoFactor ?? 1,
       pid: defaultValues?.pid ?? "",
-      testpack: defaultValues?.testpack ?? "",
       observaciones: defaultValues?.observaciones ?? "",
+      moduloId: defaultValues?.moduloId ?? null,
+      areaIds: defaultValues?.areaIds ?? [],
+      permiteAgrupar: defaultValues?.permiteAgrupar ?? null,
+      fechaBajaOperativa: defaultValues?.fechaBajaOperativa ?? null,
+      motivoBajaOperativa: defaultValues?.motivoBajaOperativa ?? null,
     },
   })
 
@@ -332,19 +346,6 @@ export function ElementoForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="testpack"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Testpack <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                <FormControl>
-                  <Input placeholder="Ej: TP-001" disabled={isPending} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
 
         <Separator />
@@ -418,6 +419,213 @@ export function ElementoForm({
               </FormItem>
             )}
           />
+        </div>
+
+        <Separator />
+
+        {/* Ubicación / clasificación (dimensiones ortogonales al modelo de packs) */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Ubicación / clasificación
+          </p>
+
+          <FormField
+            control={form.control}
+            name="moduloId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Módulo <span className="text-muted-foreground font-normal">(opcional)</span>
+                </FormLabel>
+                <Select
+                  disabled={isPending || loadingModulos}
+                  value={field.value ?? "__none__"}
+                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingModulos ? "Cargando..." : "Sin módulo"}>
+                        {(() => {
+                          const m = modulos.find((x) => x.id === field.value)
+                          return m ? `${m.codigo} — ${m.nombre}` : "Sin módulo"
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin módulo</SelectItem>
+                    {modulos.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.codigo} — {m.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="areaIds"
+            render={({ field }) => {
+              const selected: string[] = field.value ?? []
+              const toggle = (id: string) => {
+                if (selected.includes(id)) field.onChange(selected.filter((x) => x !== id))
+                else field.onChange([...selected, id])
+              }
+              return (
+                <FormItem>
+                  <FormLabel>
+                    Áreas <span className="text-muted-foreground font-normal">(opcional, múltiple)</span>
+                  </FormLabel>
+                  <div className="rounded-md border border-input p-2 max-h-40 overflow-y-auto flex flex-col gap-1">
+                    {loadingAreas ? (
+                      <p className="text-xs text-muted-foreground">Cargando áreas...</p>
+                    ) : areas.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No hay áreas definidas.</p>
+                    ) : (
+                      areas.map((a) => (
+                        <label
+                          key={a.id}
+                          className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-muted cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected.includes(a.id)}
+                            onChange={() => toggle(a.id)}
+                            disabled={isPending}
+                            className="h-4 w-4 accent-blue-900"
+                          />
+                          <span className="font-mono text-xs">{a.codigo}</span>
+                          <span>—</span>
+                          <span>{a.nombre}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
+          />
+
+        </div>
+
+        <Separator />
+
+        {/* Agrupamiento (paquetes de prueba) */}
+        <div className="flex flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Agrupamiento (paquetes de prueba)
+          </p>
+
+          <FormField
+            control={form.control}
+            name="permiteAgrupar"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Agrupable en Test Packs <span className="text-muted-foreground font-normal">(override del tipo)</span>
+                </FormLabel>
+                <Select
+                  disabled={isPending}
+                  value={field.value === null ? "__inherit__" : field.value ? "true" : "false"}
+                  onValueChange={(v) =>
+                    field.onChange(v === "__inherit__" ? null : v === "true")
+                  }
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {field.value === null ? "Heredar del tipo" : field.value ? "Sí" : "No"}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="__inherit__">Heredar del tipo</SelectItem>
+                    <SelectItem value="true">Sí</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <Separator />
+
+        {/* Baja operativa (preservación) */}
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Baja operativa del el elemento y su preservación
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Marcá una baja operativa cuando el elemento se retire de servicio. El sistema
+              dejará de generar nuevos ciclos de preservación para él. Para reactivarlo,
+              vaciá la fecha.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
+            <FormField
+              control={form.control}
+              name="fechaBajaOperativa"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha de baja</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      disabled={isPending}
+                      value={field.value ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        field.onChange(v === "" ? null : v)
+                        if (v === "") form.setValue("motivoBajaOperativa", null)
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="motivoBajaOperativa"
+              render={({ field }) => {
+                const disabled = isPending || !form.watch("fechaBajaOperativa")
+                return (
+                  <FormItem>
+                    <FormLabel>
+                      Motivo{" "}
+                      {form.watch("fechaBajaOperativa") ? (
+                        <span className="text-destructive font-normal">*</span>
+                      ) : (
+                        <span className="text-muted-foreground font-normal">(solo con fecha)</span>
+                      )}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ej: Retirado por obsolescencia, ver acta 2026-06-15..."
+                        disabled={disabled}
+                        rows={2}
+                        className="resize-none"
+                        maxLength={500}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
+            />
+          </div>
         </div>
 
         {/* Botones */}

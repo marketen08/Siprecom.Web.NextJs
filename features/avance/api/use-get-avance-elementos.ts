@@ -14,6 +14,8 @@ interface Filters {
   estadoTarea?: number
   /** Búsqueda libre sobre TAG y Nombre (filtra en backend). */
   search?: string
+  moduloId?: string
+  areaId?: string
   page?: number
   pageSize?: number
 }
@@ -26,6 +28,7 @@ export function useGetAvanceElementos(filters: Filters) {
   const {
     sistemaId, subSistemaId, especialidadId, elementoTipoId,
     prioridad, tareaId, estadoTarea, search,
+    moduloId, areaId,
     page = 1, pageSize = 20,
   } = filters
   return useQuery({
@@ -42,6 +45,8 @@ export function useGetAvanceElementos(filters: Filters) {
         ...(tareaId ? { tareaId } : {}),
         ...(estadoTarea !== undefined ? { estadoTarea } : {}),
         ...(search ? { search } : {}),
+        ...(moduloId ? { moduloId } : {}),
+        ...(areaId ? { areaId } : {}),
       }),
   })
 }

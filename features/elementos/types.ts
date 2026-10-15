@@ -14,9 +14,18 @@ export interface Elemento {
   elementoTipoNombre: string | null
   elementoTipoEspecialidadId: string | null
   elementoTipoEspecialidadNombre: string | null
+  /** True si el ElementoTipo es sintético (portador de TestGroup). Los sintéticos se gestionan desde el pack. */
+  esSintetico: boolean
+  /** Datos del TestGroup asociado — se pobla sólo cuando `esSintetico=true`. */
+  testGroupId?: string | null
+  testGroupCodigo?: string | null
+  testGroupNombre?: string | null
   prioridad: number
   prioridadTexto: string
   sistemaId: string
+  /** Sólo los pobla el endpoint de detalle (GET /elementos/:id); en los listados vienen null. */
+  sistemaCodigo: string | null
+  sistemaNombre: string | null
   subSistemaId: string
   subSistemaCodigo: string | null
   subSistemaNombre: string | null
@@ -25,8 +34,16 @@ export interface Elemento {
   horasAdicionales: number
   impactoFactor: number
   pid: string
-  testpack: string
   observaciones: string
+  // TestGroups F2
+  moduloId: string | null
+  moduloNombre: string | null
+  areaIds: string[]
+  /** Override del flag del tipo. null = usar el heredado. */
+  permiteAgrupar: boolean | null
+  /** Baja operativa (preservación). ISO date "YYYY-MM-DD" o null si está activo. */
+  fechaBajaOperativa: string | null
+  motivoBajaOperativa: string | null
   createdAt: string
   createdByNombre: string
   updatedAt: string
@@ -44,8 +61,10 @@ export interface ElementoCreateInput {
   horasAdicionales: number
   impactoFactor: number
   pid: string
-  testpack: string
   observaciones: string
+  moduloId: string | null
+  areaIds: string[]
+  permiteAgrupar: boolean | null
 }
 
 export interface ElementoUpdateInput {
@@ -61,8 +80,12 @@ export interface ElementoUpdateInput {
   horasAdicionales: number
   impactoFactor: number
   pid: string
-  testpack: string
   observaciones: string
+  moduloId: string | null
+  areaIds: string[]
+  permiteAgrupar: boolean | null
+  fechaBajaOperativa?: string | null
+  motivoBajaOperativa?: string | null
 }
 
 /** Coincide con el enum CampoTipoDato del backend. */

@@ -3,7 +3,7 @@ import { apiClient } from "@/lib/api-client"
 
 export interface CreateUsuarioInput {
   email: string
-  /** 0 = Mail+contraseña (invitación), 1 = Microsoft. */
+  /** 0 = Mail+contraseña (invitación), 1 = Microsoft, 2 = YPF (IBM Verify). */
   loginMethod: number
   nombre?: string
   apellido?: string
