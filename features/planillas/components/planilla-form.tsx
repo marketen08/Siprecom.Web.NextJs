@@ -90,6 +90,9 @@ export function PlanillaForm({
       margenPagina: defaultValues?.margenPagina ?? 0,
       especialidadId: defaultValues?.especialidadId ?? null,
       esEncabezadoTG: defaultValues?.esEncabezadoTG ?? false,
+      esCaratula: defaultValues?.esCaratula ?? false,
+      caratulaTexto: defaultValues?.caratulaTexto ?? "",
+      exigeDocumentacionAdjunta: defaultValues?.exigeDocumentacionAdjunta ?? false,
       equipoId: defaultValues?.equipoId ?? null,
     },
   })
@@ -159,6 +162,7 @@ export function PlanillaForm({
   // sale del certificado del TG (RFC/RFSU/AOC). Deshabilitamos los flags relacionados
   // y ocultamos el bloque de ajustes de PDF. El backend además hace guard.
   const esEncabezadoTG = !!form.watch("esEncabezadoTG")
+  const esCaratula = !!form.watch("esCaratula")
 
   // Al guardar, si es encabezado forzamos los flags dependientes a false — el
   // backend hace el mismo guard, pero mandarlo consistente evita "el checkbox
@@ -168,6 +172,14 @@ export function PlanillaForm({
       values.requiereFirma = false
       values.generaPdfFinal = false
       values.permiteAdjuntos = false
+      values.esCaratula = false
+    }
+    // Sin carátula no hay nada que exigir: el flag quedaría activo e invisible, y la
+    // próxima vez que alguien marque "es carátula" aparecería la restricción sin
+    // haberla pedido.
+    if (!values.esCaratula) {
+      values.exigeDocumentacionAdjunta = false
+      values.caratulaTexto = null
     }
     onSubmit(values)
   })
@@ -456,6 +468,68 @@ export function PlanillaForm({
                   aceptados siempre en cualquier planilla/proyecto. El campo del
                   form se mantiene registrado en el schema para no romper payloads
                   viejos pero no se muestra ni edita. */}
+
+              {/* Carátula. No aplica al encabezado de TG, que no emite PDF propio. */}
+              {!esEncabezadoTG && (
+                <div className="flex flex-col gap-2 pt-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300"
+                        checked={esCaratula}
+                        onChange={(e) => form.setValue("esCaratula", e.target.checked)}
+                        disabled={isPending}
+                      />
+                      Es una carátula de documentación adjunta
+                    </label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">
+                        Para las planillas que se imprimen solo como tapa: el PDF agrega
+                        arriba un recuadro con la leyenda en grande y el listado de los
+                        archivos adjuntos del registro. No hay que diseñar nada — y las
+                        firmas funcionan igual que en cualquier otra planilla.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  {esCaratula && (
+                    <div className="flex flex-col gap-2 pl-6">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-sm">Leyenda (opcional)</label>
+                        <textarea
+                          className="min-h-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
+                          placeholder="La información que respalda este registro es la documentación adjunta."
+                          {...form.register("caratulaTexto")}
+                          disabled={isPending}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Vacío imprime la leyenda de arriba.
+                        </p>
+                      </div>
+                      <label className="flex items-start gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 mt-0.5"
+                          checked={!!form.watch("exigeDocumentacionAdjunta")}
+                          onChange={(e) => form.setValue("exigeDocumentacionAdjunta", e.target.checked)}
+                          disabled={isPending}
+                        />
+                        <span>
+                          Exigir al menos un adjunto para completar
+                          <span className="block text-xs text-muted-foreground">
+                            Bloquea el completar —digital o físico— si el registro no tiene
+                            ningún archivo adjunto. Dejalo apagado si el respaldo viene dentro
+                            del mismo PDF escaneado.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Opciones de PDF sólo si NO es encabezado — el pack emite PDF por el certificado. */}
               {!esEncabezadoTG && (

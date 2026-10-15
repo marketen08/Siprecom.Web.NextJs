@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 import { ArrowDown, ArrowUp, Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 
-import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode, PlanillaSeccion, AlineacionTexto } from "@/features/planillas/types"
-import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_LISTA_RENDER_MODE_OPCIONES, CAMPO_TAMANO_OPCIONES, ALINEACION_TEXTO_LABEL } from "@/features/planillas/types"
+import type { PlanillaCampoDetalle, CampoTipoDato, CampoListaRenderMode, PlanillaSeccion, AlineacionTexto, TamanoTexto } from "@/features/planillas/types"
+import { CAMPO_TIPO_DATO, CAMPO_LISTA_RENDER_MODE_LABEL, CAMPO_LISTA_RENDER_MODE_OPCIONES, CAMPO_TAMANO_OPCIONES, ALINEACION_TEXTO_LABEL, TAMANO_TEXTO_LABEL, TAMANO_TEXTO_CLASS } from "@/features/planillas/types"
 import { useRemoveCampo } from "@/features/planillas/api/use-remove-campo"
 import { useUpdateCampo } from "@/features/planillas/api/use-update-campo"
 import {
@@ -128,6 +128,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     conBorde?: boolean | null
     fondoGris?: boolean | null
     alineacionLabel?: AlineacionTexto | null
+    tamanoTexto?: TamanoTexto | null
     sinPadding?: boolean | null
     sinMargen?: boolean | null
   }> = {}) => ({
@@ -152,6 +153,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     conBorde: campo.conBordeOverride ?? null,
     fondoGris: campo.fondoGrisOverride ?? null,
     alineacionLabel: campo.alineacionLabelOverride ?? null,
+    tamanoTexto: campo.tamanoTextoOverride ?? null,
     sinPadding: campo.sinPaddingOverride ?? null,
     sinMargen: campo.sinMargenOverride ?? null,
     ...overrides,
@@ -200,6 +202,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     conBorde: boolean
     fondoGris: boolean
     alineacionLabel: AlineacionTexto
+    tamanoTexto: TamanoTexto
     sinPadding: boolean
     sinMargen: boolean
   }>) => {
@@ -208,6 +211,7 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
       conBorde: campo.campoConBorde ?? false,
       fondoGris: campo.campoFondoGris ?? false,
       alineacionLabel: campo.campoAlineacion ?? 0,
+      tamanoTexto: campo.campoTamanoTexto ?? 0,
       sinPadding: campo.campoSinPadding ?? false,
       sinMargen: campo.campoSinMargen ?? false,
       ...overrides,
@@ -954,13 +958,17 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
             </div>
           )}
 
-          {/* Label (tipo 10): estilo (display-only). Vive en el Campo global. */}
-          {isLabel && (
+          {/* Label (10) y Nota (15): estilo del texto fijo. Se guarda como override en
+              ESTA planilla, así que el mismo campo puede ser título en una carátula y
+              nota al pie en otra. */}
+          {(isLabel || isNota) && (
             <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50/60 p-3">
-              <Label className="text-xs font-semibold">Estilo del label</Label>
+              <Label className="text-xs font-semibold">
+                {isNota ? "Estilo de la nota" : "Estilo del label"}
+              </Label>
               <p className="text-[10px] text-muted-foreground">
-                Texto fijo (la etiqueta). No es un campo a completar. El estilo afecta a todas las
-                planillas que usen este campo.
+                Texto fijo{isNota ? "" : " (la etiqueta)"}. No es un campo a completar. El estilo
+                es de esta planilla: el texto se edita en el catálogo de campos.
               </p>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
@@ -999,25 +1007,40 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
                   Sin margen
                 </label>
               </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Alineación</Label>
-                <select
-                  className="h-8 rounded-md border border-input bg-white px-2 text-sm"
-                  value={campo.campoAlineacion ?? 0}
-                  onChange={(e) => updateLabelStyle({ alineacionLabel: Number(e.target.value) as AlineacionTexto })}
-                  disabled={updateMutation.isPending}
-                >
-                  {Object.entries(ALINEACION_TEXTO_LABEL).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
-                </select>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">Alineación</Label>
+                  <select
+                    className="h-8 rounded-md border border-input bg-white px-2 text-sm"
+                    value={campo.campoAlineacion ?? 0}
+                    onChange={(e) => updateLabelStyle({ alineacionLabel: Number(e.target.value) as AlineacionTexto })}
+                    disabled={updateMutation.isPending}
+                  >
+                    {Object.entries(ALINEACION_TEXTO_LABEL).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">Tamaño</Label>
+                  <select
+                    className="h-8 rounded-md border border-input bg-white px-2 text-sm"
+                    value={campo.campoTamanoTexto ?? 0}
+                    onChange={(e) => updateLabelStyle({ tamanoTexto: Number(e.target.value) as TamanoTexto })}
+                    disabled={updateMutation.isPending}
+                  >
+                    {Object.entries(TAMANO_TEXTO_LABEL).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               {/* Preview */}
               <div
-                className={`text-sm ${campo.campoSinPadding ? "" : "px-2 py-1"} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
+                className={`${TAMANO_TEXTO_CLASS[(campo.campoTamanoTexto ?? 0) as TamanoTexto]} ${isNota ? "whitespace-pre-line " : ""}${campo.campoSinPadding ? "" : "px-2 py-1"} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
                 style={{ textAlign: campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left" }}
               >
-                {campo.campoEtiqueta || "Label"}
+                {(isNota ? campo.campoTextoLargo : campo.campoEtiqueta) || (isNota ? "Nota sin texto" : "Label")}
               </div>
             </div>
           )}

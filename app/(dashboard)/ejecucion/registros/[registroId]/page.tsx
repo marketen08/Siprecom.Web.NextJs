@@ -31,7 +31,8 @@ import { useCanWrite } from "@/lib/use-roles"
 
 import type { RegistroValorInput, RegistroDetalle } from "@/features/registros/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
-import type { PlanillaCampoDetalle } from "@/features/planillas/types"
+import type { PlanillaCampoDetalle, TamanoTexto } from "@/features/planillas/types"
+import { TAMANO_TEXTO_CLASS } from "@/features/planillas/types"
 
 // Hook local: la lista por elemento ya existe pero no hay uno por ID; lo inlineamos acá.
 function useGetElementoTarea(id: string | null) {
@@ -1151,7 +1152,7 @@ function CampoInput({
       return (
         <div
           id={`campo-${campo.id}`}
-          className={`text-sm ${campo.campoSinPadding ? "" : "px-2 py-1.5"} ${campo.campoSinMargen ? "-my-2.5" : ""} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300 rounded" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
+          className={`${TAMANO_TEXTO_CLASS[(campo.campoTamanoTexto ?? 0) as TamanoTexto]} ${campo.campoSinPadding ? "" : "px-2 py-1.5"} ${campo.campoSinMargen ? "-my-2.5" : ""} ${campo.campoFondoGris ? "bg-gray-100" : ""} ${campo.campoConBorde ? "border border-gray-300 rounded" : ""} ${campo.campoNegrita ? "font-bold" : ""}`}
           style={{ textAlign: campo.campoAlineacion === 1 ? "center" : campo.campoAlineacion === 2 ? "right" : "left" }}
         >
           {campo.campoEtiqueta}
@@ -1186,7 +1187,7 @@ function CampoInput({
       return (
         <div
           id={`campo-${campo.id}`}
-          className={`text-sm whitespace-pre-line ${campo.campoSinPadding ? "" : "px-3 py-2"} ${
+          className={`${TAMANO_TEXTO_CLASS[(campo.campoTamanoTexto ?? 0) as TamanoTexto]} whitespace-pre-line ${campo.campoSinPadding ? "" : "px-3 py-2"} ${
             campo.campoSinMargen ? "-my-2.5" : ""
           } ${campo.campoFondoGris ? "bg-gray-100" : ""} ${
             campo.campoConBorde ? "border border-gray-300 rounded" : ""

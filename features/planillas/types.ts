@@ -33,6 +33,15 @@ export interface Planilla {
   /** True = candidata al select "Planilla del encabezado" del ElementoTipo sintético. */
   esEncabezadoTG?: boolean
   /**
+   * La planilla es una carátula: el PDF imprime en grande que el respaldo va adjunto, y
+   * lista los archivos adjuntos del registro. No hay que diseñar nada.
+   */
+  esCaratula?: boolean
+  /** Texto del bloque de carátula. Vacío = la leyenda del sistema. */
+  caratulaTexto?: string | null
+  /** No se puede completar el registro sin al menos un adjunto. */
+  exigeDocumentacionAdjunta?: boolean
+  /**
    * Grupos a los que pertenece la planilla (M:N). Vacío = planilla sin grupo
    * (comodín, visible en todos los proyectos). Se muestra como chips en el
    * listado de config y se usa como filtro.
@@ -131,6 +140,36 @@ export const CAMPO_TIPO_DATO_ENTRIES_SORTED: Array<[string, string]> =
 
 /** Alineación horizontal del texto de un campo Label. 0=Izquierda, 1=Centro, 2=Derecha. */
 export type AlineacionTexto = 0 | 1 | 2
+
+/** Tamaño de letra de un texto fijo (Label / Nota). 0 Normal, 1 Grande, 2 Título. */
+export type TamanoTexto = 0 | 1 | 2
+
+export const TAMANO_TEXTO_LABEL: Record<TamanoTexto, string> = {
+  0: "Normal",
+  1: "Grande",
+  2: "Título",
+}
+
+/**
+ * Puntos de cada preset. Es la misma tabla que TamanoTextoExt.EnPuntos del backend: el PDF
+ * y la vista web tienen que medir igual, o el diseñador miente sobre lo que se va a imprimir.
+ */
+export const TAMANO_TEXTO_PT: Record<TamanoTexto, number> = {
+  0: 9,
+  1: 13,
+  2: 20,
+}
+
+/**
+ * El mismo preset, en clases de Tailwind, para la vista web (diseñador y carga digital).
+ * No son los puntos del PDF: la pantalla parte de text-sm (14px) donde el PDF parte de 9pt,
+ * así que lo que se mantiene es la proporción, no el número.
+ */
+export const TAMANO_TEXTO_CLASS: Record<TamanoTexto, string> = {
+  0: "text-sm",
+  1: "text-xl",
+  2: "text-3xl",
+}
 
 export const ALINEACION_TEXTO_LABEL: Record<AlineacionTexto, string> = {
   0: "Izquierda",
@@ -262,6 +301,8 @@ export interface PlanillaCampoDetalle {
   campoAlineacion?: AlineacionTexto
   campoSinPadding?: boolean
   campoSinMargen?: boolean
+  /** Tamaño de letra EFECTIVO del texto fijo (override o catálogo). */
+  campoTamanoTexto?: TamanoTexto
   /** Filas efectivas del área de texto. Solo si campoTipoDato === 12 (TextoArea). Default 3. */
   campoNumeroLineas?: number
   /** Alto efectivo en mm. Solo si campoTipoDato === 13 (Espacio). Default 20. */
@@ -302,6 +343,7 @@ export interface PlanillaCampoDetalle {
   alineacionLabelOverride?: AlineacionTexto | null
   sinPaddingOverride?: boolean | null
   sinMargenOverride?: boolean | null
+  tamanoTextoOverride?: TamanoTexto | null
 }
 
 export interface PlanillaEstructura {
@@ -324,6 +366,15 @@ export interface PlanillaCreateInput {
   margenPagina?: MargenPagina
   especialidadId?: string | null
   esEncabezadoTG?: boolean
+  /**
+   * La planilla es una carátula: el PDF imprime en grande que el respaldo va adjunto, y
+   * lista los archivos adjuntos del registro. No hay que diseñar nada.
+   */
+  esCaratula?: boolean
+  /** Texto del bloque de carátula. Vacío = la leyenda del sistema. */
+  caratulaTexto?: string | null
+  /** No se puede completar el registro sin al menos un adjunto. */
+  exigeDocumentacionAdjunta?: boolean
 }
 
 export interface PlanillaUpdateInput {
@@ -341,6 +392,15 @@ export interface PlanillaUpdateInput {
   margenPagina?: MargenPagina
   especialidadId?: string | null
   esEncabezadoTG?: boolean
+  /**
+   * La planilla es una carátula: el PDF imprime en grande que el respaldo va adjunto, y
+   * lista los archivos adjuntos del registro. No hay que diseñar nada.
+   */
+  esCaratula?: boolean
+  /** Texto del bloque de carátula. Vacío = la leyenda del sistema. */
+  caratulaTexto?: string | null
+  /** No se puede completar el registro sin al menos un adjunto. */
+  exigeDocumentacionAdjunta?: boolean
 }
 
 export interface PlanillaSeccionCreateInput {
@@ -397,6 +457,8 @@ export interface PlanillaCampoCreateInput {
   alineacionLabel?: AlineacionTexto | null
   sinPadding?: boolean | null
   sinMargen?: boolean | null
+  /** Override del tamaño de letra del texto fijo. null = hereda del catálogo. */
+  tamanoTexto?: TamanoTexto | null
 }
 
 export interface PlanillaCampoUpdateInput {
@@ -435,4 +497,6 @@ export interface PlanillaCampoUpdateInput {
   alineacionLabel?: AlineacionTexto | null
   sinPadding?: boolean | null
   sinMargen?: boolean | null
+  /** Override del tamaño de letra del texto fijo. null = hereda del catálogo. */
+  tamanoTexto?: TamanoTexto | null
 }

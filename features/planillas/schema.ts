@@ -19,6 +19,11 @@ export const planillaSchema = z.object({
   especialidadId: z.string().nullable().optional(),
   // True = candidata al select "Planilla del encabezado" del ElementoTipo sintético.
   esEncabezadoTG: z.boolean().optional(),
+  // Carátula: la planilla no tiene datos propios, solo avisa que el respaldo va adjunto.
+  // El PDF imprime la leyenda en grande y lista los adjuntos del registro.
+  esCaratula: z.boolean().optional(),
+  caratulaTexto: z.string().nullable().optional(),
+  exigeDocumentacionAdjunta: z.boolean().optional(),
   // Equipo de administración dueño. Solo se manda cuando el usuario tiene más de uno: si
   // no, el backend usa su equipo activo. Null para AdminGlobal = planilla global.
   equipoId: z.string().nullable().optional(),
