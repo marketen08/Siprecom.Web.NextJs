@@ -31,3 +31,20 @@ export function refrescarPorCambioDeProyecto(queryClient: QueryClient) {
   queryClient.removeQueries({ type: "inactive" })
   void queryClient.refetchQueries({ type: "active" })
 }
+
+/**
+ * Igual que la de arriba, pero sólo si el usuario que se está tocando es uno mismo.
+ *
+ * Las pantallas de administración de usuarios operan sobre cualquiera, y varias de sus
+ * acciones cambian el proyecto activo del usuario tocado como efecto secundario: asignar
+ * un proyecto cuando no tenía ninguno lo pone como activo, y quitarle el activo lo deja
+ * en null. Si ese usuario sos vos, acabás de cambiar de proyecto sin pasar por el
+ * switcher; si es otro, no hay nada que refrescar en tu caché.
+ *
+ * El id propio se lee de la caché del perfil, que es la query que alimenta todo el
+ * layout: si no estuviera, no habría sesión que refrescar.
+ */
+export function refrescarSiEsMiUsuario(queryClient: QueryClient, usuarioId: string) {
+  const perfil = queryClient.getQueryData<{ id?: string }>(["perfil"])
+  if (perfil?.id && perfil.id === usuarioId) refrescarPorCambioDeProyecto(queryClient)
+}

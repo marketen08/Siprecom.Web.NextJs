@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { refrescarSiEsMiUsuario } from "@/lib/refrescar-por-cambio-de-proyecto"
 
 interface BulkResponse {
   message: string
@@ -13,7 +14,8 @@ interface BulkResponse {
 /**
  * Asigna varios proyectos a un usuario en un solo round-trip. El backend filtra
  * silenciosamente los proyectos a los que el admin invocante no tiene acceso
- * (los reporta en `omitidosSinAcceso`). NO cambia el proyecto activo del user.
+ * (los reporta en `omitidosSinAcceso`). No cambia el proyecto activo del user, salvo
+ * que no tuviera ninguno: ahí el primero asignado pasa a ser el activo.
  */
 export function useBulkAssignProyectosUsuario(usuarioId: string) {
   const qc = useQueryClient()
@@ -22,6 +24,9 @@ export function useBulkAssignProyectosUsuario(usuarioId: string) {
       apiClient.post<BulkResponse>(`/api/usuarios/${usuarioId}/proyectos/bulk`, { proyectoIds }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["usuario-proyectos", usuarioId] })
+      // Caso "no tenía ninguno": el backend le pone uno como activo. Si es mi usuario,
+      // lo que tengo cacheado es el vacío de no tener proyecto.
+      refrescarSiEsMiUsuario(qc, usuarioId)
     },
   })
 }
@@ -44,6 +49,7 @@ export function useBulkUnassignProyectosUsuario(usuarioId: string) {
       qc.invalidateQueries({ queryKey: ["usuario-proyectos", usuarioId] })
       qc.invalidateQueries({ queryKey: ["usuarios", usuarioId] })
       qc.invalidateQueries({ queryKey: ["mis-proyectos"] })
+      refrescarSiEsMiUsuario(qc, usuarioId)
     },
   })
 }
