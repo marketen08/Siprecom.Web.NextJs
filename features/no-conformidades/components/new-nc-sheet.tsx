@@ -23,7 +23,7 @@ import {
 
 import { useCreateNoConformidad } from "../api/use-no-conformidades"
 import { useGetNcMotivos, useGetNcTipos } from "../api/use-catalogos"
-import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useGetNcAreas } from "../api/use-nc-areas"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 
 interface Props {
@@ -77,7 +77,7 @@ export function NewNoConformidadSheet({
 }: Props) {
   const tipos = useGetNcTipos()
   const motivos = useGetNcMotivos()
-  const grupos = useGetUsuariosGrupos("calidad")
+  const areas = useGetNcAreas(open)
   const subsistemas = useGetSubSistemasSelect()
   const crear = useCreateNoConformidad()
 
@@ -94,8 +94,12 @@ export function NewNoConformidadSheet({
 
   const listaTipos = tipos.data?.data ?? []
   const listaMotivos = motivos.data?.data ?? []
-  // Solo los grupos marcados para uso en Calidad (?uso=calidad).
-  const gruposCalidad = grupos.data?.data ?? []
+  // Cada select tiene su propia lista: el área afectada ejecuta y la de seguimiento
+  // controla, así que los grupos elegibles salen de las acciones que el proyecto
+  // autorizó a cada familia. Si el proyecto no configuró la matriz, las dos listas
+  // traen todos los grupos marcados para Calidad, como antes.
+  const areasAfectada = areas.data?.data?.afectada ?? []
+  const areasSeguimiento = areas.data?.data?.seguimiento ?? []
   const listaSubsistemas = (subsistemas.data?.data ?? []) as {
     id: string
     codigo: string
@@ -210,19 +214,30 @@ export function NewNoConformidadSheet({
               </Select>
             </Campo>
 
-            <Campo label="Área afectada *">
+            <Campo
+              label="Área afectada *"
+              hint={
+                !areas.isLoading && areasAfectada.length === 0 ? (
+                  <p className="text-xs text-destructive">
+                    Ningún grupo está habilitado para ejecutar la resolución en este
+                    proyecto. Revisá la matriz de Calidad en la configuración del
+                    proyecto.
+                  </p>
+                ) : null
+              }
+            >
               <Select
                 value={grupoAfectadoId}
                 onValueChange={(v) => setGrupoAfectadoId(v ?? "")}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
-                    {gruposCalidad.find((g) => g.id === grupoAfectadoId)?.nombre ??
+                    {areasAfectada.find((g) => g.id === grupoAfectadoId)?.nombre ??
                       "Quién tiene que resolver"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {gruposCalidad.map((g) => (
+                  {areasAfectada.map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {g.nombre}
                     </SelectItem>
@@ -238,6 +253,12 @@ export function NewNoConformidadSheet({
                   <p className="text-xs text-destructive">
                     Debe ser distinta de la afectada: una ejecuta y la otra controla.
                   </p>
+                ) : !areas.isLoading && areasSeguimiento.length === 0 ? (
+                  <p className="text-xs text-destructive">
+                    Ningún grupo está habilitado para controlar el circuito en este
+                    proyecto. Revisá la matriz de Calidad en la configuración del
+                    proyecto.
+                  </p>
                 ) : null
               }
             >
@@ -247,12 +268,12 @@ export function NewNoConformidadSheet({
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
-                    {gruposCalidad.find((g) => g.id === grupoSeguimientoId)?.nombre ??
+                    {areasSeguimiento.find((g) => g.id === grupoSeguimientoId)?.nombre ??
                       "Quién controla y valida"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {gruposCalidad.map((g) => (
+                  {areasSeguimiento.map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {g.nombre}
                     </SelectItem>

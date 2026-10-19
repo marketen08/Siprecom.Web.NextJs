@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { refrescarSiEsMiUsuario } from "@/lib/refrescar-por-cambio-de-proyecto"
 
 /**
  * Quita el acceso de un usuario a un proyecto.
@@ -18,6 +19,9 @@ export function useRemoveProyectoUsuario(usuarioId: string) {
       queryClient.invalidateQueries({ queryKey: ["usuario-proyectos", usuarioId] })
       queryClient.invalidateQueries({ queryKey: ["usuarios", usuarioId] })
       queryClient.invalidateQueries({ queryKey: ["mis-proyectos"] })
+      // Si el usuario soy yo y era mi proyecto activo, me quedé sin proyecto: todo lo
+      // que esté cacheado de él pasó a ser de un proyecto que ya no miro.
+      refrescarSiEsMiUsuario(queryClient, usuarioId)
     },
   })
 }

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { refrescarPorCambioDeProyecto } from "@/lib/refrescar-por-cambio-de-proyecto"
 
 interface Response {
   message: string
@@ -22,10 +23,8 @@ export function useActivarProyectoParaMi() {
   return useMutation<Response, Error, string>({
     mutationFn: (proyectoId: string) =>
       apiClient.post<Response>("/api/auth/me/activar-proyecto", { proyectoId }),
-    onSuccess: () => {
-      // Cambia el proyecto activo, así que casi todo lo que está en pantalla queda
-      // viejo: mismo refetch amplio que usa el switcher de /ejecucion/proyectos.
-      queryClient.refetchQueries({ type: "active" })
-    },
+    // Cambia el proyecto activo, así que casi todo lo que está en pantalla queda
+    // viejo, y lo que no está montado queda peor: mismo tratamiento que el switcher.
+    onSuccess: () => refrescarPorCambioDeProyecto(queryClient),
   })
 }
