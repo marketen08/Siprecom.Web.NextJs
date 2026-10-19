@@ -29,6 +29,12 @@ export function useSetNcAutorizacion(proyectoId: string) {
         `/api/proyectos/${proyectoId}/no-conformidades-autorizacion`,
         payload,
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: QK(proyectoId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK(proyectoId) })
+      // La matriz decide qué grupos se ofrecen como área al abrir un informe, así
+      // que guardar acá cambia lo que muestra el alta: sin esto, quien configura y
+      // va derecho a cargar una NC sigue viendo las listas de antes.
+      qc.invalidateQueries({ queryKey: ["no-conformidades", "areas"] })
+    },
   })
 }
