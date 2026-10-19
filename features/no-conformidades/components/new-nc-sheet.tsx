@@ -158,8 +158,15 @@ export function NewNoConformidadSheet({
    */
   const elegirElemento = (id: string) => {
     setElementoId(id)
-    const elegido = elementos.find((e) => e.id === id)
-    if (elegido?.elementoTipoEspecialidadId)
+    const elegido =
+      elementos.find((e) => e.id === id) ??
+      (elementoElegido?.id === id ? elementoElegido : null)
+    if (!elegido) return
+    // El elemento es el dato más concreto que dio el usuario, así que impone los dos
+    // de arriba: su subsistema —no hay forma de que la NC sea de otro— y la
+    // especialidad de su tipo.
+    if (elegido.subSistemaId) setSubSistemaId(elegido.subSistemaId)
+    if (elegido.elementoTipoEspecialidadId)
       setEspecialidadId(elegido.elementoTipoEspecialidadId)
   }
 
