@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import {
   Sheet,
@@ -21,10 +21,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import { Combobox } from "@/components/ui/combobox"
+
 import { useCreateNoConformidad } from "../api/use-no-conformidades"
 import { useGetNcMotivos, useGetNcTipos } from "../api/use-catalogos"
 import { useGetNcAreas } from "../api/use-nc-areas"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
+import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
+import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
+import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
 
 interface Props {
   open: boolean
@@ -79,6 +84,7 @@ export function NewNoConformidadSheet({
   const motivos = useGetNcMotivos()
   const areas = useGetNcAreas(open)
   const subsistemas = useGetSubSistemasSelect()
+  const especialidades = useGetEspecialidades()
   const crear = useCreateNoConformidad()
 
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +95,8 @@ export function NewNoConformidadSheet({
   const [grupoSeguimientoId, setGrupoSeguimientoId] = useState("")
   const [motivoId, setMotivoId] = useState("")
   const [subSistemaId, setSubSistemaId] = useState(defaults?.subSistemaId ?? "")
+  const [especialidadId, setEspecialidadId] = useState(defaults?.especialidadId ?? "")
+  const [elementoId, setElementoId] = useState(defaults?.elementoId ?? "")
   const [fechaCompromiso, setFechaCompromiso] = useState("")
   const [descripcion, setDescripcion] = useState(defaults?.descripcion ?? "")
 
@@ -105,6 +113,61 @@ export function NewNoConformidadSheet({
     codigo: string
     nombre: string
   }[]
+
+  const listaEspecialidades = especialidades.data?.data ?? []
+
+  // ── Localización: subsistema → especialidad → elemento ──────────────────
+  //
+  // Mismo criterio que el alta de un pendiente: el elemento se filtra por lo que ya
+  // se eligió, para no ofrecer una lista de miles. Los tres campos son opcionales —
+  // una no conformidad puede ser del subsistema entero— pero cuanto más preciso sea
+  // el informe, más fácil es después encontrarlo y cerrarlo.
+  const { data: elementosRaw } = useGetElementos({
+    page: 1,
+    pageSize: 500,
+    subSistemaId: subSistemaId || undefined,
+    especialidadId: especialidadId || undefined,
+  })
+  // Memoizado porque alimenta un useMemo: el `?? []` crea un array nuevo en cada
+  // render y recalcularía las opciones del combo para nada.
+  const elementos = useMemo(() => elementosRaw?.data ?? [], [elementosRaw])
+
+  // El elemento elegido puede quedar fuera de la lista filtrada —típico cuando
+  // viene heredado del pendiente que se escala y después se toca la especialidad.
+  // Sin la opción, el Combobox mostraría vacío y parecería que se perdió.
+  const elementoElegido = useGetElemento(elementoId || null).data?.data ?? null
+
+  const elementoOptions = useMemo(() => {
+    const opts = [
+      { value: "", label: "Sin elemento" },
+      ...elementos.map((e) => ({ value: e.id, label: `${e.tag} — ${e.nombre}` })),
+    ]
+    if (elementoElegido && !opts.some((o) => o.value === elementoElegido.id))
+      opts.push({
+        value: elementoElegido.id,
+        label: `${elementoElegido.tag} — ${elementoElegido.nombre}`,
+      })
+    return opts
+  }, [elementos, elementoElegido])
+
+  /**
+   * Al elegir un elemento, su especialidad —la del tipo— pisa la del formulario: es
+   * el dato más concreto que dio el usuario. Va en el handler y no en un efecto,
+   * que además de disparar renders en cascada haría imposible dejar la especialidad
+   * en blanco a propósito.
+   */
+  const elegirElemento = (id: string) => {
+    setElementoId(id)
+    const elegido = elementos.find((e) => e.id === id)
+    if (elegido?.elementoTipoEspecialidadId)
+      setEspecialidadId(elegido.elementoTipoEspecialidadId)
+  }
+
+  /** Cambiar de subsistema invalida el elemento: pertenece al anterior. */
+  const elegirSubSistema = (id: string) => {
+    setSubSistemaId(id)
+    if (elementoElegido && elementoElegido.subSistemaId !== id) setElementoId("")
+  }
 
   const mismasAreas =
     Boolean(grupoAfectadoId) && grupoAfectadoId === grupoSeguimientoId
@@ -129,8 +192,8 @@ export function NewNoConformidadSheet({
         grupoSeguimientoId,
         motivoId: motivoId || undefined,
         subSistemaId: subSistemaId || undefined,
-        elementoId: defaults?.elementoId || undefined,
-        especialidadId: defaults?.especialidadId || undefined,
+        elementoId: elementoId || undefined,
+        especialidadId: especialidadId || undefined,
         fechaCompromiso: fechaCompromiso || undefined,
         descripcion: descripcion.trim(),
         pendienteOrigenId: pendienteOrigenId || undefined,
@@ -320,7 +383,7 @@ export function NewNoConformidadSheet({
             >
               <Select
                 value={subSistemaId}
-                onValueChange={(v) => setSubSistemaId(v ?? "")}
+                onValueChange={(v) => elegirSubSistema(v ?? "")}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
@@ -338,6 +401,47 @@ export function NewNoConformidadSheet({
                   ))}
                 </SelectContent>
               </Select>
+            </Campo>
+
+            <Campo label="Especialidad">
+              <Select
+                value={especialidadId}
+                onValueChange={(v) => setEspecialidadId(v ?? "")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {listaEspecialidades.find((e) => e.id === especialidadId)?.nombre ??
+                      "Opcional"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {listaEspecialidades.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Campo>
+
+            <Campo
+              label="Elemento"
+              hint={
+                subSistemaId || especialidadId ? null : (
+                  <p className="text-xs text-muted-foreground">
+                    Elegí subsistema o especialidad para acotar la lista.
+                  </p>
+                )
+              }
+            >
+              <Combobox
+                options={elementoOptions}
+                value={elementoId}
+                onChange={(v) => elegirElemento(v || "")}
+                placeholder="Opcional"
+                searchPlaceholder="Buscar por TAG o nombre..."
+                emptyMessage="Sin elementos"
+              />
             </Campo>
 
             <Campo label="Descripción del hallazgo *" className="sm:col-span-2">
