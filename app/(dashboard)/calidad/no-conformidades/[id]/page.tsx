@@ -18,6 +18,10 @@ import {
 } from "@/features/no-conformidades/types"
 import { NcAccionesPanel } from "@/features/no-conformidades/components/nc-acciones-panel"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataformaEstricta,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -41,6 +45,12 @@ export default function NoConformidadDetallePage({
   const { id } = use(params)
   const { data, isLoading } = useGetNoConformidad(id)
   const { data: perfil } = useGetPerfil()
+  // Con la funcionalidad apagada —que es el default— el garabato no se dibuja en
+  // ninguna pantalla ni en ningún PDF: los bloques de firma quedan sólo con texto.
+  // La pantalla tenía que respetarlo igual que el PDF, que ya lo hacía.
+  const garabatoHabilitado = useFuncionalidadPlataformaEstricta(
+    FUNCIONALIDAD.renderizarGarabatoFirma,
+  )
   const nc = data?.data
 
   const [comentario, setComentario] = useState("")
@@ -241,7 +251,12 @@ export default function NoConformidadDetallePage({
             </h3>
             <ol className="space-y-3">
               {nc.historial.map((h) => (
-                <FilaHistorial key={h.id} h={h} esMia={h.usuarioId === perfil?.id} />
+                <FilaHistorial
+                  key={h.id}
+                  h={h}
+                  esMia={h.usuarioId === perfil?.id}
+                  garabatoHabilitado={garabatoHabilitado}
+                />
               ))}
             </ol>
           </section>
@@ -289,7 +304,15 @@ export default function NoConformidadDetallePage({
   )
 }
 
-function FilaHistorial({ h, esMia }: { h: NoConformidadHistorial; esMia: boolean }) {
+function FilaHistorial({
+  h,
+  esMia,
+  garabatoHabilitado,
+}: {
+  h: NoConformidadHistorial
+  esMia: boolean
+  garabatoHabilitado: boolean
+}) {
   const de = h.estadoAnteriorNombre
     ? NC_ESTADO_LABEL[h.estadoAnteriorNombre] ?? h.estadoAnteriorNombre
     : "Alta"
@@ -300,7 +323,11 @@ function FilaHistorial({ h, esMia }: { h: NoConformidadHistorial; esMia: boolean
   // cambia su firma o la empresa su logo, acá queda lo que había—, y la ausencia de
   // los dos NO significa que la acción no esté firmada: eso lo dice el sello de
   // abajo, que siempre está.
-  const imagen = h.datosFirma ?? h.empresaLogoSasUrl ?? null
+  // El garabato sólo si la plataforma lo tiene habilitado; el logo de la empresa no
+  // depende del flag, porque no es una firma: es la identidad de quien firmó, y es
+  // justamente lo que queda como respaldo visual cuando el garabato está apagado.
+  const garabato = garabatoHabilitado ? h.datosFirma : null
+  const imagen = garabato ?? h.empresaLogoSasUrl ?? null
   const firmante = h.nombreFirmante ?? h.usuarioNombre ?? "—"
 
   return (
@@ -310,7 +337,7 @@ function FilaHistorial({ h, esMia }: { h: NoConformidadHistorial; esMia: boolean
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imagen}
-            alt={h.datosFirma ? "Firma" : h.empresaNombre ?? "Empresa"}
+            alt={garabato ? "Firma" : h.empresaNombre ?? "Empresa"}
             className="max-h-12 object-contain"
           />
         </div>
@@ -333,7 +360,7 @@ function FilaHistorial({ h, esMia }: { h: NoConformidadHistorial; esMia: boolean
         {/* A quien le falta la firma se le ofrece cargarla donde se carga, en vez de
             avisarle que no la tiene. Sólo en las filas propias: en las ajenas no hay
             nada que el que mira pueda hacer. */}
-        {esMia && !h.datosFirma && (
+        {garabatoHabilitado && esMia && !h.datosFirma && (
           <Link
             href="/perfil"
             className="text-xs text-blue-700 underline-offset-2 hover:underline"

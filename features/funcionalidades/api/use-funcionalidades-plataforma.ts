@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client"
 export const FUNCIONALIDAD = {
   coleccionesPlanillas: "COLECCIONES_PLANILLAS",
   equiposAdministracion: "EQUIPOS_ADMINISTRACION",
+  renderizarGarabatoFirma: "RENDERIZAR_GARABATO_FIRMA",
 } as const
 
 /**
@@ -43,4 +44,17 @@ export function useFuncionalidadPlataforma(clave: string): boolean {
   const { data } = useFuncionalidadesPlataforma()
   if (!data) return true
   return data[clave] !== false
+}
+
+/**
+ * Igual que la de arriba, pero mientras el mapa carga devuelve **false**.
+ *
+ * Es para lo que no se puede mostrar de más ni por un instante. El caso que la motivó
+ * es el garabato de firma: con la funcionalidad apagada no debe dibujarse en ninguna
+ * pantalla, y un render optimista lo mostraría medio segundo antes de borrarlo —que
+ * para una firma es peor que esperar.
+ */
+export function useFuncionalidadPlataformaEstricta(clave: string): boolean {
+  const { data } = useFuncionalidadesPlataforma()
+  return data?.[clave] === true
 }
