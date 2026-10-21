@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Pencil, Plus, Trash2, Users, X, Search } from "lucide-react"
+import { Pencil, Plus, Trash2, Users, X, Search, Star } from "lucide-react"
 
 import {
   useCreateUsuarioGrupo,
@@ -11,6 +11,7 @@ import {
   useUpdateUsuarioGrupo,
   useAgregarMiembros,
   useQuitarMiembro,
+  useMarcarResponsable,
   useImpactoQuitarMiembro,
 } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
@@ -483,6 +484,7 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
 
   const agregar = useAgregarMiembros()
   const quitar = useQuitarMiembro()
+  const marcarResponsable = useMarcarResponsable()
 
   const grupo = detalle?.data
   const miembros = grupo?.miembros ?? []
@@ -617,7 +619,9 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
                 </span>
               </h3>
               <p className="text-xs text-muted-foreground">
-                Quitar a alguien no lo da de baja, solo lo saca del grupo.
+                Quitar a alguien no lo da de baja, solo lo saca del grupo. La estrella
+                marca a los responsables: en Calidad son quienes tienen que cargar la
+                respuesta de los informes del área.
               </p>
             </header>
 
@@ -661,6 +665,29 @@ function MiembrosSheet({ grupoId, onClose }: { grupoId: string | null; onClose: 
                         <p className="truncate text-xs text-muted-foreground">{m.email}</p>
                       )}
                     </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className={`h-7 w-7 shrink-0 ${
+                        m.esResponsable ? "text-amber-500" : "text-gray-300 hover:text-amber-500"
+                      }`}
+                      title={
+                        m.esResponsable
+                          ? "Responsable del grupo — quitar la marca"
+                          : "Marcar como responsable del grupo"
+                      }
+                      disabled={marcarResponsable.isPending}
+                      onClick={() => {
+                        if (!grupoId) return
+                        marcarResponsable.mutate({
+                          grupoId,
+                          usuarioId: m.usuarioId,
+                          esResponsable: !m.esResponsable,
+                        })
+                      }}
+                    >
+                      <Star className={`h-3.5 w-3.5 ${m.esResponsable ? "fill-current" : ""}`} />
+                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"

@@ -31,6 +31,15 @@ export interface UsuarioGrupoMiembro {
   apellido: string | null
   email: string | null
   fechaAlta: string
+  /**
+   * Responsable del grupo. Hoy lo usa Calidad: cuando el grupo es el área afectada de
+   * un informe, el responsable es a quien le toca cargar la respuesta y a quien el
+   * aviso le llega como destinatario en vez de como copia.
+   *
+   * Es una etiqueta, no un permiso: los demás miembros del área siguen pudiendo
+   * cargar la respuesta.
+   */
+  esResponsable: boolean
 }
 
 export interface UsuarioGrupoDetalle extends UsuarioGrupo {
