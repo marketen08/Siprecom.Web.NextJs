@@ -388,7 +388,7 @@ function FilaHistorial({
             respaldo, que en un informe de calidad es lo contrario de lo que pasó. */}
         <div className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
           <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-          <span>Firmado electrónicamente por</span>
+          <span>Firmado por</span>
           <span className="font-medium text-foreground">{firmante}</span>
           {h.empresaNombre && <span>· {h.empresaNombre}</span>}
         </div>
