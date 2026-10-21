@@ -82,7 +82,7 @@ export default function NoConformidadDetallePage({
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-1">
             <Link href="/calidad/no-conformidades">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              No Conformidades
+              Informes de calidad
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">

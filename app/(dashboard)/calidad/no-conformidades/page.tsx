@@ -103,7 +103,7 @@ function NoConformidadesPageContent() {
     <div className="space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">No Conformidades</h1>
+          <h1 className="text-2xl font-semibold">Informes de calidad</h1>
           <p className="text-sm text-muted-foreground">
             No Conformidades, Solicitudes de Acción Correctiva y de Oportunidad de Mejora.
           </p>
