@@ -30,6 +30,8 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 
 interface Props {
   open: boolean
@@ -85,6 +87,12 @@ export function NewNoConformidadSheet({
   const areas = useGetNcAreas(open)
   const subsistemas = useGetSubSistemasSelect()
   const especialidades = useGetEspecialidades()
+  // El proyecto puede exigir motivo. Se lee de las funcionalidades efectivas, igual
+  // que el elemento requerido en el alta de un pendiente.
+  const { data: perfil } = useGetPerfil()
+  const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
+  const motivoRequerido =
+    proyectoRaw?.data?.funcionalidadesEfectivas?.CALIDAD_MOTIVO_REQUERIDO === true
   const crear = useCreateNoConformidad()
 
   const [error, setError] = useState<string | null>(null)
@@ -193,6 +201,7 @@ export function NewNoConformidadSheet({
     Boolean(seguimientoEfectivo) &&
     !mismasAreas &&
     descripcion.trim().length > 0 &&
+    (!motivoRequerido || Boolean(motivoId)) &&
     !crear.isPending
 
   const guardar = () => {
@@ -359,11 +368,21 @@ export function NewNoConformidadSheet({
               </Select>
             </Campo>
 
-            <Campo label="Motivo">
+            <Campo
+              label={motivoRequerido ? "Motivo *" : "Motivo"}
+              hint={
+                motivoRequerido && !motivoId ? (
+                  <p className="text-xs text-destructive">
+                    Este proyecto exige indicar el motivo del informe.
+                  </p>
+                ) : null
+              }
+            >
               <Select value={motivoId} onValueChange={(v) => setMotivoId(v ?? "")}>
                 <SelectTrigger className="w-full">
                   <SelectValue>
-                    {listaMotivos.find((m) => m.id === motivoId)?.nombre ?? "Opcional"}
+                    {listaMotivos.find((m) => m.id === motivoId)?.nombre ??
+                      (motivoRequerido ? "Elegir motivo" : "Opcional")}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>

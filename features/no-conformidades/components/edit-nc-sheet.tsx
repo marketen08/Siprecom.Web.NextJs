@@ -29,6 +29,8 @@ import type { NoConformidadDetalle } from "../types"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetElementos } from "@/features/elementos/api/use-get-elementos"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 
 /**
  * Edición de los datos del informe: lo que describe el hallazgo, no lo que el
@@ -56,6 +58,12 @@ export function EditNoConformidadSheet({
   const subsistemas = useGetSubSistemasSelect()
   const especialidades = useGetEspecialidades()
   const actualizar = useUpdateNoConformidad()
+  // El proyecto puede exigir motivo. Se lee de las funcionalidades efectivas, igual
+  // que el elemento requerido en el alta de un pendiente.
+  const { data: perfil } = useGetPerfil()
+  const { data: proyectoRaw } = useGetProyecto(perfil?.proyectoId ?? null)
+  const motivoRequerido =
+    proyectoRaw?.data?.funcionalidadesEfectivas?.CALIDAD_MOTIVO_REQUERIDO === true
 
   const [error, setError] = useState<string | null>(null)
   const [titulo, setTitulo] = useState(nc.titulo)
@@ -102,6 +110,7 @@ export function EditNoConformidadSheet({
     Boolean(grupoAfectadoId) &&
     Boolean(grupoSeguimientoId) &&
     !mismasAreas &&
+    (!motivoRequerido || Boolean(motivoId)) &&
     !actualizar.isPending
 
   async function guardar() {
@@ -172,11 +181,12 @@ export function EditNoConformidadSheet({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Motivo</Label>
+              <Label>{motivoRequerido ? "Motivo *" : "Motivo"}</Label>
               <Select value={motivoId} onValueChange={(v) => setMotivoId(v ?? "")}>
                 <SelectTrigger className="w-full">
                   <SelectValue>
-                    {listaMotivos.find((m) => m.id === motivoId)?.nombre ?? "Opcional"}
+                    {listaMotivos.find((m) => m.id === motivoId)?.nombre ??
+                      (motivoRequerido ? "Elegir motivo" : "Opcional")}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -187,6 +197,11 @@ export function EditNoConformidadSheet({
                   ))}
                 </SelectContent>
               </Select>
+              {motivoRequerido && !motivoId && (
+                <p className="text-xs text-destructive">
+                  Este proyecto exige indicar el motivo del informe.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
