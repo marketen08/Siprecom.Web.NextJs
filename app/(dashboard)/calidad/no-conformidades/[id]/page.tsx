@@ -26,7 +26,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
 
 /**
  * Detalle del informe. Es página y no sheet a propósito: una No Conformidad vive
@@ -354,7 +353,8 @@ function FilaHistorial({
     : "Alta"
   const a = NC_ESTADO_LABEL[h.estadoNuevoNombre] ?? h.estadoNuevoNombre
 
-  // Respaldo visual de la firma, en orden: el garabato del firmante, el logo de su
+  // Respaldo visual de la firma —al borde derecho de la fila, donde va la firma en
+  // un documento en papel—, en orden: el garabato del firmante, el logo de su
   // empresa, o nada. Los tres son snapshots del momento de firmar —si el usuario
   // cambia su firma o la empresa su logo, acá queda lo que había—, y la ausencia de
   // los dos NO significa que la acción no esté firmada: eso lo dice el sello de
@@ -368,16 +368,6 @@ function FilaHistorial({
 
   return (
     <li className="flex gap-3 rounded border p-2">
-      {imagen && (
-        <div className="w-20 shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imagen}
-            alt={garabato ? "Firma" : h.empresaNombre ?? "Empresa"}
-            className="max-h-12 object-contain"
-          />
-        </div>
-      )}
       <div className="min-w-0 flex-1 text-sm">
         <div className="font-medium">
           {de} → {a}
@@ -408,6 +398,16 @@ function FilaHistorial({
           <div className="mt-1 whitespace-pre-wrap text-sm">{h.comentario}</div>
         )}
       </div>
+      {imagen && (
+        <div className="flex w-20 shrink-0 justify-end">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imagen}
+            alt={garabato ? "Firma" : h.empresaNombre ?? "Empresa"}
+            className="max-h-12 object-contain"
+          />
+        </div>
+      )}
     </li>
   )
 }
