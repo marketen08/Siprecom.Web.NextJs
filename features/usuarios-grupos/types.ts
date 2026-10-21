@@ -5,7 +5,10 @@ export interface UsuarioGrupo {
   /** Se muestra como opción al configurar la matriz de autorización del workflow de Pendientes. */
   usoPendientes: boolean
   /** Se muestra al elegir area afectada/seguimiento de una No Conformidad y en su matriz de autorizacion. */
-  usoCalidad: boolean
+  /** Puede ser área AFECTADA de un informe de calidad: la que resuelve. */
+  usoCalidadAfectada: boolean
+  /** Puede ser área de SEGUIMIENTO: la que controla. */
+  usoCalidadSeguimiento: boolean
   /** Se muestra como opción al asignar usuarios a un proyecto ("Agregar desde grupo"). */
   usoAccesoProyecto: boolean
   cantidadMiembros: number
@@ -51,7 +54,10 @@ export interface UsuarioGrupoInput {
   descripcion?: string
   usoPendientes: boolean
   /** Se muestra al elegir area afectada/seguimiento de una No Conformidad y en su matriz de autorizacion. */
-  usoCalidad: boolean
+  /** Puede ser área AFECTADA de un informe de calidad: la que resuelve. */
+  usoCalidadAfectada: boolean
+  /** Puede ser área de SEGUIMIENTO: la que controla. */
+  usoCalidadSeguimiento: boolean
   usoAccesoProyecto: boolean
 }
 

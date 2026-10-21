@@ -40,8 +40,8 @@ type UsoFiltro = "pendientes" | "acceso-proyecto" | "calidad" | "sin-uso"
 const CUMPLE_USO: Record<UsoFiltro, (g: UsuarioGrupo) => boolean> = {
   "pendientes": (g) => g.usoPendientes,
   "acceso-proyecto": (g) => g.usoAccesoProyecto,
-  "calidad": (g) => g.usoCalidad,
-  "sin-uso": (g) => !g.usoPendientes && !g.usoAccesoProyecto && !g.usoCalidad,
+  "calidad": (g) => g.usoCalidadAfectada || g.usoCalidadSeguimiento,
+  "sin-uso": (g) => !g.usoPendientes && !g.usoAccesoProyecto && !g.usoCalidadAfectada && !g.usoCalidadSeguimiento,
 }
 
 /**
@@ -63,7 +63,8 @@ interface EditSheetState {
   descripcion: string
   usoPendientes: boolean
   usoAccesoProyecto: boolean
-  usoCalidad: boolean
+  usoCalidadAfectada: boolean
+  usoCalidadSeguimiento: boolean
 }
 
 export default function GruposUsuariosPage() {
@@ -106,7 +107,8 @@ export default function GruposUsuariosPage() {
     if (!editSheet || !editSheet.nombre.trim()) return
     // Guard local — al menos un uso declarado. El backend también valida,
     // pero acá lo cortamos antes para no gastar el request.
-    if (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto && !editSheet.usoCalidad) {
+    if (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto
+        && !editSheet.usoCalidadAfectada && !editSheet.usoCalidadSeguimiento) {
       setError("Seleccioná al menos un caso de uso.")
       return
     }
@@ -117,7 +119,8 @@ export default function GruposUsuariosPage() {
         descripcion: editSheet.descripcion.trim() || undefined,
         usoPendientes: editSheet.usoPendientes,
         usoAccesoProyecto: editSheet.usoAccesoProyecto,
-        usoCalidad: editSheet.usoCalidad,
+        usoCalidadAfectada: editSheet.usoCalidadAfectada,
+        usoCalidadSeguimiento: editSheet.usoCalidadSeguimiento,
       }
       if (editSheet.mode === "new") await create.mutateAsync(payload)
       else await update.mutateAsync({ id: editSheet.id!, ...payload })
@@ -156,7 +159,8 @@ export default function GruposUsuariosPage() {
             // backend exige al menos uno antes de guardar.
             usoPendientes: false,
             usoAccesoProyecto: false,
-            usoCalidad: false,
+            usoCalidadAfectada: false,
+            usoCalidadSeguimiento: false,
           }) }}
           className="gap-2"
         >
@@ -248,16 +252,21 @@ export default function GruposUsuariosPage() {
                           Acceso a proyecto
                         </span>
                       )}
-                      {g.usoCalidad && (
+                      {g.usoCalidadAfectada && (
                         <span className="inline-flex items-center rounded bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 text-[11px] font-medium">
-                          Calidad
+                          Calidad · área afectada
+                        </span>
+                      )}
+                      {g.usoCalidadSeguimiento && (
+                        <span className="inline-flex items-center rounded bg-teal-50 text-teal-800 border border-teal-200 px-1.5 py-0.5 text-[11px] font-medium">
+                          Calidad · seguimiento
                         </span>
                       )}
                       {/* Grupos activos nuevos siempre tienen al menos un uso
                           (regla de validación). Los que no aparecen acá son
                           legacy de antes de la regla — quedan silenciados y se
                           arreglan al primer edit. */}
-                      {!g.usoPendientes && !g.usoAccesoProyecto && !g.usoCalidad && (
+                      {!g.usoPendientes && !g.usoAccesoProyecto && !g.usoCalidadAfectada && !g.usoCalidadSeguimiento && (
                         <span
                           className="inline-flex items-center rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[11px] font-medium"
                           title="Grupo legacy sin uso declarado. Editalo y marcá al menos uno."
@@ -305,7 +314,8 @@ export default function GruposUsuariosPage() {
                         descripcion: g.descripcion ?? "",
                         usoPendientes: g.usoPendientes,
                         usoAccesoProyecto: g.usoAccesoProyecto,
-                        usoCalidad: g.usoCalidad,
+                        usoCalidadAfectada: g.usoCalidadAfectada,
+                        usoCalidadSeguimiento: g.usoCalidadSeguimiento,
                       }) }}
                     >
                       <Pencil className="h-4 w-4" />
@@ -390,11 +400,26 @@ export default function GruposUsuariosPage() {
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-gray-300 accent-blue-600"
-                    checked={editSheet?.usoCalidad ?? true}
-                    onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoCalidad: e.target.checked } : editSheet)}
+                    checked={editSheet?.usoCalidadAfectada ?? true}
+                    onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoCalidadAfectada: e.target.checked } : editSheet)}
                   />
-                  Calidad <span className="text-xs text-muted-foreground">(área afectada/seguimiento + matriz de autorización)</span>
+                  Calidad · área afectada{" "}
+                  <span className="text-xs text-muted-foreground">(la que resuelve el informe)</span>
                 </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                    checked={editSheet?.usoCalidadSeguimiento ?? true}
+                    onChange={(e) => setEditSheet(editSheet ? { ...editSheet, usoCalidadSeguimiento: e.target.checked } : editSheet)}
+                  />
+                  Calidad · seguimiento{" "}
+                  <span className="text-xs text-muted-foreground">(la que evalúa y aprueba el cierre)</span>
+                </label>
+                {/* A diferencia de los otros usos, estos dos no son sólo orientación:
+                    la autorización del módulo sale del informe, así que habilitar un
+                    papel es habilitar a los miembros del grupo a mover los informes
+                    donde el grupo lo cumpla. */}
                 {/* (Checkbox "Visibilidad de pendientes" eliminado 2026-09 —
                     el modelo de "grupo de visibilidad" separable se reemplazó
                     por el ámbito del pendiente: la audiencia vive en el catálogo de ámbitos.) */}
@@ -402,7 +427,7 @@ export default function GruposUsuariosPage() {
               {editSheet
                 && !editSheet.usoPendientes
                 && !editSheet.usoAccesoProyecto
-                && !editSheet.usoCalidad && (
+                && !editSheet.usoCalidadAfectada && !editSheet.usoCalidadSeguimiento && (
                 <p className="mt-2 text-[11px] text-amber-700">
                   Marcá al menos uno — sino el grupo no aparecerá en ningún selector.
                 </p>
@@ -417,7 +442,8 @@ export default function GruposUsuariosPage() {
                   !editSheet?.nombre.trim()
                   || create.isPending
                   || update.isPending
-                  || (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto && !editSheet.usoCalidad)
+                  || (!editSheet.usoPendientes && !editSheet.usoAccesoProyecto
+                      && !editSheet.usoCalidadAfectada && !editSheet.usoCalidadSeguimiento)
                 }
                 className="flex-1"
               >

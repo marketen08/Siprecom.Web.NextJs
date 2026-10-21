@@ -13,6 +13,8 @@ export interface NcAreas {
   afectada: NcAreaOpcion[]
   /** Grupos que pueden ser área de SEGUIMIENTO: los autorizados a controlar. */
   seguimiento: NcAreaOpcion[]
+  /** La que el proyecto propone por defecto, si definió una. */
+  seguimientoPorDefectoId: string | null
 }
 
 /**

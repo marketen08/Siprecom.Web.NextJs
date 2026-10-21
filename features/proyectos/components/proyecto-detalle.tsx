@@ -11,6 +11,8 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
+import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
+import { useAsignarCalidadSeguimiento } from "@/features/no-conformidades/api/use-calidad-seguimiento"
 import { useUpdateProyecto } from "@/features/proyectos/api/use-update-proyecto"
 import { useUpdateProyectoFlag } from "@/features/proyectos/api/use-update-proyecto-flag"
 import { useUpdateProyectoNivelMc } from "@/features/proyectos/api/use-update-proyecto-nivel-mc"
@@ -45,7 +47,6 @@ import { useSincronizarFirmasProyecto } from "@/features/proyectos/api/use-sincr
 import { useGetUsuariosRoles } from "@/features/proyectos/api/use-get-usuarios-roles"
 import { useAsignarUsuarioRol } from "@/features/proyectos/api/use-asignar-usuario-rol"
 import { useAsignarRolDesdeGrupo } from "@/features/proyectos/api/use-asignar-rol-desde-grupo"
-import { useGetUsuariosGrupos } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useDeleteUsuarioRol } from "@/features/proyectos/api/use-delete-usuario-rol"
 import { useGetFechaEstimadaFin } from "@/features/proyectos/api/use-fecha-estimada-fin"
 import { ProyectoForm } from "@/features/proyectos/components/proyecto-form"
@@ -55,7 +56,6 @@ import { TIPO_FIRMA_CONFIG, TIPO_FIRMA_CONFIG_LABEL, type EstadoProyecto, type F
 import type { ProyectoFormValues } from "@/features/proyectos/schema"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import { PendientesAutorizacionSection } from "@/features/pendientes-autorizacion/components/pendientes-autorizacion-section"
-import { NcAutorizacionSection } from "@/features/no-conformidades-autorizacion/components/nc-autorizacion-section"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -481,6 +481,7 @@ function NivelMcSelector({ proyecto }: { proyecto: Proyecto }) {
 // ─── Equipo de administración del proyecto ───────────────────────────────────
 
 const EQUIPO_NONE = "__none__"
+const SIN_SEGUIMIENTO = "__sin_seguimiento__"
 
 /**
  * De qué equipo de administración toma el proyecto su catálogo de planillas: se le ofrecen
@@ -1528,7 +1529,64 @@ function TabPendientes({ proyectoId }: { proyectoId: string }) {
 // ─── Tab Calidad: quién firma cada etapa del informe ───────────────────
 
 function TabCalidad({ proyectoId }: { proyectoId: string }) {
-  return <NcAutorizacionSection proyectoId={proyectoId} />
+  const { data: raw } = useGetProyecto(proyectoId)
+  const proyecto = (raw as { data?: Proyecto } | undefined)?.data ?? (raw as Proyecto | undefined)
+  // Los grupos habilitados como área de seguimiento: los mismos que va a ofrecer el
+  // alta, para no proponer por defecto algo que después la pantalla no lista.
+  const { data: gruposRaw } = useGetUsuariosGrupos('calidad')
+  const update = useAsignarCalidadSeguimiento(proyectoId)
+  const [error, setError] = useState<string | null>(null)
+
+  const grupos = (gruposRaw?.data ?? []).filter((g) => g.usoCalidadSeguimiento)
+  const actual = proyecto?.calidadGrupoSeguimientoId ?? null
+
+  async function cambiar(valor: string | null) {
+    setError(null)
+    try {
+      await update.mutateAsync(!valor || valor === SIN_SEGUIMIENTO ? null : valor)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-white p-4">
+      <div>
+        <p className="text-sm font-medium text-gray-900">Área de seguimiento por defecto</p>
+        <p className="text-xs text-muted-foreground">
+          La que el alta de un informe propone sin que haya que elegirla. Se puede
+          cambiar en cada informe. Quién controla cada paso sale del informe: el área de
+          seguimiento evalúa y aprueba el cierre, el área afectada resuelve.
+        </p>
+      </div>
+
+      <Select
+        value={actual ?? SIN_SEGUIMIENTO}
+        onValueChange={cambiar}
+        disabled={update.isPending}
+      >
+        <SelectTrigger className="w-full max-w-sm">
+          <SelectValue>
+            {actual ? (grupos.find((g) => g.id === actual)?.nombre ?? '—') : 'Sin área por defecto'}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={SIN_SEGUIMIENTO}>Sin área por defecto</SelectItem>
+          {grupos.map((g) => (
+            <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {grupos.length === 0 && (
+        <p className="text-xs text-amber-700">
+          Ningún grupo está habilitado como área de seguimiento. Se marca en
+          Configuración → Grupos de usuarios.
+        </p>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  )
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────

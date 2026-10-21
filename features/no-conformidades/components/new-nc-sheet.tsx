@@ -108,6 +108,13 @@ export function NewNoConformidadSheet({
   // traen todos los grupos marcados para Calidad, como antes.
   const areasAfectada = areas.data?.data?.afectada ?? []
   const areasSeguimiento = areas.data?.data?.seguimiento ?? []
+
+  // El área de seguimiento que propone el proyecto. Se usa como valor del select
+  // mientras el usuario no haya elegido otra: así el campo llega completo sin que
+  // haga falta un efecto que lo escriba —que además pisaría la elección si el
+  // proyecto cambiara su default con el formulario abierto.
+  const seguimientoEfectivo =
+    grupoSeguimientoId || (areas.data?.data?.seguimientoPorDefectoId ?? '')
   const listaSubsistemas = (subsistemas.data?.data ?? []) as {
     id: string
     codigo: string
@@ -177,13 +184,13 @@ export function NewNoConformidadSheet({
   }
 
   const mismasAreas =
-    Boolean(grupoAfectadoId) && grupoAfectadoId === grupoSeguimientoId
+    Boolean(grupoAfectadoId) && grupoAfectadoId === seguimientoEfectivo
 
   const puedeGuardar =
     Boolean(tipoId) &&
     titulo.trim().length > 0 &&
     Boolean(grupoAfectadoId) &&
-    Boolean(grupoSeguimientoId) &&
+    Boolean(seguimientoEfectivo) &&
     !mismasAreas &&
     descripcion.trim().length > 0 &&
     !crear.isPending
@@ -196,7 +203,7 @@ export function NewNoConformidadSheet({
         titulo: titulo.trim(),
         severidad: Number(severidad),
         grupoAfectadoId,
-        grupoSeguimientoId,
+        grupoSeguimientoId: seguimientoEfectivo,
         motivoId: motivoId || undefined,
         subSistemaId: subSistemaId || undefined,
         elementoId: elementoId || undefined,
@@ -333,12 +340,12 @@ export function NewNoConformidadSheet({
               }
             >
               <Select
-                value={grupoSeguimientoId}
+                value={seguimientoEfectivo}
                 onValueChange={(v) => setGrupoSeguimientoId(v ?? "")}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
-                    {areasSeguimiento.find((g) => g.id === grupoSeguimientoId)?.nombre ??
+                    {areasSeguimiento.find((g) => g.id === seguimientoEfectivo)?.nombre ??
                       "Quién controla y valida"}
                   </SelectValue>
                 </SelectTrigger>
