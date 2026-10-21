@@ -88,19 +88,18 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
     },
   }
 
-  return (
-    <div className="space-y-3 rounded border bg-slate-50/60 p-3">
-      <h4 className="text-sm font-semibold">Acción disponible</h4>
-
-      {error && (
-        <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
-      )}
-
-      {/* EVALUACION → NUEVO */}
-      {nc.estadoId === NC_ESTADO_IDS.EVALUACION && (
-        <div className="space-y-2">
-          <Label>Observación (opcional)</Label>
-          <Textarea value={comentario} onChange={(e) => setComentario(e.target.value)} />
+  /**
+   * Los botones de la etapa, separados de sus campos.
+   *
+   * Van todos a la misma fila al pie del card, junto a Cancelar: antes cada etapa
+   * cerraba con su botón y la cancelación colgaba abajo en su propio renglón, así
+   * que las dos acciones de un mismo paso se leían como si fueran de pasos
+   * distintos.
+   */
+  const botonesDeEtapa = () => {
+    switch (nc.estadoId) {
+      case NC_ESTADO_IDS.EVALUACION:
+        return (
           <Button
             disabled={pendiente}
             onClick={() =>
@@ -112,18 +111,10 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
           >
             Aceptar el informe
           </Button>
-        </div>
-      )}
+        )
 
-      {/* NUEVO → INVESTIGACION */}
-      {nc.estadoId === NC_ESTADO_IDS.NUEVO && (
-        <div className="space-y-2">
-          <Label>Acción inmediata de contención *</Label>
-          <Textarea
-            value={accionInmediata}
-            onChange={(e) => setAccionInmediata(e.target.value)}
-            placeholder="Qué se hizo para contener el problema ahora."
-          />
+      case NC_ESTADO_IDS.NUEVO:
+        return (
           <Button
             disabled={pendiente || !accionInmediata.trim()}
             onClick={() =>
@@ -139,30 +130,10 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
           >
             Registrar y firmar
           </Button>
-        </div>
-      )}
+        )
 
-      {/* INVESTIGACION → REVISION */}
-      {nc.estadoId === NC_ESTADO_IDS.INVESTIGACION && (
-        <div className="space-y-2">
-          <Label>Causa raíz *</Label>
-          <Textarea
-            value={causaRaiz || nc.causaRaiz || ""}
-            onChange={(e) => setCausaRaiz(e.target.value)}
-            placeholder="Por qué pasó."
-          />
-          <Label>Acción correctiva *</Label>
-          <Textarea
-            value={accionCorrectiva || nc.accionCorrectiva || ""}
-            onChange={(e) => setAccionCorrectiva(e.target.value)}
-            placeholder="Qué se hace para corregirlo."
-          />
-          <Label>Plan de mejora</Label>
-          <Textarea
-            value={planMejora || nc.planMejora || ""}
-            onChange={(e) => setPlanMejora(e.target.value)}
-            placeholder="Qué se cambia para que no vuelva a pasar."
-          />
+      case NC_ESTADO_IDS.INVESTIGACION:
+        return (
           <Button
             disabled={
               pendiente ||
@@ -187,19 +158,11 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
           >
             Enviar a revisión y firmar
           </Button>
-        </div>
-      )}
+        )
 
-      {/* REVISION → aprobar o rechazar */}
-      {nc.estadoId === NC_ESTADO_IDS.REVISION && (
-        <div className="space-y-2">
-          <Label>Observación / motivo</Label>
-          <Textarea
-            value={comentario}
-            onChange={(e) => setComentario(e.target.value)}
-            placeholder="Al rechazar, el motivo es obligatorio y queda en el historial."
-          />
-          <div className="flex gap-2">
+      case NC_ESTADO_IDS.REVISION:
+        return (
+          <>
             <Button
               disabled={pendiente}
               onClick={() =>
@@ -223,25 +186,11 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
             >
               Rechazar
             </Button>
-          </div>
-        </div>
-      )}
+          </>
+        )
 
-      {/* INDICADOR_EFICACIA → ESPERA_RESULTADO */}
-      {nc.estadoId === NC_ESTADO_IDS.INDICADOR_EFICACIA && (
-        <div className="space-y-2">
-          <Label>Qué se va a medir *</Label>
-          <Textarea
-            value={objetivo}
-            onChange={(e) => setObjetivo(e.target.value)}
-            placeholder="El indicador que prueba que la corrección sirvió."
-          />
-          <Label>Fecha de medición *</Label>
-          <Input
-            type="date"
-            value={fechaEval}
-            onChange={(e) => setFechaEval(e.target.value)}
-          />
+      case NC_ESTADO_IDS.INDICADOR_EFICACIA:
+        return (
           <Button
             disabled={pendiente || !objetivo.trim() || !fechaEval}
             onClick={() =>
@@ -261,19 +210,11 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
           >
             Definir y firmar
           </Button>
-        </div>
-      )}
+        )
 
-      {/* ESPERA_RESULTADO → FINALIZADO (y encadena si no fue eficaz) */}
-      {nc.estadoId === NC_ESTADO_IDS.ESPERA_RESULTADO && (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Medición prevista para {fecha(nc.fechaEvaluacionEficacia)}. Objetivo:{" "}
-            {nc.objetivoEficacia}
-          </p>
-          <Label>Resultado de la medición *</Label>
-          <Textarea value={resultado} onChange={(e) => setResultado(e.target.value)} />
-          <div className="flex gap-2">
+      case NC_ESTADO_IDS.ESPERA_RESULTADO:
+        return (
+          <>
             <Button
               disabled={pendiente || !resultado.trim()}
               onClick={() =>
@@ -306,11 +247,110 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
             >
               No fue eficaz
             </Button>
-          </div>
+          </>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded border bg-slate-50/60 p-3">
+      <h4 className="text-sm font-semibold">Acción disponible</h4>
+
+      {error && (
+        <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
+      )}
+
+      {/* EVALUACION → NUEVO */}
+      {nc.estadoId === NC_ESTADO_IDS.EVALUACION && (
+        <div className="space-y-2">
+          <Label>Observación (opcional)</Label>
+          <Textarea value={comentario} onChange={(e) => setComentario(e.target.value)} />
         </div>
       )}
 
-      {/* Cancelación: disponible en cualquier estado no terminal.
+      {/* NUEVO → INVESTIGACION */}
+      {nc.estadoId === NC_ESTADO_IDS.NUEVO && (
+        <div className="space-y-2">
+          <Label>Acción inmediata de contención *</Label>
+          <Textarea
+            value={accionInmediata}
+            onChange={(e) => setAccionInmediata(e.target.value)}
+            placeholder="Qué se hizo para contener el problema ahora."
+          />
+        </div>
+      )}
+
+      {/* INVESTIGACION → REVISION */}
+      {nc.estadoId === NC_ESTADO_IDS.INVESTIGACION && (
+        <div className="space-y-2">
+          <Label>Causa raíz *</Label>
+          <Textarea
+            value={causaRaiz || nc.causaRaiz || ""}
+            onChange={(e) => setCausaRaiz(e.target.value)}
+            placeholder="Por qué pasó."
+          />
+          <Label>Acción correctiva *</Label>
+          <Textarea
+            value={accionCorrectiva || nc.accionCorrectiva || ""}
+            onChange={(e) => setAccionCorrectiva(e.target.value)}
+            placeholder="Qué se hace para corregirlo."
+          />
+          <Label>Plan de mejora</Label>
+          <Textarea
+            value={planMejora || nc.planMejora || ""}
+            onChange={(e) => setPlanMejora(e.target.value)}
+            placeholder="Qué se cambia para que no vuelva a pasar."
+          />
+        </div>
+      )}
+
+      {/* REVISION → aprobar o rechazar */}
+      {nc.estadoId === NC_ESTADO_IDS.REVISION && (
+        <div className="space-y-2">
+          <Label>Observación / motivo</Label>
+          <Textarea
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            placeholder="Al rechazar, el motivo es obligatorio y queda en el historial."
+          />
+        </div>
+      )}
+
+      {/* INDICADOR_EFICACIA → ESPERA_RESULTADO */}
+      {nc.estadoId === NC_ESTADO_IDS.INDICADOR_EFICACIA && (
+        <div className="space-y-2">
+          <Label>Qué se va a medir *</Label>
+          <Textarea
+            value={objetivo}
+            onChange={(e) => setObjetivo(e.target.value)}
+            placeholder="El indicador que prueba que la corrección sirvió."
+          />
+          <Label>Fecha de medición *</Label>
+          <Input
+            type="date"
+            value={fechaEval}
+            onChange={(e) => setFechaEval(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* ESPERA_RESULTADO → FINALIZADO (y encadena si no fue eficaz) */}
+      {nc.estadoId === NC_ESTADO_IDS.ESPERA_RESULTADO && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Medición prevista para {fecha(nc.fechaEvaluacionEficacia)}. Objetivo:{" "}
+            {nc.objetivoEficacia}
+          </p>
+          <Label>Resultado de la medición *</Label>
+          <Textarea value={resultado} onChange={(e) => setResultado(e.target.value)} />
+        </div>
+      )}
+
+      {/* Fila de acciones: la de la etapa y la cancelación, que está disponible en
+          cualquier estado no terminal.
 
           El motivo se pide en el propio diálogo y no en el textarea de arriba. Ese
           textarea sólo existe en dos de los seis estados —en los demás el formulario
@@ -318,7 +358,7 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
           para siempre sin que nada explicara por qué: no había dónde escribir el motivo
           que exigía. Y donde sí existía, el campo decía "opcional" mientras cancelar lo
           requería. */}
-      <div className="pt-2">
+      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
         <ConfirmActionDialog
           // El trigger recibe el CONTENIDO, no un <Button>: el diálogo ya renderiza
           // su propio <button>, y anidar uno adentro rompe la hidratación.
@@ -354,6 +394,7 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
             setMotivoCancelacion("")
           }}
         />
+        {botonesDeEtapa()}
       </div>
     </div>
   )
