@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 import { useEficacia, useNoConformidadTransicion } from "../api/use-no-conformidades"
 import { NC_ESTADO_IDS, type NoConformidadDetalle } from "../types"
@@ -30,6 +31,9 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
 
   const [error, setError] = useState<string | null>(null)
   const [comentario, setComentario] = useState("")
+  // Separado del comentario de las etapas: cancelar exige motivo y las demás acciones
+  // no, y mezclarlos hacía que el textarea de una etapa habilitara la cancelación.
+  const [motivoCancelacion, setMotivoCancelacion] = useState("")
   const [accionInmediata, setAccionInmediata] = useState("")
   const [causaRaiz, setCausaRaiz] = useState("")
   const [accionCorrectiva, setAccionCorrectiva] = useState("")
@@ -280,23 +284,51 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
         </div>
       )}
 
-      {/* Cancelación: disponible en cualquier estado no terminal */}
+      {/* Cancelación: disponible en cualquier estado no terminal.
+
+          El motivo se pide en el propio diálogo y no en el textarea de arriba. Ese
+          textarea sólo existe en dos de los seis estados —en los demás el formulario
+          es el de la etapa, no una observación—, así que el botón quedaba deshabilitado
+          para siempre sin que nada explicara por qué: no había dónde escribir el motivo
+          que exigía. Y donde sí existía, el campo decía "opcional" mientras cancelar lo
+          requería. */}
       <div className="pt-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive"
-          disabled={pendiente || !comentario.trim()}
-          title="Requiere motivo en el campo de observación"
-          onClick={() =>
-            transicion.mutate(
-              { id: nc.id, accion: "cancelar", body: { comentario } },
-              opts,
-            )
+        <ConfirmActionDialog
+          trigger={
+            <Button variant="ghost" size="sm" className="text-destructive" disabled={pendiente}>
+              Cancelar informe
+            </Button>
           }
-        >
-          Cancelar informe
-        </Button>
+          title="Cancelar el informe"
+          variant="destructive"
+          confirmText="Cancelar el informe"
+          pendingText="Cancelando…"
+          cancelText="Volver"
+          description={
+            <div className="space-y-2">
+              <p>
+                El informe queda cerrado sin resolverse y no admite más cambios. El
+                motivo queda registrado en el historial y sale en el PDF.
+              </p>
+              <Label htmlFor="motivo-cancelacion">Motivo *</Label>
+              <Textarea
+                id="motivo-cancelacion"
+                value={motivoCancelacion}
+                onChange={(e) => setMotivoCancelacion(e.target.value)}
+                placeholder="Por qué se cancela."
+              />
+            </div>
+          }
+          onConfirm={async () => {
+            if (!motivoCancelacion.trim()) throw new Error("El motivo es obligatorio.")
+            await transicion.mutateAsync({
+              id: nc.id,
+              accion: "cancelar",
+              body: { comentario: motivoCancelacion },
+            })
+            setMotivoCancelacion("")
+          }}
+        />
       </div>
     </div>
   )

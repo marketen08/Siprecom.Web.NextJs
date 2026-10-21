@@ -95,7 +95,7 @@ export const menu: MenuItem[] = [
     label: "Calidad",
     minRole: "Consultor",
     requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES",
-    children: [{ label: "No Conformidades", href: "/calidad/no-conformidades" }],
+    children: [{ label: "Informes", href: "/calidad/no-conformidades" }],
   },
   {
     label: "Análisis",
@@ -486,6 +486,9 @@ export const segmentLabels: Record<string, string> = {
   ia:                      "Funciones de IA",
   areas:                   "Áreas",
   modulos:                 "Módulos",
+  // La ruta sigue diciendo no-conformidades porque los QR de los informes ya
+  // emitidos apuntan ahí; lo que cambia es cómo se llama en la navegación.
+  "no-conformidades":      "Informes de calidad",
   "test-groups":           "Paquetes de prueba",
   asignacion:              "Asignar a paquetes",
 }

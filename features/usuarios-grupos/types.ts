@@ -5,7 +5,10 @@ export interface UsuarioGrupo {
   /** Se muestra como opción al configurar la matriz de autorización del workflow de Pendientes. */
   usoPendientes: boolean
   /** Se muestra al elegir area afectada/seguimiento de una No Conformidad y en su matriz de autorizacion. */
-  usoCalidad: boolean
+  /** Puede ser área AFECTADA de un informe de calidad: la que resuelve. */
+  usoCalidadAfectada: boolean
+  /** Puede ser área de SEGUIMIENTO: la que controla. */
+  usoCalidadSeguimiento: boolean
   /** Se muestra como opción al asignar usuarios a un proyecto ("Agregar desde grupo"). */
   usoAccesoProyecto: boolean
   cantidadMiembros: number
@@ -31,6 +34,15 @@ export interface UsuarioGrupoMiembro {
   apellido: string | null
   email: string | null
   fechaAlta: string
+  /**
+   * Responsable del grupo. Hoy lo usa Calidad: cuando el grupo es el área afectada de
+   * un informe, el responsable es a quien le toca cargar la respuesta y a quien el
+   * aviso le llega como destinatario en vez de como copia.
+   *
+   * Es una etiqueta, no un permiso: los demás miembros del área siguen pudiendo
+   * cargar la respuesta.
+   */
+  esResponsable: boolean
 }
 
 export interface UsuarioGrupoDetalle extends UsuarioGrupo {
@@ -42,7 +54,10 @@ export interface UsuarioGrupoInput {
   descripcion?: string
   usoPendientes: boolean
   /** Se muestra al elegir area afectada/seguimiento de una No Conformidad y en su matriz de autorizacion. */
-  usoCalidad: boolean
+  /** Puede ser área AFECTADA de un informe de calidad: la que resuelve. */
+  usoCalidadAfectada: boolean
+  /** Puede ser área de SEGUIMIENTO: la que controla. */
+  usoCalidadSeguimiento: boolean
   usoAccesoProyecto: boolean
 }
 

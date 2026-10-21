@@ -65,6 +65,8 @@ export interface Proyecto {
    * Cuando es null, el certificado MC queda en "no aplica" en todo el proyecto.
    */
   nivelMcId: string | null
+  /** Área de seguimiento que el alta de un informe de calidad propone por defecto. */
+  calidadGrupoSeguimientoId: string | null
   nivelMcNombre: string | null
   /**
    * Estado efectivo (global AND proyecto) de cada funcionalidad toggleable, por

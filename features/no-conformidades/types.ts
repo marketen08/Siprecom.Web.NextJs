@@ -112,6 +112,8 @@ export interface NoConformidadHistorial {
   nombreFirmante: string | null
   empresaNombre: string | null
   empresaLogoUrl: string | null
+  /** El logo de arriba, firmado para que lo pueda mostrar el navegador (el blob es privado). */
+  empresaLogoSasUrl: string | null
 }
 
 export interface NoConformidadComentario {
@@ -181,6 +183,10 @@ export interface NoConformidad {
   fechaCompromiso: string | null
   detectadoPorId: string | null
   detectadoPorNombre: string | null
+
+  /** Descripción del hallazgo: qué se detectó y en qué contexto. */
+
+  descripcion: string | null
 
   accionInmediata: string | null
   causaRaiz: string | null

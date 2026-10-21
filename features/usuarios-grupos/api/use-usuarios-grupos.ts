@@ -74,6 +74,26 @@ export function useAgregarMiembros() {
   })
 }
 
+/** Marca o desmarca a un miembro como responsable del grupo. */
+export function useMarcarResponsable() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ grupoId, usuarioId, esResponsable }: {
+      grupoId: string
+      usuarioId: string
+      esResponsable: boolean
+    }) =>
+      apiClient.patch<ApiResponse<UsuarioGrupoDetalle>>(
+        `/api/usuarios-grupos/${grupoId}/miembros/${usuarioId}/responsable`,
+        { esResponsable },
+      ),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: QK })
+      qc.invalidateQueries({ queryKey: [...QK, vars.grupoId] })
+    },
+  })
+}
+
 /** Quita al usuario del grupo (idempotente). Devuelve el detalle actualizado. */
 export function useQuitarMiembro() {
   const qc = useQueryClient()

@@ -2,7 +2,7 @@
 
 import { use, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, FileDown, Link2, MessageSquare } from "lucide-react"
+import { ArrowLeft, BadgeCheck, FileDown, Link2, MessageSquare } from "lucide-react"
 
 import {
   useAgregarComentario,
@@ -17,6 +17,11 @@ import {
   type NoConformidadHistorial,
 } from "@/features/no-conformidades/types"
 import { NcAccionesPanel } from "@/features/no-conformidades/components/nc-acciones-panel"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataformaEstricta,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -39,6 +44,13 @@ export default function NoConformidadDetallePage({
 }) {
   const { id } = use(params)
   const { data, isLoading } = useGetNoConformidad(id)
+  const { data: perfil } = useGetPerfil()
+  // Con la funcionalidad apagada —que es el default— el garabato no se dibuja en
+  // ninguna pantalla ni en ningún PDF: los bloques de firma quedan sólo con texto.
+  // La pantalla tenía que respetarlo igual que el PDF, que ya lo hacía.
+  const garabatoHabilitado = useFuncionalidadPlataformaEstricta(
+    FUNCIONALIDAD.renderizarGarabatoFirma,
+  )
   const nc = data?.data
 
   const [comentario, setComentario] = useState("")
@@ -70,7 +82,7 @@ export default function NoConformidadDetallePage({
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-1">
             <Link href="/calidad/no-conformidades">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              No Conformidades
+              Informes de calidad
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">
@@ -135,6 +147,16 @@ export default function NoConformidadDetallePage({
               <Dato k="Cancelación" v={fecha(nc.fechaCancelacion)} />
             </dl>
 
+            {/* La descripción del hallazgo es un dato del informe, no una entrada del
+                hilo: va con el resto de los datos y no se puede borrar desde los
+                comentarios. Ocupa el ancho completo porque es prosa, no un campo. */}
+            {nc.descripcion && (
+              <div className="mt-3 border-t pt-3">
+                <dt className="text-xs text-muted-foreground">Descripción del hallazgo</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-sm">{nc.descripcion}</dd>
+              </div>
+            )}
+
             {!nc.subSistemaId && (
               <p className="mt-3 rounded bg-amber-50 p-2 text-xs text-amber-800">
                 Sin subsistema asociado: este informe no bloquea la emisión de
@@ -167,10 +189,6 @@ export default function NoConformidadDetallePage({
                 .
               </p>
             )}
-          </section>
-
-          <section className="rounded-md border p-4">
-            <NcAccionesPanel nc={nc} />
           </section>
 
           <section className="space-y-4 rounded-md border p-4">
@@ -206,6 +224,13 @@ export default function NoConformidadDetallePage({
             )}
           </section>
 
+          {/* Las acciones van DEBAJO del desarrollo: lo que se carga en cada paso
+              continúa lo que ya está escrito arriba, así que el botón queda al final
+              de la lectura y no interrumpiéndola. */}
+          <section className="rounded-md border p-4">
+            <NcAccionesPanel nc={nc} />
+          </section>
+
           {nc.pendientesVinculados.length > 0 && (
             <section className="rounded-md border p-4">
               <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -239,7 +264,12 @@ export default function NoConformidadDetallePage({
             </h3>
             <ol className="space-y-3">
               {nc.historial.map((h) => (
-                <FilaHistorial key={h.id} h={h} />
+                <FilaHistorial
+                  key={h.id}
+                  h={h}
+                  esMia={h.usuarioId === perfil?.id}
+                  garabatoHabilitado={garabatoHabilitado}
+                />
               ))}
             </ol>
           </section>
@@ -287,33 +317,70 @@ export default function NoConformidadDetallePage({
   )
 }
 
-function FilaHistorial({ h }: { h: NoConformidadHistorial }) {
+function FilaHistorial({
+  h,
+  esMia,
+  garabatoHabilitado,
+}: {
+  h: NoConformidadHistorial
+  esMia: boolean
+  garabatoHabilitado: boolean
+}) {
   const de = h.estadoAnteriorNombre
     ? NC_ESTADO_LABEL[h.estadoAnteriorNombre] ?? h.estadoAnteriorNombre
     : "Alta"
   const a = NC_ESTADO_LABEL[h.estadoNuevoNombre] ?? h.estadoNuevoNombre
 
+  // Respaldo visual de la firma, en orden: el garabato del firmante, el logo de su
+  // empresa, o nada. Los tres son snapshots del momento de firmar —si el usuario
+  // cambia su firma o la empresa su logo, acá queda lo que había—, y la ausencia de
+  // los dos NO significa que la acción no esté firmada: eso lo dice el sello de
+  // abajo, que siempre está.
+  // El garabato sólo si la plataforma lo tiene habilitado; el logo de la empresa no
+  // depende del flag, porque no es una firma: es la identidad de quien firmó, y es
+  // justamente lo que queda como respaldo visual cuando el garabato está apagado.
+  const garabato = garabatoHabilitado ? h.datosFirma : null
+  const imagen = garabato ?? h.empresaLogoSasUrl ?? null
+  const firmante = h.nombreFirmante ?? h.usuarioNombre ?? "—"
+
   return (
     <li className="flex gap-3 rounded border p-2">
-      {/* La firma es un snapshot inmutable: aunque el usuario la cambie después,
-          acá queda la que había al firmar. */}
-      <div className="w-20 shrink-0">
-        {h.datosFirma ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={h.datosFirma} alt="Firma" className="max-h-12 object-contain" />
-        ) : (
-          <span className="text-[10px] text-muted-foreground">(sin firma)</span>
-        )}
-      </div>
+      {imagen && (
+        <div className="w-20 shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imagen}
+            alt={garabato ? "Firma" : h.empresaNombre ?? "Empresa"}
+            className="max-h-12 object-contain"
+          />
+        </div>
+      )}
       <div className="min-w-0 flex-1 text-sm">
         <div className="font-medium">
           {de} → {a}
         </div>
-        <div className="text-xs text-muted-foreground">
-          {h.nombreFirmante ?? h.usuarioNombre ?? "—"}
-          {h.empresaNombre ? ` · ${h.empresaNombre}` : ""}
+        {/* Sello de firma. Reemplaza al "(sin firma)" que se mostraba cuando el
+            usuario no tenía garabato cargado: la acción SÍ estaba firmada —con
+            usuario, empresa, fecha e IP— y el cartel la hacía ver como un paso sin
+            respaldo, que en un informe de calidad es lo contrario de lo que pasó. */}
+        <div className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+          <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+          <span>Firmado electrónicamente por</span>
+          <span className="font-medium text-foreground">{firmante}</span>
+          {h.empresaNombre && <span>· {h.empresaNombre}</span>}
         </div>
         <div className="text-xs text-muted-foreground">{fechaHora(h.fecha)}</div>
+        {/* A quien le falta la firma se le ofrece cargarla donde se carga, en vez de
+            avisarle que no la tiene. Sólo en las filas propias: en las ajenas no hay
+            nada que el que mira pueda hacer. */}
+        {garabatoHabilitado && esMia && !h.datosFirma && (
+          <Link
+            href="/perfil"
+            className="text-xs text-blue-700 underline-offset-2 hover:underline"
+          >
+            Cargá tu firma para que aparezca en los informes
+          </Link>
+        )}
         {h.comentario && (
           <div className="mt-1 whitespace-pre-wrap text-sm">{h.comentario}</div>
         )}

@@ -19,6 +19,10 @@ import { useUpdatePerfil } from "@/features/auth/api/use-update-perfil"
 import { useChangePassword } from "@/features/auth/api/use-change-password"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useGetMisFirmaRoles } from "@/features/auth/api/use-get-mis-firma-roles"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataformaEstricta,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { useGetMiFirma, useUploadMiFirma, useDeleteMiFirma } from "@/features/usuarios/api/use-mi-firma"
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
@@ -401,7 +405,17 @@ export default function PerfilPage() {
   // Tab Seguridad = cambiar contraseña propia. No aplica a usuarios Microsoft
   // (la contraseña se gestiona desde la cuenta MS, no desde acá).
   const esMicrosoft = perfil?.loginMethod === 1
-  const tabsVisibles = TABS.filter((t) => !(t.id === "seguridad" && esMicrosoft))
+  // Tab Firma = cargar el garabato. Con la funcionalidad apagada no se dibuja en
+  // ningún lado, así que ofrecer cargarlo es pedir trabajo para nada —y después
+  // explicar por qué no aparece.
+  const garabatoHabilitado = useFuncionalidadPlataformaEstricta(
+    FUNCIONALIDAD.renderizarGarabatoFirma,
+  )
+  const tabsVisibles = TABS.filter(
+    (t) =>
+      !(t.id === "seguridad" && esMicrosoft) &&
+      !(t.id === "firma" && !garabatoHabilitado),
+  )
 
   // Si el user cambia a Microsoft mientras está parado en el tab Seguridad,
   // caemos al primer tab visible para no dejarlo mirando un tab que ya no está.
