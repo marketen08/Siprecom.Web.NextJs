@@ -191,10 +191,6 @@ export default function NoConformidadDetallePage({
             )}
           </section>
 
-          <section className="rounded-md border p-4">
-            <NcAccionesPanel nc={nc} />
-          </section>
-
           <section className="space-y-4 rounded-md border p-4">
             <h3 className="text-sm font-semibold">Desarrollo del informe</h3>
             <Etapa titulo="Acción inmediata" texto={nc.accionInmediata} />
@@ -226,6 +222,13 @@ export default function NoConformidadDetallePage({
                 Todavía no se registró contenido: el circuito recién empieza.
               </p>
             )}
+          </section>
+
+          {/* Las acciones van DEBAJO del desarrollo: lo que se carga en cada paso
+              continúa lo que ya está escrito arriba, así que el botón queda al final
+              de la lectura y no interrumpiéndola. */}
+          <section className="rounded-md border p-4">
+            <NcAccionesPanel nc={nc} />
           </section>
 
           {nc.pendientesVinculados.length > 0 && (
