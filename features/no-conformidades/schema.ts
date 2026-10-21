@@ -51,6 +51,8 @@ export const noConformidadUpdateSchema = z
     elementoId: z.string().optional(),
     especialidadId: z.string().optional(),
     fechaCompromiso: z.string().optional(),
+    /** Descripción del hallazgo: desde que es columna del informe, se edita acá. */
+    descripcion: z.string().optional(),
   })
   .refine((d) => d.grupoAfectadoId !== d.grupoSeguimientoId, {
     path: ["grupoSeguimientoId"],
