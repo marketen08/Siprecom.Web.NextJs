@@ -39,6 +39,8 @@ const PREFIJOS_CONTEXTO_TENANT = [
   "/configuracion/pendientes-motivos",
   "/configuracion/pendientes-catalogo",
   "/configuracion/importacion-maestro-pendientes",
+  "/configuracion/calidad-tipos",
+  "/configuracion/calidad-motivos",
   "/configuracion/campos",
   "/configuracion/planillas",
   "/configuracion/procedimientos",
