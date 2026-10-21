@@ -134,7 +134,10 @@ export function EditNoConformidadSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      {/* Mismo ancho que el alta: son los mismos campos en la misma grilla, y que
+          cambien de tamaño entre una pantalla y otra se lee como dos formularios
+          distintos. El `!` es el del alta — pisa el max-width que trae SheetContent. */}
+      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl!">
         <SheetHeader>
           <SheetTitle>Editar informe {nc.codigoFormateado}</SheetTitle>
           <SheetDescription>
