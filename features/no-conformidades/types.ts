@@ -184,6 +184,10 @@ export interface NoConformidad {
   detectadoPorId: string | null
   detectadoPorNombre: string | null
 
+  /** Descripción del hallazgo: qué se detectó y en qué contexto. */
+
+  descripcion: string | null
+
   accionInmediata: string | null
   causaRaiz: string | null
   accionCorrectiva: string | null

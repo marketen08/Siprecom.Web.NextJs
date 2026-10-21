@@ -147,6 +147,16 @@ export default function NoConformidadDetallePage({
               <Dato k="Cancelación" v={fecha(nc.fechaCancelacion)} />
             </dl>
 
+            {/* La descripción del hallazgo es un dato del informe, no una entrada del
+                hilo: va con el resto de los datos y no se puede borrar desde los
+                comentarios. Ocupa el ancho completo porque es prosa, no un campo. */}
+            {nc.descripcion && (
+              <div className="mt-3 border-t pt-3">
+                <dt className="text-xs text-muted-foreground">Descripción del hallazgo</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-sm">{nc.descripcion}</dd>
+              </div>
+            )}
+
             {!nc.subSistemaId && (
               <p className="mt-3 rounded bg-amber-50 p-2 text-xs text-amber-800">
                 Sin subsistema asociado: este informe no bloquea la emisión de
