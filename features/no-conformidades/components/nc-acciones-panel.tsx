@@ -294,11 +294,10 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
           requería. */}
       <div className="pt-2">
         <ConfirmActionDialog
-          trigger={
-            <Button variant="ghost" size="sm" className="text-destructive" disabled={pendiente}>
-              Cancelar informe
-            </Button>
-          }
+          // El trigger recibe el CONTENIDO, no un <Button>: el diálogo ya renderiza
+          // su propio <button>, y anidar uno adentro rompe la hidratación.
+          trigger="Cancelar informe"
+          triggerClassName="inline-flex h-8 items-center rounded-md px-2 text-sm font-medium text-destructive hover:bg-accent"
           title="Cancelar el informe"
           variant="destructive"
           confirmText="Cancelar el informe"
