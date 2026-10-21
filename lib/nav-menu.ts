@@ -237,6 +237,18 @@ export const menu: MenuItem[] = [
         ],
       },
       {
+        // Mismo criterio que Pendientes: catalogos globales, los administra AdminGlobal y
+        // el Admin los ve en solo lectura. El subgrupo pide el flag del modulo porque sin
+        // Calidad prendido no hay donde usar estos tipos ni estos motivos.
+        label: "Calidad",
+        minRole: "Admin",
+        requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES",
+        children: [
+          { label: "Tipos de informe", href: "/configuracion/calidad-tipos" },
+          { label: "Motivos",          href: "/configuracion/calidad-motivos" },
+        ],
+      },
+      {
         // Sub-grupo abierto a Admin+ para que "Colecciones de planillas"
         // (operativo, gestión de scope por proyecto) sea visible. Los otros
         // ítems catálogos siguen restringidos a AdminGlobal con minRole
@@ -477,6 +489,8 @@ export const segmentLabels: Record<string, string> = {
   "pendientes-acciones":   "Acciones de pendientes",
   "pendientes-motivos":    "Motivos de pendientes",
   "pendientes-catalogo":   "Catálogo maestro de pendientes",
+  "calidad-tipos":         "Tipos de informe",
+  "calidad-motivos":       "Motivos de informes",
   "importacion-maestro-pendientes": "Importar / Exportar catálogo maestro",
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",

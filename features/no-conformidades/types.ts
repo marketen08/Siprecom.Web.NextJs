@@ -219,6 +219,8 @@ export interface NoConformidad {
 
 export interface NoConformidadDetalle extends NoConformidad {
   comentarios: NoConformidadComentario[]
+  /** Si quien pidió el detalle puede editar los datos del informe. Lo resuelve el backend. */
+  puedeEditar: boolean
   adjuntos: NoConformidadAdjunto[]
   historial: NoConformidadHistorial[]
   pendientesVinculados: NoConformidadPendienteVinculado[]

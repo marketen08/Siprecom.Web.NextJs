@@ -2,7 +2,7 @@
 
 import { use, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, BadgeCheck, FileDown, Link2, MessageSquare } from "lucide-react"
+import { ArrowLeft, BadgeCheck, FileDown, Link2, MessageSquare, Pencil } from "lucide-react"
 
 import {
   useAgregarComentario,
@@ -17,6 +17,7 @@ import {
   type NoConformidadHistorial,
 } from "@/features/no-conformidades/types"
 import { NcAccionesPanel } from "@/features/no-conformidades/components/nc-acciones-panel"
+import { EditNoConformidadSheet } from "@/features/no-conformidades/components/edit-nc-sheet"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import {
   FUNCIONALIDAD,
@@ -45,6 +46,7 @@ export default function NoConformidadDetallePage({
   const { id } = use(params)
   const { data, isLoading } = useGetNoConformidad(id)
   const { data: perfil } = useGetPerfil()
+  const [editando, setEditando] = useState(false)
   // Con la funcionalidad apagada —que es el default— el garabato no se dibuja en
   // ninguna pantalla ni en ningún PDF: los bloques de firma quedan sólo con texto.
   // La pantalla tenía que respetarlo igual que el PDF, que ya lo hacía.
@@ -115,17 +117,38 @@ export default function NoConformidadDetallePage({
 
         {/* Descarga directa: el proxy reenvia el blob con su Content-Disposition,
             asi que un <a> alcanza y el archivo sale con el codigo como nombre. */}
-        <Button asChild variant="outline">
-          <a
-            href={`/api/no-conformidades/${nc.id}/pdf`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <FileDown className="mr-2 h-4 w-4" />
-            Descargar PDF
-          </a>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {/* Editar los datos del hallazgo. El botón aparece sólo si el backend dijo
+              que este usuario puede: depende de a qué grupos pertenece, que la
+              pantalla no tiene cómo saber. */}
+          {nc.puedeEditar && (
+            <Button variant="outline" onClick={() => setEditando(true)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Editar
+            </Button>
+          )}
+          <Button asChild variant="outline">
+            <a
+              href={`/api/no-conformidades/${nc.id}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Descargar PDF
+            </a>
+          </Button>
+        </div>
       </div>
+
+      {/* key por updatedAt: al guardar, el sheet se re-monta con los valores nuevos.
+          Sin eso conserva el estado del formulario anterior, que es el bug que acabamos
+          de arreglar en el panel de acciones. */}
+      <EditNoConformidadSheet
+        key={nc.updatedAt}
+        nc={nc}
+        open={editando}
+        onOpenChange={setEditando}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         {/* ── Columna izquierda: datos, acción y contenido de las etapas ── */}
