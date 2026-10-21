@@ -60,7 +60,33 @@ export function NcAccionesPanel({ nc }: { nc: NoConformidadDetalle }) {
       "No se pudo ejecutar la acción."
     setError(msg)
   }
-  const opts = { onError, onSuccess: () => setError(null) }
+  /**
+   * Vacía el formulario después de una transición exitosa.
+   *
+   * El panel no se desmonta cuando el informe cambia de estado —es el mismo
+   * componente mostrando el paso siguiente—, así que lo tipeado sobrevivía. La
+   * observación cargada al aceptar el informe se mandaba de nuevo en cada paso
+   * posterior y terminaba repetida en las seis filas del historial, como si el
+   * firmante la hubiera escrito seis veces.
+   */
+  const limpiarFormulario = () => {
+    setComentario("")
+    setAccionInmediata("")
+    setCausaRaiz("")
+    setAccionCorrectiva("")
+    setPlanMejora("")
+    setObjetivo("")
+    setFechaEval("")
+    setResultado("")
+  }
+
+  const opts = {
+    onError,
+    onSuccess: () => {
+      setError(null)
+      limpiarFormulario()
+    },
+  }
 
   return (
     <div className="space-y-3 rounded border bg-slate-50/60 p-3">
