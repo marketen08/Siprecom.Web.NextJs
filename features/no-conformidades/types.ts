@@ -244,6 +244,8 @@ export interface NoConformidadFilterInput {
   fechaDeteccionHasta?: string
   soloAbiertos?: boolean
   soloMios?: boolean
+  /** Abiertos cuya fecha de compromiso ya pasó. */
+  soloVencidos?: boolean
   soloEficaciaVencida?: boolean
   orderBy?: string
   orderDescending?: boolean

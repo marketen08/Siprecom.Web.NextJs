@@ -21,6 +21,11 @@ export interface PerfilUsuario {
   loginMethod?: number
   /** Roles asignados al usuario (AspNetUserRoles). */
   roles?: string[]
+  /**
+   * Integra algún grupo marcado como área de seguimiento de calidad. El menú lo usa
+   * para mostrarle el tablero a quien controla el circuito sin tener jefatura.
+   */
+  esAreaSeguimientoCalidad?: boolean
   /** True si el usuario está dado de baja. */
   isLocked?: boolean
 }

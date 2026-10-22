@@ -30,6 +30,17 @@ export type MenuItem = {
    */
   requiereFuncionalidad?: string
   /**
+   * Puerta ALTERNATIVA al rol: si el usuario tiene este permiso, el item se muestra
+   * aunque no llegue al `minRole`. Los otros gates son condiciones que se suman
+   * (AND); éste es el único que perdona.
+   *
+   * Existe por el tablero de calidad: lo ven los supervisores y, además, la gente
+   * del área de seguimiento, que controla el circuito sin tener jefatura. Esa
+   * segunda puerta no se puede expresar bajando el `minRole` —dejaría entrar a
+   * cualquier User— ni con `allowedRoles`, porque no es un rol.
+   */
+  permiteAdemas?: PermisoExtraKey
+  /**
    * Badge dinámico a mostrar al lado del label. El Sidebar mapea cada key a un
    * componente que hace su propio fetch. Sirve para contadores de "hay pendiente"
    * sin acoplar el menu a los hooks de datos.
@@ -37,6 +48,9 @@ export type MenuItem = {
    */
   badge?: SidebarBadgeKey
 }
+
+/** Permisos que no son roles y que el menú consulta. Los resuelve el Sidebar. */
+export type PermisoExtraKey = "area-seguimiento-calidad"
 
 /** Keys de badges dinámicos soportadas por el Sidebar. Ampliar según se agreguen. */
 export type SidebarBadgeKey =
@@ -124,6 +138,15 @@ export const menu: MenuItem[] = [
           { label: "Planificación (Gantt)",        href: "/estadisticas/planificacion-gantt" },
           { label: "Skyline (carga)",              href: "/estadisticas/skyline" },
           { label: "Estado de pendientes",         href: "/estadisticas/estado-pendientes" },
+          {
+            // El tablero de Calidad. Pide el flag del módulo —sin informes no hay nada
+            // que tabular— y lo ven Supervisor para arriba o el área de seguimiento.
+            label: "Estado de calidad",
+            href: "/estadisticas/estado-calidad",
+            minRole: "Supervisor",
+            permiteAdemas: "area-seguimiento-calidad",
+            requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES",
+          },
         ],
       },
     ],
@@ -478,6 +501,7 @@ export const segmentLabels: Record<string, string> = {
   "planificacion-gantt":       "Planificación (Gantt)",
   skyline:                     "Skyline (carga)",
   "estado-pendientes":         "Estado de pendientes",
+  "estado-calidad":            "Estado de calidad",
   importacion:   "Importación masiva",
   "importacion-tareas": "Importar tareas",
   "importacion-planificacion": "Importar planificación",

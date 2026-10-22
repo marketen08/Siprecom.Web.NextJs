@@ -202,6 +202,7 @@ export function NewNoConformidadSheet({
     !mismasAreas &&
     descripcion.trim().length > 0 &&
     (!motivoRequerido || Boolean(motivoId)) &&
+    Boolean(fechaCompromiso) &&
     !crear.isPending
 
   const guardar = () => {
@@ -217,7 +218,7 @@ export function NewNoConformidadSheet({
         subSistemaId: subSistemaId || undefined,
         elementoId: elementoId || undefined,
         especialidadId: especialidadId || undefined,
-        fechaCompromiso: fechaCompromiso || undefined,
+        fechaCompromiso,
         descripcion: descripcion.trim(),
         pendienteOrigenId: pendienteOrigenId || undefined,
       },
@@ -395,7 +396,12 @@ export function NewNoConformidadSheet({
               </Select>
             </Campo>
 
-            <Campo label="Fecha de compromiso">
+            <Campo
+              label="Fecha de compromiso *"
+              hint={
+                <p className="text-xs text-muted-foreground">Es contra esta fecha que el tablero mide si el informe está atrasado.</p>
+              }
+            >
               <Input
                 type="date"
                 value={fechaCompromiso}
