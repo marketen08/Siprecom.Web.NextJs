@@ -111,6 +111,9 @@ export function EditNoConformidadSheet({
     Boolean(grupoSeguimientoId) &&
     !mismasAreas &&
     (!motivoRequerido || Boolean(motivoId)) &&
+    // Obligatoria también al editar, y por eso la edición es por dónde se completan
+    // los informes anteriores a la regla: sin esta fecha no hay "vencido" posible.
+    Boolean(fechaCompromiso) &&
     !actualizar.isPending
 
   async function guardar() {
@@ -127,7 +130,7 @@ export function EditNoConformidadSheet({
           subSistemaId: subSistemaId || undefined,
           elementoId: elementoId || undefined,
           especialidadId: especialidadId || undefined,
-          fechaCompromiso: fechaCompromiso || undefined,
+          fechaCompromiso,
           descripcion: descripcion.trim(),
         },
       })
@@ -317,12 +320,13 @@ export function EditNoConformidadSheet({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Compromiso</Label>
+              <Label>Compromiso *</Label>
               <Input
                 type="date"
                 value={fechaCompromiso}
                 onChange={(e) => setFechaCompromiso(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">Es contra esta fecha que el tablero mide si el informe está atrasado.</p>
             </div>
           </div>
 

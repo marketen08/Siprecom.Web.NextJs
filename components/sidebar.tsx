@@ -9,6 +9,7 @@ import { useSidebar } from "@/components/sidebar-context"
 import { useAuthStore } from "@/store/auth-store"
 import { useMounted } from "@/lib/use-mounted"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useFuncionalidadesPlataforma } from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { type AppRole } from "@/lib/roles"
 import { esVisible } from "@/lib/nav-visibilidad"
@@ -71,7 +72,7 @@ function recolectarClaves(items: MenuItem[], parentKey?: string): string[] {
 }
 
 function SidebarItem({
-  item, depth = 0, onNavigate, roles, inheritedMin, ocultarFirmas, funcionalidades,
+  item, depth = 0, onNavigate, roles, inheritedMin, ocultarFirmas, funcionalidades, permisos,
   parentKey, abiertos, setAbierto,
 }: {
   item: MenuItem
@@ -80,6 +81,7 @@ function SidebarItem({
   roles: string[]
   inheritedMin?: AppRole
   ocultarFirmas: boolean
+  permisos: Record<string, boolean>
   funcionalidades: Record<string, boolean>
   /** Clave de la sección padre, para armar una clave única por rama. */
   parentKey?: string
@@ -98,7 +100,7 @@ function SidebarItem({
 
   // Toda la decisión de visibilidad vive en esVisible() — incluido el caso de una
   // sección cuyos hijos se ocultan todos, que antes se dibujaba igual.
-  if (!esVisible(item, { roles, ocultarFirmas, funcionalidades }, inheritedMin)) return null
+  if (!esVisible(item, { roles, ocultarFirmas, funcionalidades, permisos }, inheritedMin)) return null
 
   // Se recalcula para pasárselo a los hijos: la jerarquía sigue bajando por acá.
   const effectiveMin = item.minRole ?? inheritedMin
@@ -152,6 +154,7 @@ function SidebarItem({
                 roles={roles}
                 inheritedMin={effectiveMin}
                 ocultarFirmas={ocultarFirmas}
+                permisos={permisos}
                 funcionalidades={funcionalidades}
                 parentKey={key}
                 abiertos={abiertos}
@@ -223,6 +226,14 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   // un Admin sin proyecto activo no las vería nunca. Para esas claves los dos mapas
   // dicen lo mismo —el efectivo es `global AND true`—, así que el orden del spread
   // no cambia nada; lo que agrega es cubrir el caso "no hay proyecto activo".
+  // Permisos que no son roles. Hoy uno solo: el tablero de calidad se le muestra al
+  // área de seguimiento aunque su gente no llegue a Supervisor. Sale del perfil, que
+  // ya se pide en toda la app, para no sumar una request por un booleano.
+  const { data: perfil } = useGetPerfil()
+  const permisos: Record<string, boolean> = {
+    "area-seguimiento-calidad": perfil?.esAreaSeguimientoCalidad === true,
+  }
+
   const { data: plataforma } = useFuncionalidadesPlataforma()
   const funcionalidades: Record<string, boolean> = {
     ...(plataforma ?? {}),
@@ -277,6 +288,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
               onNavigate={close}
               roles={roles}
               ocultarFirmas={ocultarFirmas}
+              permisos={permisos}
               funcionalidades={funcionalidades}
               abiertos={abiertos}
               setAbierto={setAbierto}

@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AlertTriangle, Plus, Search } from "lucide-react"
 
 import { useSearchNoConformidades } from "@/features/no-conformidades/api/use-no-conformidades"
@@ -57,14 +57,26 @@ function NoConformidadesPageContent() {
   const canWrite = useCanWrite()
   const router = useRouter()
 
+  // Los filtros arrancan de la URL para que el tablero pueda mandar acá: cada
+  // recuadro de /estadisticas/estado-calidad linkea a esta lista con lo que
+  // mostraba ya filtrado. Es lectura inicial y nada más — desde acá los filtros
+  // siguen siendo estado local y no reescriben la URL, igual que antes.
+  const params = useSearchParams()
+  const estadoParam = params.get("estado")
+
   const [search, setSearch] = useState("")
-  const [tipoId, setTipoId] = useState("")
-  const [estadoSel, setEstadoSel] = useState<string>(OPEN)
+  const [tipoId, setTipoId] = useState(() => params.get("tipo") ?? "")
+  const [estadoSel, setEstadoSel] = useState<string>(() =>
+    !estadoParam || estadoParam === "abiertos" ? OPEN : estadoParam,
+  )
   const [motivoId, setMotivoId] = useState("")
-  const [severidad, setSeveridad] = useState("")
-  const [grupoAfectadoId, setGrupoAfectadoId] = useState("")
+  const [severidad, setSeveridad] = useState(() => params.get("severidad") ?? "")
+  const [grupoAfectadoId, setGrupoAfectadoId] = useState(() => params.get("area") ?? "")
   const [soloMios, setSoloMios] = useState(false)
-  const [soloVencidas, setSoloVencidas] = useState(false)
+  const [soloVencidas, setSoloVencidas] = useState(() => params.get("eficacia") === "1")
+  const [soloCompromisoVencido, setSoloCompromisoVencido] = useState(
+    () => params.get("vencidos") === "1",
+  )
   const [page, setPage] = useState(1)
 
   const [nuevoAbierto, setNuevoAbierto] = useState(false)
@@ -85,8 +97,10 @@ function NoConformidadesPageContent() {
       grupoAfectadoId: grupoAfectadoId || undefined,
       soloMios: soloMios || undefined,
       soloEficaciaVencida: soloVencidas || undefined,
+      soloVencidos: soloCompromisoVencido || undefined,
     }),
-    [search, tipoId, estadoSel, motivoId, severidad, grupoAfectadoId, soloMios, soloVencidas],
+    [search, tipoId, estadoSel, motivoId, severidad, grupoAfectadoId, soloMios,
+     soloVencidas, soloCompromisoVencido],
   )
 
   const { data, isLoading, isError } = useSearchNoConformidades({
@@ -258,6 +272,18 @@ function NoConformidadesPageContent() {
           }}
         >
           Míos
+        </Button>
+
+        <Button
+          variant={soloCompromisoVencido ? "default" : "outline"}
+          onClick={() => {
+            setSoloCompromisoVencido((v) => !v)
+            setPage(1)
+          }}
+          title="Informes abiertos cuya fecha de compromiso ya pasó"
+        >
+          <AlertTriangle className="mr-2 h-4 w-4" />
+          Vencidos
         </Button>
 
         <Button

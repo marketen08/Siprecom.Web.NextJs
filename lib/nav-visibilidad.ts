@@ -6,6 +6,11 @@ export interface CtxVisibilidad {
   roles: string[]
   ocultarFirmas: boolean
   funcionalidades: Record<string, boolean>
+  /**
+   * Permisos que no son roles (ver `permiteAdemas` en MenuItem). Opcional: un
+   * llamador que no los conozca deja los items gateados así en manos del rol.
+   */
+  permisos?: Record<string, boolean>
 }
 
 /**
@@ -42,9 +47,14 @@ export function esVisible(item: MenuItem, ctx: CtxVisibilidad, inheritedMin?: Ap
   // Lista blanca EXCLUSIVA (allowedRoles) tiene precedencia sobre la jerarquía
   // lineal (minRole). Se usa cuando roles del mismo nivel no son intercambiables
   // (ej. Auditor vs User — ambos pueden ver mucho, pero solo Auditor tiene el log).
+  // El permiso extra perdona el rol, no los gates de arriba: una funcionalidad
+  // apagada sigue escondiendo el item aunque la persona tenga el permiso.
+  const conPermisoExtra = !!item.permiteAdemas && ctx.permisos?.[item.permiteAdemas] === true
+
   if (item.allowedRoles && item.allowedRoles.length > 0) {
-    if (!ctx.roles?.some((r) => item.allowedRoles!.includes(r as AppRole))) return false
-  } else if (effectiveMin && !meetsRole(ctx.roles, effectiveMin)) {
+    if (!conPermisoExtra
+        && !ctx.roles?.some((r) => item.allowedRoles!.includes(r as AppRole))) return false
+  } else if (effectiveMin && !conPermisoExtra && !meetsRole(ctx.roles, effectiveMin)) {
     return false
   }
 
