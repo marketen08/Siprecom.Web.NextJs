@@ -156,6 +156,36 @@ export function useImportPlanillaApply() {
   })
 }
 
+// ─── REEMPLAZAR EL DISEÑO DE UNA PLANILLA ───────────────────────────────────
+// Le pone a una planilla el diseño de un JSON conservando su identidad: el mismo
+// id, código y nombre, así que las tareas que ya la tienen asignada toman el
+// diseño nuevo. Es lo que el modo "reemplazar" del import masivo NO puede hacer:
+// ese borra la planilla y la crea de nuevo, o sea que le cambia el id.
+
+export function useReemplazarDisenoPreview(planillaId: string) {
+  return useMutation({
+    mutationFn: (data: unknown) =>
+      apiClient.post<ApiResponse<PlanillaImportPreview>>(
+        `/api/planillas/${planillaId}/reemplazar-diseno/preview`, data),
+  })
+}
+
+export function useReemplazarDiseno(planillaId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: unknown) =>
+      apiClient.post<ApiResponse<PlanillaImportResultado>>(
+        `/api/planillas/${planillaId}/reemplazar-diseno`, data),
+    onSuccess: () => {
+      // `["planillas"]` como prefijo ya alcanza: la estructura del diseñador se
+      // cachea en ["planillas", id, "estructura"], así que cae con el mismo
+      // invalidate. Se deja el específico igual, para que no dependa de eso.
+      qc.invalidateQueries({ queryKey: ["planillas"] })
+      qc.invalidateQueries({ queryKey: ["planillas", planillaId, "estructura"] })
+    },
+  })
+}
+
 // ─── MASIVO (todas las planillas) ───────────────────────────────────────────
 
 export interface PlanillasBulkImportPreview {
