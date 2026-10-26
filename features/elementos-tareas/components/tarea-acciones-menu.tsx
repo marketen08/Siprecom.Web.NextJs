@@ -1,6 +1,8 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useMeetsRole } from "@/lib/use-roles"
+import { RehacerTareaDialog } from "@/features/elementos-tareas/components/rehacer-tarea-dialog"
 import { Loader2, MoreVertical } from "lucide-react"
 
 import { useUploadRegistroArchivo } from "@/features/registros/api/use-registro-archivos"
@@ -83,6 +85,10 @@ export function TareaAccionesMenu({
   } = useTareaHandlers()
 
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
+  const [rehacerOpen, setRehacerOpen] = useState(false)
+  // Rehacer una tarea firmada es Admin. El backend lo exige igual; esto evita
+  // ofrecer un ítem que termina en 403.
+  const esAdmin = useMeetsRole("Admin")
   const [dependenciasOpen, setDependenciasOpen] = useState(false)
   const [marcarSinRegistroOpen, setMarcarSinRegistroOpen] = useState(false)
   const [observacionSinRegistro, setObservacionSinRegistro] = useState("")
@@ -135,6 +141,7 @@ export function TareaAccionesMenu({
         onAdjuntarArchivo: () => adjuntoInputRef.current?.click(),
         onDescargarProcedimiento: handleDescargarProcedimiento,
         onRequestReiniciar: () => setReiniciarOpen(true),
+        onRequestRehacer: () => setRehacerOpen(true),
         onAbrirDependencias: () => setDependenciasOpen(true),
         onMarcarSinRegistro: () => {
           setObservacionSinRegistro("")
@@ -143,6 +150,7 @@ export function TareaAccionesMenu({
         },
         isIniciando: iniciarMutation.isPending,
         isReiniciando: reiniciarMutation.isPending,
+        puedeRehacer: esAdmin,
         // Sin toggle de firmas — el ítem se filtra devolviendo showFirmas=false y
         // ocultándolo si no aparece un onToggle real. buildTareaMenuItems agrega
         // "Ver firmas" siempre que tieneFirmas — para listado, lo removemos abajo.
@@ -275,6 +283,14 @@ export function TareaAccionesMenu({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          <RehacerTareaDialog
+            open={rehacerOpen}
+            onOpenChange={setRehacerOpen}
+            elementoTareaId={tarea.id}
+            elementoTag={tarea.elementoTag}
+            tareaNombre={tarea.tareaNombre}
+          />
 
           <DependenciasSheet
             open={dependenciasOpen}

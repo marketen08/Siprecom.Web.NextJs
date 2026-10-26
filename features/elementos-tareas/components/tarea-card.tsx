@@ -1,10 +1,12 @@
 "use client"
 
 import { useRef, useState, type ComponentType } from "react"
+import { useMeetsRole } from "@/lib/use-roles"
+import { RehacerTareaDialog } from "@/features/elementos-tareas/components/rehacer-tarea-dialog"
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban, BookOpen,
   Loader2, Play, FileText, Upload, Download, Eye, FileDown,
-  Link2, MoreVertical, Paperclip, PenLine, RotateCcw, ClipboardCheck,
+  Link2, MoreVertical, Paperclip, PenLine, RotateCcw, RefreshCw, ClipboardCheck,
 } from "lucide-react"
 
 import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
@@ -75,7 +77,11 @@ export function TareaCard({
 }: TareaCardProps) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
+  const [rehacerOpen, setRehacerOpen] = useState(false)
   const [dependenciasOpen, setDependenciasOpen] = useState(false)
+  // Rehacer una tarea firmada es Admin. El backend lo exige igual; esto evita
+  // ofrecer un ítem que termina en 403.
+  const esAdmin = useMeetsRole("Admin")
   // Dialog para "Marcar completada sin registro" — solo si el proyecto permite.
   const [marcarSinRegistroOpen, setMarcarSinRegistroOpen] = useState(false)
   const [observacionSinRegistro, setObservacionSinRegistro] = useState("")
@@ -124,6 +130,7 @@ export function TareaCard({
     onAdjuntarArchivo: () => adjuntoInputRef.current?.click(),
     onDescargarProcedimiento: handleDescargarProcedimiento,
     onRequestReiniciar: () => setReiniciarOpen(true),
+    onRequestRehacer: () => setRehacerOpen(true),
     onAbrirDependencias: () => setDependenciasOpen(true),
     onMarcarSinRegistro: () => {
       setObservacionSinRegistro("")
@@ -132,6 +139,7 @@ export function TareaCard({
     },
     isIniciando,
     isReiniciando,
+    puedeRehacer: esAdmin,
     showFirmas,
     onToggleFirmas: () => setShowFirmas((s) => !s),
     permitirFisico,
@@ -279,6 +287,14 @@ export function TareaCard({
         </AlertDialogContent>
       </AlertDialog>
 
+      <RehacerTareaDialog
+        open={rehacerOpen}
+        onOpenChange={setRehacerOpen}
+        elementoTareaId={tarea.id}
+        elementoTag={tarea.elementoTag}
+        tareaNombre={tarea.tareaNombre}
+      />
+
       <DependenciasSheet
         open={dependenciasOpen}
         onClose={() => setDependenciasOpen(false)}
@@ -368,10 +384,12 @@ export function buildTareaMenuItems({
   onCargarPdf,
   onAdjuntarArchivo,
   onRequestReiniciar,
+  onRequestRehacer,
   onAbrirDependencias,
   onMarcarSinRegistro,
   isIniciando,
   isReiniciando,
+  puedeRehacer,
   showFirmas,
   onToggleFirmas,
   permitirFisico,
@@ -392,10 +410,18 @@ export function buildTareaMenuItems({
   onAdjuntarArchivo: () => void
   onDescargarProcedimiento: () => void
   onRequestReiniciar: () => void
+  /** Abre el diálogo de retrabajo. Sin esto, el ítem no se ofrece. */
+  onRequestRehacer?: () => void
   onAbrirDependencias: () => void
   onMarcarSinRegistro: () => void
   isIniciando: boolean
   isReiniciando: boolean
+  /**
+   * Si el usuario puede rehacer una tarea firmada. Es Admin: la acción deshace de
+   * hecho un trabajo dado por terminado y hace retroceder el avance. El backend lo
+   * exige igual — esto sólo evita ofrecer un botón que va a dar 403.
+   */
+  puedeRehacer?: boolean
   showFirmas: boolean
   onToggleFirmas: () => void
   permitirFisico: boolean
@@ -576,6 +602,22 @@ export function buildTareaMenuItems({
     })
   }
 
+  // Rehacer: el único camino de vuelta para una tarea firmada. No comparte el
+  // bloque con Reiniciar porque son cosas distintas — reiniciar descarta el
+  // registro, rehacer lo conserva y crea una ejecución nueva — y porque los
+  // estados en los que aplican no se solapan: 4 = APROBADO (firmado en papel),
+  // 7 = FIRMADO (firma electrónica).
+  const puedeRehacerse = tarea.estado === 4 || tarea.estado === 7
+  if (puedeRehacerse && puedeRehacer && onRequestRehacer) {
+    if (items.length > 0) items.push({ kind: "separator" })
+    items.push({
+      kind: "item",
+      label: "Rehacer tarea",
+      icon: RefreshCw,
+      onSelect: onRequestRehacer,
+    })
+  }
+
   if (!canWrite) {
     const escrituraPura = new Set([
       "Iniciar tarea",
@@ -583,6 +625,7 @@ export function buildTareaMenuItems({
       "Cargar registro firmado",
       "Adjuntar archivo",
       "Reiniciar tarea",
+      "Rehacer tarea",
       "Marcar completada sin registro",
     ])
     const renombrar: Record<string, string> = {
