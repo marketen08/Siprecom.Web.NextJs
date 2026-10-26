@@ -18,6 +18,7 @@ import { ImportJsonSheet } from "@/features/planillas/components/import-json-she
 import { GenerarConIASheet } from "@/features/planillas/components/generar-con-ia-sheet"
 import { useGetPlanillasGrupos } from "@/features/planillas-grupos/api/use-planillas-grupos"
 import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
+import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import {
   FUNCIONALIDAD,
   useFuncionalidadPlataforma,
@@ -60,6 +61,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+/**
+ * Los cuatro recortes del eje "uso". "mi-proyecto" no es un punto medio entre los otros
+ * dos: una planilla puede estar en uso en otro proyecto y no en el mío, o al revés.
+ */
+type UsoFiltro = "todas" | "sin-uso" | "en-uso" | "mi-proyecto"
+
+const USO_LABEL: Record<UsoFiltro, string> = {
+  "todas": "Todas",
+  "sin-uso": "Sin uso",
+  "en-uso": "En uso",
+  "mi-proyecto": "En este proyecto",
+}
+
 export default function PlanillasPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
@@ -67,8 +81,15 @@ export default function PlanillasPage() {
   const [gruposSel, setGruposSel] = useState<Set<string>>(new Set())
   // Tri-state: undefined = todas, true = solo encabezado TG, false = solo no encabezado.
   const [encabezadoFilter, setEncabezadoFilter] = useState<boolean | undefined>(undefined)
-  // Tri-state: undefined = todas, true = solo las que ninguna tarea usa, false = solo las usadas.
-  const [sinUsoFilter, setSinUsoFilter] = useState<boolean | undefined>(undefined)
+  // El eje "uso" tiene cuatro opciones, no un tri-estado: "mi-proyecto" no es ni
+  // "en uso" ni "sin uso", es un recorte distinto (usada acá, aunque en otros
+  // proyectos no se use, o al revés).
+  const [usoFilter, setUsoFilter] = useState<UsoFiltro>("todas")
+
+  // El filtro por proyecto sólo tiene sentido con un proyecto seleccionado. Sin él, el
+  // backend contesta 400: mejor no ofrecer la opción que ofrecer una que falla.
+  const { data: perfil } = useGetPerfil()
+  const proyectoActivo = perfil?.proyectoId ? perfil : null
 
   // Filtro por equipo dueño. Vacío = lo que el backend decide por defecto: el equipo activo
   // del usuario más las globales, o todo para AdminGlobal.
@@ -88,7 +109,8 @@ export default function PlanillasPage() {
     planillaGrupoIds: gruposIdsArr.length > 0 ? gruposIdsArr : undefined,
     esEncabezadoTG: encabezadoFilter,
     equipoId: equipoFiltro || undefined,
-    sinUso: sinUsoFilter,
+    sinUso: usoFilter === "sin-uso" ? true : usoFilter === "en-uso" ? false : undefined,
+    usadaEnProyectoActivo: usoFilter === "mi-proyecto" || undefined,
   })
   const { data: misEquipos } = useGetMisEquipos(hayEquipos)
   const { data: gruposRaw } = useGetPlanillasGrupos(hayColecciones)
@@ -145,11 +167,11 @@ export default function PlanillasPage() {
           onRemove: () => { setEncabezadoFilter(undefined); setPage(1) },
         }]
       : []),
-    ...(sinUsoFilter !== undefined
+    ...(usoFilter !== "todas"
       ? [{
           id: "uso",
-          label: `Uso: ${sinUsoFilter ? "Sin uso" : "En uso"}`,
-          onRemove: () => { setSinUsoFilter(undefined); setPage(1) },
+          label: `Uso: ${USO_LABEL[usoFilter]}`,
+          onRemove: () => { setUsoFilter("todas"); setPage(1) },
         }]
       : []),
   ]
@@ -158,7 +180,7 @@ export default function PlanillasPage() {
     setEquipoFiltro("")
     setGruposSel(new Set())
     setEncabezadoFilter(undefined)
-    setSinUsoFilter(undefined)
+    setUsoFilter("todas")
     setPage(1)
   }
 
@@ -360,23 +382,22 @@ export default function PlanillasPage() {
 
           <FilterField label="Uso">
             <Select
-              value={sinUsoFilter === undefined ? "__todas__" : String(sinUsoFilter)}
+              value={usoFilter}
               onValueChange={(v) => {
-                setSinUsoFilter(!v || v === "__todas__" ? undefined : v === "true")
+                setUsoFilter((v || "todas") as UsoFiltro)
                 setPage(1)
               }}
             >
               <SelectTrigger className="w-full">
-                <SelectValue>
-                  {sinUsoFilter === undefined
-                    ? "Todas"
-                    : sinUsoFilter ? "Sin uso" : "En uso"}
-                </SelectValue>
+                <SelectValue>{USO_LABEL[usoFilter]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__todas__">Todas</SelectItem>
-                <SelectItem value="true">Sin uso</SelectItem>
-                <SelectItem value="false">En uso</SelectItem>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="sin-uso">Sin uso</SelectItem>
+                <SelectItem value="en-uso">En uso</SelectItem>
+                {proyectoActivo && (
+                  <SelectItem value="mi-proyecto">{USO_LABEL["mi-proyecto"]}</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </FilterField>
@@ -509,17 +530,27 @@ export default function PlanillasPage() {
 
           <span className="ml-3 text-muted-foreground mr-1">Uso:</span>
           {([
-            { key: true, label: "Sin uso", activeColor: "#b45309", titulo: "Planillas que ninguna tarea usa — se pueden eliminar sin afectar nada" },
-            { key: false, label: "En uso", activeColor: "#047857", titulo: "Planillas que usa al menos una tarea" },
+            { key: "sin-uso", label: "Sin uso", activeColor: "#b45309", titulo: "Planillas que ninguna tarea usa — se pueden eliminar sin afectar nada" },
+            { key: "en-uso", label: "En uso", activeColor: "#047857", titulo: "Planillas que usa al menos una tarea, en cualquier proyecto" },
+            // Sólo con proyecto seleccionado: sin él el backend contesta 400, y un chip
+            // que siempre falla es peor que no tenerlo.
+            ...(proyectoActivo
+              ? [{
+                  key: "mi-proyecto" as const,
+                  label: "En este proyecto",
+                  activeColor: "#1d4ed8",
+                  titulo: `Planillas que usa alguna tarea de ${proyectoActivo.proyectoNombre ?? "el proyecto activo"}`,
+                }]
+              : []),
           ] as const).map(({ key, label, activeColor, titulo }) => {
-            const activo = sinUsoFilter === key
+            const activo = usoFilter === key
             return (
               <button
-                key={String(key)}
+                key={key}
                 type="button"
                 title={titulo}
                 onClick={() => {
-                  setSinUsoFilter(activo ? undefined : key)
+                  setUsoFilter(activo ? "todas" : key)
                   setPage(1)
                 }}
                 aria-pressed={activo}
@@ -535,10 +566,10 @@ export default function PlanillasPage() {
             )
           })}
 
-          {(encabezadoFilter !== undefined || sinUsoFilter !== undefined) && (
+          {(encabezadoFilter !== undefined || usoFilter !== "todas") && (
             <button
               type="button"
-              onClick={() => { setEncabezadoFilter(undefined); setSinUsoFilter(undefined); setPage(1) }}
+              onClick={() => { setEncabezadoFilter(undefined); setUsoFilter("todas"); setPage(1) }}
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X className="h-3 w-3" /> Limpiar

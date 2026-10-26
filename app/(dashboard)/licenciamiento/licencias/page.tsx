@@ -47,9 +47,7 @@ export default function LicenciasPage() {
           <KeyRound className="h-6 w-6 text-blue-700" /> Licencias
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Alcance base de licencias incluidas. La facturación de usuarios adicionales se calcula
-          sobre la concurrencia pico del mes: si el pico no supera este número, no se factura
-          cargo adicional.
+          Alcance base de licencias incluidas.
         </p>
       </div>
 
@@ -62,7 +60,7 @@ export default function LicenciasPage() {
           <p className="text-sm text-destructive">No se pudo cargar la configuración.</p>
         ) : (
           <div className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 space-x-1.5">
               <label htmlFor="licenciasBase" className="text-sm font-medium text-gray-800">
                 Licencias base
               </label>

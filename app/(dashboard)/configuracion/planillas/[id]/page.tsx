@@ -1,7 +1,7 @@
 "use client"
 
 import { use, useState } from "react"
-import { Download, Pencil, Plus } from "lucide-react"
+import { Download, Pencil, Plus, Upload } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
@@ -10,6 +10,7 @@ import { useOpenSeccion } from "@/features/planillas/hooks/use-open-seccion"
 import { exportarPlanilla } from "@/features/planillas/api/use-import-export"
 import { EditPlanillaSheet } from "@/features/planillas/components/edit-planilla-sheet"
 import { EditSeccionSheet } from "@/features/planillas/components/edit-seccion-sheet"
+import { ReemplazarDisenoSheet } from "@/features/planillas/components/reemplazar-diseno-sheet"
 import { SeccionPanel } from "@/features/planilla-builder/components/seccion-panel"
 import { CampoCard } from "@/features/planilla-builder/components/campo-card"
 import { AddCampoModal } from "@/features/planilla-builder/components/add-campo-modal"
@@ -26,6 +27,7 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
 
   const [selectedSeccionId, setSelectedSeccionId] = useState<string | null>(null)
   const [addModalOpen, setAddModalOpen] = useState(false)
+  const [importarOpen, setImportarOpen] = useState(false)
   const { open: openEditPlanilla } = useOpenPlanilla()
   const { open: openEditSeccion } = useOpenSeccion()
 
@@ -96,6 +98,13 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
       />
       <EditPlanillaSheet />
       <EditSeccionSheet secciones={secciones} planillaId={id} />
+      <ReemplazarDisenoSheet
+        open={importarOpen}
+        onClose={() => setImportarOpen(false)}
+        planillaId={id}
+        codigo={planilla.codigo}
+        nombre={planilla.nombre}
+      />
 
       <div className="space-y-4">
         {/* Datos de la planilla */}
@@ -141,6 +150,17 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
             >
               <Download className="h-3.5 w-3.5" />
               Descargar JSON
+            </Button>
+            {/* Le pone a ESTA planilla el diseño de un JSON exportado, sin cambiarle el
+                código ni el id: las tareas que ya la tienen asignada toman el nuevo. */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setImportarOpen(true)}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Importar JSON
             </Button>
             <Button
               variant="outline"
