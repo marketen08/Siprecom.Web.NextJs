@@ -23,17 +23,31 @@ interface Params {
   equipoId?: string
   /** true = sólo las que no usa ninguna tarea; false = sólo las que sí; undefined = todas. */
   sinUso?: boolean
+  /**
+   * true = sólo las que usa alguna tarea del proyecto activo del usuario.
+   *
+   * El proyecto NO se manda: lo resuelve el backend desde el usuario. Y cuando está
+   * activo, el conteo de la columna "Uso" también viene acotado a ese proyecto, para
+   * que el número coincida con el recorte de la lista.
+   */
+  usadaEnProyectoActivo?: boolean
 }
 
 export function useGetPlanillas(params: Params = {}) {
-  const { page = 1, pageSize = 10, nombre, planillaGrupoIds, esEncabezadoTG, equipoId, sinUso } = params
+  const {
+    page = 1, pageSize = 10, nombre, planillaGrupoIds, esEncabezadoTG, equipoId,
+    sinUso, usadaEnProyectoActivo,
+  } = params
 
   // Serializamos como CSV para matchear el binding del PagedRequest en backend.
   const planillaGrupoIdsCsv =
     planillaGrupoIds && planillaGrupoIds.length > 0 ? planillaGrupoIds.join(",") : undefined
 
   return useQuery({
-    queryKey: ["planillas", { page, pageSize, nombre, planillaGrupoIdsCsv, esEncabezadoTG, equipoId, sinUso }],
+    queryKey: ["planillas", {
+      page, pageSize, nombre, planillaGrupoIdsCsv, esEncabezadoTG, equipoId,
+      sinUso, usadaEnProyectoActivo,
+    }],
     queryFn: () =>
       apiClient.get<PagedResponse<Planilla>>("/api/planillas", {
         page,
@@ -43,6 +57,7 @@ export function useGetPlanillas(params: Params = {}) {
         ...(esEncabezadoTG !== undefined ? { esEncabezadoTG: String(esEncabezadoTG) } : {}),
         ...(equipoId ? { equipoId } : {}),
         ...(sinUso !== undefined ? { sinUso: String(sinUso) } : {}),
+        ...(usadaEnProyectoActivo ? { usadaEnProyectoActivo: "true" } : {}),
       }),
   })
 }
