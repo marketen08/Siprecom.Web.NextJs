@@ -66,6 +66,14 @@ export interface Planilla {
    * porque contarlo cuesta una query y ahí nadie lo mira.
    */
   cantidadTareas?: number
+  /** Cuándo se marcó como revisada. Null = pendiente. */
+  revisadaEn?: string | null
+  revisadaPorNombre?: string | null
+  /**
+   * Tiene tilde pero la planilla, un campo o una sección cambió después. Para el filtro
+   * cuenta como pendiente. Sólo lo calcula el listado de administración y el GET por id.
+   */
+  modificadaDespuesDeRevisar?: boolean
   createdByNombre?: string
   updatedByNombre?: string
   createdAt: string

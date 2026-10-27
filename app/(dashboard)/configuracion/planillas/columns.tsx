@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { ColumnDef } from "@tanstack/react-table"
-import { Copy, Download, FileText, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
+import { AlertTriangle, Check, Copy, Download, FileText, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import type { Planilla } from "@/features/planillas/types"
@@ -10,6 +10,7 @@ import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
 import { useDeletePlanilla } from "@/features/planillas/api/use-delete-planilla"
 import { useClonePlanilla } from "@/features/planillas/api/use-clone-planilla"
 import { exportarPlanilla } from "@/features/planillas/api/use-import-export"
+import { useMarcarRevision } from "@/features/planillas/api/use-marcar-revision"
 
 import {
   DropdownMenu,
@@ -181,6 +182,69 @@ function formatFecha(iso?: string) {
 // cambie un color o un título quedarían distintas sin que nadie se entere.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Tilde de "revisada", para ir siguiendo una actualización del catálogo. Tres estados:
+ * pendiente (caja vacía), revisada (verde) y modificada después de revisar (ámbar).
+ *
+ * El click en la ámbar vuelve a marcarla —la reconfirma con fecha nueva— en vez de sacar el
+ * tilde: si alguien la cambió y vos la volviste a mirar, lo que querés es dejarla en verde.
+ */
+export function RevisionCheck({ planilla }: { planilla: Planilla }) {
+  const marcar = useMarcarRevision()
+  const [error, setError] = useState<string | null>(null)
+
+  const puedeEditar = planilla.puedeEditar !== false
+  const tieneTilde = !!planilla.revisadaEn
+  const modificada = tieneTilde && !!planilla.modificadaDespuesDeRevisar
+  const vigente = tieneTilde && !modificada
+
+  const quien = planilla.revisadaPorNombre ? ` por ${planilla.revisadaPorNombre}` : ""
+  const cuando = tieneTilde ? formatFecha(planilla.revisadaEn ?? undefined) : ""
+  const titulo = error
+    ?? (!puedeEditar
+      ? (tieneTilde ? `Revisada${quien} el ${cuando}` : "Pendiente de revisión")
+      : vigente
+        ? `Revisada${quien} el ${cuando}. Click para sacar el tilde.`
+        : modificada
+          ? `Modificada después de revisar (revisada${quien} el ${cuando}). Click para volver a darla por revisada.`
+          : "Pendiente. Click para marcarla como revisada.")
+
+  async function toggle() {
+    setError(null)
+    try {
+      await marcar.mutateAsync({ id: planilla.id, revisada: !vigente })
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const tono = error
+    ? "border-red-400 bg-red-50 text-red-600"
+    : vigente
+      ? "border-emerald-500 bg-emerald-500 text-white"
+      : modificada
+        ? "border-amber-500 bg-amber-100 text-amber-700"
+        : "border-gray-300 bg-white text-transparent hover:border-gray-400"
+
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={vigente ? true : modificada ? "mixed" : false}
+      aria-label={titulo}
+      title={titulo}
+      disabled={!puedeEditar || marcar.isPending}
+      onClick={toggle}
+      className={
+        "inline-flex h-5 w-5 items-center justify-center rounded border transition-colors "
+        + "cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 " + tono
+      }
+    >
+      {modificada && !error ? <AlertTriangle className="h-3 w-3" /> : <Check className="h-3.5 w-3.5" />}
+    </button>
+  )
+}
+
 /** Cuántas tareas usan la planilla. `undefined` = el endpoint no lo manda. */
 export function UsoBadge({ cantidad }: { cantidad?: number }) {
   // `undefined` no es lo mismo que 0: los selects no mandan el conteo, y ahí mostrar
@@ -263,6 +327,11 @@ export function ColeccionesBadges({ planilla }: { planilla: Planilla }) {
 }
 
 export const columns: ColumnDef<Planilla>[] = [
+  {
+    id: "revision",
+    header: () => <span title="Revisada">Rev.</span>,
+    cell: ({ row }) => <RevisionCheck planilla={row.original} />,
+  },
   {
     accessorKey: "codigo",
     header: "Código",
