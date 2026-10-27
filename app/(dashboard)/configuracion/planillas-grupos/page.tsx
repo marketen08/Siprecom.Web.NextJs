@@ -13,6 +13,7 @@ import {
   useUpdatePlanillaGrupo,
 } from "@/features/planillas-grupos/api/use-planillas-grupos"
 import { useGetPlanillasSelect } from "@/features/planillas/api/use-get-planillas-select"
+import type { Planilla } from "@/features/planillas/types"
 import {
   FUNCIONALIDAD,
   useFuncionalidadPlataforma,
@@ -325,16 +326,23 @@ function PlanillasGruposAdmin() {
 
 // ─── Sheet gestión de planillas de la colección ───────────────────────────────
 
+/**
+ * Qué planillas tiene la colección, con el mismo transfer que el acceso a equipos:
+ * disponibles a la izquierda, asignadas a la derecha.
+ */
 function PlanillasSheet({ grupoId, onClose }: { grupoId: string | null; onClose: () => void }) {
   const { data: detalle, isLoading } = useGetPlanillaGrupo(grupoId)
-  const [busqueda, setBusqueda] = useState("")
   const { data: planillasData } = useGetPlanillasSelect()
-
   const asignar = useAsignarPlanillasAGrupo()
   const quitar = useQuitarPlanillaDeGrupo()
 
+  const [busqueda, setBusqueda] = useState("")
+  const [filtroAsignadas, setFiltroAsignadas] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
   const grupo = detalle?.data
-  const planillas = grupo?.planillas ?? []
+  // Memoizado: es dependencia de los useMemo de abajo.
+  const planillas = useMemo(() => grupo?.planillas ?? [], [grupo])
   const planillaIds = useMemo(() => new Set(planillas.map((p) => p.planillaId)), [planillas])
 
   // Sólo las planillas del MISMO dueño que la colección. El backend lo valida igual, pero
@@ -344,114 +352,109 @@ function PlanillasSheet({ grupoId, onClose }: { grupoId: string | null; onClose:
   // La comparación normaliza null/undefined porque "global" viaja como null desde el backend
   // y como undefined cuando la propiedad no vino (JSON viejo).
   const duenoColeccion = grupo?.equipoId ?? null
-  const todas = (planillasData as any)?.data ?? []
-  const candidatas = todas
-    .filter((p: any) => !planillaIds.has(p.id))
-    .filter((p: any) => (p.equipoId ?? null) === duenoColeccion)
-    .filter((p: any) => {
-      if (!busqueda.trim()) return true
-      const q = busqueda.trim().toLowerCase()
-      return p.nombre.toLowerCase().includes(q) || (p.codigo ?? "").toLowerCase().includes(q)
-    })
+  const delMismoDueno = useMemo(() => {
+    const todas = (planillasData as { data?: Planilla[] } | undefined)?.data ?? []
+    return todas.filter((p) => (p.equipoId ?? null) === duenoColeccion)
+  }, [planillasData, duenoColeccion])
+
+  const candidatas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    return delMismoDueno
+      .filter((p) => !planillaIds.has(p.id))
+      .filter((p) =>
+        !q || p.nombre.toLowerCase().includes(q) || (p.codigo ?? "").toLowerCase().includes(q))
+  }, [delMismoDueno, planillaIds, busqueda])
+
+  const asignadasFiltradas = useMemo(() => {
+    const q = filtroAsignadas.trim().toLowerCase()
+    if (!q) return planillas
+    return planillas.filter((p) =>
+      p.planillaNombre.toLowerCase().includes(q) || (p.planillaCodigo ?? "").toLowerCase().includes(q))
+  }, [planillas, filtroAsignadas])
+
+  // Al abrir otra colección no tiene que quedar el error ni la búsqueda de la anterior.
+  function cerrar() {
+    setBusqueda("")
+    setFiltroAsignadas("")
+    setError(null)
+    onClose()
+  }
 
   async function agregarPlanilla(planillaId: string) {
     if (!grupoId) return
-    try {
-      await asignar.mutateAsync({ grupoId, planillaIds: [planillaId] })
-    } catch {
-      // El error del backend queda en el mutation state; en la lista no
-      // mostramos toast (patrón ConfirmActionDialog aplica en otros lados).
-    }
+    setError(null)
+    try { await asignar.mutateAsync({ grupoId, planillaIds: [planillaId] }) }
+    catch (e) { setError((e as Error).message) }
   }
 
   async function quitarPlanilla(planillaId: string) {
     if (!grupoId) return
-    try {
-      await quitar.mutateAsync({ grupoId, planillaId })
-    } catch {
-      // idem
-    }
+    setError(null)
+    try { await quitar.mutateAsync({ grupoId, planillaId }) }
+    catch (e) { setError((e as Error).message) }
   }
 
+  const textoDueno = grupo?.equipoNombre
+    ? `Planillas del equipo ${grupo.equipoNombre} que no están en la colección.`
+    : "Planillas globales que no están en la colección."
+
   return (
-    <Sheet open={grupoId !== null} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+    <Sheet open={grupoId !== null} onOpenChange={(v) => !v && cerrar()}>
+      <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-4xl!">
         <SheetHeader>
           <SheetTitle>Planillas — {grupo?.nombre ?? ""}</SheetTitle>
           <SheetDescription>
-            {planillas.length} planilla{planillas.length !== 1 ? "s" : ""} asignada{planillas.length !== 1 ? "s" : ""}.
+            Sumá desde la izquierda, quitá desde la derecha. Una planilla que entra en su
+            primera colección deja de estar disponible en los proyectos que no la habilitan.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 px-4 space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold mb-2">En la colección</h3>
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground">Cargando...</p>
-            ) : planillas.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Sin planillas asignadas todavía.</p>
-            ) : (
-              <ul className="space-y-1">
-                {planillas.map((p) => (
-                  <li
-                    key={p.planillaId}
-                    className="flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1.5 text-sm"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{p.planillaNombre}</p>
-                      {p.planillaCodigo && (
-                        <p className="text-xs text-muted-foreground font-mono truncate">{p.planillaCodigo}</p>
-                      )}
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-red-600"
-                      title="Quitar de la colección"
-                      disabled={quitar.isPending}
-                      onClick={() => quitarPlanilla(p.planillaId)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <div className="grid min-h-0 flex-1 gap-4 px-4 pb-4 md:grid-cols-2">
+          <section className="flex min-h-0 flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">Disponibles</h3>
+              <p className="text-xs text-muted-foreground">{textoDueno}</p>
+            </header>
 
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Agregar planilla</h3>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre o código..."
-                className="pl-8"
-              />
+            <div className="border-b p-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar por nombre o código…"
+                  className="pl-8"
+                />
+              </div>
             </div>
 
-            <ul className="mt-3 space-y-1 max-h-72 overflow-y-auto">
+            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
               {candidatas.length === 0 ? (
-                <li className="text-sm text-muted-foreground italic">
-                  {busqueda ? "Sin coincidencias." : "Escribí para buscar planillas."}
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  {busqueda
+                    ? "Sin coincidencias."
+                    : delMismoDueno.length === 0
+                      ? (grupo?.equipoNombre
+                          ? `El equipo ${grupo.equipoNombre} no tiene planillas.`
+                          : "No hay planillas globales.")
+                      : "Todas las planillas ya están en la colección."}
                 </li>
               ) : (
-                candidatas.map((p: any) => (
+                candidatas.map((p) => (
                   <li
                     key={p.id}
-                    className="flex items-center gap-2 rounded-md border border-gray-100 hover:bg-gray-50 px-2 py-1.5 text-sm"
+                    className="flex items-center gap-2 rounded-md border border-gray-100 px-2 py-1.5 text-sm hover:bg-gray-50"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{p.nombre}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{p.nombre}</p>
                       {p.codigo && (
-                        <p className="text-xs text-muted-foreground font-mono truncate">{p.codigo}</p>
+                        <p className="truncate font-mono text-xs text-muted-foreground">{p.codigo}</p>
                       )}
                     </div>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="gap-1"
+                      className="shrink-0 gap-1"
                       disabled={asignar.isPending}
                       onClick={() => agregarPlanilla(p.id)}
                     >
@@ -462,8 +465,78 @@ function PlanillasSheet({ grupoId, onClose }: { grupoId: string | null; onClose:
                 ))
               )}
             </ul>
-          </div>
+          </section>
+
+          <section className="flex min-h-0 flex-col rounded-lg border">
+            <header className="border-b bg-gray-50 px-3 py-2">
+              <h3 className="text-sm font-semibold">
+                En la colección{" "}
+                <span className="font-normal tabular-nums text-muted-foreground">
+                  ({planillas.length})
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Quitar una planilla no la borra: sólo sale de esta colección.
+              </p>
+            </header>
+
+            <div className="border-b p-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={filtroAsignadas}
+                  onChange={(e) => setFiltroAsignadas(e.target.value)}
+                  placeholder="Filtrar asignadas…"
+                  className="pl-8"
+                  disabled={planillas.length === 0}
+                />
+              </div>
+            </div>
+
+            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+              {isLoading ? (
+                <li className="p-2 text-sm text-muted-foreground">Cargando…</li>
+              ) : planillas.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">
+                  Sin planillas asignadas todavía.
+                </li>
+              ) : asignadasFiltradas.length === 0 ? (
+                <li className="p-2 text-sm italic text-muted-foreground">Sin coincidencias.</li>
+              ) : (
+                asignadasFiltradas.map((p) => (
+                  <li
+                    key={p.planillaId}
+                    className="flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1.5 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{p.planillaNombre}</p>
+                      {p.planillaCodigo && (
+                        <p className="truncate font-mono text-xs text-muted-foreground">{p.planillaCodigo}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                      disabled={quitar.isPending}
+                      onClick={() => quitarPlanilla(p.planillaId)}
+                      aria-label="Quitar de la colección"
+                      title="Quitar de la colección"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
         </div>
+
+        {error && (
+          <p className="mx-4 mb-4 whitespace-pre-line rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
       </SheetContent>
     </Sheet>
   )

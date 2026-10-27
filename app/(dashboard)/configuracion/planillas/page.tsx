@@ -23,7 +23,7 @@ import {
   FUNCIONALIDAD,
   useFuncionalidadPlataforma,
 } from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
-import { columns, ColeccionesBadges, EquipoBadge, RowActions, UsoBadge } from "./columns"
+import { columns, ColeccionesBadges, EquipoBadge, RevisionCheck, RowActions, UsoBadge } from "./columns"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
 import {
   FilterField,
@@ -74,6 +74,15 @@ const USO_LABEL: Record<UsoFiltro, string> = {
   "mi-proyecto": "En este proyecto",
 }
 
+/** Tilde de revisión. "pendientes" incluye las que se modificaron después del tilde. */
+type RevisionFiltro = "todas" | "pendientes" | "revisadas"
+
+const REVISION_LABEL: Record<RevisionFiltro, string> = {
+  "todas": "Todas",
+  "pendientes": "Pendientes",
+  "revisadas": "Revisadas",
+}
+
 export default function PlanillasPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
@@ -101,17 +110,28 @@ export default function PlanillasPage() {
   const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
   const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
 
+  const [revisionFilter, setRevisionFilter] = useState<RevisionFiltro>("todas")
+
   const gruposIdsArr = useMemo(() => Array.from(gruposSel), [gruposSel])
-  const { data, isLoading, isFetching } = useGetPlanillas({
-    page,
-    pageSize,
+  // Los filtros de siempre, sin el de revisión: el contador "X de Y revisadas" se mide
+  // sobre este recorte, así que no puede depender del chip de revisión elegido.
+  const filtrosBase = {
     nombre: search || undefined,
     planillaGrupoIds: gruposIdsArr.length > 0 ? gruposIdsArr : undefined,
     esEncabezadoTG: encabezadoFilter,
     equipoId: equipoFiltro || undefined,
     sinUso: usoFilter === "sin-uso" ? true : usoFilter === "en-uso" ? false : undefined,
     usadaEnProyectoActivo: usoFilter === "mi-proyecto" || undefined,
+  }
+  const { data, isLoading, isFetching } = useGetPlanillas({
+    page,
+    pageSize,
+    ...filtrosBase,
+    revisada: revisionFilter === "revisadas" ? true : revisionFilter === "pendientes" ? false : undefined,
   })
+  // Contador de revisión: dos pedidos de una fila, sólo por el total.
+  const { data: conteoTodas } = useGetPlanillas({ page: 1, pageSize: 1, ...filtrosBase })
+  const { data: conteoRevisadas } = useGetPlanillas({ page: 1, pageSize: 1, ...filtrosBase, revisada: true })
   const { data: misEquipos } = useGetMisEquipos(hayEquipos)
   const { data: gruposRaw } = useGetPlanillasGrupos(hayColecciones)
   const grupos = hayColecciones ? gruposRaw?.data ?? [] : []
@@ -174,6 +194,13 @@ export default function PlanillasPage() {
           onRemove: () => { setUsoFilter("todas"); setPage(1) },
         }]
       : []),
+    ...(revisionFilter !== "todas"
+      ? [{
+          id: "revision",
+          label: `Revisión: ${REVISION_LABEL[revisionFilter]}`,
+          onRemove: () => { setRevisionFilter("todas"); setPage(1) },
+        }]
+      : []),
   ]
 
   const limpiarTodo = () => {
@@ -181,6 +208,7 @@ export default function PlanillasPage() {
     setGruposSel(new Set())
     setEncabezadoFilter(undefined)
     setUsoFilter("todas")
+    setRevisionFilter("todas")
     setPage(1)
   }
 
@@ -401,6 +429,25 @@ export default function PlanillasPage() {
               </SelectContent>
             </Select>
           </FilterField>
+
+          <FilterField label="Revisión">
+            <Select
+              value={revisionFilter}
+              onValueChange={(v) => {
+                setRevisionFilter((v || "todas") as RevisionFiltro)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>{REVISION_LABEL[revisionFilter]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="pendientes">Pendientes</SelectItem>
+                <SelectItem value="revisadas">Revisadas</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
         </FiltersSheet>
 
         {/* Filtro por equipo dueño. Solo aparece cuando hay más de una opción: para el Admin
@@ -566,10 +613,43 @@ export default function PlanillasPage() {
             )
           })}
 
-          {(encabezadoFilter !== undefined || usoFilter !== "todas") && (
+          <span className="ml-3 text-muted-foreground mr-1">Revisión:</span>
+          {([
+            { key: "pendientes", label: "Pendientes", activeColor: "#b45309", titulo: "Sin tilde, o modificadas después de revisar" },
+            { key: "revisadas", label: "Revisadas", activeColor: "#047857", titulo: "Con tilde y sin cambios desde entonces" },
+          ] as const).map(({ key, label, activeColor, titulo }) => {
+            const activo = revisionFilter === key
+            return (
+              <button
+                key={key}
+                type="button"
+                title={titulo}
+                onClick={() => {
+                  setRevisionFilter(activo ? "todas" : key)
+                  setPage(1)
+                }}
+                aria-pressed={activo}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors cursor-pointer"
+                style={
+                  activo
+                    ? { backgroundColor: `${activeColor}22`, color: activeColor, borderColor: activeColor }
+                    : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e7eb" }
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+
+          {(encabezadoFilter !== undefined || usoFilter !== "todas" || revisionFilter !== "todas") && (
             <button
               type="button"
-              onClick={() => { setEncabezadoFilter(undefined); setUsoFilter("todas"); setPage(1) }}
+              onClick={() => {
+                setEncabezadoFilter(undefined)
+                setUsoFilter("todas")
+                setRevisionFilter("todas")
+                setPage(1)
+              }}
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X className="h-3 w-3" /> Limpiar
@@ -607,8 +687,9 @@ export default function PlanillasPage() {
                       </p>
                     )}
                   </Link>
-                  <span className="shrink-0">
+                  <span className="flex shrink-0 items-center gap-2">
                     <UsoBadge cantidad={p.cantidadTareas} />
+                    <RevisionCheck planilla={p} />
                   </span>
                 </div>
 
@@ -679,7 +760,14 @@ export default function PlanillasPage() {
         {/* Total + Paginación. En mobile va en dos líneas: el total arriba y los botones
             abajo, a lo ancho, que es lo que los hace tocables con el pulgar. */}
         <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>{data?.total ?? 0} planillas en total</span>
+          <span>
+            {data?.total ?? 0} planillas en total
+            {conteoTodas && conteoRevisadas && conteoTodas.total > 0 && (
+              <span className="ml-2 text-emerald-700" title="Con tilde y sin cambios desde entonces, sobre los filtros actuales">
+                · {conteoRevisadas.total} de {conteoTodas.total} revisadas
+              </span>
+            )}
+          </span>
           {totalPages > 1 && (
             <div className="flex items-center justify-between gap-3 sm:justify-end">
               <span className="whitespace-nowrap">Página {page} de {totalPages}</span>

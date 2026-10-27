@@ -31,12 +31,17 @@ interface Params {
    * que el número coincida con el recorte de la lista.
    */
   usadaEnProyectoActivo?: boolean
+  /**
+   * Tilde de revisión: true = revisadas sin cambios desde entonces; false = pendientes
+   * (incluye las modificadas después del tilde); undefined = todas.
+   */
+  revisada?: boolean
 }
 
 export function useGetPlanillas(params: Params = {}) {
   const {
     page = 1, pageSize = 10, nombre, planillaGrupoIds, esEncabezadoTG, equipoId,
-    sinUso, usadaEnProyectoActivo,
+    sinUso, usadaEnProyectoActivo, revisada,
   } = params
 
   // Serializamos como CSV para matchear el binding del PagedRequest en backend.
@@ -46,7 +51,7 @@ export function useGetPlanillas(params: Params = {}) {
   return useQuery({
     queryKey: ["planillas", {
       page, pageSize, nombre, planillaGrupoIdsCsv, esEncabezadoTG, equipoId,
-      sinUso, usadaEnProyectoActivo,
+      sinUso, usadaEnProyectoActivo, revisada,
     }],
     queryFn: () =>
       apiClient.get<PagedResponse<Planilla>>("/api/planillas", {
@@ -58,6 +63,7 @@ export function useGetPlanillas(params: Params = {}) {
         ...(equipoId ? { equipoId } : {}),
         ...(sinUso !== undefined ? { sinUso: String(sinUso) } : {}),
         ...(usadaEnProyectoActivo ? { usadaEnProyectoActivo: "true" } : {}),
+        ...(revisada !== undefined ? { revisada: String(revisada) } : {}),
       }),
   })
 }

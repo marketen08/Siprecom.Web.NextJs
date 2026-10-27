@@ -4,6 +4,11 @@ import { useOpenPlanilla } from "../hooks/use-open-planilla"
 import { useGetPlanilla } from "../api/use-get-planilla"
 import { useUpdatePlanilla } from "../api/use-update-planilla"
 import { PlanillaForm } from "./planilla-form"
+import { PlanillaColecciones } from "./planilla-colecciones"
+import {
+  FUNCIONALIDAD,
+  useFuncionalidadPlataforma,
+} from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import type { PlanillaFormValues } from "../schema"
 import type { ApiError } from "@/lib/api-client"
 
@@ -20,6 +25,7 @@ export function EditPlanillaSheet() {
   const { data: planillaResult, isLoading } = useGetPlanilla(id)
   const planilla = (planillaResult as any)?.data ?? planillaResult
   const mutation = useUpdatePlanilla()
+  const hayColecciones = useFuncionalidadPlataforma(FUNCIONALIDAD.coleccionesPlanillas)
 
   const onSubmit = (values: PlanillaFormValues) => {
     mutation.mutate({ ...values, id: id! }, { onSuccess: close })
@@ -39,6 +45,11 @@ export function EditPlanillaSheet() {
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : planilla ? (
             <>
+              {hayColecciones && planilla.puedeEditar !== false && (
+                <div className="mb-4">
+                  <PlanillaColecciones planilla={planilla} />
+                </div>
+              )}
               <PlanillaForm
                 defaultValues={planilla}
                 onSubmit={onSubmit}
