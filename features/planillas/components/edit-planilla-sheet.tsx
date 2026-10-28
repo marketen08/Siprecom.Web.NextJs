@@ -5,6 +5,7 @@ import { useGetPlanilla } from "../api/use-get-planilla"
 import { useUpdatePlanilla } from "../api/use-update-planilla"
 import { PlanillaForm } from "./planilla-form"
 import { PlanillaColecciones } from "./planilla-colecciones"
+import { PlanillaRevision } from "./planilla-revision"
 import {
   FUNCIONALIDAD,
   useFuncionalidadPlataforma,
@@ -45,6 +46,9 @@ export function EditPlanillaSheet() {
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : planilla ? (
             <>
+              <div className="mb-4">
+                <PlanillaRevision planilla={planilla} />
+              </div>
               <PlanillaForm
                 defaultValues={planilla}
                 onSubmit={onSubmit}
