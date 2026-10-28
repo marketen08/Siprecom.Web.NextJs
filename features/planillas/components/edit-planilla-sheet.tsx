@@ -45,17 +45,17 @@ export function EditPlanillaSheet() {
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : planilla ? (
             <>
-              {hayColecciones && planilla.puedeEditar !== false && (
-                <div className="mb-4">
-                  <PlanillaColecciones planilla={planilla} />
-                </div>
-              )}
               <PlanillaForm
                 defaultValues={planilla}
                 onSubmit={onSubmit}
                 isPending={mutation.isPending}
                 onCancel={close}
                 serverErrors={(mutation.error as ApiError | null)?.body?.errors}
+                opcionesAvanzadas={
+                  hayColecciones && planilla.puedeEditar !== false
+                    ? <PlanillaColecciones planilla={planilla} />
+                    : undefined
+                }
               />
               {mutation.isError && (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-line">

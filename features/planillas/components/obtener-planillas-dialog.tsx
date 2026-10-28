@@ -270,7 +270,7 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
           {/* Toggles */}
           <div className="space-y-3">
             <Toggle
-              label="Agrupar las planillas por nombre de la tarea"
+              label="Agrupar las planillas en una carpeta por tarea"
               checked={filtros.agruparPorTarea}
               onChange={(v) => set("agruparPorTarea", v)}
             />
