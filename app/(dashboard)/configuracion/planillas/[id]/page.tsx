@@ -1,7 +1,7 @@
 "use client"
 
-import { use, useState } from "react"
-import { Download, Pencil, Plus, Upload } from "lucide-react"
+import { use, useEffect, useState, useSyncExternalStore } from "react"
+import { Download, Eye, Pencil, Plus, Upload } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetPlanillaEstructura } from "@/features/planillas/api/use-get-planilla-estructura"
@@ -14,6 +14,29 @@ import { ReemplazarDisenoSheet } from "@/features/planillas/components/reemplaza
 import { SeccionPanel } from "@/features/planilla-builder/components/seccion-panel"
 import { CampoCard } from "@/features/planilla-builder/components/campo-card"
 import { AddCampoModal } from "@/features/planilla-builder/components/add-campo-modal"
+import { VistaPreviaPlanilla } from "@/features/planillas/components/vista-previa-planilla"
+import {
+  CANAL_VISTA_PREVIA,
+  useVersionDiseno,
+  type MensajeVistaPrevia,
+} from "@/features/planillas/api/use-vista-previa-planilla"
+
+/** Recuerda entre visitas si el panel de vista previa quedó abierto. */
+const CLAVE_PANEL_PREVIA = "siprecom:planilla-builder:vista-previa"
+const EVENTO_PANEL_PREVIA = "siprecom:vista-previa-toggle"
+
+function leerPrevia(): boolean {
+  try { return localStorage.getItem(CLAVE_PANEL_PREVIA) === "1" } catch { return false }
+}
+
+function suscribirPrevia(onChange: () => void) {
+  window.addEventListener(EVENTO_PANEL_PREVIA, onChange)
+  window.addEventListener("storage", onChange)
+  return () => {
+    window.removeEventListener(EVENTO_PANEL_PREVIA, onChange)
+    window.removeEventListener("storage", onChange)
+  }
+}
 
 import { Button } from "@/components/ui/button"
 
@@ -30,6 +53,24 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
   const [importarOpen, setImportarOpen] = useState(false)
   const { open: openEditPlanilla } = useOpenPlanilla()
   const { open: openEditSeccion } = useOpenSeccion()
+
+  // localStorage vía useSyncExternalStore: en el server (y si el storage falla) vale
+  // false, y en el cliente toma el valor guardado sin desajuste de hidratación.
+  const previaAbierta = useSyncExternalStore(suscribirPrevia, leerPrevia, () => false)
+  function togglePrevia(abierta: boolean) {
+    try { localStorage.setItem(CLAVE_PANEL_PREVIA, abierta ? "1" : "0") } catch { /* sin storage */ }
+    window.dispatchEvent(new Event(EVENTO_PANEL_PREVIA))
+  }
+
+  // Cada cambio del diseño cambia la huella: regenera el panel y avisa a la vista
+  // previa que esté abierta en otra ventana.
+  const versionDiseno = useVersionDiseno(estructuraResult)
+  useEffect(() => {
+    if (!estructuraResult || typeof BroadcastChannel === "undefined") return
+    const canal = new BroadcastChannel(CANAL_VISTA_PREVIA)
+    canal.postMessage({ planillaId: id, version: versionDiseno } satisfies MensajeVistaPrevia)
+    canal.close()
+  }, [id, versionDiseno, estructuraResult])
 
   // Backend returns ServiceResult<PlanillaEstructuraDTO> — extract the data property
   const estructura = (estructuraResult as any)?.data ?? estructuraResult
@@ -117,6 +158,16 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant={previaAbierta ? "secondary" : "outline"}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => togglePrevia(!previaAbierta)}
+              title="Muestra el PDF al lado del diseño y lo actualiza con cada cambio"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Vista previa
+            </Button>
             {/* La planilla está "vacía" si no tiene secciones ni campos.
                 En ese caso el PDF saldría sin contenido útil, así que deshabilitamos la descarga. */}
             {secciones.length === 0 && campos.length === 0 ? (
@@ -262,6 +313,17 @@ export default function PlanillaBuilderPage({ params }: PageProps) {
               )}
             </div>
           </div>
+
+          {/* Right: Vista previa del PDF real. En pantallas angostas se usa la ventana aparte. */}
+          {previaAbierta && (
+            <div className="hidden lg:flex w-[min(40%,560px)] shrink-0 border rounded-lg bg-white overflow-hidden flex-col">
+              <VistaPreviaPlanilla
+                planillaId={id}
+                version={versionDiseno}
+                onClose={() => togglePrevia(false)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </>

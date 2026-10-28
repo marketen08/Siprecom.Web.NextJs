@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, type ReactNode } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -61,6 +61,11 @@ interface PlanillaFormProps {
    * Ver `PLANILLA_FIELD_MAP`.
    */
   serverErrors?: ServerValidationError[]
+  /**
+   * Contenido extra al final de "Opciones avanzadas" (ej. colecciones al editar). Debe
+   * ser autónomo: no participa del submit del form.
+   */
+  opcionesAvanzadas?: ReactNode
 }
 
 export function PlanillaForm({
@@ -69,6 +74,7 @@ export function PlanillaForm({
   isPending,
   onCancel,
   serverErrors,
+  opcionesAvanzadas,
 }: PlanillaFormProps) {
   const form = useForm<PlanillaFormValues>({
     resolver: zodResolver(planillaSchema),
@@ -402,6 +408,8 @@ export function PlanillaForm({
                   )
                 }}
               />
+
+              {opcionesAvanzadas}
             </div>
           </details>
 

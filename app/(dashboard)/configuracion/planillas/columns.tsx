@@ -328,11 +328,6 @@ export function ColeccionesBadges({ planilla }: { planilla: Planilla }) {
 
 export const columns: ColumnDef<Planilla>[] = [
   {
-    id: "revision",
-    header: () => <span title="Revisada">Rev.</span>,
-    cell: ({ row }) => <RevisionCheck planilla={row.original} />,
-  },
-  {
     accessorKey: "codigo",
     header: "Código",
     cell: ({ row }) => (
@@ -349,13 +344,9 @@ export const columns: ColumnDef<Planilla>[] = [
     ),
   },
   {
-    accessorKey: "descripcion",
-    header: "Descripción",
-    cell: ({ row }) => (
-      <span className="block text-sm text-muted-foreground line-clamp-2 max-w-sm whitespace-normal wrap-break-word">
-        {row.original.descripcion || "—"}
-      </span>
-    ),
+    id: "revision",
+    header: () => <span title="Revisada">Rev.</span>,
+    cell: ({ row }) => <RevisionCheck planilla={row.original} />,
   },
   {
     id: "grupos",
