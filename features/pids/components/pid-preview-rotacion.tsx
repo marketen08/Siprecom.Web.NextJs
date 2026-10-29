@@ -8,10 +8,17 @@ import type { RotacionGrados } from "../api/use-mutate-pids"
 import { Button } from "@/components/ui/button"
 
 interface PidPreviewRotacionProps {
-  archivo: File
+  /**
+   * Un `File` recién elegido (alta o reemplazo) o la URL del PDF ya guardado
+   * (edición). En el primer caso la rotación todavía no se aplicó a nada; en
+   * el segundo es una rotación a aplicar sobre lo que ya está en el servidor.
+   */
+  fuente: File | string
   rotacion: RotacionGrados
   onRotacionChange: (r: RotacionGrados) => void
   disabled?: boolean
+  /** Texto de ayuda bajo el preview. Si se omite, no se muestra nada. */
+  leyenda?: React.ReactNode
 }
 
 /** Lo mínimo que usamos del PDFDocumentProxy / PDFPageProxy de pdfjs. */
@@ -47,10 +54,11 @@ function girar(actual: RotacionGrados, delta: number): RotacionGrados {
  * la carga además evita tener que recolocar pines, porque todavía no hay.
  */
 export function PidPreviewRotacion({
-  archivo,
+  fuente,
   rotacion,
   onRotacionChange,
   disabled,
+  leyenda,
 }: PidPreviewRotacionProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -67,9 +75,14 @@ export function PidPreviewRotacion({
     ;(async () => {
       try {
         const pdfjs = await loadPdfjs()
-        const buf = await archivo.arrayBuffer()
+        // Un File se pasa por bytes; una URL (el PDF ya guardado) la resuelve
+        // pdfjs por su cuenta, que además la trae por rango sin bajarla entera.
+        const params =
+          typeof fuente === "string"
+            ? { url: fuente }
+            : { data: await fuente.arrayBuffer() }
         if (cancelado) return
-        const doc: PdfDocLike = await pdfjs.getDocument({ data: buf }).promise
+        const doc: PdfDocLike = await pdfjs.getDocument(params).promise
         if (cancelado) { doc.destroy?.(); return }
         docRef.current = doc
         setCargando(false)
@@ -86,7 +99,7 @@ export function PidPreviewRotacion({
       docRef.current?.destroy?.()
       docRef.current = null
     }
-  }, [archivo])
+  }, [fuente])
 
   /**
    * Devuelve el mensaje de error en vez de setearlo, para que el estado lo
@@ -139,9 +152,7 @@ export function PidPreviewRotacion({
   return (
     <div className="flex flex-col gap-2 rounded border p-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Previsualización — así se va a guardar
-        </p>
+        <p className="text-xs text-muted-foreground">Previsualización</p>
         <div className="flex items-center gap-1">
           <span className="text-xs tabular-nums text-muted-foreground mr-1">{rotacion}°</span>
           <Button
@@ -175,11 +186,7 @@ export function PidPreviewRotacion({
         {!cargando && !error && <canvas ref={canvasRef} className="bg-white shadow-sm" />}
       </div>
 
-      {rotacion !== 0 && (
-        <p className="text-xs text-muted-foreground">
-          El PDF se va a guardar girado {rotacion}°. Afecta al archivo, no sólo a la vista.
-        </p>
-      )}
+      {leyenda && <div className="text-xs text-muted-foreground">{leyenda}</div>}
     </div>
   )
 }

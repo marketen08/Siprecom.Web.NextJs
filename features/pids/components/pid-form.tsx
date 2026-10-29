@@ -159,10 +159,15 @@ export function PidForm({
                 // Remonta al cambiar de archivo: el preview arranca limpio sin
                 // tener que resetear su estado a mano.
                 key={`${archivo.name}-${archivo.size}-${archivo.lastModified}`}
-                archivo={archivo}
+                fuente={archivo}
                 rotacion={rotacion}
                 onRotacionChange={setRotacion}
                 disabled={isPending}
+                leyenda={
+                  rotacion !== 0
+                    ? `El PDF se va a guardar girado ${rotacion}°. Afecta al archivo, no sólo a la vista.`
+                    : "Si el plano está acostado, giralo antes de guardar."
+                }
               />
             )}
             {archivoError && <p className="text-sm text-destructive">{archivoError}</p>}

@@ -58,9 +58,13 @@ export function useUpdatePid(id: string) {
 export function useReemplazarArchivoPid(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (archivo: File): Promise<ApiResponse<PidArchivo>> => {
+    mutationFn: async (
+      input: { archivo: File; rotacionGrados?: RotacionGrados },
+    ): Promise<ApiResponse<PidArchivo>> => {
+      const { archivo, rotacionGrados } = input
       const fd = new FormData()
       fd.append("archivo", archivo)
+      fd.append("rotacionGrados", String(rotacionGrados ?? 0))
       const res = await fetch(`/api/pid-archivos/${id}/archivo`, { method: "POST", body: fd })
       const body = await res.json().catch(() => ({ message: "Error al reemplazar el PID" }))
       if (!res.ok) throw new Error(formatError(body))
@@ -68,6 +72,8 @@ export function useReemplazarArchivoPid(id: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pid-archivos"] })
+      // Cambió el blob: la SAS URL anterior apunta a un archivo que ya no está.
+      qc.invalidateQueries({ queryKey: ["pid-download"] })
     },
   })
 }
