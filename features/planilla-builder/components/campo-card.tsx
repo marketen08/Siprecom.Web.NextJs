@@ -44,6 +44,65 @@ interface CampoCardProps {
   nextCampo?: PlanillaCampoDetalle | null
 }
 
+type PayloadOverrides = Partial<{
+  esObligatorio: boolean
+  visible: boolean
+  soloLectura: boolean
+  valorDefault?: string
+  renderMode: CampoListaRenderMode
+  orden: number
+  tamano: number
+  planillaSeccionId?: string
+  numeroFilas?: number | null
+  etiquetaArriba?: boolean
+  alineacionEtiqueta?: AlineacionTexto
+  etiquetaAlt?: string | null
+  numeroLineas?: number | null
+  altoMm?: number | null
+  negrita?: boolean | null
+  conBorde?: boolean | null
+  fondoGris?: boolean | null
+  alineacionLabel?: AlineacionTexto | null
+  tamanoTexto?: TamanoTexto | null
+  sinPadding?: boolean | null
+  sinMargen?: boolean | null
+}>
+
+/**
+ * Payload COMPLETO del PUT de una fila de la planilla (el PUT reemplaza la fila entera).
+ * Vale para cualquier fila, no solo la de la tarjeta: reordenar también reescribe a los
+ * vecinos, y si a ellos se les mandaba un payload recortado perdían sus overrides.
+ */
+function payloadUpdate(c: PlanillaCampoDetalle, planillaId: string, overrides: PayloadOverrides = {}) {
+  return {
+    id: c.id,
+    planillaId,
+    campoId: c.campoId,
+    planillaSeccionId: c.planillaSeccionId,
+    orden: c.orden,
+    esObligatorio: c.esObligatorio,
+    visible: c.visible,
+    soloLectura: c.soloLectura,
+    valorDefault: c.valorDefault,
+    renderMode: c.renderMode,
+    tamano: c.tamano,
+    numeroFilas: c.numeroFilas ?? null,
+    etiquetaArriba: c.etiquetaArriba ?? false,
+    alineacionEtiqueta: c.alineacionEtiqueta ?? 0,
+    etiquetaAlt: c.etiquetaAltOverride ?? null,
+    numeroLineas: c.numeroLineasOverride ?? null,
+    altoMm: c.altoMmOverride ?? null,
+    negrita: c.negritaOverride ?? null,
+    conBorde: c.conBordeOverride ?? null,
+    fondoGris: c.fondoGrisOverride ?? null,
+    alineacionLabel: c.alineacionLabelOverride ?? null,
+    tamanoTexto: c.tamanoTextoOverride ?? null,
+    sinPadding: c.sinPaddingOverride ?? null,
+    sinMargen: c.sinMargenOverride ?? null,
+    ...overrides,
+  }
+}
+
 export function CampoCard({ campo, planillaId, secciones, allCampos, previousCampo, nextCampo }: CampoCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [newOpcionValor, setNewOpcionValor] = useState("")
@@ -109,55 +168,8 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
   // la fila (`*Override`), no con el efectivo: el PUT reemplaza la fila entera, así que
   // mandar el efectivo convertiría cada herencia en un override copiado, y un cambio
   // posterior en el catálogo dejaría de llegar a esta planilla.
-  const buildUpdatePayload = (overrides: Partial<{
-    esObligatorio: boolean
-    visible: boolean
-    soloLectura: boolean
-    valorDefault?: string
-    renderMode: CampoListaRenderMode
-    orden: number
-    tamano: number
-    planillaSeccionId?: string
-    numeroFilas?: number | null
-    etiquetaArriba?: boolean
-    alineacionEtiqueta?: AlineacionTexto
-    etiquetaAlt?: string | null
-    numeroLineas?: number | null
-    altoMm?: number | null
-    negrita?: boolean | null
-    conBorde?: boolean | null
-    fondoGris?: boolean | null
-    alineacionLabel?: AlineacionTexto | null
-    tamanoTexto?: TamanoTexto | null
-    sinPadding?: boolean | null
-    sinMargen?: boolean | null
-  }> = {}) => ({
-    id: campo.id,
-    planillaId,
-    campoId: campo.campoId,
-    planillaSeccionId: campo.planillaSeccionId,
-    orden: campo.orden,
-    esObligatorio: campo.esObligatorio,
-    visible: campo.visible,
-    soloLectura: campo.soloLectura,
-    valorDefault: campo.valorDefault,
-    renderMode: campo.renderMode,
-    tamano: campo.tamano,
-    numeroFilas: campo.numeroFilas ?? null,
-    etiquetaArriba: campo.etiquetaArriba ?? false,
-    alineacionEtiqueta: campo.alineacionEtiqueta ?? 0,
-    etiquetaAlt: campo.etiquetaAltOverride ?? null,
-    numeroLineas: campo.numeroLineasOverride ?? null,
-    altoMm: campo.altoMmOverride ?? null,
-    negrita: campo.negritaOverride ?? null,
-    conBorde: campo.conBordeOverride ?? null,
-    fondoGris: campo.fondoGrisOverride ?? null,
-    alineacionLabel: campo.alineacionLabelOverride ?? null,
-    tamanoTexto: campo.tamanoTextoOverride ?? null,
-    sinPadding: campo.sinPaddingOverride ?? null,
-    sinMargen: campo.sinMargenOverride ?? null,
-    ...overrides,
-  })
+  const buildUpdatePayload = (overrides: PayloadOverrides = {}) =>
+    payloadUpdate(campo, planillaId, overrides)
 
   // ─── Presentación: se guarda en la ASOCIACIÓN, no en el Campo global ─────────
   //
@@ -234,38 +246,34 @@ export function CampoCard({ campo, planillaId, secciones, allCampos, previousCam
     updateMutation.mutate(buildUpdatePayload({ tamano: clamped }))
   }
 
-  // Swap del orden con un vecino (previousCampo o nextCampo).
-  // Como el index en DB no es UNIQUE, podemos hacer 2 updates seguidos sin colisión.
+  // Mover arriba/abajo: se intercambia la POSICIÓN con el vecino y se renumera la
+  // sección entera (1..N). Intercambiar solo los dos `orden` no alcanzaba: con órdenes
+  // repetidos (planillas importadas o generadas, ej. dos campos con orden 2) el swap
+  // dejaba todo igual y el botón "no respondía". Solo se escriben las filas cuyo orden
+  // cambia, así que en una sección ya bien numerada siguen siendo dos updates.
   //
-  // El try/catch no es decorativo: si el primer update falla, sin él la promesa
-  // rechazada sale de handleMoveUp/Down, que la llama sin await → unhandled rejection.
-  // El mensaje lo muestra el cartel de arriba, que lee `updateMutation.error`.
-  const swapOrden = async (otro: PlanillaCampoDetalle) => {
-    const ordenActual = campo.orden
-    const ordenOtro = otro.orden
+  // El try/catch no es decorativo: si un update falla, sin él la promesa rechazada sale
+  // de handleMoveUp/Down, que la llama sin await → unhandled rejection. El mensaje lo
+  // muestra el cartel de arriba, que lee `updateMutation.error`.
+  const mover = async (dir: -1 | 1) => {
+    // Mismo criterio de orden que la lista del diseñador (sort estable por `orden`).
+    const enSeccion = allCampos
+      .filter((c) => (c.planillaSeccionId ?? null) === (campo.planillaSeccionId ?? null))
+      .sort((a, b) => a.orden - b.orden)
+    const i = enSeccion.findIndex((c) => c.id === campo.id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= enSeccion.length) return
+    ;[enSeccion[i], enSeccion[j]] = [enSeccion[j], enSeccion[i]]
     try {
-    await updateMutation.mutateAsync(buildUpdatePayload({ orden: ordenOtro }))
-    await updateMutation.mutateAsync({
-      id: otro.id,
-      planillaId,
-      campoId: otro.campoId,
-      planillaSeccionId: otro.planillaSeccionId,
-      orden: ordenActual,
-      esObligatorio: otro.esObligatorio,
-      visible: otro.visible,
-      soloLectura: otro.soloLectura,
-      valorDefault: otro.valorDefault,
-      renderMode: otro.renderMode,
-      tamano: otro.tamano,
-      numeroFilas: otro.numeroFilas ?? null,
-      etiquetaArriba: otro.etiquetaArriba ?? false,
-      alineacionEtiqueta: otro.alineacionEtiqueta ?? 0,
-    })
+      for (const [idx, c] of enSeccion.entries()) {
+        if (c.orden !== idx + 1)
+          await updateMutation.mutateAsync(payloadUpdate(c, planillaId, { orden: idx + 1 }))
+      }
     } catch { /* el cartel de error ya lo muestra */ }
   }
 
-  const handleMoveUp = () => { if (previousCampo) swapOrden(previousCampo) }
-  const handleMoveDown = () => { if (nextCampo) swapOrden(nextCampo) }
+  const handleMoveUp = () => { if (previousCampo) mover(-1) }
+  const handleMoveDown = () => { if (nextCampo) mover(1) }
 
   // Valor del select de sección: "__none__" representa "Sin sección".
   const seccionValue = campo.planillaSeccionId ?? "__none__"
