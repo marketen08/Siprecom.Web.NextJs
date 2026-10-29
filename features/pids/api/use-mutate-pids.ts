@@ -3,12 +3,20 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type { PidArchivo, PidArchivoUpdateInput } from "../types"
 
+/** Rotaciones horarias admitidas, en grados. */
+export type RotacionGrados = 0 | 90 | 180 | 270
+
 interface CreatePidInput {
   codigo: string
   nombre: string
   descripcion?: string
   subSistemaIds: string[]
   archivo: File
+  /**
+   * Rotación elegida en la previsualización. Se escribe en el PDF antes de
+   * guardarlo, así el plano queda derecho también al descargarlo o imprimirlo.
+   */
+  rotacionGrados?: RotacionGrados
 }
 
 /** Crea un PidArchivo subiendo el PDF vía multipart. */
@@ -22,6 +30,7 @@ export function useCreatePid() {
       if (input.descripcion) fd.append("descripcion", input.descripcion)
       input.subSistemaIds.forEach((sid) => fd.append("subSistemaIds", sid))
       fd.append("archivo", input.archivo)
+      fd.append("rotacionGrados", String(input.rotacionGrados ?? 0))
 
       const res = await fetch(`/api/pid-archivos`, { method: "POST", body: fd })
       const body = await res.json().catch(() => ({ message: "Error al subir el PID" }))
@@ -59,6 +68,24 @@ export function useReemplazarArchivoPid(id: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pid-archivos"] })
+    },
+  })
+}
+
+/**
+ * Gira el PDF de un PID ya cargado. El backend reescribe el archivo y mueve con
+ * él las coordenadas de los pines, así que no hace falta recolocar nada a mano.
+ */
+export function useRotarPid(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (grados: Exclude<RotacionGrados, 0>) =>
+      apiClient.post<ApiResponse<PidArchivo>>(`/api/pid-archivos/${id}/rotar`, { grados }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pid-archivos"] })
+      // El visor cachea el PDF por SAS URL — al cambiar el blob hay que
+      // invalidar para que vuelva a pedir la URL nueva.
+      qc.invalidateQueries({ queryKey: ["pid-download"] })
     },
   })
 }

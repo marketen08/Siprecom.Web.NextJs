@@ -1,11 +1,11 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Pencil, Trash2, Download } from "lucide-react"
+import { Pencil, Trash2, Download, RotateCw } from "lucide-react"
 
 import type { PidArchivo } from "@/features/pids/types"
 import { useOpenPid } from "@/features/pids/hooks/use-open-pid"
-import { useDeletePid, fetchPidDownloadUrl } from "@/features/pids/api/use-mutate-pids"
+import { useDeletePid, useRotarPid, fetchPidDownloadUrl } from "@/features/pids/api/use-mutate-pids"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -21,6 +21,7 @@ function formatSize(bytes: number | null | undefined): string {
 function RowActions({ pid }: { pid: PidArchivo }) {
   const { open } = useOpenPid()
   const deleteMutation = useDeletePid()
+  const rotarMutation = useRotarPid(pid.id)
 
   const abrirEnPestana = async () => {
     try {
@@ -55,6 +56,30 @@ function RowActions({ pid }: { pid: PidArchivo }) {
       >
         <Pencil className="h-4 w-4" />
       </Button>
+
+      {/* Rotar de a 90°: para 180 o 270 se repite. Pide confirmación porque
+          reescribe el PDF y mueve con él los pines de los pendientes. */}
+      <ConfirmActionDialog
+        trigger={<RotateCw className="h-4 w-4" />}
+        triggerClassName="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors cursor-pointer"
+        title="¿Rotar el plano 90°?"
+        description={
+          <>
+            Se va a girar <strong>{pid.codigo} — {pid.nombre}</strong> 90° a la derecha.
+            Cambia el archivo PDF, así que el plano también queda derecho al descargarlo
+            o imprimirlo.
+            {pid.cantidadPendientes > 0 && (
+              <>
+                {" "}Los <strong>{pid.cantidadPendientes}</strong> pendientes con pin en este
+                PID se giran junto con el plano, de modo que siguen señalando el mismo punto.
+              </>
+            )}
+          </>
+        }
+        confirmText="Rotar 90°"
+        pendingText="Rotando..."
+        onConfirm={() => rotarMutation.mutateAsync(90)}
+      />
 
       <ConfirmActionDialog
         trigger={<Trash2 className="h-4 w-4" />}

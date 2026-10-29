@@ -6,6 +6,8 @@ import { useState } from "react"
 
 import { pidArchivoSchema, type PidArchivoFormValues } from "../schema"
 import type { PidArchivoDetalle } from "../types"
+import type { RotacionGrados } from "../api/use-mutate-pids"
+import { PidPreviewRotacion } from "./pid-preview-rotacion"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
 
 import { Button } from "@/components/ui/button"
@@ -24,7 +26,16 @@ interface PidFormProps {
   defaultValues?: Partial<PidArchivoDetalle>
   /** Solo requerido en modo creación — al editar el archivo se reemplaza aparte. */
   requireArchivo: boolean
-  onSubmit: (values: PidArchivoFormValues, archivo: File | null) => void
+  /**
+   * `rotacionGrados` es la rotación elegida en la previsualización: se escribe
+   * en el PDF al guardarlo, no es una preferencia de vista. Siempre 0 cuando no
+   * se adjunta archivo.
+   */
+  onSubmit: (
+    values: PidArchivoFormValues,
+    archivo: File | null,
+    rotacionGrados: RotacionGrados,
+  ) => void
   isPending: boolean
   onCancel: () => void
 }
@@ -41,6 +52,7 @@ export function PidForm({
 
   const [archivo, setArchivo] = useState<File | null>(null)
   const [archivoError, setArchivoError] = useState<string | null>(null)
+  const [rotacion, setRotacion] = useState<RotacionGrados>(0)
 
   const form = useForm<PidArchivoFormValues>({
     resolver: zodResolver(pidArchivoSchema),
@@ -58,7 +70,7 @@ export function PidForm({
       return
     }
     setArchivoError(null)
-    onSubmit(values, archivo)
+    onSubmit(values, archivo, archivo ? rotacion : 0)
   }
 
   return (
@@ -131,6 +143,8 @@ export function PidForm({
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null
                 setArchivo(f)
+                // Cada archivo arranca sin rotar: la del anterior no aplica.
+                setRotacion(0)
                 if (f) setArchivoError(null)
               }}
               className="text-sm"
@@ -139,6 +153,17 @@ export function PidForm({
               <p className="text-xs text-muted-foreground">
                 {archivo.name} — {(archivo.size / 1024 / 1024).toFixed(2)} MB
               </p>
+            )}
+            {archivo && (
+              <PidPreviewRotacion
+                // Remonta al cambiar de archivo: el preview arranca limpio sin
+                // tener que resetear su estado a mano.
+                key={`${archivo.name}-${archivo.size}-${archivo.lastModified}`}
+                archivo={archivo}
+                rotacion={rotacion}
+                onRotacionChange={setRotacion}
+                disabled={isPending}
+              />
             )}
             {archivoError && <p className="text-sm text-destructive">{archivoError}</p>}
           </div>

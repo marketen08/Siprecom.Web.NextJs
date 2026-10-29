@@ -6,10 +6,12 @@ import { fetchPidDownloadUrl } from "../api/use-mutate-pids"
 import {
   loadPdfjs,
   renderPage,
+  renderRegion,
   pointerToNormalized,
   dist,
   isRenderCancelledError,
   type RenderHandle,
+  type RegionRenderHandle,
 } from "../lib/pid-viewer-lib"
 import type { PidPendientePin } from "../types"
 
@@ -57,6 +59,25 @@ const TAP_MOVE_THRESHOLD_PX = 6
 const LONG_PRESS_MS = 450
 const LONG_PRESS_MOVE_CANCEL_PX = 8
 
+// ─── Capa de alta resolución ────────────────────────────────────────────────
+// El canvas base se rasteriza una sola vez a fit-scale × DPR y el zoom es puro
+// transform CSS, así que a partir de cierto acercamiento se ven píxeles
+// estirados. Esta capa re-renderiza con pdfjs SOLO la región visible, a la
+// densidad que pide el zoom, y se superpone al base. El base nunca se borra:
+// si este render falla, se cancela o tarda, lo que se ve es lo de siempre.
+//
+// Debajo de este zoom no vale la pena: el base ya alcanza.
+const HIRES_MIN_ZOOM = 1.5
+// Se dispara al terminar el gesto, no durante. El pan/zoom siguen siendo CSS
+// (instantáneos) — esta capa sólo agrega nitidez cuando el usuario se detiene.
+const HIRES_DEBOUNCE_MS = 200
+// Margen extra alrededor del viewport, para que un pan corto no deje bordes
+// sin capa nítida mientras se recalcula.
+const HIRES_MARGIN = 0.12
+// Techo de píxeles del canvas de alta resolución (~48 MB a 4 bytes/px). Por
+// debajo del límite de área de canvas de iOS Safari (~16.7 M) con margen.
+const HIRES_MAX_PIXELS = 12_000_000
+
 export function PidViewer({
   pidArchivoId,
   totalPaginas,
@@ -73,6 +94,13 @@ export function PidViewer({
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const overlayRef = useRef<HTMLDivElement | null>(null)
+  // Capa nítida: wrapper (lleva el mismo transform que el canvas base, así el
+  // canvas hijo se posiciona en coordenadas del base) + canvas superpuesto.
+  const hiresWrapRef = useRef<HTMLDivElement | null>(null)
+  const hiresCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const hiresRenderRef = useRef<RegionRenderHandle | null>(null)
+  /** Tamaño CSS del canvas base — sistema de referencia de la región visible. */
+  const baseSizeRef = useRef<{ w: number; h: number } | null>(null)
 
   const [docLoading, setDocLoading] = useState(true)
   const [docError, setDocError] = useState<string | null>(null)
@@ -143,6 +171,18 @@ export function PidViewer({
     }
   }, [pidArchivoId])
 
+  /**
+   * Baja la capa nítida y cancela el render en vuelo. Dejar de pintarla es
+   * seguro en cualquier momento: abajo está el canvas base, que es el
+   * comportamiento previo a esta capa.
+   */
+  const ocultarHires = useCallback(() => {
+    hiresRenderRef.current?.cancel()
+    hiresRenderRef.current = null
+    const c = hiresCanvasRef.current
+    if (c) c.style.display = "none"
+  }, [])
+
   // ─── 2) Render de la página actual ───────────────────────────────────────
   // pdfjs no permite dos `page.render()` simultáneos sobre el mismo canvas.
   // Guardamos el handle del render en curso y lo cancelamos antes de iniciar
@@ -160,6 +200,12 @@ export function PidViewer({
     // Cancelar el render anterior si sigue en curso.
     currentRenderRef.current?.cancel()
 
+    // Invalidar el sistema de referencia mientras el base se rehace: si entra
+    // un render de la capa nítida en el medio (debounce que vence antes de que
+    // termine éste), calcularía la región contra el tamaño de la página vieja.
+    baseSizeRef.current = null
+    ocultarHires()
+
     const handle = renderPage(doc, page, canvas, rect.width, rect.height)
     currentRenderRef.current = handle
     try {
@@ -170,6 +216,12 @@ export function PidViewer({
         overlayRef.current.style.width = `${widthPx}px`
         overlayRef.current.style.height = `${heightPx}px`
       }
+      // El base cambió (otra página u otro tamaño) ⇒ la capa nítida que había
+      // quedó obsoleta. La ocultamos; el efecto de zoom la vuelve a pedir si
+      // corresponde. Guardamos además el tamaño CSS del base, que es el
+      // sistema de coordenadas en el que se expresa la región visible.
+      baseSizeRef.current = { w: widthPx, h: heightPx }
+      ocultarHires()
       // Reset de transform al cambiar de página / reload — evita quedar
       // desencuadrado si la página anterior tenía otra proporción.
       setScale(1); setTx(0); setTy(0)
@@ -182,7 +234,7 @@ export function PidViewer({
       if (currentRenderRef.current === handle) currentRenderRef.current = null
       setDocError((e as Error).message)
     }
-  }, [page])
+  }, [page, ocultarHires])
 
   useEffect(() => {
     if (docLoading) return
@@ -213,11 +265,90 @@ export function PidViewer({
   const applyTransform = useCallback(() => {
     const canvas = canvasRef.current
     const overlay = overlayRef.current
+    const hires = hiresWrapRef.current
     const t = `translate(${txRef.current}px, ${tyRef.current}px) scale(${scaleRef.current})`
     if (canvas) canvas.style.transform = t
     if (overlay) overlay.style.transform = t
+    // La capa nítida viaja con el mismo transform: mientras no se recalcule,
+    // sigue alineada al plano y simplemente deja de cubrir lo que entró en
+    // viewport después del gesto (ahí abajo se ve el base).
+    if (hires) hires.style.transform = t
   }, [])
   useEffect(() => { applyTransform() }, [scale, tx, ty, applyTransform])
+
+  // ─── 3b) Capa nítida sobre la región visible ──────────────────────────────
+  // Depende del zoom/pan pero NO corre durante el gesto: el debounce espera a
+  // que el usuario se detenga. Así el pan/zoom siguen costando lo mismo que
+  // antes (puro transform CSS) y el trabajo pesado ocurre una vez por gesto —
+  // que es lo que importa en PID vectoriales de CAD, donde cada render recorre
+  // una lista de operadores de decenas de miles de paths.
+  const renderHires = useCallback(async () => {
+    const doc = docRef.current
+    const wrap = wrapRef.current
+    const canvas = hiresCanvasRef.current
+    const base = baseSizeRef.current
+    if (!doc || !wrap || !canvas || !base) return
+
+    const s = scaleRef.current
+    if (s < HIRES_MIN_ZOOM) { ocultarHires(); return }
+
+    const wr = wrap.getBoundingClientRect()
+    if (wr.width < 10 || wr.height < 10) return
+
+    // Región visible, pasada a coordenadas del canvas base (pre-transform) y
+    // recortada a los límites del plano.
+    const margenX = (wr.width / s) * HIRES_MARGIN
+    const margenY = (wr.height / s) * HIRES_MARGIN
+    const x0 = Math.max(0, -txRef.current / s - margenX)
+    const y0 = Math.max(0, -tyRef.current / s - margenY)
+    const x1 = Math.min(base.w, (wr.width - txRef.current) / s + margenX)
+    const y1 = Math.min(base.h, (wr.height - tyRef.current) / s + margenY)
+    if (x1 - x0 < 1 || y1 - y0 < 1) { ocultarHires(); return }
+
+    hiresRenderRef.current?.cancel()
+    const handle = renderRegion(doc, page, canvas, {
+      x0, y0, x1, y1,
+      baseCssWidth: base.w,
+      zoom: s,
+      maxPixels: HIRES_MAX_PIXELS,
+    })
+    hiresRenderRef.current = handle
+    try {
+      const { widthPx, heightPx, densidad, ms } = await handle.promise
+      if (hiresRenderRef.current !== handle) return // lo reemplazó otro gesto
+      hiresRenderRef.current = null
+      canvas.style.left = `${x0}px`
+      canvas.style.top = `${y0}px`
+      canvas.style.width = `${x1 - x0}px`
+      canvas.style.height = `${y1 - y0}px`
+      canvas.style.display = "block"
+      // Instrumentación para comparar el costo entre un PID escaneado y uno
+      // vectorial: si el vectorial supera ~500ms conviene revisar el cap o
+      // evaluar un esquema de tiles.
+      console.debug(
+        `[pid-hires] ${widthPx}×${heightPx}px ` +
+        `(${((widthPx * heightPx) / 1e6).toFixed(1)} Mpx) ` +
+        `densidad=${densidad.toFixed(2)} zoom=${s.toFixed(2)} ${ms.toFixed(0)}ms`,
+      )
+    } catch (e) {
+      if (isRenderCancelledError(e)) return
+      if (hiresRenderRef.current === handle) hiresRenderRef.current = null
+      // Nunca propagamos a `docError`: esta capa es opcional y el canvas base
+      // sigue en pantalla. Sólo dejamos rastro para diagnóstico.
+      console.debug("[pid-hires] render falló:", (e as Error).message)
+    }
+  }, [page, ocultarHires])
+
+  useEffect(() => {
+    if (docLoading) return
+    // Bajar del umbral se aplica al instante; subir espera el debounce.
+    if (scale < HIRES_MIN_ZOOM) { ocultarHires(); return }
+    const timer = setTimeout(() => { void renderHires() }, HIRES_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [scale, tx, ty, docLoading, renderHires, ocultarHires])
+
+  // Cancelar el render de la capa nítida al desmontar.
+  useEffect(() => () => { hiresRenderRef.current?.cancel() }, [])
 
   const clampPan = useCallback((newTx: number, newTy: number, newScale: number) => {
     const wrap = wrapRef.current
@@ -429,6 +560,21 @@ export function PidViewer({
           className="absolute top-0 left-0 origin-top-left bg-white shadow-lg"
           style={{ transform: "translate(0,0) scale(1)" }}
         />
+        {/* Capa nítida: re-render de la región visible a la densidad que pide
+            el zoom. Va entre el canvas base y el overlay — tapa al base, nunca
+            a los pines. El wrapper lleva el mismo transform que el base, así
+            el canvas hijo se posiciona en coordenadas del base. */}
+        <div
+          ref={hiresWrapRef}
+          className="absolute top-0 left-0 origin-top-left pointer-events-none"
+          style={{ transform: "translate(0,0) scale(1)" }}
+        >
+          {/* `bg-white`: pdfjs deja transparente lo que no dibuja, y sin fondo
+              opaco se vería asomar el trazo borroso del base alrededor de cada
+              línea. Sólo se muestra con el render ya resuelto, así que nunca
+              tapa el plano con un rectángulo en blanco. */}
+          <canvas ref={hiresCanvasRef} className="absolute bg-white" style={{ display: "none" }} />
+        </div>
         {/* Overlay de pins (mismo transform que el canvas) */}
         <div
           ref={overlayRef}
