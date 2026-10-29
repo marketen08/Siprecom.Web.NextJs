@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { AlertTriangle, Boxes, CheckCircle2, Info, Loader2 } from "lucide-react"
+import { AlertTriangle, Boxes, CheckCircle2, Info, Loader2, Sparkles } from "lucide-react"
 
 import { useGetTiposSinTareas } from "@/features/tareas/api/use-tipos-sin-tareas"
 
@@ -100,7 +100,9 @@ export function TiposSinTareasSheet({ open, onClose }: Props) {
                 <div className="space-y-2">
                   <p className="text-sm text-gray-900">
                     A estos <span className="font-semibold">{fisicos.length}</span> tipo(s) les
-                    falta configurar tareas en el proyecto:
+                    falta configurar tareas en el proyecto. Si otras obras del equipo ya las
+                    tienen, se pueden traer desde{" "}
+                    <span className="font-medium">Buscar en otras obras</span>:
                   </p>
 
                   <div className="overflow-hidden rounded-md border">
@@ -110,7 +112,6 @@ export function TiposSinTareasSheet({ open, onClose }: Props) {
                           <th className="px-3 py-2 text-left font-medium">Tipo de elemento</th>
                           <th className="px-3 py-2 text-left font-medium">Especialidad</th>
                           <th className="px-3 py-2 text-right font-medium">Elementos</th>
-                          <th className="px-3 py-2 text-right font-medium">Sin ninguna tarea</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -122,9 +123,16 @@ export function TiposSinTareasSheet({ open, onClose }: Props) {
                             <td className="px-3 py-2 text-gray-600">
                               {t.especialidadNombre ?? "—"}
                             </td>
-                            <td className="px-3 py-2 text-right text-gray-700">{t.elementos}</td>
-                            <td className="px-3 py-2 text-right font-medium text-gray-900">
-                              {t.elementosSinNingunaTarea}
+                            <td className="px-3 py-2 text-right text-gray-900">
+                              {t.elementos}
+                              {/* Sólo cuando difiere, que es la excepción: a esos elementos
+                                  les asignaron una tarea puntual a mano, o les cambiaron el
+                                  tipo después de generarles las tareas. */}
+                              {t.elementosSinNingunaTarea < t.elementos && (
+                                <span className="block text-xs font-normal text-muted-foreground">
+                                  {t.elementos - t.elementosSinNingunaTarea} con alguna tarea
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -132,17 +140,17 @@ export function TiposSinTareasSheet({ open, onClose }: Props) {
                     </table>
                   </div>
 
-                  {/* La diferencia entre las dos columnas es información, no un error: a esos
-                      elementos los cubre algo que no es el catálogo de su tipo —una tarea
-                      puntual asignada a mano, o un test pack—, así que el tipo sigue sin
-                      configurar pero esos elementos no están fuera del seguimiento. */}
+                  {/* Normalmente todos los elementos de un tipo sin tareas están sin
+                      ninguna, así que la aclaración sólo aparece cuando hay una fila que no
+                      cumple eso. Son dos casos y los dos son raros. */}
                   {fisicos.some((t) => t.elementosSinNingunaTarea < t.elementos) && (
                     <p className="flex gap-2 text-xs text-muted-foreground">
                       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>
-                        Cuando la última columna es menor, al resto de los elementos los cubre
-                        algo que no es el catálogo de su tipo: una tarea puntual asignada a
-                        mano, o un paquete de prueba.
+                        Los elementos marcados como &quot;con alguna tarea&quot; tienen
+                        asignada una tarea puntual cargada a mano, o les cambiaron el tipo
+                        después de generarles las tareas. El tipo sigue sin configurar, pero
+                        esos elementos no están fuera del seguimiento.
                       </span>
                     </p>
                   )}
@@ -179,13 +187,23 @@ export function TiposSinTareasSheet({ open, onClose }: Props) {
           )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
+            {preview && fisicos.length > 0 && (
+              <Link
+                href="/alcance/tareas/sugerencias"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-900 px-3 text-sm font-medium text-white hover:bg-blue-800"
+                onClick={onClose}
+              >
+                <Sparkles className="h-4 w-4" />
+                Buscar en otras obras
+              </Link>
+            )}
             {preview && preview.tipos.length > 0 && (
               <Link
                 href="/alcance/importacion-tareas"
                 className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-white px-3 text-sm font-medium hover:bg-gray-50"
                 onClick={onClose}
               >
-                Importar tareas
+                Importar por Excel
               </Link>
             )}
             <Button variant="outline" onClick={onClose}>
