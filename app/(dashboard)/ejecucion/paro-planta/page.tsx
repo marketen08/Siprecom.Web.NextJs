@@ -129,7 +129,7 @@ export default function ParoPlantaPage() {
       )}
 
       <Sheet open={configAbierta} onOpenChange={setConfigAbierta}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl!">
           <SheetHeader>
             <SheetTitle>Configuración de la parada</SheetTitle>
             <SheetDescription>

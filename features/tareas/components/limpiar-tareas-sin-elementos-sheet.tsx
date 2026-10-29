@@ -65,7 +65,7 @@ export function LimpiarTareasSinElementosSheet({ open, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && cerrar()}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-3xl! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Limpiar tareas sin elementos</SheetTitle>
           <SheetDescription>
@@ -75,7 +75,7 @@ export function LimpiarTareasSinElementosSheet({ open, onClose }: Props) {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4 px-4 pb-6">
           {isLoading && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -88,7 +88,7 @@ export function LimpiarTareasSinElementosSheet({ open, onClose }: Props) {
               {/* Estado de la carga de elementos: el dato con el que se decide. */}
               <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm">
                 <p className="font-medium text-gray-900">Alcance cargado</p>
-                <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-gray-700">
+                <dl className="mt-1 grid max-w-sm grid-cols-2 gap-x-3 gap-y-1 text-gray-700">
                   <dt>Elementos activos</dt>
                   <dd className="text-right font-medium">{preview.elementosActivos}</dd>
                   <dt>Tipos presentes</dt>

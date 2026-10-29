@@ -81,7 +81,7 @@ export function ImportarMaquetaJsonSheet({ open, onClose, proyectoId }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-lg! overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FileJson className="h-5 w-5 text-blue-600" />

@@ -109,7 +109,7 @@ export function FiltersSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto" side="right">
+      <SheetContent className="w-full sm:max-w-md! overflow-y-auto" side="right">
         <SheetHeader>
           <SheetTitle>Filtros</SheetTitle>
           <SheetDescription className="text-xs">

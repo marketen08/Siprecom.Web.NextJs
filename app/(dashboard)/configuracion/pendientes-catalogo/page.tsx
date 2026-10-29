@@ -263,7 +263,7 @@ export default function PendientesCatalogoPage() {
       </p>
 
       <Sheet open={sheet !== null} onOpenChange={(v) => !v && setSheet(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-lg! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{sheet?.mode === "new" ? "Nueva entrada del catálogo" : "Editar entrada"}</SheetTitle>
             <SheetDescription>

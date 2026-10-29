@@ -88,7 +88,7 @@ export function ReemplazarDisenoSheet({ open, onClose, planillaId, codigo, nombr
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && cerrar()}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-lg! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Importar JSON — reemplazar el diseño</SheetTitle>
           <SheetDescription className="text-xs">

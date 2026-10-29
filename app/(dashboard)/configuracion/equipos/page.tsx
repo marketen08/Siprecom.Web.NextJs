@@ -206,7 +206,7 @@ function EquiposAdmin() {
 
       {/* ── Alta / edición ── */}
       <Sheet open={editSheet !== null} onOpenChange={(v) => !v && setEditSheet(null)}>
-        <SheetContent className="w-full sm:max-w-md">
+        <SheetContent className="w-full sm:max-w-md!">
           <SheetHeader>
             <SheetTitle>{editSheet?.mode === "new" ? "Nuevo equipo" : "Editar equipo"}</SheetTitle>
             <SheetDescription>

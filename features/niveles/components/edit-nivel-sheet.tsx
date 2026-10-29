@@ -27,7 +27,7 @@ export function EditNivelSheet() {
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-lg! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Editar nivel</SheetTitle>
           <SheetDescription>

@@ -278,7 +278,7 @@ export default function VersionesPage() {
 
       {/* Edit sheet — key fuerza remount al cambiar target para resetear el state local */}
       <Sheet open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
           {editTarget && (
             <EditForm
               key={editTarget.id}
