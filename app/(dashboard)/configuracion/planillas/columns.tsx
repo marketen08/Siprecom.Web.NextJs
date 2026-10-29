@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { ColumnDef } from "@tanstack/react-table"
-import { AlertTriangle, Check, Copy, Download, FileText, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
+import { AlertTriangle, Check, Copy, Download, FileText, MoreHorizontal, Pencil, Settings, Trash2, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import type { Planilla } from "@/features/planillas/types"
@@ -11,6 +11,7 @@ import { useDeletePlanilla } from "@/features/planillas/api/use-delete-planilla"
 import { useClonePlanilla } from "@/features/planillas/api/use-clone-planilla"
 import { exportarPlanilla } from "@/features/planillas/api/use-import-export"
 import { useMarcarRevision } from "@/features/planillas/api/use-marcar-revision"
+import { ReemplazarDisenoSheet } from "@/features/planillas/components/reemplazar-diseno-sheet"
 
 import {
   DropdownMenu,
@@ -40,6 +41,10 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
 
   const [cloneOpen, setCloneOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Reemplazar el diseño: primero la confirmación (se pierde el diseño actual), después
+  // el panel de import, que muestra qué va a quedar antes de aplicar.
+  const [confirmarImportOpen, setConfirmarImportOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   const handleClone = async () => {
     await cloneMutation.mutateAsync(planilla.id)
@@ -75,7 +80,7 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
         >
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuItem
             className="cursor-pointer"
             disabled={!puedeEditar}
@@ -104,6 +109,15 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
           <DropdownMenuItem className="cursor-pointer" onClick={() => exportarPlanilla(planilla.id)}>
             <Download className="h-4 w-4" />
             Exportar JSON
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            disabled={!puedeEditar}
+            title={puedeEditar ? undefined : motivoNoEditable}
+            onClick={() => setConfirmarImportOpen(true)}
+          >
+            <Upload className="h-4 w-4" />
+            Importar JSON (reemplazar diseño)
           </DropdownMenuItem>
           <DropdownMenuItem className="cursor-pointer" onClick={() => setCloneOpen(true)}>
             <Copy className="h-4 w-4" />
@@ -145,6 +159,60 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Importar JSON: confirmación antes de abrir el panel */}
+      <AlertDialog open={confirmarImportOpen} onOpenChange={setConfirmarImportOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              ¿Reemplazar el diseño de la planilla?
+            </AlertDialogTitle>
+            {/* render como <div>: adentro van varios <p>, que no pueden anidarse en otro <p>. */}
+            <AlertDialogDescription render={<div />}>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Las secciones y campos de <strong>{planilla.codigo ? `${planilla.codigo} — ` : ""}{planilla.nombre}</strong>{" "}
+                  se van a <strong>reemplazar por completo</strong> con los del archivo. El diseño
+                  actual <strong>se pierde y no se puede recuperar</strong> desde la aplicación.
+                </p>
+                <p>
+                  El código, el nombre y la versión no cambian: las tareas que ya la usan van a
+                  tomar el diseño nuevo.
+                </p>
+                <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-800">
+                  Si querés poder volver atrás, descargá antes el JSON del diseño actual.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium hover:bg-gray-50"
+              onClick={() => exportarPlanilla(planilla.id)}
+            >
+              <Download className="h-4 w-4" />
+              Descargar JSON actual
+            </button>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => { setConfirmarImportOpen(false); setImportOpen(true) }}
+            >
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <ReemplazarDisenoSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        planillaId={planilla.id}
+        codigo={planilla.codigo}
+        nombre={planilla.nombre}
+      />
 
       {/* Eliminar */}
       <AlertDialog open={deleteOpen} onOpenChange={(o) => !deleteMutation.isPending && setDeleteOpen(o)}>
