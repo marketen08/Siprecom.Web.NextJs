@@ -7,13 +7,14 @@ import {
   flexRender,
 } from "@tanstack/react-table"
 import Link from "next/link"
-import { Eraser, ListChecks, Plus, Search } from "lucide-react"
+import { Eraser, ListChecks, PackageSearch, Plus, Search } from "lucide-react"
 
 import { useGetTareas } from "@/features/tareas/api/use-get-tareas"
 import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
 import { NewTareaSheet } from "@/features/tareas/components/new-tarea-sheet"
 import { EditTareaSheet } from "@/features/tareas/components/edit-tarea-sheet"
 import { LimpiarTareasSinElementosSheet } from "@/features/tareas/components/limpiar-tareas-sin-elementos-sheet"
+import { TiposSinTareasSheet } from "@/features/tareas/components/tipos-sin-tareas-sheet"
 import { useMeetsRole } from "@/lib/use-roles"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
@@ -167,12 +168,14 @@ export default function TareasPage() {
   // La limpieza da de baja tareas en masa: Admin, igual que el endpoint.
   const esAdmin = useMeetsRole("Admin")
   const [limpiarOpen, setLimpiarOpen] = useState(false)
+  const [tiposOpen, setTiposOpen] = useState(false)
 
   return (
     <>
       <NewTareaSheet />
       <EditTareaSheet />
       <LimpiarTareasSinElementosSheet open={limpiarOpen} onClose={() => setLimpiarOpen(false)} />
+      <TiposSinTareasSheet open={tiposOpen} onClose={() => setTiposOpen(false)} />
 
       <div className="space-y-4">
         {/* Buscador + Nuevo + Filtros */}
@@ -198,6 +201,17 @@ export default function TareasPage() {
             </Link>
             {/* Las tareas de tipos que el proyecto no tiene nunca se instancian: quedan
                 de la copia de configuración del alta, cuando todavía no había elementos. */}
+            {/* La otra mitad: tipos que están en la obra y no tienen tareas. Sólo lectura,
+                así que no se acota a Admin. */}
+            <Button
+              variant="outline"
+              onClick={() => setTiposOpen(true)}
+              className="gap-2"
+              title="Tipos de elemento cargados en la obra que no tienen ninguna tarea en el catálogo"
+            >
+              <PackageSearch className="h-4 w-4" />
+              Tipos sin tareas
+            </Button>
             {esAdmin && (
               <Button
                 variant="outline"
