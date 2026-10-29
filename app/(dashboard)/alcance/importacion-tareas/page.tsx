@@ -6,16 +6,19 @@ import {
   CheckCircle2,
   Download,
   FileSpreadsheet,
+  Library,
   Loader2,
   Play,
   Upload,
 } from "lucide-react"
 
 import {
+  descargarPlantillaMaestraTareas,
   descargarPlantillaTareas,
   useImportTareasApply,
   useImportTareasPreview,
 } from "@/features/importacion/api/use-import-tareas"
+import { useMeetsRole } from "@/lib/use-roles"
 import type { ImportTareasPreview } from "@/features/importacion/types"
 
 import { Button } from "@/components/ui/button"
@@ -27,6 +30,9 @@ import {
 } from "@/components/ui/table"
 
 export default function ImportacionTareasPage() {
+  // La plantilla maestra barre todos los proyectos de la base: Admin, igual que el endpoint.
+  const esAdmin = useMeetsRole("Admin")
+
   const [archivo, setArchivo] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportTareasPreview | null>(null)
   const [applyMensaje, setApplyMensaje] = useState<string | null>(null)
@@ -104,11 +110,34 @@ export default function ImportacionTareasPage() {
             última versión.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button variant="outline" size="sm" onClick={descargarPlantillaTareas} className="gap-2">
-            <Download className="h-4 w-4" />
-            Descargar plantilla actual
-          </Button>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={descargarPlantillaTareas} className="gap-2">
+              <Download className="h-4 w-4" />
+              Descargar plantilla actual
+            </Button>
+            {esAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={descargarPlantillaMaestraTareas}
+                className="gap-2"
+              >
+                <Library className="h-4 w-4" />
+                Descargar plantilla maestra
+              </Button>
+            )}
+          </div>
+          {esAdmin && (
+            <p className="text-xs text-muted-foreground">
+              La <strong>maestra</strong> trae la matriz consolidada de todos los proyectos de la
+              base —una fila por regla, sin repetir— con las filas en CREATE. Sirve para arrancar
+              un proyecto nuevo con las tareas de todos los tipos de elemento; las de tipos que
+              este proyecto no tenga se sacan después con &quot;Limpiar sin elementos&quot; en el
+              listado de tareas. Importala en un proyecto <strong>sin tareas</strong>: trae sus
+              propios códigos y chocarían con los existentes.
+            </p>
+          )}
         </CardContent>
       </Card>
 

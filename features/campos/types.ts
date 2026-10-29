@@ -36,6 +36,12 @@ export interface Campo {
   sinMargen?: boolean
   /** Cantidad de planillas activas que usan este campo. */
   usoCount?: number
+  /**
+   * Valores ya cargados que dependen del tipo (registros + precargados de elemento).
+   * Es lo que decide si se puede cambiar el tipo de dato — estar en una planilla no
+   * alcanza. Sólo viene en el GET por id; en los listados llega en 0.
+   */
+  valoresCargados?: number
 
   /**
    * Equipo de administración dueño. Null/undefined = global: lo comparten todas las

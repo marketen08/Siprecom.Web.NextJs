@@ -27,8 +27,13 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
   return (
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
+      // Sin blur a propósito. El velo al 10% alcanza como señal de que hay algo
+      // abierto encima; el backdrop-filter a pantalla completa, en cambio,
+      // desenfocaba el contenido de la página, que es justo lo que el usuario
+      // necesita poder leer mientras llena el formulario. Y en sheets anidados
+      // los blur se encadenaban, así que la página de atrás desaparecía.
       className={cn(
-        "fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
+        "fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className
       )}
       {...props}
@@ -47,7 +52,7 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
   /**
-   * Omite el backdrop (fondo negro + blur). Útil cuando lo que hay detrás
+   * Omite el backdrop (el velo oscuro). Útil cuando lo que hay detrás
    * es contenido que el usuario quiere seguir viendo mientras interactúa
    * con el sheet — por ejemplo el visor de PID: el operador consulta el
    * pendiente y a la vez sigue viendo el plano.

@@ -7,12 +7,14 @@ import {
   flexRender,
 } from "@tanstack/react-table"
 import Link from "next/link"
-import { ListChecks, Plus, Search } from "lucide-react"
+import { Eraser, ListChecks, Plus, Search } from "lucide-react"
 
 import { useGetTareas } from "@/features/tareas/api/use-get-tareas"
 import { useNewTarea } from "@/features/tareas/hooks/use-new-tarea"
 import { NewTareaSheet } from "@/features/tareas/components/new-tarea-sheet"
 import { EditTareaSheet } from "@/features/tareas/components/edit-tarea-sheet"
+import { LimpiarTareasSinElementosSheet } from "@/features/tareas/components/limpiar-tareas-sin-elementos-sheet"
+import { useMeetsRole } from "@/lib/use-roles"
 import { useGetElementosTiposSelect } from "@/features/elementostipos/api/use-get-elementostipos-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
@@ -162,10 +164,15 @@ export default function TareasPage() {
 
   const totalPages = Math.ceil((data?.total ?? 0) / pageSize)
 
+  // La limpieza da de baja tareas en masa: Admin, igual que el endpoint.
+  const esAdmin = useMeetsRole("Admin")
+  const [limpiarOpen, setLimpiarOpen] = useState(false)
+
   return (
     <>
       <NewTareaSheet />
       <EditTareaSheet />
+      <LimpiarTareasSinElementosSheet open={limpiarOpen} onClose={() => setLimpiarOpen(false)} />
 
       <div className="space-y-4">
         {/* Buscador + Nuevo + Filtros */}
@@ -189,6 +196,19 @@ export default function TareasPage() {
               <ListChecks className="h-4 w-4" />
               Generación de tareas
             </Link>
+            {/* Las tareas de tipos que el proyecto no tiene nunca se instancian: quedan
+                de la copia de configuración del alta, cuando todavía no había elementos. */}
+            {esAdmin && (
+              <Button
+                variant="outline"
+                onClick={() => setLimpiarOpen(true)}
+                className="gap-2"
+                title="Dar de baja las tareas cuyo tipo de elemento no existe en este proyecto"
+              >
+                <Eraser className="h-4 w-4" />
+                Limpiar sin elementos
+              </Button>
+            )}
             <Button onClick={open} className="gap-2">
               <Plus className="h-4 w-4" />
               Nueva tarea

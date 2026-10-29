@@ -142,7 +142,8 @@ export function ObtenerPlanillasDialog({ open, onClose }: Props) {
   return (
     // Overlay
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      // Mismo velo que el primitivo (sheet/alert-dialog), sin blur.
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/10"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="relative w-full max-w-md mx-4 rounded-xl bg-white shadow-xl border border-gray-200">

@@ -27,6 +27,9 @@ export function EditCampoSheet() {
   const { data: usoResult } = useGetCampoUso(id)
   const planillasUso = (usoResult as any)?.data ?? []
   const usoCount = campo?.usoCount ?? planillasUso.length ?? 0
+  // Lo llena el GET por id. Sin dato asumimos 0 = tipo editable: el backend es el que
+  // manda igual, y rechaza el cambio con el detalle de cuántos valores hay cargados.
+  const valoresCargados = campo?.valoresCargados ?? 0
 
   const mutation = useUpdateCampoGlobal()
 
@@ -58,6 +61,7 @@ export function EditCampoSheet() {
                 key={campo.id}
                 defaultValues={campo}
                 usoCount={usoCount}
+                valoresCargados={valoresCargados}
                 onSubmit={handleSubmit}
                 onCancel={close}
                 isPending={mutation.isPending}

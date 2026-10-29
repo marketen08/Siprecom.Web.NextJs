@@ -40,11 +40,28 @@ export function useImportTareasApply() {
   })
 }
 
-export function descargarPlantillaTareas() {
+function descargar(href: string) {
   const a = document.createElement("a")
-  a.href = "/api/import/tareas/plantilla"
+  a.href = href
   a.download = ""
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+}
+
+/** Las tareas activas de ESTE proyecto, con las filas en SKIP. Para editar lo que ya hay. */
+export function descargarPlantillaTareas() {
+  descargar("/api/import/tareas/plantilla")
+}
+
+/**
+ * La matriz de tareas de TODOS los proyectos de la base, deduplicada y con las filas en
+ * CREATE. Es la plantilla para sembrar un proyecto nuevo: trae las tareas de todos los tipos
+ * de elemento, y las de tipos que el proyecto no tenga se sacan después con "Limpiar sin
+ * elementos" del listado de tareas.
+ *
+ * Admin-only en el backend: barre proyectos que el usuario puede no tener asignados.
+ */
+export function descargarPlantillaMaestraTareas() {
+  descargar("/api/import/tareas/plantilla-maestra")
 }
