@@ -467,6 +467,7 @@ export const segmentLabels: Record<string, string> = {
   subsistemas:   "Subsistemas",
   elementos:     "Elementos",
   tareas:        "Tareas",
+  sugerencias:   "Traer de otras obras",
   planillas:     "Planillas",
   // El segmento de la ruta sigue siendo planillas-grupos (las entidades se llaman
   // PlanillaGrupo); en la UI el concepto se llama "colecciones".
