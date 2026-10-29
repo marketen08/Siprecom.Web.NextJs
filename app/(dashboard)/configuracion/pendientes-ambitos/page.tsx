@@ -285,7 +285,7 @@ export default function PendientesAmbitosPage() {
       </div>
 
       <Sheet open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-lg! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{form?.mode === "new" ? "Nuevo ámbito" : "Editar ámbito"}</SheetTitle>
             <SheetDescription>

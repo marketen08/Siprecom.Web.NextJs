@@ -28,7 +28,7 @@ export function EditTestGroupSheet() {
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => { if (!open) handleClose() }}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-xl! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Editar paquete de prueba</SheetTitle>
           <SheetDescription>Modificá los datos del paquete. El tipo no se puede cambiar.</SheetDescription>

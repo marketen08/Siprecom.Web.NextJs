@@ -311,7 +311,7 @@ function AgregarDesdeGrupoSheet({ proyectoId }: { proyectoId: string }) {
       </Button>
 
       <Sheet open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setGrupoSel(null); setResultado(null) } }}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Agregar usuarios desde grupo</SheetTitle>
             <SheetDescription>

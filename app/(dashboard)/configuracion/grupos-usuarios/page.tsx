@@ -341,7 +341,7 @@ export default function GruposUsuariosPage() {
 
       {/* Sheet crear/editar (nombre + descripción) */}
       <Sheet open={editSheet !== null} onOpenChange={(v) => !v && setEditSheet(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{editSheet?.mode === "new" ? "Nuevo grupo" : "Editar grupo"}</SheetTitle>
             <SheetDescription>

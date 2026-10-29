@@ -116,7 +116,7 @@ export default function PendientesMotivosPage() {
       <p className="text-sm text-muted-foreground">{items.length} motivos</p>
 
       <Sheet open={sheet !== null} onOpenChange={(v) => !v && setSheet(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{sheet?.mode === "new" ? "Nuevo motivo" : "Editar motivo"}</SheetTitle>
             <SheetDescription>

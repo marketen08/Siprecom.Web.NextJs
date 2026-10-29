@@ -170,7 +170,7 @@ export function NewUsuarioSheet({ open, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Nuevo usuario</SheetTitle>
           <SheetDescription>

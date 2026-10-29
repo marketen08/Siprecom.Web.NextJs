@@ -88,7 +88,7 @@ export function SubirLogoSheet() {
 
   return (
     <Sheet open={isOpen} onOpenChange={(v) => !v && cerrar()}>
-      <SheetContent className="w-full sm:max-w-md">
+      <SheetContent className="w-full sm:max-w-md!">
         <SheetHeader>
           <SheetTitle>Logo — {cliente?.nombre ?? ""}</SheetTitle>
           <SheetDescription>

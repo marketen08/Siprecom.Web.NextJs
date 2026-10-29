@@ -126,7 +126,7 @@ export default function PendientesTiposPage() {
       <p className="text-sm text-muted-foreground">{items.length} tipos</p>
 
       <Sheet open={sheet !== null} onOpenChange={(v) => !v && setSheet(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{sheet?.mode === "new" ? "Nuevo tipo" : "Editar tipo"}</SheetTitle>
             <SheetDescription>

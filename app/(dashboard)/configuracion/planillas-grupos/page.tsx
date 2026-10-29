@@ -242,7 +242,7 @@ function PlanillasGruposAdmin() {
 
       {/* Sheet crear/editar */}
       <Sheet open={editSheet !== null} onOpenChange={(v) => !v && setEditSheet(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md! overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{editSheet?.mode === "new" ? "Nueva colección" : "Editar colección"}</SheetTitle>
             <SheetDescription>
