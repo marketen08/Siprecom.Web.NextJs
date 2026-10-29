@@ -139,7 +139,8 @@ export function ElementoValoresPrecargadosDialog({ elementoId, open, onClose }: 
   return createPortal(
     // Overlay
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      // Mismo velo que el primitivo (sheet/alert-dialog), sin blur.
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/10"
       onClick={(e) => { if (e.target === e.currentTarget && !upsert.isPending) onClose() }}
     >
       <div className="relative w-full max-w-3xl mx-4 h-[85vh] flex flex-col rounded-xl bg-white shadow-xl border border-gray-200">
