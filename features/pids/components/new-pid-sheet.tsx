@@ -1,7 +1,7 @@
 "use client"
 
 import { useNewPid } from "../hooks/use-new-pid"
-import { useCreatePid } from "../api/use-mutate-pids"
+import { useCreatePid, type RotacionGrados } from "../api/use-mutate-pids"
 import { PidForm } from "./pid-form"
 import type { PidArchivoFormValues } from "../schema"
 
@@ -17,7 +17,11 @@ export function NewPidSheet() {
   const { isOpen, close } = useNewPid()
   const mutation = useCreatePid()
 
-  const onSubmit = (values: PidArchivoFormValues, archivo: File | null) => {
+  const onSubmit = (
+    values: PidArchivoFormValues,
+    archivo: File | null,
+    rotacionGrados: RotacionGrados,
+  ) => {
     if (!archivo) return
     mutation.mutate(
       {
@@ -26,6 +30,7 @@ export function NewPidSheet() {
         descripcion: values.descripcion || undefined,
         subSistemaIds: values.subSistemaIds ?? [],
         archivo,
+        rotacionGrados,
       },
       { onSuccess: close },
     )
