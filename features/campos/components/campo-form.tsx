@@ -40,10 +40,17 @@ import {
 interface CampoFormProps {
   defaultValues?: Partial<Campo>
   /**
-   * Cantidad de planillas que usan este campo. Si > 0, se bloquea código y tipo de dato
-   * porque cambiarlos rompe registros existentes / integraciones.
+   * Cantidad de planillas que usan este campo. Si > 0, se bloquea el código: lo
+   * referencian el import por Excel y las integraciones, que no conocen el id.
    */
   usoCount?: number
+  /**
+   * Valores ya cargados con este campo (registros + precargados). Si > 0, se bloquea el
+   * tipo de dato: el valor vive en una columna distinta según el tipo, así que cambiarlo
+   * deja el dato en una columna que el PDF ya no lee. Estar en una planilla NO alcanza
+   * para bloquear — un campo recién diseñado se corrige libremente.
+   */
+  valoresCargados?: number
   onSubmit: (values: CampoFormValues) => void
   onCancel: () => void
   isPending: boolean
@@ -58,12 +65,14 @@ interface CampoFormProps {
 export function CampoForm({
   defaultValues,
   usoCount = 0,
+  valoresCargados = 0,
   onSubmit,
   onCancel,
   isPending,
   serverErrors,
 }: CampoFormProps) {
   const enUso = usoCount > 0
+  const tipoBloqueado = valoresCargados > 0
 
   const form = useForm<CampoFormValues>({
     resolver: zodResolver(campoSchema),
@@ -110,10 +119,23 @@ export function CampoForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        {enUso && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Este campo está usado en <strong>{usoCount}</strong> planilla{usoCount !== 1 ? "s" : ""}.
-            No se puede cambiar <strong>código</strong> ni <strong>tipo de dato</strong> mientras esté en uso.
+        {(enUso || tipoBloqueado) && (
+          <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {enUso && (
+              <p>
+                Este campo está usado en <strong>{usoCount}</strong> planilla{usoCount !== 1 ? "s" : ""}.
+                No se puede cambiar el <strong>código</strong> mientras esté en uso.
+              </p>
+            )}
+            {tipoBloqueado && (
+              <p>
+                Hay <strong>{valoresCargados}</strong> valor{valoresCargados !== 1 ? "es" : ""} ya
+                cargado{valoresCargados !== 1 ? "s" : ""} con este campo, así que tampoco se puede
+                cambiar el <strong>tipo de dato</strong>: el dato quedaría guardado en una columna
+                que el PDF ya no lee, incluso en registros firmados. Para cambiarlo, creá un campo
+                nuevo con el tipo que necesitás y reemplazalo en la planilla.
+              </p>
+            )}
           </div>
         )}
 
@@ -129,7 +151,7 @@ export function CampoForm({
               <Select
                 value={String(field.value)}
                 onValueChange={(v) => field.onChange(Number(v) as CampoTipoDato)}
-                disabled={isPending || enUso}
+                disabled={isPending || tipoBloqueado}
               >
                 <FormControl>
                   <SelectTrigger>
