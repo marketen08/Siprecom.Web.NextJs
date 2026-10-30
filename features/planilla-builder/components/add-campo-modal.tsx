@@ -122,6 +122,9 @@ export function AddCampoModal({
   // de opciones (default Sí/No/NA, editable).
   const [bulkTipo, setBulkTipo] = useState<BulkTipo>(11)
   const [bulkEtiquetas, setBulkEtiquetas] = useState("")
+  // Códigos que el user editó a mano en la tabla de vista previa, por etiqueta en
+  // minúsculas. "" = lo borró: se muestra el generado como placeholder y se usa ese.
+  const [bulkCodigosEditados, setBulkCodigosEditados] = useState<Record<string, string>>({})
   const [bulkReusar, setBulkReusar] = useState(true)
   const [bulkChecklistOpciones, setBulkChecklistOpciones] = useState<
     Array<{ valor: string; etiqueta: string }>
@@ -218,6 +221,7 @@ export function AddCampoModal({
     setCodigoSucio(false)
     setBulkTipo(11)
     setBulkEtiquetas("")
+    setBulkCodigosEditados({})
     setBulkReusar(true)
     setBulkChecklistOpciones(BULK_CHECKLIST_DEFAULT_OPCIONES)
     setBulkOpcionInput({ valor: "", etiqueta: "" })
@@ -413,7 +417,13 @@ export function AddCampoModal({
     const codigosDB = new Set(
       campos.map((c) => String(c.codigo ?? "").toUpperCase()),
     )
-    const codigosGenerados = new Set<string>()
+    // Los editados a mano se reservan primero, así ningún generado los pisa.
+    const manuales = Object.values(bulkCodigosEditados)
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean)
+    const codigosGenerados = new Set<string>(manuales)
+    const repeticionesManuales = new Map<string, number>()
+    for (const c of manuales) repeticionesManuales.set(c, (repeticionesManuales.get(c) ?? 0) + 1)
     const generarCodigo = (etiqueta: string): string => {
       const base =
         slugifyCodigoCampo(etiqueta, 30) || etiqueta.toUpperCase().slice(0, 30) || "CAMPO"
@@ -457,14 +467,23 @@ export function AddCampoModal({
         }
       }
 
+      const manual = bulkCodigosEditados[key]?.trim()
+      const codigoNuevo = manual || generarCodigo(etiqueta)
+      // Sólo avisamos de choques en los editados: los generados ya esquivan lo conocido.
+      // El backend igual le agrega un sufijo si está tomado (codigoAutomatico).
+      const codigoTomado = !!manual && (
+        codigosDB.has(manual.toUpperCase()) ||
+        (repeticionesManuales.get(manual.toUpperCase()) ?? 0) > 1
+      )
       return {
         etiqueta,
         etiquetaAlt,
         estado: "nuevo" as const,
-        codigoNuevo: generarCodigo(etiqueta),
+        codigoNuevo,
+        codigoTomado,
       }
     })
-  }, [bulkEtiquetas, bulkTipo, bulkReusar, campos, existingCampoIds])
+  }, [bulkEtiquetas, bulkTipo, bulkReusar, campos, existingCampoIds, bulkCodigosEditados])
 
   const bulkAInsertar = bulkParsed.filter(
     (p) => p.estado === "reusa" || p.estado === "nuevo",
@@ -488,6 +507,9 @@ export function AddCampoModal({
           // Crear Campo. Para Checklist, además creamos las opciones compartidas.
           const res: any = await createCampoMutation.mutateAsync({
             codigo: item.codigoNuevo,
+            // El código es una propuesta: el catálogo que ve el front puede estar
+            // incompleto, así que el backend le busca uno libre si ya está tomado.
+            codigoAutomatico: true,
             etiqueta: item.etiqueta,
             etiquetaAlt: item.etiquetaAlt || undefined,
             tipoDato: bulkTipo as CampoTipoDato,
@@ -1562,7 +1584,7 @@ export function AddCampoModal({
                         <th className="text-left px-2 py-1.5 font-medium text-gray-600">
                           Etiqueta
                         </th>
-                        <th className="text-left px-2 py-1.5 font-medium text-gray-600 w-40">
+                        <th className="text-left px-2 py-1.5 font-medium text-gray-600 w-52">
                           Código
                         </th>
                         <th className="text-right px-2 py-1.5 font-medium text-gray-600 w-28">
@@ -1582,9 +1604,37 @@ export function AddCampoModal({
                         >
                           <td className="px-2 py-1">{it.etiqueta}</td>
                           <td className="px-2 py-1 font-mono text-gray-700">
-                            {it.estado === "nuevo"
-                              ? it.codigoNuevo
-                              : it.estado === "reusa"
+                            {it.estado === "nuevo" ? (
+                              <div>
+                                <Input
+                                  value={bulkCodigosEditados[it.etiqueta.toLowerCase()] ?? it.codigoNuevo}
+                                  placeholder={it.codigoNuevo}
+                                  maxLength={50}
+                                  disabled={bulkPending}
+                                  onChange={(e) => {
+                                    // Mismo formato que los generados: sin tildes, mayúsculas,
+                                    // espacios → "_", sólo letras, números, "_" y "-".
+                                    const v = e.target.value
+                                      .normalize("NFD")
+                                      .replace(/[̀-ͯ]/g, "")
+                                      .toUpperCase()
+                                      .replace(/\s+/g, "_")
+                                      .replace(/[^A-Z0-9_-]/g, "")
+                                    const key = it.etiqueta.toLowerCase()
+                                    setBulkCodigosEditados((prev) => ({ ...prev, [key]: v }))
+                                  }}
+                                  className={cn(
+                                    "h-7 px-1.5 font-mono text-xs",
+                                    it.codigoTomado && "border-amber-400",
+                                  )}
+                                />
+                                {it.codigoTomado && (
+                                  <p className="mt-0.5 font-sans text-[10px] text-amber-700">
+                                    Ya existe: se le agregará un sufijo (_2, _3…).
+                                  </p>
+                                )}
+                              </div>
+                            ) : it.estado === "reusa"
                                 ? it.codigoExistente
                                 : "—"}
                           </td>

@@ -67,6 +67,8 @@ export interface CampoUsoPlanilla {
 
 export interface CampoCreateInput {
   codigo: string
+  /** El código lo propuso el sistema: si está tomado, el backend agrega un sufijo _2, _3… */
+  codigoAutomatico?: boolean
   etiqueta: string
   /** Etiqueta alternativa opcional (traducción/comentario). Se dibuja debajo del label en itálica. */
   etiquetaAlt?: string
