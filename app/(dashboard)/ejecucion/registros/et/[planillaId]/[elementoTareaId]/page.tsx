@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useRef, useState, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
@@ -15,9 +15,14 @@ import {
   type CargaFisicaSubmitParams,
 } from "@/features/registros/components/carga-fisica-uploader"
 import { useGetFirmasConfigEfectivaPorEt } from "@/features/elementos-tareas/api/use-get-firmas-config-efectiva"
+import { useGetPlanilla } from "@/features/planillas/api/use-get-planilla"
+import type { Planilla } from "@/features/planillas/types"
+import { useGetRegistroArchivos } from "@/features/registros/api/use-registro-archivos"
+import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
+import { useCanWrite } from "@/lib/use-roles"
 import { Button } from "@/components/ui/button"
 import {
-  CheckCircle2, Loader2, ArrowLeft, FileUp, FileText,
+  CheckCircle2, Loader2, ArrowLeft, FileUp, FileText, Paperclip, Upload, AlertTriangle,
 } from "lucide-react"
 
 // ─── Hook: obtener ElementoTarea por ID ───────────────────────────────────────
@@ -95,6 +100,39 @@ function CargarPdfContent() {
   const [mensajeError, setError]    = useState("")
   const [registroIdFinal, setRegistroIdFinal] = useState<string | null>(null)
   const [urlArchivo, setUrlArchivo] = useState<string | null>(null)
+  // Registro creado al iniciar la tarea desde esta página (por un adjunto o por la
+  // carga de la planilla) — evita depender del refetch de la ET para conocerlo.
+  const [registroIniciado, setRegistroIniciado] = useState<string | null>(null)
+  const canWrite = useCanWrite()
+
+  // Planilla: si es carátula, el respaldo de la tarea son los adjuntos — se piden
+  // primero y, si la planilla los exige, sin adjuntos no se puede subir la carátula.
+  const { data: planillaRaw } = useGetPlanilla(planillaIdEsperada)
+  const planilla = ((planillaRaw as { data?: Planilla } | undefined)?.data ?? planillaRaw) as Planilla | undefined
+  const esCaratula = planilla?.esCaratula ?? false
+  const exigeAdjuntos = planilla?.exigeDocumentacionAdjunta ?? false
+
+  const registroActualId = registroIniciado ?? tarea?.registroId ?? null
+  const { data: archivosRaw, isLoading: cargandoArchivos } = useGetRegistroArchivos(registroActualId)
+  const cantidadAdjuntos = (archivosRaw?.data ?? [])
+    .filter((a) => a.posicion > 0 && a.posicion < 999).length
+
+  // Crea el Registro de una tarea PENDIENTE. Devuelve el registroId o lanza con el
+  // mensaje del backend.
+  async function iniciarTarea(): Promise<string> {
+    const res = await fetch(`/api/elementos-tareas/${elementoTareaId}/iniciar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.message ?? "No se pudo iniciar la tarea.")
+    const id: string | null = json?.data?.registroId ?? json?.registroId ?? null
+    if (!id) throw new Error("No se encontró el registro asociado.")
+    setRegistroIniciado(id)
+    queryClient.invalidateQueries({ queryKey: ["elemento-tarea", elementoTareaId] })
+    return id
+  }
 
   // ── Handler que recibe el componente después de todos los gates ────────────
 
@@ -103,22 +141,18 @@ function CargarPdfContent() {
     setSubiendo("iniciando")
     setError("")
 
-    let registroId = tarea.registroId
+    let registroId = registroIniciado ?? tarea.registroId
 
-    // Si la tarea está PENDIENTE, primero iniciamos para crear el Registro.
-    if (tarea.estado === 1) {
-      const res = await fetch(`/api/elementos-tareas/${elementoTareaId}/iniciar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setError(json?.message ?? "No se pudo iniciar la tarea.")
+    // Si la tarea está PENDIENTE (y no se inició ya al adjuntar), primero iniciamos
+    // para crear el Registro.
+    if (tarea.estado === 1 && !registroIniciado) {
+      try {
+        registroId = await iniciarTarea()
+      } catch (e) {
+        setError((e as Error).message)
         setSubiendo("error")
         return
       }
-      registroId = json?.data?.registroId ?? json?.registroId ?? null
     }
 
     if (!registroId) {
@@ -250,6 +284,10 @@ function CargarPdfContent() {
           </div>
         </div>
 
+        {registroIdFinal && (
+          <RegistroAdjuntos registroId={registroIdFinal} permiteSubir={canWrite} />
+        )}
+
         {registroIdFinal && !preFirmado && <FirmaPanel registroId={registroIdFinal} />}
       </div>
     )
@@ -257,6 +295,17 @@ function CargarPdfContent() {
 
   const ocupado = subiendo === "iniciando" || subiendo === "subiendo"
   const submittingLabel = subiendo === "iniciando" ? "Iniciando tarea..." : "Subiendo archivo..."
+  // RECHAZADO: el registro no acepta adjuntos nuevos (el backend lo rechaza).
+  const adjuntosReadOnly = tarea.estado === 5 || !canWrite
+  const faltanAdjuntos = exigeAdjuntos && !cargandoArchivos && cantidadAdjuntos === 0
+
+  const bloqueAdjuntos = (
+    <DocumentacionAdjunta
+      registroId={registroActualId}
+      readOnly={adjuntosReadOnly}
+      onIniciar={iniciarTarea}
+    />
+  )
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
@@ -267,6 +316,41 @@ function CargarPdfContent() {
         detallesElemento={detallesElemento}
       />
 
+      {esCaratula ? (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600">
+            Esta planilla es una <span className="font-semibold">carátula</span>: la documentación
+            que respalda la tarea va adjunta. Subí primero los documentos y después la carátula
+            firmada.
+          </p>
+          {bloqueAdjuntos}
+        </div>
+      ) : (
+        <details className="rounded-xl border bg-white [&>summary::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer items-center gap-2 px-5 py-3 text-sm font-medium text-gray-700">
+            <Paperclip className="h-4 w-4" />
+            Adjuntar documentación
+            <span className="font-normal text-gray-400">(opcional)</span>
+            {cantidadAdjuntos > 0 && (
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
+                {cantidadAdjuntos} archivo{cantidadAdjuntos !== 1 ? "s" : ""}
+              </span>
+            )}
+          </summary>
+          <div className="border-t p-3">{bloqueAdjuntos}</div>
+        </details>
+      )}
+
+      {faltanAdjuntos && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Esta planilla exige al menos un archivo adjunto. Subí la documentación de respaldo
+            para habilitar la carga de la planilla.
+          </span>
+        </div>
+      )}
+
       <CargaFisicaUploader
         esperadoPlanillaId={planillaIdEsperada}
         esperadoElementoTareaId={elementoTareaIdEsperada}
@@ -275,6 +359,7 @@ function CargarPdfContent() {
         rechazarBajaResolucion={rechazarBajaResolucion}
         anchoMinimoImagen={anchoMinimoImagen}
         onSubmit={handleSubmit}
+        disabled={faltanAdjuntos}
         onArchivoElegido={() => {
           // Al elegir un archivo nuevo, limpiamos el error del intento anterior.
           if (mensajeError) setError("")
@@ -310,6 +395,96 @@ function CargarPdfContent() {
           <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{mensajeError}</p>
         )}
       </CargaFisicaUploader>
+    </div>
+  )
+}
+
+// ─── Adjuntos: si todavía no hay registro, el primer archivo inicia la tarea ──
+
+function DocumentacionAdjunta({
+  registroId,
+  readOnly,
+  onIniciar,
+}: {
+  registroId: string | null
+  readOnly: boolean
+  onIniciar: () => Promise<string>
+}) {
+  const queryClient = useQueryClient()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (registroId) {
+    return <RegistroAdjuntos registroId={registroId} permiteSubir={!readOnly} readOnly={readOnly} />
+  }
+
+  // Tarea PENDIENTE: no hay registro donde colgar el archivo. Al subir el primero se
+  // inicia la tarea (igual que al subir la planilla) y desde ahí se muestra el bloque normal.
+  async function subirPrimero(file: File) {
+    setError(null)
+    setSubiendo(true)
+    try {
+      const id = await onIniciar()
+      const fd = new FormData()
+      fd.append("archivo", file)
+      const res = await fetch(`/api/registros/${id}/archivos`, { method: "POST", body: fd })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.message ?? "Error al subir el archivo")
+      }
+      queryClient.invalidateQueries({ queryKey: ["registros", id, "archivos"] })
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border bg-white">
+      <div className="px-5 py-3 bg-gray-50 border-b">
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+          <Paperclip className="h-4 w-4" />
+          Archivos adjuntos
+        </h2>
+      </div>
+      <div className="p-4 space-y-3">
+        <p className="text-sm text-muted-foreground">
+          La tarea todavía no está iniciada. Al subir el primer archivo se inicia automáticamente.
+        </p>
+        {!readOnly && (
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp,image/gif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) subirPrimero(f)
+                if (inputRef.current) inputRef.current.value = ""
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => inputRef.current?.click()}
+                disabled={subiendo}
+              >
+                {subiendo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {subiendo ? "Subiendo..." : "Subir archivo"}
+              </Button>
+              <span className="text-[10px] text-muted-foreground">
+                PDF, imágenes, Word, Excel, CSV. Máximo 25 MB.
+              </span>
+            </div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+          </>
+        )}
+      </div>
     </div>
   )
 }
