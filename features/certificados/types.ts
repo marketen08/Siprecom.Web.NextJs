@@ -38,6 +38,9 @@ export interface CategoriaEstado {
   listoParaEmitir: boolean
   emitido: CertificadoEmitido | null
   noAplica: boolean
+  // Tareas del alcance del certificado terminadas pero con firmas pendientes
+  // (COMPLETADO). Bloquean solo si requiereFirmasActivo.
+  tareasSinFirmar: number
   // Gate por nivel (OPERCOM) — contadores de tareas del subsistema con el
   // mismo nivel que los packs. Con validarNivelActivo=false son informativos.
   tareasNivelTotal: number
@@ -69,6 +72,12 @@ export interface SubsistemaCertificadoEstado {
   validarNivelActivo: boolean
   validarPendientesAActivo: boolean
   validarPendientesBActivo: boolean
+  // No Conformidades abiertas que bloquean (tipo con "bloquea certificado"), atadas
+  // al subsistema directo o vía elemento. El gate exige flag + módulo de Calidad.
+  noConformidadesAbiertas: number
+  validarNoConformidadesActivo: boolean
+  // CERT_REQUIERE_FIRMAS (default ON): las tareas sin firmar bloquean la emisión.
+  requiereFirmasActivo: boolean
   // MC: si el flag CERT_RFC_REQUIERE_MC exige que el MC esté emitido antes
   // de habilitar el RFC. Si mcConfigurado = false y este flag está prendido,
   // el gate queda insatisfacible.
