@@ -3,9 +3,13 @@
 import { Suspense, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertTriangle, ArrowRight, BookText, Loader2, Sparkles } from "lucide-react"
+import { AlertTriangle, ArrowRight, BookText, Loader2, Printer, Sparkles } from "lucide-react"
 
-import { useSolicitarDatabook } from "@/features/databook/api/use-databook"
+import {
+  buildCaratulasPdfUrl,
+  useSolicitarDatabook,
+} from "@/features/databook/api/use-databook"
+import { downloadPdf } from "@/features/estadisticas/api/download-pdf"
 
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
@@ -39,6 +43,10 @@ function DatabookFormContent() {
   const [notificarEmail, setNotificarEmail] = useState(false)
   const [formError, setFormError]           = useState<string | null>(null)
   const [warningOpen, setWarningOpen]       = useState(false)
+  // Solo carátulas: para imprimir los separadores de la carpeta física.
+  const [soloCaratulas, setSoloCaratulas]   = useState(false)
+  const [incluirIndice, setIncluirIndice]   = useState(false)
+  const [descargando, setDescargando]       = useState(false)
 
   // Catálogos.
   const sistemas         = useGetSistemasSelect().data?.data ?? []
@@ -69,6 +77,13 @@ function DatabookFormContent() {
     e.preventDefault()
     setFormError(null)
 
+    // Las carátulas se descargan en el acto y son unas pocas páginas, así que no
+    // pasan por la cola ni por la advertencia de "esto puede pesar cientos de MB".
+    if (soloCaratulas) {
+      void descargarCaratulas()
+      return
+    }
+
     // SubSistema es opcional: null = todos los del proyecto. Pero si el user no
     // eligió ninguna restricción (ni subsistema ni nivel ni especialidad), le
     // avisamos via AlertDialog: el databook va a abarcar TODO el proyecto y
@@ -79,6 +94,25 @@ function DatabookFormContent() {
       return
     }
     void enviarSolicitud()
+  }
+
+  async function descargarCaratulas() {
+    setDescargando(true)
+    try {
+      await downloadPdf(
+        buildCaratulasPdfUrl({
+          subSistemaId:   subSistemaId   || null,
+          nivelId:        nivelId        || null,
+          especialidadId: especialidadId || null,
+          incluirIndice,
+        }),
+        "caratulas.pdf",
+      )
+    } catch (err) {
+      setFormError((err as Error).message)
+    } finally {
+      setDescargando(false)
+    }
   }
 
   async function enviarSolicitud() {
@@ -97,6 +131,7 @@ function DatabookFormContent() {
   }
 
   const subSel = todosSubsistemas.find((s) => s.id === subSistemaId)
+  const ocupado = solicitar.isPending || descargando
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -238,24 +273,76 @@ function DatabookFormContent() {
           </p>
         </div>
 
-        {/* Notificación por email */}
-        <div className="flex items-start gap-3 pt-2">
-          <input
-            id="notif"
-            type="checkbox"
-            checked={notificarEmail}
-            onChange={(e) => setNotificarEmail(e.target.checked)}
-            className="mt-0.5 h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-700 focus:ring-blue-700"
-          />
-          <div className="grid gap-1">
-            <Label htmlFor="notif" className="font-normal cursor-pointer">
-              Avisarme por email cuando esté listo
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Recibirás un correo con el link de descarga al terminar la generación.
-            </p>
+        {/* Solo carátulas — separadores para la carpeta física */}
+        <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50/60 p-4">
+          <div className="flex items-start gap-3">
+            <input
+              id="solo-caratulas"
+              type="checkbox"
+              checked={soloCaratulas}
+              onChange={(e) => {
+                setSoloCaratulas(e.target.checked)
+                // El índice es una opción de las carátulas: si se apaga el modo,
+                // no queda colgado un filtro que no se va a aplicar a nada.
+                if (!e.target.checked) setIncluirIndice(false)
+              }}
+              className="mt-0.5 h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-700 focus:ring-blue-700"
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="solo-caratulas" className="font-normal cursor-pointer">
+                Solo carátulas (para imprimir separadores)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Genera un PDF con la carátula del databook y una carátula por subsistema,
+                sin registros ni adjuntos. Se descarga al instante. Entran todos los
+                subsistemas del alcance, incluso los que todavía no tienen registros.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 pl-7">
+            <input
+              id="incluir-indice"
+              type="checkbox"
+              checked={incluirIndice}
+              disabled={!soloCaratulas}
+              onChange={(e) => setIncluirIndice(e.target.checked)}
+              className="mt-0.5 h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-700 focus:ring-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <div className="grid gap-1">
+              <Label
+                htmlFor="incluir-indice"
+                className={`font-normal ${soloCaratulas ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
+              >
+                Incluir el listado índice
+              </Label>
+              <p className={`text-xs text-muted-foreground ${soloCaratulas ? "" : "opacity-50"}`}>
+                Va entre la carátula del databook y el primer separador.
+              </p>
+            </div>
           </div>
         </div>
+
+        {/* Notificación por email — sin sentido en el modo carátulas: no hay espera. */}
+        {!soloCaratulas && (
+          <div className="flex items-start gap-3 pt-2">
+            <input
+              id="notif"
+              type="checkbox"
+              checked={notificarEmail}
+              onChange={(e) => setNotificarEmail(e.target.checked)}
+              className="mt-0.5 h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-700 focus:ring-blue-700"
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="notif" className="font-normal cursor-pointer">
+                Avisarme por email cuando esté listo
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Recibirás un correo con el link de descarga al terminar la generación.
+              </p>
+            </div>
+          </div>
+        )}
 
         {formError && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -266,13 +353,17 @@ function DatabookFormContent() {
         <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
           <Button
             type="submit"
-            disabled={solicitar.isPending}
+            disabled={ocupado}
             className="bg-blue-900 hover:bg-blue-800 gap-2"
           >
-            {solicitar.isPending
+            {ocupado
               ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Sparkles className="h-4 w-4" />}
-            {solicitar.isPending ? "Encolando..." : "Generar Databook"}
+              : soloCaratulas
+                ? <Printer className="h-4 w-4" />
+                : <Sparkles className="h-4 w-4" />}
+            {soloCaratulas
+              ? (descargando ? "Generando..." : "Descargar carátulas")
+              : (solicitar.isPending ? "Encolando..." : "Generar Databook")}
           </Button>
           <Link
             href="/reporte/databook/historial"
@@ -291,6 +382,11 @@ function DatabookFormContent() {
           <li>El PDF oficial firmado de cada registro completado.</li>
           <li>Adjuntos de cada registro (PDFs e imágenes en JPG/PNG/TIFF/BMP).</li>
         </ul>
+        <p className="pt-1 text-[13px] text-blue-800">
+          Con <strong>Solo carátulas</strong> salen únicamente las dos primeras —
+          la portada y los separadores por subsistema — para imprimirlas y armar
+          la carpeta.
+        </p>
       </div>
 
       {/* Confirmación para databooks "sin filtros" — todo el proyecto. */}
