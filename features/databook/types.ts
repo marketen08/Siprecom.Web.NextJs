@@ -26,6 +26,18 @@ export interface DatabookSolicitudResponse {
   estado: EstadoDatabookJobValue
 }
 
+/**
+ * Filtros del PDF de solo carátulas. Mismo alcance que un databook pero sin
+ * registros: se imprime para armar los separadores de la carpeta física.
+ */
+export interface DatabookCaratulasFiltros {
+  subSistemaId?: string | null
+  nivelId?: string | null
+  especialidadId?: string | null
+  /** Intercala el listado índice entre la portada y el primer separador. */
+  incluirIndice?: boolean
+}
+
 /** Estado de un job — usado para polling y listado. */
 export interface DatabookJob {
   id: string

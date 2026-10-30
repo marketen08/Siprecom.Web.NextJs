@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type {
+  DatabookCaratulasFiltros,
   DatabookDescargaResponse,
   DatabookJob,
   DatabookSolicitudInput,
@@ -23,6 +24,22 @@ export function useSolicitarDatabook() {
       qc.invalidateQueries({ queryKey: QK_LIST })
     },
   })
+}
+
+/**
+ * URL del PDF de solo carátulas con los filtros aplicados. Se pasa a
+ * `downloadPdf`: no hay job ni polling porque el backend lo devuelve en la
+ * misma request — las carátulas no bajan nada de blob storage.
+ */
+export function buildCaratulasPdfUrl(filtros: DatabookCaratulasFiltros): string {
+  const qs = new URLSearchParams()
+  if (filtros.subSistemaId)   qs.set("subSistemaId", filtros.subSistemaId)
+  if (filtros.nivelId)        qs.set("nivelId", filtros.nivelId)
+  if (filtros.especialidadId) qs.set("especialidadId", filtros.especialidadId)
+  if (filtros.incluirIndice)  qs.set("incluirIndice", "true")
+  return qs.toString()
+    ? `/api/databooks/caratulas?${qs.toString()}`
+    : "/api/databooks/caratulas"
 }
 
 /**
