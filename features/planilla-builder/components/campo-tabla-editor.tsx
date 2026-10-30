@@ -43,6 +43,9 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   // Estado local para edición inline del Grupo por columna: mantenemos un
   // draft para no dispararle un PUT por cada tecla. Committéa al blur.
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  // Igual para la Unidad.
+  const [newColumnaUnidad, setNewColumnaUnidad] = useState("")
+  const [draftsUnidad, setDraftsUnidad] = useState<Record<string, string>>({})
 
   const createColumna = useCreateTablaColumna()
   const updateColumna = useUpdateTablaColumna()
@@ -69,6 +72,7 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
         esColumnaEtiqueta: newColumnaEsEtiqueta,
         orden: columnas.reduce((m, c) => Math.max(m, c.orden), 0) + 1,
         grupo: newColumnaGrupo.trim() || null,
+        unidad: newColumnaEsEtiqueta ? null : newColumnaUnidad.trim() || null,
         // Mismo default que el backend: la columna de etiquetas arranca más ancha.
         ancho: newColumnaEsEtiqueta ? 3 : 2,
       },
@@ -77,6 +81,7 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
           setNewColumna("")
           setNewColumnaEsEtiqueta(false)
           setNewColumnaGrupo("")
+          setNewColumnaUnidad("")
         },
       }
     )
@@ -87,7 +92,7 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   // defaults del DTO. Este helper arma el payload completo y aplica el override.
   const commitColumna = (
     col: CampoTablaColumna,
-    overrides: Partial<Pick<CampoTablaColumna, "grupo" | "ancho" | "esColumnaEtiqueta">>,
+    overrides: Partial<Pick<CampoTablaColumna, "grupo" | "ancho" | "esColumnaEtiqueta" | "unidad">>,
     onDone?: () => void,
   ) => {
     updateColumna.mutate({
@@ -98,6 +103,7 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
       esColumnaEtiqueta: col.esColumnaEtiqueta,
       grupo: col.grupo ?? null,
       ancho: col.ancho,
+      unidad: col.unidad ?? null,
       ...overrides,
     }, { onSuccess: onDone })
   }
@@ -115,6 +121,16 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
     commitColumna(col, { grupo: nuevoGrupo }, () =>
       setDrafts((d) => { const c = { ...d }; delete c[col.id]; return c }),
     )
+  }
+
+  // Persiste la Unidad de una columna al blur, igual que el Grupo.
+  const commitUnidad = (col: CampoTablaColumna) => {
+    const draft = draftsUnidad[col.id]
+    if (draft === undefined) return
+    const nueva = draft.trim() || null
+    const limpiar = () => setDraftsUnidad((d) => { const c = { ...d }; delete c[col.id]; return c })
+    if ((col.unidad ?? null) === nueva) { limpiar(); return }
+    commitColumna(col, { unidad: nueva }, limpiar)
   }
 
   // Marca/desmarca la columna de etiquetas. El backend garantiza que sea única:
@@ -217,6 +233,22 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
                 disabled={updateColumna.isPending}
                 title="Header agrupador. Columnas consecutivas con el mismo grupo se dibujan bajo un encabezado extra."
               />
+              <Input
+                value={c.esColumnaEtiqueta ? "" : (draftsUnidad[c.id] ?? c.unidad ?? "")}
+                onChange={(e) => setDraftsUnidad((d) => ({ ...d, [c.id]: e.target.value }))}
+                onBlur={() => commitUnidad(c)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+                  if (e.key === "Escape") setDraftsUnidad((d) => { const cp = { ...d }; delete cp[c.id]; return cp })
+                }}
+                placeholder="unidad"
+                maxLength={20}
+                className="h-6 text-[11px] w-16 shrink-0"
+                disabled={updateColumna.isPending || c.esColumnaEtiqueta}
+                title={c.esColumnaEtiqueta
+                  ? "La columna de etiquetas no lleva unidad."
+                  : "Unidad opcional (ej: bar, °C, mm). Se muestra en gris en cada celda de la columna."}
+              />
               {/* Ancho: peso relativo + el % que representa hoy. El % es informativo
                   y se recalcula solo al agregar/quitar columnas — no hay total que
                   cuadrar a mano. */}
@@ -286,6 +318,16 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
               placeholder="grupo"
               className="h-7 text-[11px] w-24 shrink-0"
               title="Header agrupador (opcional). Columnas consecutivas con el mismo grupo se agrupan."
+              onKeyDown={(e) => { if (e.key === "Enter") handleAddColumna() }}
+            />
+            <Input
+              value={newColumnaEsEtiqueta ? "" : newColumnaUnidad}
+              onChange={(e) => setNewColumnaUnidad(e.target.value)}
+              placeholder="unidad"
+              maxLength={20}
+              disabled={newColumnaEsEtiqueta}
+              className="h-7 text-[11px] w-16 shrink-0"
+              title="Unidad opcional (ej: bar, °C, mm). Se muestra en cada celda de la columna."
               onKeyDown={(e) => { if (e.key === "Enter") handleAddColumna() }}
             />
             <label className="flex items-center gap-1 text-[10px] shrink-0 cursor-pointer" title="Primera columna read-only con etiquetas por fila (tabla matriz)">

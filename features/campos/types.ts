@@ -146,6 +146,8 @@ export interface CampoTablaColumnaCreateInput {
   grupo?: string | null
   /** Peso relativo del ancho (1..12). Default 2 si no se manda. */
   ancho?: number
+  /** Unidad opcional que se muestra en cada celda editable (máx 20). */
+  unidad?: string | null
 }
 
 export interface CampoTablaColumnaUpdateInput {
@@ -161,6 +163,8 @@ export interface CampoTablaColumnaUpdateInput {
    * que reenviarlo siempre o el backend lo vuelve al default.
    */
   ancho?: number
+  /** Unidad opcional (máx 20). Igual que el ancho: hay que reenviarla siempre. */
+  unidad?: string | null
 }
 
 export interface CampoTablaFilaCreateInput {

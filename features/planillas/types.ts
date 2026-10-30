@@ -205,6 +205,12 @@ export interface CampoTablaColumna {
    * (colspan). Null / vacío = columna sin agrupar. Ver docstring de la entity.
    */
   grupo?: string | null
+  /**
+   * Unidad opcional (ej: "bar", "°C"). Se muestra en gris al lado de cada celda
+   * editable, en el PDF y en la carga digital. No se guarda con el valor. No aplica
+   * a la columna de etiquetas.
+   */
+  unidad?: string | null
 }
 
 /** Fila predefinida de un campo Tabla matriz. Su presencia convierte la tabla en "matriz" (filas fijas). */

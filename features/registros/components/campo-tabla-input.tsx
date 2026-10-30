@@ -195,15 +195,23 @@ export function CampoTablaInput({
                     }
                     e += 1
                     const ci = e
+                    // Unidad de la columna (presentación): va en gris a la derecha de la
+                    // celda, igual que en el PDF. No forma parte del valor guardado.
+                    const unidad = (c.unidad ?? "").trim()
                     return (
                       <td key={c.id} className="border-b border-r last:border-r-0 p-0">
-                        <input
-                          type="text"
-                          value={row[ci] ?? ""}
-                          onChange={(ev) => setCell(ri, ci, ev.target.value)}
-                          disabled={readOnly}
-                          className="w-full px-2 py-1 bg-transparent outline-none focus:bg-blue-50 disabled:opacity-60"
-                        />
+                        <div className="flex items-center focus-within:bg-blue-50">
+                          <input
+                            type="text"
+                            value={row[ci] ?? ""}
+                            onChange={(ev) => setCell(ri, ci, ev.target.value)}
+                            disabled={readOnly}
+                            className="w-full min-w-0 px-2 py-1 bg-transparent outline-none disabled:opacity-60"
+                          />
+                          {unidad && (
+                            <span className="shrink-0 pr-2 text-xs text-muted-foreground">{unidad}</span>
+                          )}
+                        </div>
                       </td>
                     )
                   })}
