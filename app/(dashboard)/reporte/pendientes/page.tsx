@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, Loader2, Sheet } from "lucide-react"
 
 import {
+  buildListadoPendientesExcelUrl,
   buildListadoPendientesPdfUrl,
   useGetListadoPendientesPreview,
 } from "@/features/reportes/api/use-listado-pendientes"
-import { downloadPdf } from "@/features/estadisticas/api/download-pdf"
+import { downloadArchivo, downloadPdf } from "@/features/estadisticas/api/download-pdf"
 import type {
   ListadoPendientesFiltros,
   ListadoPendientesItem,
@@ -66,6 +67,7 @@ function PendientesContent() {
   const [soloAbiertos, setSoloAbiertos] = useState<boolean>(true)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [exportando, setExportando] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -193,6 +195,24 @@ function PendientesContent() {
     }
   }
 
+  // Punch list horizontal: las mismas filas que el PDF pero con las 28 columnas y
+  // los casilleros de firma en blanco. No reemplaza al PDF, es otra salida.
+  async function exportarExcel() {
+    setDownloadError(null)
+    setExportando(true)
+    try {
+      await downloadArchivo(
+        buildListadoPendientesExcelUrl(filtros),
+        "punch-list.xlsx",
+        "No se pudo generar el Excel.",
+      )
+    } catch (e) {
+      setDownloadError((e as Error).message)
+    } finally {
+      setExportando(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -200,11 +220,27 @@ function PendientesContent() {
           <h1 className="text-2xl font-bold text-gray-900">Listado de pendientes</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Pendientes detectados del proyecto, agrupados por <strong>Sistema → Subsistema</strong>.
-            Por defecto se muestran solo los abiertos. PDF vertical, A4.
+            Por defecto se muestran solo los abiertos. <strong>PDF</strong> vertical A4, o{" "}
+            <strong>Excel</strong> en formato punch list horizontal con las columnas de firma.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button onClick={descargar} disabled={downloading || isLoading} className="gap-2">
+          <Button
+            variant="outline"
+            onClick={exportarExcel}
+            disabled={exportando || downloading || isLoading}
+            className="gap-2"
+          >
+            {exportando
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Sheet className="h-4 w-4" />}
+            {exportando ? "Generando..." : "Exportar Excel"}
+          </Button>
+          <Button
+            onClick={descargar}
+            disabled={downloading || exportando || isLoading}
+            className="gap-2"
+          >
             {downloading
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <Download className="h-4 w-4" />}
