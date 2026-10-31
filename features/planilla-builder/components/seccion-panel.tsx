@@ -3,10 +3,14 @@
 import { useState } from "react"
 import { ArrowDown, ArrowUp, Plus, Pencil, Trash2, Check, X } from "lucide-react"
 
-import type { PlanillaSeccion } from "@/features/planillas/types"
+import type { PlanillaSeccion, PlanillaSeccionUpdateInput } from "@/features/planillas/types"
 import { useCreateSeccion } from "@/features/planillas/api/use-create-seccion"
 import { useUpdateSeccion } from "@/features/planillas/api/use-update-seccion"
 import { useDeleteSeccion } from "@/features/planillas/api/use-delete-seccion"
+import {
+  ErrorEscrituraCampo,
+  primerErrorDeMutaciones,
+} from "@/features/campos/components/error-escritura-campo"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +22,28 @@ interface SeccionPanelProps {
   secciones: PlanillaSeccion[]
   selectedSeccionId: string | null
   onSelect: (id: string | null) => void
+}
+
+/**
+ * Payload de update para una sección, con un `orden` nuevo.
+ *
+ * El DTO de update es full-replace: lo que no se manda se borra. Por eso arrastra
+ * nombreAlt/descripcion/mostrarTitulo aunque la acción solo mueva la sección de lugar.
+ */
+function payloadSeccion(
+  s: PlanillaSeccion,
+  planillaId: string,
+  orden: number,
+): PlanillaSeccionUpdateInput {
+  return {
+    id: s.id,
+    planillaId,
+    nombre: s.nombre,
+    nombreAlt: s.nombreAlt ?? null,
+    descripcion: s.descripcion,
+    orden,
+    mostrarTitulo: s.mostrarTitulo ?? true,
+  }
 }
 
 export function SeccionPanel({
@@ -35,13 +61,26 @@ export function SeccionPanel({
   const updateMutation = useUpdateSeccion()
   const deleteMutation = useDeleteSeccion()
 
+  // Las flechitas y el borrado se disparan sin await, así que sin esto un rechazo del
+  // backend quedaba invisible: la lista no se movía y no había forma de saber por qué.
+  const errorEscritura = primerErrorDeMutaciones(
+    updateMutation,
+    createMutation,
+    deleteMutation,
+  )
+
+  // El orden de la nueva sale del MÁXIMO existente, no de la cantidad: con una sección
+  // dada de baja (o con órdenes ya salteados) `length + 1` cae encima de un orden que
+  // ya existe, y un empate deja a las flechitas sin nada que intercambiar.
+  const siguienteOrden = secciones.reduce((m, s) => Math.max(m, s.orden), 0) + 1
+
   const handleAdd = () => {
     if (!newNombre.trim()) return
     createMutation.mutate(
       {
         planillaId,
         nombre: newNombre.trim(),
-        orden: secciones.length + 1,
+        orden: siguienteOrden,
       },
       {
         onSuccess: () => {
@@ -84,30 +123,31 @@ export function SeccionPanel({
     if (selectedSeccionId === seccion.id) onSelect(null)
   }
 
-  // Swap del orden de dos secciones (no hay índice unique sobre orden, así que es seguro).
-  // Update es full-replace, así que arrastramos nombreAlt/mostrarTitulo/descripcion para
-  // no perderlos.
-  const swapOrden = async (a: PlanillaSeccion, b: PlanillaSeccion) => {
-    const ordenA = a.orden
-    const ordenB = b.orden
-    await updateMutation.mutateAsync({
-      id: a.id,
-      planillaId,
-      nombre: a.nombre,
-      nombreAlt: a.nombreAlt ?? null,
-      descripcion: a.descripcion,
-      orden: ordenB,
-      mostrarTitulo: a.mostrarTitulo ?? true,
-    })
-    await updateMutation.mutateAsync({
-      id: b.id,
-      planillaId,
-      nombre: b.nombre,
-      nombreAlt: b.nombreAlt ?? null,
-      descripcion: b.descripcion,
-      orden: ordenA,
-      mostrarTitulo: b.mostrarTitulo ?? true,
-    })
+  // Mover arriba/abajo: se intercambia la POSICIÓN con la vecina y se renumera la lista
+  // entera (1..N). Mismo criterio que el de los campos en campo-card.
+  //
+  // Intercambiar solo los dos `orden` no alcanzaba: con órdenes repetidos —planillas
+  // importadas o generadas desde el sistema anterior, ej. "Cierre" y "Diagrama" las dos
+  // en orden 3— el swap escribía 3 sobre 3 y la lista quedaba igual, así que el botón
+  // "no respondía". Renumerar normaliza el empate en el primer movimiento.
+  //
+  // Solo se escriben las filas cuyo orden cambia, así que en una planilla ya bien
+  // numerada siguen siendo dos updates.
+  //
+  // El try/catch no es decorativo: el onClick llama a esto sin await, así que sin él un
+  // update fallido sale como unhandled rejection. El mensaje lo muestra el cartel de
+  // arriba, que lee `updateMutation.error`.
+  const mover = async (seccion: PlanillaSeccion, dir: -1 | 1) => {
+    const lista = [...secciones].sort((a, b) => a.orden - b.orden)
+    const i = lista.findIndex((s) => s.id === seccion.id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= lista.length) return
+    ;[lista[i], lista[j]] = [lista[j], lista[i]]
+    try {
+      for (const [idx, s] of lista.entries()) {
+        if (s.orden !== idx + 1) await updateMutation.mutateAsync(payloadSeccion(s, planillaId, idx + 1))
+      }
+    } catch { /* el cartel de error ya lo muestra */ }
   }
 
   // Lista ordenada para que las flechitas operen sobre vecinos consistentes (no por id).
@@ -126,6 +166,12 @@ export function SeccionPanel({
           <Plus className="h-4 w-4" />
         </Button>
       </div>
+
+      {errorEscritura && (
+        <div className="mb-2">
+          <ErrorEscrituraCampo error={errorEscritura} />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1 flex-1 overflow-y-auto">
         {/* Sin sección option */}
@@ -196,7 +242,7 @@ export function SeccionPanel({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={() => swapOrden(s, arr[idx - 1])}
+                    onClick={() => mover(s, -1)}
                     disabled={idx === 0 || updateMutation.isPending}
                     title="Mover arriba"
                   >
@@ -206,7 +252,7 @@ export function SeccionPanel({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={() => swapOrden(s, arr[idx + 1])}
+                    onClick={() => mover(s, 1)}
                     disabled={idx === arr.length - 1 || updateMutation.isPending}
                     title="Mover abajo"
                   >
