@@ -3,10 +3,23 @@
  * Content-Disposition con filename, se respeta; sino se usa el fallback. Hace el dance del
  * blob → object URL → link temporal → revoke para no leakear memoria.
  */
-export async function downloadPdf(url: string, fallbackFilename: string) {
+export function downloadPdf(url: string, fallbackFilename: string) {
+  return downloadArchivo(url, fallbackFilename, "No se pudo generar el PDF.")
+}
+
+/**
+ * Igual que `downloadPdf` pero para cualquier tipo de archivo — el único motivo de
+ * tenerlo aparte es el mensaje de error, que se muestra al usuario y decir "PDF"
+ * cuando bajó un Excel confunde.
+ */
+export async function downloadArchivo(
+  url: string,
+  fallbackFilename: string,
+  mensajeError = "No se pudo generar el archivo.",
+) {
   const res = await fetch(url)
   if (!res.ok) {
-    let msg = "No se pudo generar el PDF."
+    let msg = mensajeError
     try {
       const body = await res.json()
       if (typeof body?.message === "string") msg = body.message

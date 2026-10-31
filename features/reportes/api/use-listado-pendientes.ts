@@ -41,3 +41,16 @@ export function buildListadoPendientesPdfUrl(filtros: ListadoPendientesFiltros):
     ? `/api/reportes/listado-pendientes/pdf?${qs}`
     : "/api/reportes/listado-pendientes/pdf"
 }
+
+/**
+ * Punch list horizontal en .xlsx — 28 columnas agrupadas por etapa, con las de
+ * firma en blanco para completar sobre el papel. Mismos filtros que el PDF: es
+ * otra vista del mismo reporte, no otro reporte.
+ */
+export function buildListadoPendientesExcelUrl(filtros: ListadoPendientesFiltros): string {
+  const params = buildParams(filtros)
+  const qs = new URLSearchParams(params).toString()
+  return qs.length > 0
+    ? `/api/reportes/listado-pendientes/excel?${qs}`
+    : "/api/reportes/listado-pendientes/excel"
+}
