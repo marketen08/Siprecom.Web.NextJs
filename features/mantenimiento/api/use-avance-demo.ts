@@ -22,6 +22,14 @@ export interface DemoAvanceInspeccion {
   tieneEstructura: boolean
   registrosDemo: number
   pendientesDemo: number
+  /**
+   * Si el proyecto tiene fechas en SubSistemasNiveles. El generador las usa como ventana del
+   * avance; sin ellas cae a "los últimos 120 días contra hoy", que es un período inventado.
+   */
+  tieneProgramacion: boolean
+  ventanasProgramadas: number
+  programacionDesde: string | null
+  programacionHasta: string | null
 }
 
 export interface DemoAvanceJob {

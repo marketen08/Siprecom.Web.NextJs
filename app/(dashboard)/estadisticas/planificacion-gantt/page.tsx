@@ -8,7 +8,9 @@ import { useGetAvanceProyecto } from "@/features/avance/api/use-get-avance-proye
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { PlanificacionGantt } from "@/features/estadisticas/components/planificacion-gantt"
-import { calcularRango, estadoDeBarra, proyectoToGanttFilas } from "@/features/estadisticas/lib/gantt"
+import {
+  calcularRango, combosPlanificadosSinTareas, estadoDeBarra, proyectoToGanttFilas,
+} from "@/features/estadisticas/lib/gantt"
 
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -32,6 +34,10 @@ export default function PlanificacionGanttPage() {
   const [soloDesvios, setSoloDesvios] = useState(false)
 
   const filas = useMemo(() => proyectoToGanttFilas(proyectoData?.data), [proyectoData])
+  const sinTareas = useMemo(
+    () => combosPlanificadosSinTareas(proyectoData?.data),
+    [proyectoData],
+  )
 
   const filasFiltradas = useMemo(() => {
     let out = filas
@@ -55,6 +61,17 @@ export default function PlanificacionGanttPage() {
         estado (vencido, próximo, en curso, completo) y el % pintado es el avance real
         de las tareas de ese nivel.
       </p>
+
+      {sinTareas > 0 && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 max-w-4xl">
+          <strong>{sinTareas}</strong>{" "}
+          {sinTareas === 1 ? "combo subsistema × nivel tiene" : "combos subsistema × nivel tienen"}{" "}
+          fechas planificadas pero ninguna tarea, así que no{" "}
+          {sinTareas === 1 ? "se dibuja" : "se dibujan"} en el Gantt: sin trabajo que cumplir
+          la barra quedaría vacía para siempre y figuraría vencida al pasar su fecha. Puede ser
+          una ventana cargada de más, o tareas que todavía no se generaron.
+        </p>
+      )}
 
       {/* Filtros */}
       <div className="flex items-center gap-3 flex-wrap">
