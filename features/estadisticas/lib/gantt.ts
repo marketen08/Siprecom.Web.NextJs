@@ -22,8 +22,24 @@ export interface GanttFila {
   tareasTerminales: number
 }
 
-/** Aplana un AvanceProyectoDTO en la lista de filas para el Gantt. Solo incluye
- *  combos que tienen al menos una fecha planificada (sin fechas no aparecen en Y). */
+/**
+ * Aplana un AvanceProyectoDTO en la lista de filas para el Gantt.
+ *
+ * Se excluyen dos casos:
+ *
+ *  - Sin ninguna fecha planificada: no hay barra que dibujar.
+ *  - Sin una sola tarea (`totalTareas === 0`): el backend arma los niveles de cada
+ *    subsistema uniendo DOS fuentes —las ventanas de SubSistemaNivel y los conteos de
+ *    tareas reales (ver PoblarNivelesPorSubSistemaAsync)—, así que un combo con fechas
+ *    cargadas pero sin tareas de ese nivel llega igual. En el Gantt eso era una fila
+ *    permanentemente vacía: un nivel que el proyecto no recorre, ocupando lugar y, peor,
+ *    pintándose "vencido" en cuanto su FechaFin pasaba.
+ *
+ * El criterio del segundo filtro es el mismo que el de `proximaMeta` en
+ * features/avance/lib/niveles.ts: un nivel sin tareas no tiene trabajo que cumplir, así
+ * que no puede estar ni en curso ni vencido. Lo que se oculta no se pierde: las páginas
+ * lo informan con `combosPlanificadosSinTareas`.
+ */
 export function proyectoToGanttFilas(proyecto: AvanceProyectoDTO | undefined): GanttFila[] {
   if (!proyecto) return []
   const filas: GanttFila[] = []
@@ -31,6 +47,7 @@ export function proyectoToGanttFilas(proyecto: AvanceProyectoDTO | undefined): G
     for (const ss of s.subSistemas) {
       for (const n of ss.niveles ?? []) {
         if (!n.fechaInicio && !n.fechaFin) continue
+        if (n.totalTareas === 0) continue
         filas.push({
           sistemaId: s.id,
           sistemaCodigo: s.codigo,
@@ -52,6 +69,28 @@ export function proyectoToGanttFilas(proyecto: AvanceProyectoDTO | undefined): G
     }
   }
   return filas
+}
+
+/**
+ * Cuántos combos (subsistema × nivel) tienen fechas planificadas pero ninguna tarea.
+ *
+ * Son los que `proyectoToGanttFilas` saca del gráfico. Vale informarlos igual: puede ser
+ * una ventana cargada de más —un nivel que el subsistema no recorre— o trabajo planificado
+ * al que todavía no se le generaron las tareas, y las dos cosas son accionables. Sin este
+ * número, filtrarlos sería esconder el problema en vez de dejar de dibujarlo mal.
+ */
+export function combosPlanificadosSinTareas(proyecto: AvanceProyectoDTO | undefined): number {
+  if (!proyecto) return 0
+  let n = 0
+  for (const s of proyecto.sistemas) {
+    for (const ss of s.subSistemas) {
+      for (const niv of ss.niveles ?? []) {
+        if (!niv.fechaInicio && !niv.fechaFin) continue
+        if (niv.totalTareas === 0) n++
+      }
+    }
+  }
+  return n
 }
 
 /** Rango temporal que cubre todas las filas. Extiende un poco a ambos lados
@@ -219,12 +258,10 @@ export function filasToSkyline(
 /** Estado visual de una barra según su fecha fin, avance y "hoy". */
 export function estadoDeBarra(fila: GanttFila): EstadoBarra {
   if (fila.completado || fila.porcentajeAvance >= 100) return "completado"
-  // PENDIENTE: una fila con totalTareas === 0 cae acá abajo y, si su fechaFin ya
-  // pasó, se pinta "vencido" — el mismo falso atraso que se corrigió en la grilla
-  // de Ejecución (ver proximaMeta en features/avance/lib/niveles.ts). Acá no se
-  // arregló porque EstadoBarra no tiene un estado "sin tareas" y meterlo en
-  // "en_curso" o "futuro" sería otra media verdad: necesita su propio color y
-  // entrada de leyenda.
+  // No hace falta un caso "sin tareas" acá: `proyectoToGanttFilas` ya no emite filas con
+  // totalTareas === 0, que eran las que caían a este tramo y se pintaban "vencido" apenas
+  // pasaba su FechaFin sin tener una sola tarea que cumplir. Si algún día entra una fila
+  // por otra vía, el falso atraso vuelve — el filtro es la garantía, no este cálculo.
   const hoy = new Date()
   if (fila.fechaFin) {
     const fin = new Date(fila.fechaFin)
