@@ -9,7 +9,8 @@ import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-s
 import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { SkylineChart } from "@/features/estadisticas/components/skyline-chart"
 import {
-  calcularRango, estadoDeBarra, filasToSkyline, proyectoToGanttFilas,
+  calcularRango, combosPlanificadosSinTareas, estadoDeBarra, filasToSkyline,
+  proyectoToGanttFilas,
   type Granularidad,
 } from "@/features/estadisticas/lib/gantt"
 
@@ -35,6 +36,10 @@ export default function SkylinePage() {
   const [granularidad, setGranularidad] = useState<Granularidad>("mes")
 
   const filas = useMemo(() => proyectoToGanttFilas(proyectoData?.data), [proyectoData])
+  const sinTareas = useMemo(
+    () => combosPlanificadosSinTareas(proyectoData?.data),
+    [proyectoData],
+  )
 
   const filasFiltradas = useMemo(() => {
     let out = filas
@@ -70,6 +75,16 @@ export default function SkylinePage() {
         período, coloreados por su estado real (completo, en curso, próximo,
         vencido, futuro). Sirve para dimensionar recursos y ver picos de trabajo.
       </p>
+
+      {sinTareas > 0 && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 max-w-4xl">
+          <strong>{sinTareas}</strong>{" "}
+          {sinTareas === 1 ? "combo tiene" : "combos tienen"} fechas planificadas pero ninguna
+          tarea, así que no {sinTareas === 1 ? "se cuenta" : "se cuentan"} acá: sin trabajo que
+          cumplir inflarían las columnas y figurarían como vencidos al pasar su fecha. Puede ser
+          una ventana cargada de más, o tareas que todavía no se generaron.
+        </p>
+      )}
 
       {/* Filtros */}
       <div className="flex items-center gap-3 flex-wrap">
