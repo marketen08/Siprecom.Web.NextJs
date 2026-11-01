@@ -106,7 +106,17 @@ export default function AvanceDemoPage() {
             <Kpi label="Pendientes"           value={insp.pendientes} />
             <Kpi label="Registros [DEMO]"     value={insp.registrosDemo}     sub />
             <Kpi label="Pendientes [DEMO]"    value={insp.pendientesDemo}    sub />
+            <Kpi label="Ventanas programadas" value={insp.ventanasProgramadas} sub />
           </div>
+        )}
+
+        {insp?.tieneProgramacion && (
+          <p className="text-xs text-muted-foreground">
+            Programación del proyecto:{" "}
+            <strong>{fechaCorta(insp.programacionDesde)}</strong> a{" "}
+            <strong>{fechaCorta(insp.programacionHasta)}</strong>. El avance demo se genera
+            dentro de esas fechas.
+          </p>
         )}
       </Card>
 
@@ -116,7 +126,8 @@ export default function AvanceDemoPage() {
           <div>
             <h2 className="font-semibold text-gray-900">Generar avance demo</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Crea registros y pendientes para que el proyecto se vea con ~50% de avance.
+              Crea registros y pendientes. Cada subsistema avanza según cuánto de su ventana
+              programada ya transcurrió, así que el resultado queda alineado con la curva S.
             </p>
           </div>
           {insp && !insp.tieneAvance && insp.tieneEstructura && (
@@ -130,6 +141,13 @@ export default function AvanceDemoPage() {
           <Aviso variante="warning"
             titulo="Falta estructura"
             mensaje="El proyecto no tiene subsistemas o tareas. Cargá primero la estructura antes de poder generar avance."
+          />
+        )}
+
+        {insp && insp.tieneEstructura && !insp.tieneProgramacion && (
+          <Aviso variante="info"
+            titulo="El proyecto no tiene fechas de programación"
+            mensaje="Sin fechas en los subsistemas el avance no tiene dónde anclarse: se va a generar en los últimos 120 días contra hoy, que es un período inventado y no coincide con la curva S programada. Cargá la planificación si querés que el demo quede alineado."
           />
         )}
 
@@ -246,6 +264,15 @@ function Kpi({ label, value, sub }: { label: string; value: number; sub?: boolea
       </div>
     </div>
   )
+}
+
+/** Mismo formato que el resto de licenciamiento (ver concurrencia/page.tsx). */
+function fechaCorta(iso: string | null) {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  return isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
 function Aviso({ variante, titulo, mensaje }: {
