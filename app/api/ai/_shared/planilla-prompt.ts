@@ -40,6 +40,8 @@ Dos variantes:
 - **Matriz (filas fijas)**: usá esto cuando las filas están predefinidas (ej. lista específica de puntos, fases, tiempos). Devolvé:
   - "columnas": encabezados de las columnas. Marcá **una y solo una** columna con "esColumnaEtiqueta: true" — esa es la primera columna read-only con las etiquetas de fila precargadas. Ejemplo: [{"encabezado": "Punto", "esColumnaEtiqueta": true}, {"encabezado": "Valor esperado"}, {"encabezado": "Valor medido"}, {"encabezado": "Cumple"}].
   - "filas": array con la etiqueta de cada fila predefinida. Ejemplo: [{"etiquetaFila": "TC-01"}, {"etiquetaFila": "TC-02"}, ...].
+  - Una fila puede llevar "celdasPrecargadas": texto FIJO ya impreso en algunas celdas. Lleva una entrada por CADA columna, en el mismo orden que "columnas" e incluyendo la columna de etiqueta — la posición de la columna de etiqueta se ignora (ahí va "etiquetaFila"), así que poné null. null = celda vacía para completar a mano. Usalo sólo cuando el documento original muestra ese texto impreso dentro de la grilla, no para sugerir valores esperados. Ejemplo con 5 columnas donde la primera es la de etiqueta: {"etiquetaFila": "VSM", "celdasPrecargadas": [null, "SV", "ZSO", "ZSC", null]}.
+  - "etiquetaFila" puede ser "" para un renglón en blanco intercalado (espacio para escribir).
   - NO uses "numeroFilas" en matriz — se ignora.
 
 ### Header agrupador (opcional, "grupo" en cada columna)
@@ -188,7 +190,7 @@ Devolvé ÚNICAMENTE un JSON válido con esta estructura exacta:
           "opciones": ["string"],
           "campoIdExistente": "string o null",
           "columnas": [ { "encabezado": "string", "esColumnaEtiqueta": boolean, "grupo": "string o null" } ],
-          "filas": [ { "etiquetaFila": "string" } ],
+          "filas": [ { "etiquetaFila": "string", "celdasPrecargadas": ["string o null"] } ],
           "numeroFilas": number
         }
       ]

@@ -169,7 +169,10 @@ export interface CampoTablaColumnaUpdateInput {
 
 export interface CampoTablaFilaCreateInput {
   campoId: string
+  /** Puede ir vacío: una fila sin rótulo es un renglón en blanco. */
   etiquetaFila: string
+  /** Textos fijos por celda editable. Omitir o null = fila sin nada precargado. */
+  celdasPrecargadas?: (string | null)[] | null
   orden: number
 }
 
@@ -177,6 +180,7 @@ export interface CampoTablaFilaUpdateInput {
   id: string
   campoId: string
   etiquetaFila: string
+  celdasPrecargadas?: (string | null)[] | null
   orden: number
 }
 

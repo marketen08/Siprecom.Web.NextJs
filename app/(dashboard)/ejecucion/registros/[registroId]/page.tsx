@@ -19,7 +19,11 @@ import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
-import { CampoTablaInput, tablaTieneDatos } from "@/features/registros/components/campo-tabla-input"
+import {
+  CampoTablaInput,
+  tablaTieneAlgoPorCompletar,
+  tablaTieneDatos,
+} from "@/features/registros/components/campo-tabla-input"
 import { CampoCroquisInput } from "@/features/registros/components/campo-croquis-input"
 import { ProximoCicloDialog } from "@/features/preservacion/components/proximo-ciclo-dialog"
 import {
@@ -283,7 +287,12 @@ export default function RegistroFormPage({ params }: PageProps) {
     const newErrors: Record<string, boolean> = {}
     for (const c of camposObligatorios) {
       const val = valores[c.id] ?? c.valorDefault ?? ""
-      const vacio = c.campoTipoDato === 9 ? !tablaTieneDatos(val) : (val === "" || val == null)
+      // Una tabla sin ninguna celda libre no se puede completar: todo su contenido es texto
+      // fijo de la planilla. Exigirla dejaría el registro trabado sin nada que el operador
+      // pueda hacer, así que se la da por cumplida.
+      const vacio = c.campoTipoDato === 9
+        ? !tablaTieneDatos(val) && tablaTieneAlgoPorCompletar(c)
+        : (val === "" || val == null)
       if (vacio) newErrors[c.id] = true
     }
     setErrors(newErrors)
