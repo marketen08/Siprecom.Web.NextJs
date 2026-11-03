@@ -45,15 +45,17 @@ export function tablaTieneAlgoPorCompletar(campo: PlanillaCampoDetalle): boolean
   const filas = campo.filas ?? []
   if (filas.length === 0) return true
 
-  const editables = (campo.columnas ?? []).filter((c) => !c.esColumnaEtiqueta).length
-  if (editables === 0) return false
+  // Los textos fijos se indexan por POSICIÓN de columna (contando la de etiquetas), no por
+  // columna editable. Ver CampoTablaFila.CeldasPrecargadasJson en el backend.
+  const columnas = [...(campo.columnas ?? [])].sort((a, b) => a.orden - b.orden)
+  const editables = columnas.filter((c) => !c.esColumnaEtiqueta)
+  if (editables.length === 0) return false
 
   return filas.some((f) => {
     const pre = f.celdasPrecargadas ?? []
-    for (let i = 0; i < editables; i++) {
-      if ((pre[i] ?? "").trim() === "") return true
-    }
-    return false
+    return columnas.some(
+      (c, pos) => !c.esColumnaEtiqueta && (pre[pos] ?? "").trim() === ""
+    )
   })
 }
 
@@ -206,10 +208,13 @@ export function CampoTablaInput({
           </thead>
           <tbody>
             {rows.map((row, ri) => {
+              // `e` indexa los valores cargados (sólo columnas editables) y `pos` los textos
+              // fijos (todas las columnas). Son índices distintos a propósito: ver
+              // CampoTablaFila.CeldasPrecargadasJson en el backend.
               let e = -1
               return (
                 <tr key={ri}>
-                  {columnas.map((c) => {
+                  {columnas.map((c, pos) => {
                     if (c.esColumnaEtiqueta) {
                       return (
                         <td
@@ -225,7 +230,7 @@ export function CampoTablaInput({
                     // Texto fijo de la celda (sólo matriz): es definición de la planilla, así
                     // que se muestra igual que el rótulo de la fila —no editable— y gana sobre
                     // lo que hubiera en el valor guardado, igual que en el PDF.
-                    const precargado = (filasDef[ri]?.celdasPrecargadas?.[ci] ?? "").trim()
+                    const precargado = (filasDef[ri]?.celdasPrecargadas?.[pos] ?? "").trim()
                     if (precargado) {
                       return (
                         <td

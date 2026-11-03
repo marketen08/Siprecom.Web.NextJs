@@ -40,8 +40,9 @@ export interface CampoImportado {
   /**
    * Sólo para tipo Tabla (9) matriz. Filas predefinidas.
    * `etiquetaFila` puede ir vacía: es un renglón en blanco.
-   * `celdasPrecargadas` lleva texto fijo por celda, una entrada por columna editable y en
-   * ese orden; null o "" = celda para completar.
+   * `celdasPrecargadas` lleva texto fijo por celda, indexado por POSICIÓN de columna
+   * (todas, incluida la de etiqueta, cuya posición se ignora); null o "" = celda para
+   * completar.
    */
   filas?: Array<{ etiquetaFila: string; celdasPrecargadas?: (string | null)[] }>
   /**

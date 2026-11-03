@@ -170,15 +170,30 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   // Igual que commitColumna: el PUT reemplaza la fila entera, así que hay que reenviar
   // todo. Las celdas se mandan completas (una por columna editable) y el backend recorta
   // las vacías del final.
+  //
+  // Se arma desde los DRAFTS y no sólo desde lo que devolvió el server. Mientras un PUT está
+  // en vuelo, `fila` todavía trae los valores viejos: si el payload saliera de ahí, guardar la
+  // celda 2 mandaría la celda 1 con su valor anterior y el cambio recién hecho se perdería.
+  // Pasa seguido, porque pasar de una celda a la siguiente dispara un guardado por celda.
+  // El índice de celdasPrecargadas es la POSICIÓN de la columna, contando todas —incluida la
+  // de etiquetas, cuya posición queda sin usar—. Antes se indexaba por columna editable y
+  // destildar "columna de etiquetas" corría todos los textos un lugar a la izquierda.
   const commitFila = (
     fila: CampoTablaFila,
     overrides: { etiquetaFila?: string; celdasPrecargadas?: (string | null)[] },
   ) => {
+    const largo = Math.max(columnas.length, fila.celdasPrecargadas?.length ?? 0)
+    const celdas: (string | null)[] = []
+    for (let i = 0; i < largo; i++) {
+      const v = (draftsCelda[`${fila.id}:${i}`] ?? fila.celdasPrecargadas?.[i] ?? "").trim()
+      celdas.push(v || null)
+    }
+
     updateFila.mutate({
       id: fila.id,
       campoId: fila.campoId,
-      etiquetaFila: fila.etiquetaFila ?? "",
-      celdasPrecargadas: fila.celdasPrecargadas ?? null,
+      etiquetaFila: (draftsRotulo[fila.id] ?? fila.etiquetaFila ?? "").trim(),
+      celdasPrecargadas: celdas,
       orden: fila.orden,
       ...overrides,
     })
@@ -196,9 +211,15 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
     if (nuevo === (actuales[indice] ?? "")) return
     // Se rellena hasta `indice` para no dejar huecos indefinidos en el medio del array:
     // la posición es lo único que alinea cada texto con su columna.
+    const largo = Math.max(columnas.length, actuales.length, indice + 1)
     const siguientes: (string | null)[] = []
-    for (let i = 0; i < Math.max(actuales.length, indice + 1); i++) {
-      siguientes.push(i === indice ? (nuevo || null) : (actuales[i] ?? null))
+    for (let i = 0; i < largo; i++) {
+      if (i === indice) {
+        siguientes.push(nuevo || null)
+        continue
+      }
+      const v = (draftsCelda[`${fila.id}:${i}`] ?? actuales[i] ?? "").trim()
+      siguientes.push(v || null)
     }
     commitFila(fila, { celdasPrecargadas: siguientes })
   }
@@ -220,11 +241,6 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   }
 
   const esMatriz = filas.length > 0
-
-  // Las columnas editables son las que pueden llevar texto fijo: la de etiquetas ya muestra
-  // el rótulo de la fila. El índice dentro de este array ES la posición en celdasPrecargadas.
-  const columnasEditables = columnas.filter((c) => !c.esColumnaEtiqueta)
-  const columnaEtiqueta = columnas.find((c) => c.esColumnaEtiqueta)
 
   // Suma de pesos: es el denominador del % que mostramos al lado de cada columna.
   // Guardamos contra 0 (tabla recién creada) para no dividir por cero.
@@ -408,18 +424,21 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
       <div>
         <Label className="text-xs">Filas predefinidas (opcional — tabla matriz)</Label>
         <p className="text-[10px] text-muted-foreground">
-          El rótulo va en la columna de etiquetas. En las demás celdas podés dejar texto fijo
-          impreso (ej. SV, ZSO): esa celda sale escrita en el PDF y no se puede completar.
-          Vacía = celda para llenar. Una fila sin rótulo y sin textos es un renglón en blanco.
+          Un casillero por columna. En la columna de etiquetas va el rótulo de la fila; en las
+          demás podés dejar texto fijo impreso (ej. SV, ZSO): esa celda sale escrita en el PDF
+          y no se puede completar. Vacía = celda para llenar. Una fila sin nada es un renglón
+          en blanco.
         </p>
 
-        {/* Encabezado de la grilla: recuerda a qué columna corresponde cada input.
-            Sólo cuando hay columnas editables — si no, la fila es sólo su rótulo. */}
-        {columnasEditables.length > 0 && (
+        {/* Encabezado de la grilla: un input por columna, en el mismo orden que la tabla real,
+            para que se vea dónde va a caer cada texto. */}
+        {columnas.length > 0 && (
           <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-            <span className="flex-1 min-w-0">{columnaEtiqueta?.encabezado || "Rótulo"}</span>
-            {columnasEditables.map((c) => (
-              <span key={c.id} className="flex-1 min-w-0 truncate">{c.encabezado}</span>
+            {columnas.map((c) => (
+              <span key={c.id} className="flex-1 min-w-0 truncate">
+                {c.encabezado}
+                {c.esColumnaEtiqueta && " (rótulo)"}
+              </span>
             ))}
             {/* Reserva el ancho de los 3 botones de acción de cada fila. */}
             <span className="w-18 shrink-0" />
@@ -429,29 +448,47 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
         <div className="mt-1 space-y-1">
           {filas.map((f, i, arr) => (
             <div key={f.id} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
-              <Input
-                value={draftsRotulo[f.id] ?? f.etiquetaFila ?? ""}
-                onChange={(e) => setDraftsRotulo((d) => ({ ...d, [f.id]: e.target.value }))}
-                onBlur={(e) => commitRotulo(f, e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur()
-                  if (e.key === "Escape") {
-                    setDraftsRotulo((d) => { const n = { ...d }; delete n[f.id]; return n })
-                    e.currentTarget.blur()
-                  }
-                }}
-                placeholder="(en blanco)"
-                className="h-6 text-xs flex-1 min-w-0"
-                disabled={updateFila.isPending}
-              />
-              {columnasEditables.map((c, ci) => {
-                const clave = `${f.id}:${ci}`
+              {/* Sin columnas definidas todavía, la fila es sólo su rótulo. */}
+              {columnas.length === 0 && (
+                <Input
+                  value={draftsRotulo[f.id] ?? f.etiquetaFila ?? ""}
+                  onChange={(e) => setDraftsRotulo((d) => ({ ...d, [f.id]: e.target.value }))}
+                  onBlur={(e) => commitRotulo(f, e.target.value)}
+                  placeholder="(en blanco)"
+                  className="h-6 text-xs flex-1 min-w-0"
+                />
+              )}
+              {columnas.map((c, pos) => {
+                // La columna de etiquetas edita el RÓTULO de la fila; las demás, el texto
+                // fijo de esa posición. Un input por columna y en orden, así lo que se ve
+                // acá es lo que va a salir impreso.
+                if (c.esColumnaEtiqueta) {
+                  return (
+                    <Input
+                      key={c.id}
+                      value={draftsRotulo[f.id] ?? f.etiquetaFila ?? ""}
+                      onChange={(e) => setDraftsRotulo((d) => ({ ...d, [f.id]: e.target.value }))}
+                      onBlur={(e) => commitRotulo(f, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur()
+                        if (e.key === "Escape") {
+                          setDraftsRotulo((d) => { const n = { ...d }; delete n[f.id]; return n })
+                          e.currentTarget.blur()
+                        }
+                      }}
+                      placeholder="(en blanco)"
+                      title={`Rótulo de la fila, en la columna "${c.encabezado}".`}
+                      className="h-6 text-xs flex-1 min-w-0 font-medium"
+                    />
+                  )
+                }
+                const clave = `${f.id}:${pos}`
                 return (
                   <Input
                     key={c.id}
-                    value={draftsCelda[clave] ?? f.celdasPrecargadas?.[ci] ?? ""}
+                    value={draftsCelda[clave] ?? f.celdasPrecargadas?.[pos] ?? ""}
                     onChange={(e) => setDraftsCelda((d) => ({ ...d, [clave]: e.target.value }))}
-                    onBlur={(e) => commitCelda(f, ci, e.target.value)}
+                    onBlur={(e) => commitCelda(f, pos, e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") e.currentTarget.blur()
                       if (e.key === "Escape") {
@@ -462,7 +499,6 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
                     placeholder="—"
                     title={`Texto fijo en la columna "${c.encabezado}". Vacío = celda para completar.`}
                     className="h-6 text-xs flex-1 min-w-0"
-                    disabled={updateFila.isPending}
                   />
                 )
               })}
