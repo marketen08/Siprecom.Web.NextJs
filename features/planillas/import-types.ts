@@ -37,8 +37,13 @@ export interface CampoImportado {
      */
     grupo?: string
   }>
-  /** Sólo para tipo Tabla (9) matriz. Filas predefinidas con su etiqueta. */
-  filas?: Array<{ etiquetaFila: string }>
+  /**
+   * Sólo para tipo Tabla (9) matriz. Filas predefinidas.
+   * `etiquetaFila` puede ir vacía: es un renglón en blanco.
+   * `celdasPrecargadas` lleva texto fijo por celda, una entrada por columna editable y en
+   * ese orden; null o "" = celda para completar.
+   */
+  filas?: Array<{ etiquetaFila: string; celdasPrecargadas?: (string | null)[] }>
   /**
    * Sólo para tipo Tabla (9) dinámica. Número de filas vacías por defecto
    * al abrir la carga (rango 2-10). Ignorado si hay `filas` (matriz).

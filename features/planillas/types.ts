@@ -217,7 +217,14 @@ export interface CampoTablaColumna {
 export interface CampoTablaFila {
   id: string
   campoId: string
+  /** Rótulo de la fila. Vacío a propósito = renglón en blanco, para escribir entre filas rotuladas. */
   etiquetaFila: string
+  /**
+   * Texto fijo por celda, alineado a las columnas EDITABLES (la de etiquetas no cuenta).
+   * null / "" en una posición = celda para completar. Lista vacía = fila sin nada precargado.
+   * Es definición de la planilla: esas celdas se dibujan de solo lectura.
+   */
+  celdasPrecargadas?: (string | null)[]
   orden: number
 }
 

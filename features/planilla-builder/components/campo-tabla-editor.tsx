@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react"
 
-import type { CampoTablaColumna, PlanillaCampoDetalle } from "@/features/planillas/types"
+import type { CampoTablaColumna, CampoTablaFila, PlanillaCampoDetalle } from "@/features/planillas/types"
 import { useCreateTablaColumna } from "@/features/campos/api/use-create-tabla-columna"
 import { useDeleteTablaColumna } from "@/features/campos/api/use-delete-tabla-columna"
 import { useReorderTablaColumnas } from "@/features/campos/api/use-reorder-tabla-columnas"
 import { useUpdateTablaColumna } from "@/features/campos/api/use-update-tabla-columna"
 import { useCreateTablaFila } from "@/features/campos/api/use-create-tabla-fila"
+import { useUpdateTablaFila } from "@/features/campos/api/use-update-tabla-fila"
 import { useDeleteTablaFila } from "@/features/campos/api/use-delete-tabla-fila"
 import { useReorderTablaFilas } from "@/features/campos/api/use-reorder-tabla-filas"
 import {
@@ -46,12 +47,17 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   // Igual para la Unidad.
   const [newColumnaUnidad, setNewColumnaUnidad] = useState("")
   const [draftsUnidad, setDraftsUnidad] = useState<Record<string, string>>({})
+  // Y para la grilla de filas: el rótulo va por filaId, las celdas por "filaId:indice".
+  // Mismo motivo que arriba — sin draft, cada tecla sería un PUT.
+  const [draftsRotulo, setDraftsRotulo] = useState<Record<string, string>>({})
+  const [draftsCelda, setDraftsCelda] = useState<Record<string, string>>({})
 
   const createColumna = useCreateTablaColumna()
   const updateColumna = useUpdateTablaColumna()
   const deleteColumna = useDeleteTablaColumna()
   const reorderColumnas = useReorderTablaColumnas()
   const createFila = useCreateTablaFila()
+  const updateFila = useUpdateTablaFila()
   const deleteFila = useDeleteTablaFila()
   const reorderFilas = useReorderTablaFilas()
 
@@ -60,7 +66,7 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   // columna "se agregaba" en pantalla y desaparecía al refrescar.
   const errorEscritura = primerErrorDeMutaciones(
     createColumna, updateColumna, deleteColumna, reorderColumnas,
-    createFila, deleteFila, reorderFilas,
+    createFila, updateFila, deleteFila, reorderFilas,
   )
 
   const handleAddColumna = () => {
@@ -148,8 +154,9 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
     commitColumna(col, { ancho: clamped })
   }
 
+  // Sin guarda de "no vacío" a propósito: una fila sin rótulo es un renglón en blanco,
+  // que es como se deja espacio para escribir entre filas rotuladas.
   const handleAddFila = () => {
-    if (!newFila.trim()) return
     createFila.mutate(
       {
         campoId: campo.campoId,
@@ -158,6 +165,42 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
       },
       { onSuccess: () => setNewFila("") }
     )
+  }
+
+  // Igual que commitColumna: el PUT reemplaza la fila entera, así que hay que reenviar
+  // todo. Las celdas se mandan completas (una por columna editable) y el backend recorta
+  // las vacías del final.
+  const commitFila = (
+    fila: CampoTablaFila,
+    overrides: { etiquetaFila?: string; celdasPrecargadas?: (string | null)[] },
+  ) => {
+    updateFila.mutate({
+      id: fila.id,
+      campoId: fila.campoId,
+      etiquetaFila: fila.etiquetaFila ?? "",
+      celdasPrecargadas: fila.celdasPrecargadas ?? null,
+      orden: fila.orden,
+      ...overrides,
+    })
+  }
+
+  const commitRotulo = (fila: CampoTablaFila, valor: string) => {
+    const nuevo = valor.trim()
+    if (nuevo === (fila.etiquetaFila ?? "")) return
+    commitFila(fila, { etiquetaFila: nuevo })
+  }
+
+  const commitCelda = (fila: CampoTablaFila, indice: number, valor: string) => {
+    const nuevo = valor.trim()
+    const actuales = fila.celdasPrecargadas ?? []
+    if (nuevo === (actuales[indice] ?? "")) return
+    // Se rellena hasta `indice` para no dejar huecos indefinidos en el medio del array:
+    // la posición es lo único que alinea cada texto con su columna.
+    const siguientes: (string | null)[] = []
+    for (let i = 0; i < Math.max(actuales.length, indice + 1); i++) {
+      siguientes.push(i === indice ? (nuevo || null) : (actuales[i] ?? null))
+    }
+    commitFila(fila, { celdasPrecargadas: siguientes })
   }
 
   const swapColumna = (i: number, dir: -1 | 1) => {
@@ -177,6 +220,11 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
   }
 
   const esMatriz = filas.length > 0
+
+  // Las columnas editables son las que pueden llevar texto fijo: la de etiquetas ya muestra
+  // el rótulo de la fila. El índice dentro de este array ES la posición en celdasPrecargadas.
+  const columnasEditables = columnas.filter((c) => !c.esColumnaEtiqueta)
+  const columnaEtiqueta = columnas.find((c) => c.esColumnaEtiqueta)
 
   // Suma de pesos: es el denominador del % que mostramos al lado de cada columna.
   // Guardamos contra 0 (tabla recién creada) para no dividir por cero.
@@ -359,10 +407,65 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
       {/* Filas predefinidas (matriz) */}
       <div>
         <Label className="text-xs">Filas predefinidas (opcional — tabla matriz)</Label>
+        <p className="text-[10px] text-muted-foreground">
+          El rótulo va en la columna de etiquetas. En las demás celdas podés dejar texto fijo
+          impreso (ej. SV, ZSO): esa celda sale escrita en el PDF y no se puede completar.
+          Vacía = celda para llenar. Una fila sin rótulo y sin textos es un renglón en blanco.
+        </p>
+
+        {/* Encabezado de la grilla: recuerda a qué columna corresponde cada input.
+            Sólo cuando hay columnas editables — si no, la fila es sólo su rótulo. */}
+        {columnasEditables.length > 0 && (
+          <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+            <span className="flex-1 min-w-0">{columnaEtiqueta?.encabezado || "Rótulo"}</span>
+            {columnasEditables.map((c) => (
+              <span key={c.id} className="flex-1 min-w-0 truncate">{c.encabezado}</span>
+            ))}
+            {/* Reserva el ancho de los 3 botones de acción de cada fila. */}
+            <span className="w-18 shrink-0" />
+          </div>
+        )}
+
         <div className="mt-1 space-y-1">
           {filas.map((f, i, arr) => (
             <div key={f.id} className="flex items-center gap-1.5 text-xs bg-white border rounded px-2 py-1">
-              <span className="flex-1">{f.etiquetaFila}</span>
+              <Input
+                value={draftsRotulo[f.id] ?? f.etiquetaFila ?? ""}
+                onChange={(e) => setDraftsRotulo((d) => ({ ...d, [f.id]: e.target.value }))}
+                onBlur={(e) => commitRotulo(f, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur()
+                  if (e.key === "Escape") {
+                    setDraftsRotulo((d) => { const n = { ...d }; delete n[f.id]; return n })
+                    e.currentTarget.blur()
+                  }
+                }}
+                placeholder="(en blanco)"
+                className="h-6 text-xs flex-1 min-w-0"
+                disabled={updateFila.isPending}
+              />
+              {columnasEditables.map((c, ci) => {
+                const clave = `${f.id}:${ci}`
+                return (
+                  <Input
+                    key={c.id}
+                    value={draftsCelda[clave] ?? f.celdasPrecargadas?.[ci] ?? ""}
+                    onChange={(e) => setDraftsCelda((d) => ({ ...d, [clave]: e.target.value }))}
+                    onBlur={(e) => commitCelda(f, ci, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur()
+                      if (e.key === "Escape") {
+                        setDraftsCelda((d) => { const n = { ...d }; delete n[clave]; return n })
+                        e.currentTarget.blur()
+                      }
+                    }}
+                    placeholder="—"
+                    title={`Texto fijo en la columna "${c.encabezado}". Vacío = celda para completar.`}
+                    className="h-6 text-xs flex-1 min-w-0"
+                    disabled={updateFila.isPending}
+                  />
+                )
+              })}
               <Button
                 variant="ghost"
                 size="icon"
@@ -399,7 +502,7 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
             <Input
               value={newFila}
               onChange={(e) => setNewFila(e.target.value)}
-              placeholder="etiqueta de fila (ej: TEMP. COJINETE 1)"
+              placeholder="rótulo de la fila (ej: TEMP. COJINETE 1) — vacío = renglón en blanco"
               className="h-7 text-xs flex-1"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAddFila()
@@ -419,8 +522,8 @@ export function CampoTablaEditor({ campo }: CampoTablaEditorProps) {
 
           <p className="text-[10px] text-muted-foreground">
             {esMatriz
-              ? "Tabla matriz: filas fijas con etiqueta precargada. El operador solo completa las celdas."
-              : "Sin filas predefinidas = tabla dinámica: el operador agrega filas al completar (2 a 10)."}
+              ? "Tabla matriz: filas fijas. El operador completa las celdas que no tengan texto fijo."
+              : "Sin filas predefinidas = tabla dinámica: el operador agrega filas al completar (2 a 10). El texto fijo por celda sólo existe en las matriz."}
           </p>
         </div>
       </div>
