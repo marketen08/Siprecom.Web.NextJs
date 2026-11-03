@@ -387,6 +387,7 @@ export function GenerarConIASheet({ open, onClose }: Props) {
                 await apiClient.post(`/api/campos/${campoId}/tabla/filas`, {
                   campoId,
                   etiquetaFila: fila.etiquetaFila,
+                  celdasPrecargadas: fila.celdasPrecargadas ?? null,
                   orden: fi + 1,
                 })
               }

@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { useRef } from "react"
+import { tipoAdmiteObligatorio } from "@/features/campos/lib/obligatorio"
 import { useGetCamposSelect } from "@/features/campos/api/use-get-campos-select"
 import { useCreateCampo } from "@/features/campos/api/use-create-campo"
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
@@ -144,7 +145,9 @@ export function AddCampoModal({
   })
   // Obligatoriedad del campo en ESTA planilla. En "Existente" se precarga del
   // EsObligatorioDefault del campo; en "Nuevo" además se guarda como default del campo.
-  const [esObligatorio, setEsObligatorio] = useState(false)
+  // Arranca en true: la mayoría de los campos de una planilla son datos que hay que
+  // completar. Los display-only lo apagan solos — ver el efecto más abajo.
+  const [esObligatorio, setEsObligatorio] = useState(true)
   // Auto-derivar `codigo` desde `etiqueta` mientras el user no toque el input
   // del código. En el tab "Nuevo" arrancamos siempre limpio (no hay defaultValues).
   const [codigoSucio, setCodigoSucio] = useState(false)
@@ -217,7 +220,7 @@ export function AddCampoModal({
     setOpcionesManualOrder(false)
     setImagenUrl(undefined)
     setLabelStyle({ negrita: false, conBorde: false, fondoGris: false, alineacion: 0, sinPadding: false, sinMargen: false })
-    setEsObligatorio(false)
+    setEsObligatorio(true)
     setCodigoSucio(false)
     setBulkTipo(11)
     setBulkEtiquetas("")
@@ -235,6 +238,20 @@ export function AddCampoModal({
   const tipoDatoFormulario = form.watch("tipoDato") as CampoTipoDato
   // Tanto Lista (5) como Checklist (11) tienen opciones. Los usamos como "familia"
   // para decidir cuándo mostrar el editor de opciones y el sub-selector de render.
+  // El tipo que está en juego depende de la tab: el del campo elegido, el del formulario
+  // o el del alta masiva. El checkbox de obligatorio es uno solo para las tres.
+  const tipoEnJuego =
+    tab === "existing" ? selectedCampoExistente?.tipoDato
+    : tab === "bulk"   ? bulkTipo
+    :                    tipoDatoFormulario
+  const admiteObligatorio = tipoAdmiteObligatorio(tipoEnJuego)
+
+  // Apagarlo y no sólo esconderlo: viene en true por defecto, y un Label guardado como
+  // obligatorio deja a los registros de esa planilla sin poder completarse nunca.
+  useEffect(() => {
+    if (!admiteObligatorio && esObligatorio) setEsObligatorio(false)
+  }, [admiteObligatorio, esObligatorio])
+
   const isListaExistente = selectedCampoExistente?.tipoDato === 5 || selectedCampoExistente?.tipoDato === 11
   const isChecklistExistente = selectedCampoExistente?.tipoDato === 11
   const isTextoAreaExistente = selectedCampoExistente?.tipoDato === 12
@@ -732,15 +749,17 @@ export function AddCampoModal({
           {/* Obligatorio (compartido entre las tres tabs). En "Nuevo"/"Bulk" se
               guarda además como default del campo; en "Existente" se precarga
               de ese default. */}
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={esObligatorio}
-              onChange={(e) => setEsObligatorio(e.target.checked)}
-              className="h-4 w-4 cursor-pointer"
-            />
-            Campo obligatorio
-          </label>
+          {admiteObligatorio && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={esObligatorio}
+                onChange={(e) => setEsObligatorio(e.target.checked)}
+                className="h-4 w-4 cursor-pointer"
+              />
+              Campo obligatorio
+            </label>
+          )}
 
           {tab === "existing" ? (
             <div className="space-y-3">

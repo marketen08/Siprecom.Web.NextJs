@@ -8,6 +8,7 @@ import { ImageIcon } from "lucide-react"
 import { campoSchema, type CampoFormValues } from "../schema"
 import type { Campo } from "../types"
 import { slugifyCodigoCampo } from "../lib/slugify-codigo"
+import { obligatorioPorDefecto, tipoAdmiteObligatorio } from "../lib/obligatorio"
 import {
   applyServerErrorsToForm,
   CAMPO_FIELD_MAP,
@@ -88,13 +89,25 @@ export function CampoForm({
       unidad: defaultValues?.unidad ?? "",
       descripcion: defaultValues?.descripcion ?? "",
       imagenUrl: defaultValues?.imagenUrl ?? "",
-      esObligatorioDefault: defaultValues?.esObligatorioDefault ?? false,
+      // Sólo cae al default al CREAR: editando un campo, `??` respeta el false guardado.
+      esObligatorioDefault:
+        defaultValues?.esObligatorioDefault ?? obligatorioPorDefecto(defaultValues?.tipoDato ?? 1),
     },
   })
 
   const tipoDato = form.watch("tipoDato")
   const imagenUrl = form.watch("imagenUrl")
   const isImagen = tipoDato === 8
+  const admiteObligatorio = tipoAdmiteObligatorio(tipoDato)
+
+  // Pasar a un tipo display-only tiene que apagar el flag, no sólo esconder el checkbox:
+  // si quedara en true —viene así por defecto— el campo se guardaría como obligatorio sin
+  // que nadie lo vea, y ningún registro de esa planilla podría completarse.
+  useEffect(() => {
+    if (!admiteObligatorio && form.getValues("esObligatorioDefault")) {
+      form.setValue("esObligatorioDefault", false)
+    }
+  }, [admiteObligatorio, form])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadMutation = useUploadImagenCampo()
 
@@ -416,26 +429,29 @@ export function CampoForm({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="esObligatorioDefault"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center gap-2 space-y-0">
-              <FormControl>
-                <input
-                  type="checkbox"
-                  checked={!!field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                  disabled={isPending}
-                  className="h-4 w-4 cursor-pointer"
-                />
-              </FormControl>
-              <FormLabel className="mt-0! cursor-pointer font-normal">
-                Obligatorio por defecto
-              </FormLabel>
-            </FormItem>
-          )}
-        />
+        {/* Los display-only no pueden exigirse: ver tipoAdmiteObligatorio. */}
+        {admiteObligatorio && (
+          <FormField
+            control={form.control}
+            name="esObligatorioDefault"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                <FormControl>
+                  <input
+                    type="checkbox"
+                    checked={!!field.value}
+                    onChange={(e) => field.onChange(e.target.checked)}
+                    disabled={isPending}
+                    className="h-4 w-4 cursor-pointer"
+                  />
+                </FormControl>
+                <FormLabel className="mt-0! cursor-pointer font-normal">
+                  Obligatorio por defecto
+                </FormLabel>
+              </FormItem>
+            )}
+          />
+        )}
 
         {isImagen && (
           <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50/40 p-3">

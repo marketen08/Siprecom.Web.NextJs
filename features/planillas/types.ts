@@ -217,7 +217,17 @@ export interface CampoTablaColumna {
 export interface CampoTablaFila {
   id: string
   campoId: string
+  /** Rótulo de la fila. Vacío a propósito = renglón en blanco, para escribir entre filas rotuladas. */
   etiquetaFila: string
+  /**
+   * Texto fijo por celda, indexado por POSICIÓN de columna — todas las columnas, incluida la
+   * de etiquetas, cuya posición queda sin usar. OJO: NO es el mismo índice que el ValorJson
+   * del registro, que cuenta sólo las editables. Si fueran el mismo, destildar "columna de
+   * etiquetas" correría todos los textos un lugar.
+   * null / "" en una posición = celda para completar. Lista vacía = fila sin nada precargado.
+   * Es definición de la planilla: esas celdas se dibujan de solo lectura.
+   */
+  celdasPrecargadas?: (string | null)[]
   orden: number
 }
 

@@ -31,6 +31,35 @@ export function tablaTieneDatos(value: string | null | undefined): boolean {
 }
 
 /**
+ * True si queda al menos una celda que el operador pueda llenar.
+ *
+ * Una tabla matriz cuyas celdas están TODAS precargadas no tiene nada para completar: el
+ * texto fijo es parte de la planilla, no un valor que se cargue. Si además estuviera marcada
+ * como obligatoria, el registro quedaría trabado para siempre pidiendo un valor que el
+ * formulario no tiene dónde escribir — la misma trampa que ya pasó con los campos Label.
+ *
+ * Una tabla dinámica siempre tiene algo para completar: no hay filas definidas donde colgar
+ * textos fijos.
+ */
+export function tablaTieneAlgoPorCompletar(campo: PlanillaCampoDetalle): boolean {
+  const filas = campo.filas ?? []
+  if (filas.length === 0) return true
+
+  // Los textos fijos se indexan por POSICIÓN de columna (contando la de etiquetas), no por
+  // columna editable. Ver CampoTablaFila.CeldasPrecargadasJson en el backend.
+  const columnas = [...(campo.columnas ?? [])].sort((a, b) => a.orden - b.orden)
+  const editables = columnas.filter((c) => !c.esColumnaEtiqueta)
+  if (editables.length === 0) return false
+
+  return filas.some((f) => {
+    const pre = f.celdasPrecargadas ?? []
+    return columnas.some(
+      (c, pos) => !c.esColumnaEtiqueta && (pre[pos] ?? "").trim() === ""
+    )
+  })
+}
+
+/**
  * Input de un campo Tabla (tipoDato === 9) en el formulario de carga digital.
  * - Matriz (con filas predefinidas): filas fijas; la 1ª columna muestra la etiqueta read-only.
  * - Dinámica (sin filas): el operador agrega/quita filas (2 a 10).
@@ -179,10 +208,13 @@ export function CampoTablaInput({
           </thead>
           <tbody>
             {rows.map((row, ri) => {
+              // `e` indexa los valores cargados (sólo columnas editables) y `pos` los textos
+              // fijos (todas las columnas). Son índices distintos a propósito: ver
+              // CampoTablaFila.CeldasPrecargadasJson en el backend.
               let e = -1
               return (
                 <tr key={ri}>
-                  {columnas.map((c) => {
+                  {columnas.map((c, pos) => {
                     if (c.esColumnaEtiqueta) {
                       return (
                         <td
@@ -195,6 +227,20 @@ export function CampoTablaInput({
                     }
                     e += 1
                     const ci = e
+                    // Texto fijo de la celda (sólo matriz): es definición de la planilla, así
+                    // que se muestra igual que el rótulo de la fila —no editable— y gana sobre
+                    // lo que hubiera en el valor guardado, igual que en el PDF.
+                    const precargado = (filasDef[ri]?.celdasPrecargadas?.[pos] ?? "").trim()
+                    if (precargado) {
+                      return (
+                        <td
+                          key={c.id}
+                          className="border-b border-r last:border-r-0 px-2 py-1 text-center text-gray-700 bg-gray-50/50 truncate"
+                        >
+                          {precargado}
+                        </td>
+                      )
+                    }
                     // Unidad de la columna (presentación): va en gris a la derecha de la
                     // celda, igual que en el PDF. No forma parte del valor guardado.
                     const unidad = (c.unidad ?? "").trim()
