@@ -629,6 +629,32 @@ export function buildTareaMenuItems({
     (tarea.estado === 3 || tarea.estado === 5 || tarea.estado === 7)
   if (puedeDescargarPdfDigital) digitales.push(descargarRegistroPdf)
 
+  // La planilla en blanco pertenece al camino físico: es el papel que se imprime,
+  // se llena a mano y se vuelve a subir, así que acompaña a "Cargar registro" en
+  // vez de colgar sola al final del menú. Va última del grupo porque es material
+  // de apoyo, no la acción principal.
+  //
+  // Y deja de tener sentido cuando el trabajo ya está hecho: se oculta en
+  // COMPLETADO (3), APROBADO (4) y FIRMADO (7). En RECHAZADO (5) vuelve a
+  // aparecer, porque esa tarea se rehace y puede volver a hacerse en papel.
+  //
+  // Esto no habilita títulos nuevos: en todos los estados donde la planilla
+  // aparece, el grupo físico ya tenía "Cargar registro" bajo la misma condición
+  // (`planillaId && permitirFisico`), así que `hayTitulos` no cambia de valor.
+  const tareaTerminada = tarea.estado === 3 || tarea.estado === 4 || tarea.estado === 7
+  if (tarea.planillaId && permitirFisico && !tareaTerminada) {
+    // Una sola entrada para la planilla en blanco. Antes había también
+    // "Descargar planilla PDF": el mismo archivo por otro camino, porque el
+    // visor del navegador ya tiene su botón de descarga.
+    const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
+    fisicos.push({
+      kind: "item",
+      label: "Ver planilla PDF",
+      icon: Eye,
+      onSelect: () => window.open(urlPreview, "_blank", "noreferrer"),
+    })
+  }
+
   // Los títulos solo cuando hay realmente una elección que explicar: los dos
   // caminos habilitados en el proyecto Y los dos con acciones en este estado.
   // Con un solo camino disponible, el título no distingue nada y es ruido.
@@ -639,7 +665,8 @@ export function buildTareaMenuItems({
     items.push({ kind: "separator" })
     items.push({ kind: "label", label: "Completamiento físico" }, ...fisicos)
     // Cierra el último grupo: sin este separador, los ítems que vienen después
-    // (adjuntar, planilla, firmas) caerían adentro del grupo "físico" al agrupar.
+    // (adjuntar, adjuntos, procedimiento, firmas) caerían adentro del grupo
+    // "físico" al agrupar.
     items.push({ kind: "separator" })
   } else {
     items.push(...digitales, ...fisicos)
@@ -671,29 +698,22 @@ export function buildTareaMenuItems({
     })
   }
 
-  const puedeDescargarPlanilla = !!tarea.planillaId && permitirFisico
+  // El procedimiento queda afuera de los grupos a propósito: es documentación de
+  // referencia que sirve igual para los dos caminos y después de terminada la
+  // tarea, al revés de la planilla en blanco.
   const puedeDescargarProcedimiento =
     permitirDescargarProcedimientos
     && !!tarea.procedimientoId
     && tarea.procedimientoTieneArchivo
-  if (puedeDescargarPlanilla || puedeDescargarProcedimiento) {
+  if (puedeDescargarProcedimiento) {
     if (items.length > 0) items.push({ kind: "separator" })
-    if (puedeDescargarPlanilla) {
-      // Una sola entrada para la planilla en blanco. Antes había también
-      // "Descargar planilla PDF": el mismo archivo por otro camino, porque el
-      // visor del navegador ya tiene su botón de descarga.
-      const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
-      items.push({ kind: "item", label: "Ver planilla PDF", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
-    }
-    if (puedeDescargarProcedimiento) {
-      items.push({
-        kind: "item",
-        label: "Ver procedimiento",
-        icon: BookOpen,
-        onSelect: onDescargarProcedimiento,
-        disabled: descargandoProcedimientoPending,
-      })
-    }
+    items.push({
+      kind: "item",
+      label: "Ver procedimiento",
+      icon: BookOpen,
+      onSelect: onDescargarProcedimiento,
+      disabled: descargandoProcedimientoPending,
+    })
   }
 
   if (tieneFirmas) {
