@@ -133,6 +133,21 @@ export default function RegistroFormPage({ params }: PageProps) {
   const [observaciones, setObservaciones] = useState("")
   const [observacionesCampo, setObservacionesCampo] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, boolean>>({})
+  /** Error del último guardado (incluye el conflicto por edición concurrente). */
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+  /** Momento del último "Guardar borrador" de esta sesión, para el acuse en pantalla. */
+  const [borradorGuardadoEn, setBorradorGuardadoEn] = useState<Date | null>(null)
+  /**
+   * `updatedAt` con el que este formulario está trabajando: la versión del registro
+   * sobre la que se armó lo que hay en pantalla. Se fija una sola vez en la carga
+   * (junto al prefill) y después sólo lo reemplaza la respuesta de un guardado propio.
+   *
+   * Es un ref y NO un valor derivado de `registro.updatedAt` a propósito: react-query
+   * refetchea en segundo plano (por ejemplo al volver a la pestaña), y si el valor
+   * siguiera a la query, el guardado de otro usuario quedaría adoptado en silencio
+   * como "lo que yo vi" — justo el conflicto que este control existe para detectar.
+   */
+  const updatedAtVistoRef = useRef<string | null>(null)
 
   // Pre-rellenar con valores existentes cuando cargan. Si el registro todavía no
   // tiene valores guardados, el backend devuelve `valoresPrecargados` (datos del
@@ -153,6 +168,7 @@ export default function RegistroFormPage({ params }: PageProps) {
     }
     setValores(init)
     setObservaciones(registro.observaciones ?? "")
+    updatedAtVistoRef.current = registro.updatedAt ?? null
   }
 
   // Modo: lo que el usuario elija (con override) sobre el default de la config.
@@ -161,6 +177,22 @@ export default function RegistroFormPage({ params }: PageProps) {
   const [userModo, setUserModo] = useState<"digital" | "fisico" | null>(null)
   const modo = userModo ?? defaultModo
   const showToggle = permitirDigital && permitirFisico
+
+  // Vista del registro digital ya cerrado: PDF o formulario. Null = sin elección
+  // del usuario, se usa el default de abajo.
+  const [vistaUsuario, setVistaUsuario] = useState<"pdf" | "formulario" | null>(null)
+  // En BORRADOR no hay PDF que valga la pena mostrar (la planilla sale vacía).
+  const puedeVerPdf = !!registro && !registro.esFisico && registro.estado !== "BORRADOR"
+  const esDigitalCerrado = !!registro && !registro.esFisico
+    && (registro.estado === "COMPLETADO" || registro.estado === "FIRMADO" || registro.estado === "APROBADO")
+  /**
+   * Default PDF cuando el registro ya está cerrado: ese es el momento de firmarlo y
+   * de leerlo, y el PDF es el documento real: el formulario read-only mostraba los
+   * mismos datos con otra cara. Mientras se carga, el formulario es el que manda.
+   */
+  const vistaEfectiva: "pdf" | "formulario" = !puedeVerPdf
+    ? "formulario"
+    : (vistaUsuario ?? (esDigitalCerrado ? "pdf" : "formulario"))
 
   const { data: firmasConfigRaw } = useGetFirmasConfigEfectiva(registroId)
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
@@ -312,15 +344,39 @@ export default function RegistroFormPage({ params }: PageProps) {
     return info?.generado && info.fechaPlanificadaProximo ? info.fechaPlanificadaProximo : null
   }
 
-  async function handleSubmitDigital() {
-    if (!validate()) return
-    const res = await completarDigital.mutateAsync({
-      observaciones: observaciones || null,
-      valores: buildValores(),
-    })
-    const fecha = extraerFechaProximoCiclo(res)
-    if (fecha) setProximoCicloFecha(fecha)
-    else router.back()
+  /**
+   * Guarda el formulario digital. Con `parcial` deja el registro abierto y se queda
+   * en la pantalla; sin `parcial` exige los obligatorios, cierra y vuelve atrás.
+   *
+   * El error del backend se muestra en pantalla: antes `mutateAsync` tiraba y la
+   * excepción se perdía — el usuario apretaba Guardar y no pasaba nada visible.
+   */
+  async function handleSubmitDigital(parcial = false) {
+    setErrorGuardado(null)
+    if (!parcial && !validate()) return
+    try {
+      const res = await completarDigital.mutateAsync({
+        observaciones: observaciones || null,
+        valores: buildValores(),
+        parcial,
+        updatedAtVisto: updatedAtVistoRef.current,
+      })
+      // El control optimista del próximo guardado tiene que mirar el UpdatedAt que
+      // acaba de escribir el backend, no el de la carga inicial: si esperáramos el
+      // refetch, dos guardados seguidos se pisarían con un conflicto inventado.
+      const detalle = (res as { data?: RegistroDetalle } | undefined)?.data
+      if (detalle?.updatedAt) updatedAtVistoRef.current = detalle.updatedAt
+
+      if (parcial) {
+        setBorradorGuardadoEn(new Date())
+        return
+      }
+      const fecha = extraerFechaProximoCiclo(res)
+      if (fecha) setProximoCicloFecha(fecha)
+      else router.back()
+    } catch (err) {
+      setErrorGuardado((err as Error).message || "No se pudo guardar el registro.")
+    }
   }
 
   // Callback que le pasamos al <CargaFisicaUploader>. Los gates (QR mismatch,
@@ -486,8 +542,60 @@ export default function RegistroFormPage({ params }: PageProps) {
 {/* ── Modo formulario digital ──
           Se muestra cuando: el registro es de solo lectura digital (para visualizar),
           o cuando es editable y el proyecto permite completar digitalmente. */}
-      {!registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital)) && (
+      {!registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital)) && vistaEfectiva === "pdf" && (
+        <div className="space-y-2">
+          <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />
+          {/* El PDF del registro, embebido. Es literalmente el documento que se firma
+              y el que se entrega, así que a la hora de firmar es la vista que importa;
+              el formulario read-only mostraba los mismos datos con otra cara.
+              Va en un <iframe> y no en un canvas con pdfjs a propósito: el visor del
+              navegador ya trae zoom, búsqueda, impresión y descarga.
+
+              OJO: esto depende de que la ruta del preview salga con
+              `frame-ancestors 'self'` — ver RUTAS_EMBEBIDAS en next.config.ts. El
+              valor global del sitio es `'none'`, que bloquea el framing incluso
+              desde el mismo origen y deja este visor en blanco. */}
+          <iframe
+            src={`/api/registros/${registroId}/pdf/preview`}
+            title="Registro en PDF"
+            className="w-full h-[calc(100vh-18rem)] min-h-[32rem] rounded-xl border bg-white"
+          />
+          <p className="text-xs text-muted-foreground">
+            Si el visor no carga,{" "}
+            <a
+              href={`/api/registros/${registroId}/pdf/preview`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              abrí el PDF en una pestaña nueva
+            </a>
+            .
+          </p>
+        </div>
+      )}
+
+      {!registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital)) && vistaEfectiva === "formulario" && (
         <div className="space-y-6">
+          {puedeVerPdf && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
+          {/* Registro dejado a medio completar: quién lo tocó último y cuánto falta.
+              Sin esto, el que lo retoma —que puede ser otra persona— no sabe si lo que
+              ve es todo lo que había ni si alguien lo está llenando en paralelo. */}
+          {!isReadOnly && registro.estado === "EN_PROCESO" && registro.valores.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span className="font-medium">Registro a medio completar.</span>{" "}
+              {registro.camposPendientes > 0
+                ? `Quedan ${registro.camposPendientes} campo(s) obligatorio(s).`
+                : "No falta ningún campo obligatorio: podés cerrarlo."}
+              {registro.updatedByNombre && (
+                <> Último guardado por <span className="font-medium">{registro.updatedByNombre}</span>
+                  {registro.updatedAt && ` el ${new Date(registro.updatedAt).toLocaleString("es-AR", {
+                    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+                  })}`}.
+                </>
+              )}
+            </div>
+          )}
           {ordenSecciones.map((seccionId) => {
             const seccion = secciones.find((s) => s.id === seccionId)
             const camposSeccion = camposPorSeccion[seccionId]
@@ -545,16 +653,46 @@ export default function RegistroFormPage({ params }: PageProps) {
             <div className="flex flex-col items-end gap-2 pb-4">
               {Object.values(errors).some(Boolean) && (
                 <p className="text-sm text-red-600">
-                  Completá los campos obligatorios marcados en rojo antes de guardar.
+                  Completá los campos obligatorios marcados en rojo antes de completar el
+                  registro. Si querés dejarlo a medio llenar, usá «Guardar borrador».
                 </p>
               )}
-              <Button onClick={handleSubmitDigital} disabled={isSaving} className="gap-2 px-6">
-                {isSaving
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Save className="h-4 w-4" />
-                }
-                Guardar y completar
-              </Button>
+              {errorGuardado && (
+                <p className="text-sm text-red-600 text-right max-w-xl">{errorGuardado}</p>
+              )}
+              {borradorGuardadoEn && !errorGuardado && (
+                <p className="text-xs text-green-700">
+                  Borrador guardado a las{" "}
+                  {borradorGuardadoEn.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                  {registro.camposPendientes > 0
+                    ? ` — quedan ${registro.camposPendientes} campo(s) obligatorio(s).`
+                    : " — está completo, cerralo con «Guardar y completar»."}
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+                {/* Guardar borrador: persiste lo cargado sin exigir los obligatorios ni
+                    cerrar el registro. Lo puede seguir otra persona desde la misma
+                    pantalla — el registro no tiene dueño. */}
+                <Button
+                  variant="outline"
+                  onClick={() => handleSubmitDigital(true)}
+                  disabled={isSaving}
+                  className="gap-2"
+                >
+                  {completarDigital.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Save className="h-4 w-4" />
+                  }
+                  Guardar borrador
+                </Button>
+                <Button onClick={() => handleSubmitDigital(false)} disabled={isSaving} className="gap-2 px-6">
+                  {isSaving
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Save className="h-4 w-4" />
+                  }
+                  Guardar y completar
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -901,6 +1039,37 @@ function FirmasSection({
 }
 
 // ─── Captura de firma compartida (libre + slot) ─────────────────────────────
+
+/**
+ * Switch entre el PDF del registro y el formulario. Mismo diseño que el toggle
+ * digital/físico de arriba para que se lean como el mismo tipo de control.
+ */
+function VistaToggle({
+  vista,
+  onChange,
+}: {
+  vista: "pdf" | "formulario"
+  onChange: (v: "pdf" | "formulario") => void
+}) {
+  return (
+    <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
+      {([
+        ["pdf", "Ver como PDF"],
+        ["formulario", "Ver formulario"],
+      ] as const).map(([valor, texto]) => (
+        <button
+          key={valor}
+          onClick={() => onChange(valor)}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            vista === valor ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          {texto}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function FirmaCapturaInline({
   firmaGuardadaUrl,

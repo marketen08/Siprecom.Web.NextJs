@@ -56,6 +56,10 @@ export interface RegistroDetalle {
   porcentajeCompletitud: number
   camposPendientes: number
   validacionPasada: boolean
+  /** Última modificación del registro. Vuelve al backend como control optimista. */
+  updatedAt?: string
+  /** Quién guardó último — se muestra cuando el registro quedó a medio completar. */
+  updatedByNombre?: string | null
   /**
    * True cuando el registro es el encabezado de un TestGroup. Es re-editable
    * siempre — el UI debe ignorar el bloqueo por estado terminal.
@@ -111,6 +115,18 @@ export interface CompletarDigitalInput {
   fechaTerminado?: string | null
   observaciones?: string | null
   valores: RegistroValorInput[]
+  /**
+   * Guarda lo cargado y deja el registro abierto (EN_PROCESO) para seguir después
+   * — lo puede continuar otro usuario. No cierra el registro ni corre los gates de
+   * cierre, ni siquiera si están todos los campos obligatorios.
+   */
+  parcial?: boolean
+  /**
+   * `updatedAt` del registro tal como lo cargó este formulario. El backend rechaza
+   * el guardado si cambió: cada guardado reescribe todos los valores, así que sin
+   * esto el segundo que guarda le borra los datos al primero sin avisar.
+   */
+  updatedAtVisto?: string | null
 }
 
 export interface RegistroFirmaSlot {

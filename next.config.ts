@@ -73,9 +73,40 @@ const HEADERS_SEGURIDAD = [
 //   Mismo motivo, más el riesgo de romper estilos inline. Va en una tarea propia,
 //   arrancando en Report-Only para medir antes de bloquear.
 
+/**
+ * Respuestas que la propia app embebe en un `<iframe>`.
+ *
+ * `frame-ancestors 'none'` bloquea el framing TAMBIÉN desde el mismo origen, así que
+ * la vista "Ver como PDF" del registro moría con
+ *   Framing '<sitio>' violates ... "frame-ancestors 'none'". The request has been blocked.
+ * `'self'` es el valor que permite que nos embebamos a nosotros mismos.
+ *
+ * Esto no reabre el hallazgo #3. Lo que ese hallazgo pide es que un sitio ajeno no
+ * pueda enmarcar la app para hacer clickjacking, y `'self'` sigue bloqueando a
+ * cualquier tercero. Encima lo que se enmarca acá es un PDF, no una pantalla con
+ * botones: no hay click que robar. El alcance es una ruta sola; todas las demás
+ * respuestas del sitio —las páginas HTML en particular— siguen en `'none'`.
+ *
+ * La otra vista previa de PDF de la app (el diseñador de planillas) no necesita nada
+ * de esto: pide las páginas rasterizadas y las muestra con `<img>`, que no es framing.
+ */
+const RUTAS_EMBEBIDAS = ["/api/registros/:id/pdf/preview"];
+
+const HEADERS_EMBEBIBLE = [
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+];
+
 const nextConfig: NextConfig = {
   async headers() {
-    return [{ source: "/:path*", headers: HEADERS_SEGURIDAD }];
+    return [
+      { source: "/:path*", headers: HEADERS_SEGURIDAD },
+      // Van DESPUÉS del general a propósito: cuando dos entradas matchean el mismo
+      // path, para una clave repetida gana la última. Medido contra `next start`:
+      // en la ruta del preview se pisan sólo estas dos claves y los otros siete
+      // encabezados de seguridad siguen llegando igual.
+      ...RUTAS_EMBEBIDAS.map((source) => ({ source, headers: HEADERS_EMBEBIBLE })),
+    ];
   },
 };
 

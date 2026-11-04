@@ -72,6 +72,11 @@ export interface ElementoTarea {
   usuarioYaFirmo: boolean
   /** El usuario actual tiene un slot de firma pendiente con su rol. */
   usuarioPuedeFirmar: boolean
+  /**
+   * Adjuntos del usuario en el registro (sin el escaneo físico ni el certificado).
+   * Habilita el ítem "Descargar adjuntos" del menú de acciones.
+   */
+  adjuntosTotal?: number
 
   // Planilla asociada a la Tarea
   planillaId: string | null
