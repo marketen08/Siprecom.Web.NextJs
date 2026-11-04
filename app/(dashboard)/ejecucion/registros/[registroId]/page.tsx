@@ -549,7 +549,12 @@ export default function RegistroFormPage({ params }: PageProps) {
               y el que se entrega, así que a la hora de firmar es la vista que importa;
               el formulario read-only mostraba los mismos datos con otra cara.
               Va en un <iframe> y no en un canvas con pdfjs a propósito: el visor del
-              navegador ya trae zoom, búsqueda, impresión y descarga. */}
+              navegador ya trae zoom, búsqueda, impresión y descarga.
+
+              OJO: esto depende de que la ruta del preview salga con
+              `frame-ancestors 'self'` — ver RUTAS_EMBEBIDAS en next.config.ts. El
+              valor global del sitio es `'none'`, que bloquea el framing incluso
+              desde el mismo origen y deja este visor en blanco. */}
           <iframe
             src={`/api/registros/${registroId}/pdf/preview`}
             title="Registro en PDF"
