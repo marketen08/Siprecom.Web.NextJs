@@ -56,9 +56,19 @@ export function ProximaMetaCelda({ niveles }: { niveles?: AvanceSubSistemaNivelD
 
 /**
  * Mini-tabla con el detalle de los niveles (fechas, avance, estado). Se usa dentro
- * de la fila expandida de la grilla de subsistemas/sistemas.
+ * de la fila expandida de la grilla de subsistemas/sistemas/áreas/módulos/proyectos.
+ *
+ * `nivelDestacadoId` marca una fila: lo usa el listado de proyectos, donde el filtro
+ * por nivel hace que la barra de la fila mida ESE nivel mientras el detalle sigue
+ * mostrando todos. Sin la marca, barra y detalle parecen contradecirse.
  */
-export function NivelesDetalle({ niveles }: { niveles: AvanceSubSistemaNivelDTO[] }) {
+export function NivelesDetalle({
+  niveles,
+  nivelDestacadoId,
+}: {
+  niveles: AvanceSubSistemaNivelDTO[]
+  nivelDestacadoId?: string
+}) {
   return (
     <div className="rounded-md border bg-white overflow-hidden">
       <table className="w-full text-xs">
@@ -81,9 +91,20 @@ export function NivelesDetalle({ niveles }: { niveles: AvanceSubSistemaNivelDTO[
             const dias = diasHasta(n.fechaFin)
             const vencido = !n.completado && !sinTareas && dias != null && dias < 0
             const proximo = !n.completado && !sinTareas && dias != null && dias >= 0 && dias <= 15
+            const destacado = nivelDestacadoId != null && n.nivelId === nivelDestacadoId
             return (
-              <tr key={n.nivelId} className="border-t border-gray-100">
-                <td className="px-3 py-1.5 font-medium text-gray-800">{n.nivelNombre}</td>
+              <tr
+                key={n.nivelId}
+                className={`border-t border-gray-100 ${destacado ? "bg-blue-50" : ""}`}
+              >
+                <td className="px-3 py-1.5 font-medium text-gray-800">
+                  {n.nivelNombre}
+                  {destacado && (
+                    <span className="ml-1.5 rounded bg-blue-600 px-1.5 py-px text-[10px] font-semibold text-white">
+                      filtrado
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-1.5 text-gray-600">{sinTareas ? "—" : fmtFecha(n.fechaInicio)}</td>
                 <td className={`px-3 py-1.5 ${vencido ? "text-red-700 font-semibold" : proximo ? "text-amber-700 font-semibold" : "text-gray-600"}`}>
                   {sinTareas ? "—" : fmtFecha(n.fechaFin)}
