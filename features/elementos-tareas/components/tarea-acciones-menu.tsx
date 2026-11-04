@@ -10,7 +10,7 @@ import { useDownloadProcedimiento } from "@/features/procedimientos/api/use-down
 import { useMarcarCompletadaSinRegistro } from "@/features/elementos-tareas/api/use-marcar-completada-sin-registro"
 import { useTareaHandlers } from "@/features/elementos-tareas/hooks/use-tarea-handlers"
 import { DependenciasSheet } from "@/features/elementos-tareas/components/dependencias-sheet"
-import { buildTareaMenuItems } from "@/features/elementos-tareas/components/tarea-card"
+import { agruparMenuItems, buildTareaMenuItems, limpiarSeparadores } from "@/features/elementos-tareas/components/tarea-card"
 import { useGetElementoTarea } from "@/features/elementos-tareas/api/use-get-elemento-tarea"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 
@@ -19,7 +19,9 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -132,7 +134,7 @@ export function TareaAccionesMenu({
   // trigger de Radix es estable desde el arranque (sino cambiar el DOM del
   // trigger entre estados hace que Radix pierda referencia y cierre al mover
   // el mouse la primera vez).
-  const items = tarea
+  const itemsCrudos = tarea
     ? buildTareaMenuItems({
         tarea,
         onIniciar: handleIniciar,
@@ -165,8 +167,14 @@ export function TareaAccionesMenu({
         permitirDescargarProcedimientos,
         permitirAvanceSinRegistro,
         canWrite,
-      }).filter((it) => it.kind === "separator" || it.label !== "Ver firmas")
+      })
     : []
+
+  // Sacar "Ver firmas" dejaba su separador suelto (y pegado al siguiente), así que
+  // la lista se re-limpia después del filtro.
+  const items = limpiarSeparadores(
+    itemsCrudos.filter((it) => it.kind === "separator" || it.label !== "Ver firmas")
+  )
 
   const busy =
     iniciarMutation.isPending ||
@@ -224,18 +232,35 @@ export function TareaAccionesMenu({
               Sin acciones disponibles.
             </div>
           ) : (
-            items.map((item, i) =>
-              item.kind === "separator" ? (
+            agruparMenuItems(items).map((bloque, i) =>
+              bloque.kind === "separator" ? (
                 <DropdownMenuSeparator key={`sep-${i}`} />
+              ) : bloque.kind === "grupo" ? (
+                <DropdownMenuGroup key={`grp-${i}`}>
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wide">
+                    {bloque.titulo}
+                  </DropdownMenuLabel>
+                  {bloque.items.map((item) => (
+                    <DropdownMenuItem
+                      key={item.label}
+                      onClick={item.onSelect}
+                      disabled={item.disabled}
+                      variant={item.variant}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
               ) : (
                 <DropdownMenuItem
-                  key={item.label}
-                  onClick={item.onSelect}
-                  disabled={item.disabled}
-                  variant={item.variant}
+                  key={bloque.item.label}
+                  onClick={bloque.item.onSelect}
+                  disabled={bloque.item.disabled}
+                  variant={bloque.item.variant}
                 >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
+                  <bloque.item.icon className="h-4 w-4" />
+                  {bloque.item.label}
                 </DropdownMenuItem>
               ),
             )

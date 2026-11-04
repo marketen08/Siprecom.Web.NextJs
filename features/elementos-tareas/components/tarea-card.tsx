@@ -21,7 +21,9 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -205,18 +207,35 @@ export function TareaCard({
                 )}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-52">
-                {items.map((item, i) =>
-                  item.kind === "separator" ? (
+                {agruparMenuItems(items).map((bloque, i) =>
+                  bloque.kind === "separator" ? (
                     <DropdownMenuSeparator key={`sep-${i}`} />
+                  ) : bloque.kind === "grupo" ? (
+                    <DropdownMenuGroup key={`grp-${i}`}>
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide">
+                        {bloque.titulo}
+                      </DropdownMenuLabel>
+                      {bloque.items.map((item) => (
+                        <DropdownMenuItem
+                          key={item.label}
+                          onClick={item.onSelect}
+                          disabled={item.disabled}
+                          variant={item.variant}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          {item.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
                   ) : (
                     <DropdownMenuItem
-                      key={item.label}
-                      onClick={item.onSelect}
-                      disabled={item.disabled}
-                      variant={item.variant}
+                      key={bloque.item.label}
+                      onClick={bloque.item.onSelect}
+                      disabled={bloque.item.disabled}
+                      variant={bloque.item.variant}
                     >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
+                      <bloque.item.icon className="h-4 w-4" />
+                      {bloque.item.label}
                     </DropdownMenuItem>
                   )
                 )}
@@ -368,6 +387,13 @@ export function TareaCard({
 type LucideIcon = ComponentType<{ className?: string }>
 export type MenuItem =
   | { kind: "separator" }
+  /**
+   * Título de un grupo de ítems. Lo usa el menú de tareas para separar
+   * "Completamiento digital" de "Completamiento físico" — el operador tiene que
+   * entender, antes de elegir, cuál de los dos caminos está arrancando.
+   * Un título sin ítems abajo se descarta (ver `limpiarTitulosHuerfanos`).
+   */
+  | { kind: "label"; label: string }
   | {
       kind: "item"
       label: string
@@ -376,6 +402,66 @@ export type MenuItem =
       disabled?: boolean
       variant?: "default" | "destructive"
     }
+
+/**
+ * Descarta los títulos que quedaron sin ningún ítem debajo. Pasa cuando un filtro
+ * posterior (hoy: el de solo-lectura) se come todo el grupo: el título solo,
+ * colgado arriba de un separador, promete acciones que no están.
+ */
+function limpiarTitulosHuerfanos(lista: MenuItem[]): MenuItem[] {
+  return lista.filter((it, i) => it.kind !== "label" || lista[i + 1]?.kind === "item")
+}
+
+/**
+ * Deja un solo separador entre bloques y ninguno en los extremos. Los bloques se
+ * arman con `if (items.length > 0) push(separator)` cada uno por su cuenta, así
+ * que dos bloques seguidos pueden dejar dos líneas pegadas.
+ */
+export function limpiarSeparadores(lista: MenuItem[]): MenuItem[] {
+  const out: MenuItem[] = []
+  for (const it of lista) {
+    if (it.kind === "separator") {
+      if (out.length === 0) continue
+      if (out[out.length - 1].kind === "separator") continue
+    }
+    out.push(it)
+  }
+  while (out.length > 0 && out[out.length - 1].kind === "separator") out.pop()
+  return out
+}
+
+/** Un bloque del menú ya listo para renderear. */
+export type MenuBloque =
+  | { kind: "separator" }
+  | { kind: "item"; item: Extract<MenuItem, { kind: "item" }> }
+  | { kind: "grupo"; titulo: string; items: Array<Extract<MenuItem, { kind: "item" }>> }
+
+/**
+ * Convierte la lista plana en bloques: cada título se lleva los ítems que lo
+ * siguen hasta el próximo separador.
+ *
+ * Hace falta porque `DropdownMenuLabel` envuelve `Menu.GroupLabel` de base-ui, que
+ * TIRA si no está dentro de un `Menu.Group` ("MenuGroupRootContext is missing").
+ * O sea que el título no se puede renderear suelto en el medio de la lista: el
+ * grupo tiene que existir de verdad, y de paso el lector de pantalla asocia el
+ * título con sus ítems.
+ */
+export function agruparMenuItems(items: MenuItem[]): MenuBloque[] {
+  const bloques: MenuBloque[] = []
+  for (const it of items) {
+    if (it.kind === "label") {
+      bloques.push({ kind: "grupo", titulo: it.label, items: [] })
+      continue
+    }
+    const ultimo = bloques[bloques.length - 1]
+    if (it.kind === "item" && ultimo?.kind === "grupo") {
+      ultimo.items.push(it)
+      continue
+    }
+    bloques.push(it.kind === "item" ? { kind: "item", item: it } : { kind: "separator" })
+  }
+  return bloques
+}
 
 export function buildTareaMenuItems({
   tarea,
@@ -447,10 +533,26 @@ export function buildTareaMenuItems({
     })
   }
 
+  // Las acciones de completamiento se agrupan por camino en vez de salir
+  // intercaladas: cuando el proyecto habilita los dos, el menú es una elección
+  // entre dos flujos distintos (cargar un PDF firmado NO es lo mismo que llenar
+  // el formulario) y el título es lo que la hace explícita. Las acciones que no
+  // pertenecen a ningún camino —"Marcar completada sin registro"— van en
+  // `sueltos`, después de los grupos.
+  const digitales: MenuItem[] = []
+  const fisicos: MenuItem[] = []
+  const sueltos: MenuItem[] = []
+  const descargarRegistroPdf: MenuItem = {
+    kind: "item",
+    label: "Descargar registro PDF",
+    icon: FileDown,
+    onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`),
+  }
+
   switch (tarea.estado) {
     case 1: // PENDIENTE
       if (permitirDigital) {
-        items.push({
+        digitales.push({
           kind: "item",
           label: "Iniciar tarea",
           icon: Play,
@@ -459,7 +561,7 @@ export function buildTareaMenuItems({
         })
       }
       if (tarea.planillaId && permitirFisico) {
-        items.push({
+        fisicos.push({
           kind: "item",
           label: cargarRegistroLabel,
           icon: Upload,
@@ -470,7 +572,7 @@ export function buildTareaMenuItems({
       // "Marcar completada sin registro" — solo desde PENDIENTE. Salta el carga
       // digital/física; las firmas del proyecto siguen aplicando.
       if (permitirAvanceSinRegistro) {
-        items.push({
+        sueltos.push({
           kind: "item",
           label: "Marcar completada sin registro",
           icon: ClipboardCheck,
@@ -482,60 +584,67 @@ export function buildTareaMenuItems({
     case 2: // EN_PROCESO
       if (tarea.registroId) {
         if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
+          fisicos.push(descargarRegistroPdf)
         } else if (permitirDigital) {
-          items.push({ kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
+          digitales.push({ kind: "item", label: "Completar formulario", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
         }
         if (tarea.planillaId && permitirFisico) {
-          items.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea) })
+          fisicos.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea) })
         }
       }
       break
     case 3: // COMPLETADO
       if (tarea.registroId) {
-        items.push(
-          tarea.esFisico
-            ? { kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
-            : { kind: "item", label: "Ver y firmar", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
-        )
+        if (tarea.esFisico) fisicos.push(descargarRegistroPdf)
+        else digitales.push({ kind: "item", label: "Ver y firmar", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
       }
       break
     case 4:
     case 7:
       if (tarea.registroId) {
-        items.push(
-          tarea.esFisico
-            ? { kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) }
-            : { kind: "item", label: "Ver registro", icon: FileText, onSelect: () => onAbrirFormulario(tarea) }
-        )
+        if (tarea.esFisico) fisicos.push(descargarRegistroPdf)
+        else digitales.push({ kind: "item", label: "Ver registro", icon: FileText, onSelect: () => onAbrirFormulario(tarea) })
       }
       break
     case 5:
       if (tarea.registroId) {
         if (tarea.esFisico) {
-          items.push({ kind: "item", label: "Descargar registro PDF", icon: FileDown, onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`) })
+          fisicos.push(descargarRegistroPdf)
         } else if (permitirDigital) {
-          items.push({ kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" })
+          digitales.push({ kind: "item", label: "Revisar y re-completar", icon: FileText, onSelect: () => onAbrirFormulario(tarea), variant: "destructive" })
         }
         if (tarea.planillaId && permitirFisico) {
-          items.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea), variant: "destructive" })
+          fisicos.push({ kind: "item", label: cargarRegistroLabel, icon: Upload, onSelect: () => onCargarPdf(tarea), variant: "destructive" })
         }
       }
       break
   }
 
+  // El PDF del registro digital ya completado. Va en el grupo digital, y nunca
+  // coexiste con el "Descargar registro PDF" del físico (`esFisico` decide uno
+  // de los dos), así que no hay dos ítems con la misma etiqueta.
   const puedeDescargarPdfDigital =
     !tarea.esFisico &&
     !!tarea.registroId &&
     (tarea.estado === 3 || tarea.estado === 5 || tarea.estado === 7)
-  if (puedeDescargarPdfDigital) {
-    items.push({
-      kind: "item",
-      label: "Descargar registro PDF",
-      icon: FileDown,
-      onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`),
-    })
+  if (puedeDescargarPdfDigital) digitales.push(descargarRegistroPdf)
+
+  // Los títulos solo cuando hay realmente una elección que explicar: los dos
+  // caminos habilitados en el proyecto Y los dos con acciones en este estado.
+  // Con un solo camino disponible, el título no distingue nada y es ruido.
+  const hayTitulos = permitirDigital && permitirFisico && digitales.length > 0 && fisicos.length > 0
+  if (hayTitulos) {
+    if (items.length > 0) items.push({ kind: "separator" })
+    items.push({ kind: "label", label: "Completamiento digital" }, ...digitales)
+    items.push({ kind: "separator" })
+    items.push({ kind: "label", label: "Completamiento físico" }, ...fisicos)
+    // Cierra el último grupo: sin este separador, los ítems que vienen después
+    // (adjuntar, planilla, firmas) caerían adentro del grupo "físico" al agrupar.
+    items.push({ kind: "separator" })
+  } else {
+    items.push(...digitales, ...fisicos)
   }
+  items.push(...sueltos)
 
   if (puedeAdjuntar) {
     items.push({
@@ -547,6 +656,21 @@ export function buildTareaMenuItems({
     })
   }
 
+  // Descarga de los adjuntos en ZIP, con el formato original de cada archivo.
+  // Existe con la funcionalidad "Adjuntos dentro del PDF del registro" prendida o
+  // apagada: el PDF sólo puede incorporar lo que se convierte en páginas, y un
+  // Excel o un Word sirven de poco impresos. Es lectura, así que también la ve
+  // el usuario de solo lectura.
+  const adjuntosTotal = tarea.adjuntosTotal ?? 0
+  if (adjuntosTotal > 0 && tarea.registroId) {
+    items.push({
+      kind: "item",
+      label: `Descargar adjuntos (${adjuntosTotal})`,
+      icon: Download,
+      onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/adjuntos/zip`),
+    })
+  }
+
   const puedeDescargarPlanilla = !!tarea.planillaId && permitirFisico
   const puedeDescargarProcedimiento =
     permitirDescargarProcedimientos
@@ -555,9 +679,10 @@ export function buildTareaMenuItems({
   if (puedeDescargarPlanilla || puedeDescargarProcedimiento) {
     if (items.length > 0) items.push({ kind: "separator" })
     if (puedeDescargarPlanilla) {
-      const urlDescarga = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}`
+      // Una sola entrada para la planilla en blanco. Antes había también
+      // "Descargar planilla PDF": el mismo archivo por otro camino, porque el
+      // visor del navegador ya tiene su botón de descarga.
       const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
-      items.push({ kind: "item", label: "Descargar planilla PDF", icon: Download, onSelect: () => triggerDownload(urlDescarga) })
       items.push({ kind: "item", label: "Ver planilla PDF", icon: Eye, onSelect: () => window.open(urlPreview, "_blank", "noreferrer") })
     }
     if (puedeDescargarProcedimiento) {
@@ -608,14 +733,27 @@ export function buildTareaMenuItems({
   // estados en los que aplican no se solapan: 4 = APROBADO (firmado en papel),
   // 7 = FIRMADO (firma electrónica).
   const puedeRehacerse = tarea.estado === 4 || tarea.estado === 7
-  if (puedeRehacerse && puedeRehacer && onRequestRehacer) {
+  if (puedeRehacerse && onRequestRehacer) {
     if (items.length > 0) items.push({ kind: "separator" })
-    items.push({
-      kind: "item",
-      label: "Rehacer tarea",
-      icon: RefreshCw,
-      onSelect: onRequestRehacer,
-    })
+    items.push(
+      puedeRehacer
+        ? {
+            kind: "item",
+            label: "Rehacer tarea",
+            icon: RefreshCw,
+            onSelect: onRequestRehacer,
+          }
+        // Sin rol: el ítem se muestra deshabilitado en vez de desaparecer.
+        // Oculto no había forma de saber si la acción no aplica a este estado o
+        // si falta permiso, y la diferencia costó una sesión de diagnóstico.
+        : {
+            kind: "item",
+            label: "Rehacer tarea (requiere Admin)",
+            icon: RefreshCw,
+            onSelect: () => {},
+            disabled: true,
+          }
+    )
   }
 
   if (!canWrite) {
@@ -626,6 +764,7 @@ export function buildTareaMenuItems({
       "Adjuntar archivo",
       "Reiniciar tarea",
       "Rehacer tarea",
+      "Rehacer tarea (requiere Admin)",
       "Marcar completada sin registro",
     ])
     const renombrar: Record<string, string> = {
@@ -633,28 +772,19 @@ export function buildTareaMenuItems({
       "Ver y firmar": "Ver registro",
       "Revisar y re-completar": "Ver registro",
     }
-    const out = items
-      .filter(item => item.kind === "separator" || !escrituraPura.has(item.label))
-      .map(item => {
-        if (item.kind !== "item") return item
-        const nuevo = renombrar[item.label]
-        return nuevo ? { ...item, label: nuevo, variant: "default" as const } : item
-      })
-    const collapsed: MenuItem[] = []
-    for (const it of out) {
-      if (it.kind === "separator") {
-        if (collapsed.length === 0) continue
-        if (collapsed[collapsed.length - 1].kind === "separator") continue
-      }
-      collapsed.push(it)
-    }
-    while (collapsed.length > 0 && collapsed[collapsed.length - 1].kind === "separator") {
-      collapsed.pop()
-    }
-    return collapsed
+    const out = limpiarTitulosHuerfanos(
+      items
+        .filter(item => item.kind === "separator" || !escrituraPura.has(item.label))
+        .map(item => {
+          if (item.kind !== "item") return item
+          const nuevo = renombrar[item.label]
+          return nuevo ? { ...item, label: nuevo, variant: "default" as const } : item
+        })
+    )
+    return limpiarSeparadores(out)
   }
 
-  return items
+  return limpiarSeparadores(items)
 }
 
 function triggerDownload(url: string) {

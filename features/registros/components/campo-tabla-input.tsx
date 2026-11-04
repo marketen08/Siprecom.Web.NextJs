@@ -160,6 +160,18 @@ export function CampoTablaInput({
       ? `${((ancho || 0) / totalAncho) * pctDisponible}%`
       : `${pctDisponible / Math.max(1, columnas.length)}%`
 
+  // Ancho mínimo proporcional a la cantidad de columnas, no un valor fijo. Los
+  // porcentajes de arriba reparten el ancho disponible: dentro de la card del
+  // formulario, una tabla de 8 columnas dejaba cada encabezado en ~4rem y
+  // "Presión de prueba (bar)" se partía en cuatro renglones, que es lo que se veía
+  // como encabezados apilados uno sobre otro. Con un piso de ~9rem por columna la
+  // tabla scrollea en horizontal en vez de aplastarse.
+  const MIN_REM_POR_COLUMNA = 9
+  const minWidthRem = Math.max(
+    32,
+    columnas.length * MIN_REM_POR_COLUMNA + (hayColumnaEliminar ? 2 : 0)
+  )
+
   // Va DESPUÉS de todos los hooks: cuando estaba arriba del useMemo de grupoTramos,
   // una tabla que pasaba de 0 columnas a N cambiaba la cantidad de hooks entre
   // renders y React tiraba "Rendered more hooks than during the previous render".
@@ -170,9 +182,13 @@ export function CampoTablaInput({
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto border rounded-md">
-        {/* min-w: en pantallas angostas la tabla mantiene un piso y scrollea, en vez
-            de comprimir las columnas hasta que los porcentajes dejan de leerse. */}
-        <table className="w-full min-w-[32rem] table-fixed text-sm border-collapse">
+        {/* minWidth: la tabla mantiene un piso y scrollea, en vez de comprimir las
+            columnas hasta que los encabezados dejan de leerse. Va inline porque
+            depende de la cantidad de columnas (Tailwind no genera clases dinámicas). */}
+        <table
+          className="w-full table-fixed text-sm border-collapse"
+          style={{ minWidth: `${minWidthRem}rem` }}
+        >
           <colgroup>
             {columnas.map((c) => (
               <col key={c.id} style={{ width: anchoPct(c.ancho) }} />
@@ -186,7 +202,8 @@ export function CampoTablaInput({
                   <th
                     key={i}
                     colSpan={t.span}
-                    className="border-b border-r last:border-r-0 px-2 py-1 text-center font-semibold text-gray-700"
+                    className="border-b border-r last:border-r-0 px-2 py-1 text-center font-semibold text-gray-700 align-bottom leading-tight wrap-break-word"
+                    title={t.grupo ?? undefined}
                   >
                     {t.grupo ?? ""}
                   </th>
@@ -198,7 +215,8 @@ export function CampoTablaInput({
               {columnas.map((c) => (
                 <th
                   key={c.id}
-                  className="border-b border-r last:border-r-0 px-2 py-1.5 text-left font-medium text-gray-700"
+                  className="border-b border-r last:border-r-0 px-2 py-1.5 text-left font-medium text-gray-700 align-bottom leading-tight wrap-break-word"
+                  title={c.encabezado}
                 >
                   {c.encabezado}
                 </th>
@@ -220,6 +238,7 @@ export function CampoTablaInput({
                         <td
                           key={c.id}
                           className="border-b border-r last:border-r-0 px-2 py-1 font-medium text-gray-700 bg-gray-50/50 truncate"
+                          title={filasDef[ri]?.etiquetaFila ?? undefined}
                         >
                           {filasDef[ri]?.etiquetaFila ?? ""}
                         </td>
