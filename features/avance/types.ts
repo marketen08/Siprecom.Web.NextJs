@@ -59,6 +59,22 @@ export interface AvanceProyectoDTO extends AvanceDTO {
   sistemas: AvanceSistemaDTO[]
 }
 
+/**
+ * Fila del listado "Avance por proyectos": el avance del proyecto + el desglose por
+ * nivel, sin el árbol de sistemas (esa pantalla pagina sobre todos los proyectos
+ * accesibles y traer el árbol de cada uno es lo que la dejaba colgada).
+ *
+ * Las fechas de cada nivel son min(inicio) / max(fin) de las ventanas de todos los
+ * subsistemas del proyecto, igual que las que la grilla de sistemas calcula en el
+ * cliente con `agregarNivelesPorSistema`.
+ *
+ * El desglose NO sigue al filtro por nivel: con el filtro puesto la barra mide ese
+ * nivel y el detalle expandido igual muestra todos.
+ */
+export interface AvanceProyectoResumenDTO extends AvanceDTO {
+  niveles?: AvanceSubSistemaNivelDTO[]
+}
+
 export interface AvanceAgrupacionDTO extends AvanceDTO {
   descripcion: string | null
   cantidadElementos: number
