@@ -695,11 +695,20 @@ export default function RegistroFormPage({ params }: PageProps) {
           {ordenSecciones.map((seccionId) => {
             const seccion = secciones.find((s) => s.id === seccionId)
             const camposSeccion = camposPorSeccion[seccionId]
-              .filter((c) => c.visible)
+              // Fuera el Espacio (13): es alto reservado para escribir a mano en el PDF
+              // impreso, así que en el formulario digital no hay nada que completar ahí.
+              // Se filtra acá y no dentro de CampoInput porque lo que sobra es la celda
+              // de la grilla: devolviendo null adentro, packCampos ya le reservó el lugar
+              // y queda el hueco igual.
+              .filter((c) => c.visible && c.campoTipoDato !== 13)
               .sort((a, b) => a.orden - b.orden)
               // Las tablas (tipo 9) ocupan el ancho completo: forzamos tamano 12 para que
               // packCampos las ubique en su propia fila y no se compriman junto a otros campos.
               .map((c) => (c.campoTipoDato === 9 ? { ...c, tamano: 12 } : c))
+
+            // Sección que quedó sin campos visibles —todos ocultos, o todos Espacio—:
+            // sin esto se dibuja la tarjeta vacía con el título solo.
+            if (camposSeccion.length === 0) return null
 
             return (
               <div key={seccionId} className="rounded-xl border bg-white overflow-hidden">
@@ -1432,25 +1441,13 @@ function CampoInput({
           {campo.campoTextoLargo ?? ""}
         </div>
       )
-    case 13: { // Espacio — bloque vacío del PDF. Acá no hay nada que completar, pero
-      //         dejamos un placeholder para que el que carga digital entienda por qué
-      //         hay un hueco en vez de un input. El alto NO se replica: en pantalla
-      //         reservar 140mm de aire no aporta nada, solo obliga a scrollear.
-      const conRecuadro = campo.campoConBorde
-      return (
-        <div id={`campo-${campo.id}`} className="py-1">
-          <div
-            className={`rounded-md px-3 py-3 text-center text-xs text-muted-foreground ${
-              conRecuadro ? "border border-dashed border-gray-300" : "bg-gray-50"
-            }`}
-          >
-            {conRecuadro
-              ? `Espacio para dibujar (${campo.campoAltoMm ?? 20} mm) — se completa en el PDF impreso.`
-              : `Espacio en blanco (${campo.campoAltoMm ?? 20} mm) en el PDF.`}
-          </div>
-        </div>
-      )
-    }
+    // Espacio — bloque vacío del PDF: alto reservado para escribir a mano en el papel.
+    // Acá tenía un cartel que explicaba el hueco, y el cartel era el hueco: en el
+    // formulario digital no se completa nada de eso. La lista de campos ya lo filtra
+    // antes de llegar; esto está para que no caiga en el `default` y salga un input de
+    // texto si algún día lo renderiza otro llamador.
+    case 13:
+      return null
     case 8: // Imagen — parte de la planilla (global del Campo), sin input
       return (
         <div id={`campo-${campo.id}`} className="space-y-1">
