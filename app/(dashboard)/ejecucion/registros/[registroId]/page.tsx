@@ -586,7 +586,12 @@ export default function RegistroFormPage({ params }: PageProps) {
   const anchoContenedor = mostrandoPdf || mostrandoFormulario ? "max-w-7xl" : "max-w-3xl"
 
   return (
-    <div className={`${anchoContenedor} mx-auto space-y-6`}>
+    /* `overflow-x-clip` hasta xl: red de contención para que nada de lo que hay
+       adentro pueda estirar la pantalla a lo ancho en un celular. Lo que no entra
+       —una tabla con muchas columnas— ya scrollea adentro de su propia caja. Va
+       hasta xl y no siempre porque de ahí para arriba el riel es `sticky`, y un
+       ancestro que clipea es justo lo que suele romper el sticky. */
+    <div className={`${anchoContenedor} mx-auto w-full space-y-6 max-xl:overflow-x-clip`}>
       {/* Banner de solo lectura para Consultor/Auditor: el registro se ve completo
           (formulario navegable, adjuntos, firmas) pero sin poder guardar ni firmar. */}
       {!canWrite && (
@@ -727,7 +732,7 @@ export default function RegistroFormPage({ params }: PageProps) {
         <div className="flex w-full gap-2 p-1 bg-gray-100 rounded-lg sm:w-fit">
           <button
             onClick={() => setUserModo("digital")}
-            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
+            className={`flex-1 min-w-0 px-3 py-1.5 rounded-md text-sm font-medium leading-tight transition-colors sm:flex-none sm:px-4 ${
               modo === "digital" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -735,7 +740,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           </button>
           <button
             onClick={() => setUserModo("fisico")}
-            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
+            className={`flex-1 min-w-0 px-3 py-1.5 rounded-md text-sm font-medium leading-tight transition-colors sm:flex-none sm:px-4 ${
               modo === "fisico" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -921,7 +926,7 @@ export default function RegistroFormPage({ params }: PageProps) {
                   {packCampos<PlanillaCampoDetalle>(camposSeccion).map((fila, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-3 sm:gap-4">
                       {fila.map((campo) => (
-                        <div key={campo.id} className={`col-span-12 ${COL_SPAN_SM[clampTamano(campo.tamano)]}`}>
+                        <div key={campo.id} className={`col-span-12 min-w-0 ${COL_SPAN_SM[clampTamano(campo.tamano)]}`}>
                           <CampoInput
                             campo={campo}
                             value={valores[campo.id] ?? campo.valorDefault ?? ""}
@@ -1375,9 +1380,16 @@ function VistaConRiel({
   children: React.ReactNode
 }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
+    /* `grid-cols-1` no es decorativo. Sin él, la única columna del celular se mide
+       `auto`: queda del ancho del contenido más terco que tenga adentro —una tabla
+       ancha, un canvas, un texto que no corta— y se estira más allá de la pantalla.
+       Todo lo que adentro mide `w-full` se estira con ella y termina afuera, que es
+       lo que pasaba con el switch de vista. `grid-cols-1` es `minmax(0,1fr)`: la
+       columna no pasa del ancho disponible y lo que no entra desborda adentro de su
+       propia caja, que es donde se puede manejar. */
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
       <div className={`min-w-0 ${className}`}>{children}</div>
-      <aside className="space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+      <aside className="min-w-0 space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
         {riel}
       </aside>
     </div>
@@ -1397,18 +1409,21 @@ function VistaToggle({
 }) {
   return (
     <div className="flex w-full gap-2 p-1 bg-gray-100 rounded-lg sm:w-fit">
+      {/* Dos rótulos por opción: en celular el corto. "Ver como PDF | Ver formulario"
+          son 250px de texto que no corta, y en un teléfono angosto eso no entra. */}
       {([
-        ["pdf", "Ver como PDF"],
-        ["formulario", "Ver formulario"],
-      ] as const).map(([valor, texto]) => (
+        ["pdf", "PDF", "Ver como PDF"],
+        ["formulario", "Formulario", "Ver formulario"],
+      ] as const).map(([valor, corto, largo]) => (
         <button
           key={valor}
           onClick={() => onChange(valor)}
-          className={`flex-1 whitespace-nowrap px-3 py-1.5 rounded-md text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
+          className={`flex-1 min-w-0 px-3 py-1.5 rounded-md text-sm font-medium leading-tight transition-colors sm:flex-none sm:px-4 ${
             vista === valor ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
           }`}
         >
-          {texto}
+          <span className="sm:hidden">{corto}</span>
+          <span className="hidden sm:inline">{largo}</span>
         </button>
       ))}
     </div>
