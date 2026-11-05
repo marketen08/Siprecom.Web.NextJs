@@ -5,7 +5,7 @@ import { useMeetsRole } from "@/lib/use-roles"
 import { RehacerTareaDialog } from "@/features/elementos-tareas/components/rehacer-tarea-dialog"
 import {
   AlertCircle, Clock, CheckCircle2, XCircle, Ban, BookOpen,
-  Loader2, Play, FileText, Upload, Download, Eye, FileDown,
+  Loader2, Play, FileText, Upload, Download, FileDown,
   Link2, MoreVertical, Paperclip, PenLine, RotateCcw, RefreshCw, ClipboardCheck,
 } from "lucide-react"
 
@@ -549,6 +549,32 @@ export function buildTareaMenuItems({
     onSelect: () => triggerDownload(`/api/registros/${tarea.registroId}/pdf`),
   }
 
+  /**
+   * La planilla en blanco ABRE el grupo físico, antes de "Cargar registro", porque
+   * es el primer paso real del flujo en papel: se baja, se completa a mano y se
+   * vuelve a subir. El menú queda en el orden en que se hacen las cosas.
+   *
+   * Y deja de tener sentido cuando el trabajo ya está hecho: se oculta en COMPLETADO
+   * (3), APROBADO (4) y FIRMADO (7). En RECHAZADO (5) vuelve a aparecer, porque esa
+   * tarea se rehace y puede volver a hacerse en papel.
+   *
+   * Esto no habilita títulos nuevos: en todos los estados donde la planilla aparece,
+   * el grupo físico ya tenía "Cargar registro" bajo la misma condición
+   * (`planillaId && permitirFisico`), así que `hayTitulos` no cambia de valor.
+   */
+  const tareaTerminada = tarea.estado === 3 || tarea.estado === 4 || tarea.estado === 7
+  if (tarea.planillaId && permitirFisico && !tareaTerminada) {
+    // Descarga de verdad, sin `/preview`: esa es la ruta que manda
+    // Content-Disposition attachment. La de preview abría el PDF inline en otra
+    // pestaña, que es un paso de más cuando lo que sigue es imprimirlo.
+    fisicos.push({
+      kind: "item",
+      label: "Descargar planilla PDF",
+      icon: FileDown,
+      onSelect: () => triggerDownload(`/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}`),
+    })
+  }
+
   switch (tarea.estado) {
     case 1: // PENDIENTE
       if (permitirDigital) {
@@ -628,32 +654,6 @@ export function buildTareaMenuItems({
     !!tarea.registroId &&
     (tarea.estado === 3 || tarea.estado === 5 || tarea.estado === 7)
   if (puedeDescargarPdfDigital) digitales.push(descargarRegistroPdf)
-
-  // La planilla en blanco pertenece al camino físico: es el papel que se imprime,
-  // se llena a mano y se vuelve a subir, así que acompaña a "Cargar registro" en
-  // vez de colgar sola al final del menú. Va última del grupo porque es material
-  // de apoyo, no la acción principal.
-  //
-  // Y deja de tener sentido cuando el trabajo ya está hecho: se oculta en
-  // COMPLETADO (3), APROBADO (4) y FIRMADO (7). En RECHAZADO (5) vuelve a
-  // aparecer, porque esa tarea se rehace y puede volver a hacerse en papel.
-  //
-  // Esto no habilita títulos nuevos: en todos los estados donde la planilla
-  // aparece, el grupo físico ya tenía "Cargar registro" bajo la misma condición
-  // (`planillaId && permitirFisico`), así que `hayTitulos` no cambia de valor.
-  const tareaTerminada = tarea.estado === 3 || tarea.estado === 4 || tarea.estado === 7
-  if (tarea.planillaId && permitirFisico && !tareaTerminada) {
-    // Una sola entrada para la planilla en blanco. Antes había también
-    // "Descargar planilla PDF": el mismo archivo por otro camino, porque el
-    // visor del navegador ya tiene su botón de descarga.
-    const urlPreview = `/api/planillas/${tarea.planillaId}/pdf/blanco/${tarea.id}/preview`
-    fisicos.push({
-      kind: "item",
-      label: "Ver planilla PDF",
-      icon: Eye,
-      onSelect: () => window.open(urlPreview, "_blank", "noreferrer"),
-    })
-  }
 
   // Los títulos solo cuando hay realmente una elección que explicar: los dos
   // caminos habilitados en el proyecto Y los dos con acciones en este estado.
