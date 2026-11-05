@@ -601,16 +601,18 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Header de contexto */}
-      <div className="flex items-start justify-between gap-3">
+      {/* Header de contexto. En celular se apila: el bloque de la derecha —descarga y
+          estado— se lleva más de la mitad del ancho y dejaba el título en dos palabras. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="flex-1 min-w-0 space-y-1">
-          {/* Título: nombre de la tarea */}
-          <h1 className="text-lg font-bold text-gray-900 truncate">
+          {/* Título: nombre de la tarea. El recorte a un renglón arranca en sm: en
+              celular el nombre entra en dos y cortarlo deja la mitad de una palabra. */}
+          <h1 className="text-base font-bold text-gray-900 sm:truncate sm:text-lg">
             {elementoTarea?.tareaNombre ?? "Registro"}
           </h1>
           {/* Elemento: TAG (mono azul) + nombre */}
           {elemento && (
-            <p className="text-sm text-gray-700 truncate">
+            <p className="text-sm text-gray-700 sm:truncate">
               <span className="font-mono font-semibold text-blue-700 mr-2">{elemento.tag}</span>
               {elemento.nombre}
             </p>
@@ -623,7 +625,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           )}
         </div>
         {isReadOnly && (
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
             {/* Descarga. El botón principal baja el paquete completo: el registro y,
                 si el proyecto tiene REGISTRO_PDF_CON_ADJUNTOS, los adjuntos pegados
                 atrás detrás de una hoja índice. El desplegable da las dos piezas por
@@ -640,7 +642,9 @@ export default function RegistroFormPage({ params }: PageProps) {
               >
                 <Button variant="outline" size="sm" className="gap-1.5 h-8 rounded-r-none border-r-0">
                   <Download className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Descargar PDF</span>
+                  {/* El rótulo también en celular: ahora el header se apila y hay lugar,
+                      y un botón partido con dos íconos no dice qué es lo que baja. */}
+                  <span>Descargar PDF</span>
                 </Button>
               </a>
               <DropdownMenu>
@@ -718,10 +722,12 @@ export default function RegistroFormPage({ params }: PageProps) {
       </div>
 
       {!isReadOnly && showToggle && (
-        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
+        /* En celular ocupa el ancho y reparte mitades: así los dos rótulos entran sin
+           romperse y cada mitad es un blanco de toque decente. */
+        <div className="flex w-full gap-2 p-1 bg-gray-100 rounded-lg sm:w-fit">
           <button
             onClick={() => setUserModo("digital")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
               modo === "digital" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -729,7 +735,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           </button>
           <button
             onClick={() => setUserModo("fisico")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
               modo === "fisico" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -778,7 +784,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           No se muestran mientras el uploader físico está en pantalla: ahí el texto está
           en su propio textarea, editable, y se vería dos veces. */}
       {registro.observaciones && !mostrandoCargaFisica && (
-        <div className="rounded-xl border bg-white p-5 space-y-1.5">
+        <div className="rounded-xl border bg-white p-4 space-y-1.5 sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Observaciones
           </p>
@@ -807,9 +813,9 @@ export default function RegistroFormPage({ params }: PageProps) {
           <iframe
             src={`/api/registros/${registroId}/pdf/preview`}
             title="Registro en PDF"
-            className="w-full h-[calc(100vh-18rem)] min-h-[32rem] rounded-xl border bg-white"
+            className="hidden md:block w-full h-[calc(100vh-18rem)] min-h-[32rem] rounded-xl border bg-white"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="hidden md:block text-xs text-muted-foreground">
             Si el visor no carga,{" "}
             <a
               href={`/api/registros/${registroId}/pdf/preview`}
@@ -821,6 +827,45 @@ export default function RegistroFormPage({ params }: PageProps) {
             </a>
             .
           </p>
+          {/* El visor embebido es de tablet para arriba. En celular el iframe no sirve:
+              Chrome de Android no dibuja un PDF adentro de uno —ofrece descargarlo— y
+              Safari de iOS muestra la primera página y nada más. Quedaba media pantalla
+              en blanco con una nota al pie, que es justo la vista que se abre sola
+              cuando el registro ya está cerrado.
+
+              En su lugar, el PDF se abre en el visor del teléfono, que es el que sabe
+              mostrarlo (zoom, páginas, compartir). Y como esta pantalla también tiene
+              los datos en el formulario, el atajo para leerlos acá mismo va al lado. */}
+          <div className="md:hidden space-y-3 rounded-xl border bg-white p-5 text-center">
+            <FileText className="h-8 w-8 mx-auto text-gray-400" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-800">Registro en PDF</p>
+              <p className="text-xs text-muted-foreground">
+                En el celular el PDF se abre en el visor del teléfono.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <a
+                href={`/api/registros/${registroId}/pdf/preview`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Button className="w-full gap-2">
+                  <FileText className="h-4 w-4" />
+                  Abrir el PDF
+                </Button>
+              </a>
+              {hayToggle && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setVistaUsuario("formulario")}
+                >
+                  Ver los datos en el formulario
+                </Button>
+              )}
+            </div>
+          </div>
         </VistaConRiel>
       )}
 
@@ -866,13 +911,15 @@ export default function RegistroFormPage({ params }: PageProps) {
             return (
               <div key={seccionId} className="rounded-xl border bg-white overflow-hidden">
                 {seccion && (
-                  <div className="px-5 py-3 bg-gray-50 border-b">
+                  <div className="px-4 py-3 bg-gray-50 border-b sm:px-5">
                     <h2 className="font-semibold text-gray-800">{seccion.nombre}</h2>
                   </div>
                 )}
-                <div className="p-5 space-y-5">
+                {/* Padding y aire más chicos en celular: con 20px de cada lado los
+                    campos quedan en ~290px y las tablas pierden una columna entera. */}
+                <div className="p-4 space-y-4 sm:p-5 sm:space-y-5">
                   {packCampos<PlanillaCampoDetalle>(camposSeccion).map((fila, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-4">
+                    <div key={idx} className="grid grid-cols-12 gap-3 sm:gap-4">
                       {fila.map((campo) => (
                         <div key={campo.id} className={`col-span-12 ${COL_SPAN_SM[clampTamano(campo.tamano)]}`}>
                           <CampoInput
@@ -902,7 +949,7 @@ export default function RegistroFormPage({ params }: PageProps) {
               El estado `observaciones` se queda: lo usa el textarea del uploader físico,
               que es el mismo campo del registro. */}
           {!isReadOnly && (
-            <div className="flex flex-col items-end gap-2 pb-4">
+            <div className="flex flex-col items-stretch gap-2 pb-4 sm:items-end">
               {Object.values(errors).some(Boolean) && (
                 <p className="text-sm text-red-600">
                   Completá los campos obligatorios marcados en rojo antes de completar el
@@ -910,7 +957,7 @@ export default function RegistroFormPage({ params }: PageProps) {
                 </p>
               )}
               {errorGuardado && (
-                <p className="text-sm text-red-600 text-right max-w-xl">{errorGuardado}</p>
+                <p className="text-sm text-red-600 max-w-xl sm:text-right">{errorGuardado}</p>
               )}
               {borradorGuardadoEn && !errorGuardado && (
                 <p className="text-xs text-green-700">
@@ -921,7 +968,11 @@ export default function RegistroFormPage({ params }: PageProps) {
                     : " — está completo, cerralo con «Guardar y completar»."}
                 </p>
               )}
-              <div className="flex items-center gap-2">
+              {/* En celular los dos botones al ancho completo y apilados, con el que
+                  cierra el registro arriba: en fila se pisaban los rótulos. El reverse
+                  es para no cambiar el orden en el que se leen de izquierda a derecha
+                  de sm para arriba. */}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
                 {/* Guardar borrador: persiste lo cargado sin exigir los obligatorios ni
                     cerrar el registro. Lo puede seguir otra persona desde la misma
                     pantalla — el registro no tiene dueño. */}
@@ -929,7 +980,7 @@ export default function RegistroFormPage({ params }: PageProps) {
                   variant="outline"
                   onClick={() => handleSubmitDigital(true)}
                   disabled={isSaving}
-                  className="gap-2"
+                  className="gap-2 w-full sm:w-auto"
                 >
                   {completarDigital.isPending
                     ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -937,7 +988,11 @@ export default function RegistroFormPage({ params }: PageProps) {
                   }
                   Guardar borrador
                 </Button>
-                <Button onClick={() => handleSubmitDigital(false)} disabled={isSaving} className="gap-2 px-6">
+                <Button
+                  onClick={() => handleSubmitDigital(false)}
+                  disabled={isSaving}
+                  className="gap-2 px-6 w-full sm:w-auto"
+                >
                   {isSaving
                     ? <Loader2 className="h-4 w-4 animate-spin" />
                     : <Save className="h-4 w-4" />
@@ -1153,7 +1208,7 @@ function FirmasSection({
   return (
     <>
     <div ref={tarjetaRef} className="rounded-xl border bg-white overflow-hidden">
-      <div className="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
+      <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between sm:px-5">
         <h2 className="font-semibold text-gray-800">Firmas</h2>
         <span className="text-xs text-muted-foreground">
           {status.firmasCompletadas} / {status.totalFirmas} completadas
@@ -1166,8 +1221,10 @@ function FirmasSection({
 
           return (
             <div key={slot.id} className="p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
+              {/* Envuelve: el nombre del rol más el nombre y la fecha del firmante no
+                  entran en un renglón de celular. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
                   {firmado ? (
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-green-100">
                       <Check className="h-3.5 w-3.5 text-green-600" />
@@ -1177,8 +1234,8 @@ function FirmasSection({
                       <Clock className="h-3.5 w-3.5 text-gray-400" />
                     </span>
                   )}
-                  <div>
-                    <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 flex flex-wrap items-center gap-1.5">
                       {slot.rolNombre}
                       {/* Badge "En papel" solo cuando el registro es físico —
                           en registros digitales el slot Fisica se firma electrónicamente. */}
@@ -1195,7 +1252,7 @@ function FirmasSection({
                 </div>
 
                 {firmado ? (
-                  <div className="text-right text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground sm:text-right">
                     <p className="font-medium text-gray-700">{slot.nombreFirmante}</p>
                     <p>{new Date(slot.fechaFirma).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
@@ -1231,7 +1288,7 @@ function FirmasSection({
               </div>
 
               {esActivo && (
-                <div className="pl-8 space-y-3">
+                <div className="space-y-3 sm:pl-8">
                   <FirmaCapturaInline
                     firmaGuardadaUrl={firmaGuardadaUrl}
                     modoEfectivo={modoEfectivo}
@@ -1339,7 +1396,7 @@ function VistaToggle({
   onChange: (v: "pdf" | "formulario") => void
 }) {
   return (
-    <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
+    <div className="flex w-full gap-2 p-1 bg-gray-100 rounded-lg sm:w-fit">
       {([
         ["pdf", "Ver como PDF"],
         ["formulario", "Ver formulario"],
@@ -1347,7 +1404,7 @@ function VistaToggle({
         <button
           key={valor}
           onClick={() => onChange(valor)}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          className={`flex-1 whitespace-nowrap px-3 py-1.5 rounded-md text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
             vista === valor ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
           }`}
         >
