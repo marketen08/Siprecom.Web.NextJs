@@ -259,6 +259,37 @@ export default function RegistroFormPage({ params }: PageProps) {
 
   const { planilla, secciones, campos } = estructura
 
+  /**
+   * Las dos vistas del registro digital. La condición estaba escrita inline y repetida
+   * en las dos ramas del JSX; extraerla evita que se desincronicen, ahora que además
+   * deciden dónde van adjuntos y firmas.
+   */
+  const bloqueDigital = !registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital))
+  const mostrandoPdf = bloqueDigital && vistaEfectiva === "pdf"
+  const mostrandoFormulario = bloqueDigital && vistaEfectiva === "formulario"
+
+  /**
+   * Adjuntos y firmas se mudan según la vista —riel al costado en la vista PDF, arriba
+   * del formulario, abajo en el registro físico—, así que se arman una sola vez y el
+   * JSX sólo elige dónde ponerlos.
+   *
+   * Adjuntos: disponibles para digital y físico, incluso después de completar/firmar.
+   * Sólo se bloquean con el registro RECHAZADO; APROBADO ("PDF firmado en papel")
+   * sigue aceptando adjuntos para sumar evidencia o fotos posteriores.
+   */
+  const adjuntos = (colapsable: boolean) => (
+    <RegistroAdjuntos
+      registroId={registroId}
+      permiteSubir={permiteAdjuntos && canWrite}
+      readOnly={registro.estado === "RECHAZADO" || !canWrite}
+      colapsable={colapsable}
+    />
+  )
+  const firmas =
+    registro.estado === "COMPLETADO" || registro.estado === "FIRMADO" ? (
+      <FirmasSection registroId={registroId} canWrite={canWrite} esRegistroFisico={registro.esFisico} />
+    ) : null
+
   // Agrupar campos por sección (null = sin sección)
   const camposPorSeccion = campos.reduce<Record<string, PlanillaCampoDetalle[]>>((acc, c) => {
     const key = c.planillaSeccionId ?? "__sin_seccion__"
@@ -539,45 +570,66 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-{/* ── Modo formulario digital ──
-          Se muestra cuando: el registro es de solo lectura digital (para visualizar),
-          o cuando es editable y el proyecto permite completar digitalmente. */}
-      {!registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital)) && vistaEfectiva === "pdf" && (
-        <div className="space-y-2">
-          <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />
-          {/* El PDF del registro, embebido. Es literalmente el documento que se firma
-              y el que se entrega, así que a la hora de firmar es la vista que importa;
-              el formulario read-only mostraba los mismos datos con otra cara.
-              Va en un <iframe> y no en un canvas con pdfjs a propósito: el visor del
-              navegador ya trae zoom, búsqueda, impresión y descarga.
+      {/* ── Registro digital: las dos vistas ──
+          Se muestran cuando el registro es de solo lectura digital (para visualizar), o
+          cuando es editable y el proyecto permite completar digitalmente. `vistaEfectiva`
+          elige entre el PDF y el formulario, y con la vista cambia también dónde quedan
+          los adjuntos y las firmas. */}
+      {mostrandoPdf && (
+        /* Dos columnas en pantalla grande: el documento a la izquierda y un riel a la
+           derecha con adjuntos y firmas. El sentido de esta vista es leer el registro
+           mientras se actúa sobre él, y las dos cosas sobre las que se actúa estaban
+           un scroll entero más abajo, porque el iframe mide una pantalla completa.
 
-              OJO: esto depende de que la ruta del preview salga con
-              `frame-ancestors 'self'` — ver RUTAS_EMBEBIDAS en next.config.ts. El
-              valor global del sitio es `'none'`, que bloquea el framing incluso
-              desde el mismo origen y deja este visor en blanco. */}
-          <iframe
-            src={`/api/registros/${registroId}/pdf/preview`}
-            title="Registro en PDF"
-            className="w-full h-[calc(100vh-18rem)] min-h-[32rem] rounded-xl border bg-white"
-          />
-          <p className="text-xs text-muted-foreground">
-            Si el visor no carga,{" "}
-            <a
-              href={`/api/registros/${registroId}/pdf/preview`}
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-gray-700"
-            >
-              abrí el PDF en una pestaña nueva
-            </a>
-            .
-          </p>
+           El riel va en 26rem y no menos porque adentro entra el pad de firma, que se
+           dibuja inline; con eso la columna del PDF queda en ~840px a 1280, que es
+           justo un A4 al 100%. Por debajo de xl se apila como antes: en un ancho así
+           el PDF ya se come el viewport y nada arriba de él ayuda. */
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
+          <div className="space-y-2">
+            <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />
+            {/* El PDF del registro, embebido. Es literalmente el documento que se firma
+                y el que se entrega, así que a la hora de firmar es la vista que importa;
+                el formulario read-only mostraba los mismos datos con otra cara.
+                Va en un <iframe> y no en un canvas con pdfjs a propósito: el visor del
+                navegador ya trae zoom, búsqueda, impresión y descarga.
+
+                OJO: esto depende de que la ruta del preview salga con
+                `frame-ancestors 'self'` — ver RUTAS_EMBEBIDAS en next.config.ts. El
+                valor global del sitio es `'none'`, que bloquea el framing incluso
+                desde el mismo origen y deja este visor en blanco. */}
+            <iframe
+              src={`/api/registros/${registroId}/pdf/preview`}
+              title="Registro en PDF"
+              className="w-full h-[calc(100vh-18rem)] min-h-[32rem] rounded-xl border bg-white"
+            />
+            <p className="text-xs text-muted-foreground">
+              Si el visor no carga,{" "}
+              <a
+                href={`/api/registros/${registroId}/pdf/preview`}
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-gray-700"
+              >
+                abrí el PDF en una pestaña nueva
+              </a>
+              .
+            </p>
+          </div>
+          <aside className="space-y-4 xl:sticky xl:top-4">
+            {adjuntos(false)}
+            {firmas}
+          </aside>
         </div>
       )}
 
-      {!registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital)) && vistaEfectiva === "formulario" && (
+      {mostrandoFormulario && (
         <div className="space-y-6">
           {puedeVerPdf && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
+          {/* Colapsado y arriba: el formulario puede ser larguísimo y el card quedaba
+              una pantalla abajo. Cerrado no le roba alto, y el contador de archivos
+              del encabezado alcanza para saber si vale abrirlo. */}
+          {adjuntos(true)}
           {/* Registro dejado a medio completar: quién lo tocó último y cuánto falta.
               Sin esto, el que lo retoma —que puede ser otra persona— no sabe si lo que
               ve es todo lo que había ni si alguien lo está llenando en paralelo. */}
@@ -698,19 +750,13 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── Adjuntos ── disponibles para digital y físico, incluso después de completar/firmar.
-          Sólo se bloquean cuando el registro está RECHAZADO. APROBADO ("PDF firmado en papel")
-          sigue aceptando adjuntos para sumar evidencia/fotos posteriores. */}
-      <RegistroAdjuntos
-        registroId={registroId}
-        permiteSubir={permiteAdjuntos && canWrite}
-        readOnly={registro.estado === "RECHAZADO" || !canWrite}
-      />
+      {/* ── Adjuntos ── acá abajo sólo en el registro físico: la vista PDF los lleva al
+          riel de la derecha y la del formulario, colapsados arriba. */}
+      {!mostrandoPdf && !mostrandoFormulario && adjuntos(false)}
 
-      {/* ── Firmas ── */}
-      {(registro.estado === "COMPLETADO" || registro.estado === "FIRMADO") && (
-        <FirmasSection registroId={registroId} canWrite={canWrite} esRegistroFisico={registro.esFisico} />
-      )}
+      {/* ── Firmas ── afuera del riel salvo en la vista PDF, que es donde conviene
+          tenerlas al lado del documento que se está firmando. */}
+      {!mostrandoPdf && firmas}
 
       {/* Dialog de "próximo ciclo de preservación" — se abre cuando el backend
           confirma que generó el próximo ElementoTarea al completar/firmar. En
