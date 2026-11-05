@@ -118,7 +118,7 @@ export function RegistroAdjuntos({ registroId, permiteSubir, readOnly = false }:
 
   return (
     <div className="rounded-xl border bg-white">
-      <div className="px-5 py-3 bg-gray-50 border-b flex items-center justify-between gap-2">
+      <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between gap-2 sm:px-5">
         <h2 className="font-semibold text-gray-800 flex items-center gap-2">
           <Paperclip className="h-4 w-4" />
           Archivos adjuntos
