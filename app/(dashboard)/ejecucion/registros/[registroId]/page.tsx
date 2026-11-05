@@ -288,6 +288,9 @@ export default function RegistroFormPage({ params }: PageProps) {
    * de lo que se rechazó.
    */
   const enCaminoDigital = isReadOnly || (modo === "digital" && permitirDigital)
+  // La pantalla de carga del PDF físico. Se pregunta dos veces: para mostrarla, y para
+  // no duplicar las observaciones, que ahí se editan adentro del uploader.
+  const mostrandoCargaFisica = modo === "fisico" && !isReadOnly && permitirFisico
   const mostrandoFormulario = hayFormulario && enCaminoDigital && vistaEfectiva === "formulario"
   const mostrandoPdf = hayPdf && vistaEfectiva === "pdf" && (!hayFormulario || enCaminoDigital)
 
@@ -586,7 +589,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           Todo el flow (drop zone, chequeos QR, detección firma, dialogs, rotación)
           vive en <CargaFisicaUploader>. Este componente le entrega el archivo listo
           y los detalles de override para auditoría a través del callback onSubmit. */}
-      {modo === "fisico" && !isReadOnly && permitirFisico && (
+      {mostrandoCargaFisica && (
         <CargaFisicaUploader
           esperadoPlanillaId={(registro.planillaId ?? "").toLowerCase()}
           esperadoElementoTareaId={(registro.elementoTareaId ?? "").toLowerCase()}
@@ -613,11 +616,15 @@ export default function RegistroFormPage({ params }: PageProps) {
         </CargaFisicaUploader>
       )}
 
-      {/* ── Observaciones del registro físico (read-only) ──
-          El form digital ya muestra observaciones dentro de su card, pero en flujo físico
-          esa card no se renderiza, así que mostramos las observaciones acá para que el
-          texto cargado al subir el PDF no quede oculto. */}
-      {registro.esFisico && isReadOnly && registro.observaciones && (
+      {/* ── Observaciones del registro (read-only) ──
+          Sólo si tienen texto. Pasó a ser la única vista que les queda en el registro
+          digital, donde el formulario ya no las edita, y sigue siendo la del físico ya
+          cargado. Sin esto, lo que se escribió antes de este cambio quedaría sin ningún
+          lugar donde verse.
+
+          No se muestran mientras el uploader físico está en pantalla: ahí el texto está
+          en su propio textarea, editable, y se vería dos veces. */}
+      {registro.observaciones && !mostrandoCargaFisica && (
         <div className="rounded-xl border bg-white p-5 space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Observaciones
@@ -724,20 +731,14 @@ export default function RegistroFormPage({ params }: PageProps) {
             )
           })}
 
-          {/* Observaciones generales */}
-          <div className="rounded-xl border bg-white p-5 space-y-2">
-            <label className="text-sm font-semibold text-gray-700 block">
-              Observaciones generales
-            </label>
-            <Textarea
-              placeholder="Notas sobre este registro..."
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              disabled={isReadOnly}
-              rows={3}
-            />
-          </div>
+          {/* Acá iba un campo "Observaciones generales" del registro. Se saca porque es
+              del camino físico, no de éste: cada planilla define su propio campo de
+              observaciones cuando hace falta, y ése sí sale en el PDF del registro —este
+              no salía en ninguno—. Tenerlo en los dos lados invitaba a escribir lo mismo
+              dos veces con un solo lado llegando al documento.
 
+              El estado `observaciones` se queda: lo usa el textarea del uploader físico,
+              que es el mismo campo del registro. */}
           {!isReadOnly && (
             <div className="flex flex-col items-end gap-2 pb-4">
               {Object.values(errors).some(Boolean) && (
