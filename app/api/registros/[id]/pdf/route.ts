@@ -6,7 +6,14 @@ export async function GET(
   context: RouteContext<"/api/registros/[id]/pdf">
 ) {
   const { id } = await context.params
-  const res = await backendFetch(request, `/registros/${id}/pdf`)
+  // `conAdjuntos=false` pide el registro sin los adjuntos pegados atrás. Se reenvía
+  // sólo ese valor en vez de pasar el query string entero: el default del backend es
+  // traerlos (cuando la funcionalidad del proyecto está activa).
+  const sinAdjuntos = request.nextUrl.searchParams.get("conAdjuntos") === "false"
+  const res = await backendFetch(
+    request,
+    `/registros/${id}/pdf${sinAdjuntos ? "?conAdjuntos=false" : ""}`
+  )
 
   // Si el backend NO devolvió un PDF (error 4xx/5xx con cuerpo JSON o texto),
   // lo surfaceamos inline como JSON para que el error sea legible en el browser
