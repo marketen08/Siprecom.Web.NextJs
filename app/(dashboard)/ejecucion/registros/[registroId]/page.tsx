@@ -1,9 +1,12 @@
 "use client"
 
-import { use, useState, useRef } from "react"
+import { use, useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
-import { Save, CheckCircle2, Loader2, Download, PenLine, Clock, Check, Lock } from "lucide-react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  Save, CheckCircle2, Loader2, Download, PenLine, Clock, Check, Lock,
+  ChevronDown, FileText, Paperclip,
+} from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 
@@ -31,9 +34,27 @@ import {
   type CargaFisicaSubmitParams,
 } from "@/features/registros/components/carga-fisica-uploader"
 import { useGetFirmasConfigEfectiva } from "@/features/registros/api/use-get-firmas-config-efectiva"
+import { useGetRegistroArchivos } from "@/features/registros/api/use-registro-archivos"
+import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useCanWrite } from "@/lib/use-roles"
 
-import type { RegistroValorInput, RegistroDetalle } from "@/features/registros/types"
+import type { RegistroValorInput, RegistroDetalle, RegistroFirmaSlot } from "@/features/registros/types"
 import type { ElementoTarea } from "@/features/elementos-tareas/types"
 import type { PlanillaCampoDetalle, TamanoTexto } from "@/features/planillas/types"
 import { TAMANO_TEXTO_CLASS } from "@/features/planillas/types"
@@ -222,6 +243,36 @@ export default function RegistroFormPage({ params }: PageProps) {
   // hasta que el usuario lo cierre (así ve la fecha antes de perder la pantalla).
   const [proximoCicloFecha, setProximoCicloFecha] = useState<string | null>(null)
 
+  /**
+   * Firmar en el momento de completar. Los slots de firma los crea el backend DENTRO
+   * del mismo completar, así que recién cuando vuelve la respuesta se puede saber si
+   * a esta persona le toca firmar algo. Si le toca, en vez de volver a la lista se le
+   * ofrece firmar ahí: el registro quedó en COMPLETADO, que es justo el estado que
+   * acepta la firma.
+   *
+   * `ofrecerFirma` es el slot que abre el diálogo; `abrirSlotFirma` es el que la
+   * tarjeta de firmas abre y centra sola cuando el usuario dice que sí.
+   */
+  const [ofrecerFirma, setOfrecerFirma] = useState<RegistroFirmaSlot | null>(null)
+  const [abrirSlotFirma, setAbrirSlotFirma] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  // Funcionalidades efectivas del proyecto activo, igual que las lee el sidebar. Acá
+  // se usa una sola: REGISTRO_PDF_CON_ADJUNTOS, que decide si "Descargar PDF" trae el
+  // registro con los adjuntos pegados atrás o el registro solo.
+  const { data: misProyectos } = useGetMisProyectos()
+  const pdfConAdjuntos =
+    misProyectos?.find((p) => p.esActivo)?.funcionalidades?.REGISTRO_PDF_CON_ADJUNTOS === true
+
+  // Cuántos adjuntos tiene el registro, para no ofrecer un ZIP vacío (el backend
+  // responde error si no hay ninguno). Es la misma query key que usa el riel, así que
+  // no agrega una request. El escaneo físico (posición 0) y el certificado de firmas
+  // (999) no son adjuntos del usuario y el ZIP tampoco los incluye.
+  const { data: archivosRaw } = useGetRegistroArchivos(registroId)
+  const cantidadAdjuntos = (archivosRaw?.data ?? []).filter(
+    (a) => a.posicion !== 0 && a.posicion !== 999
+  ).length
+
   const isLoading = loadingDetalle || loadingEstructura
   // Consultor/Auditor fuerzan modo readonly aunque el registro esté editable.
   // Excepción: encabezado de TestGroup es siempre re-editable (no firma, no cierra).
@@ -322,6 +373,7 @@ export default function RegistroFormPage({ params }: PageProps) {
       canWrite={canWrite}
       permiteFirmar={registro.estado === "COMPLETADO" || registro.estado === "FIRMADO"}
       esRegistroFisico={registro.esFisico}
+      abrirSlotId={abrirSlotFirma}
     />
   ) : null
 
@@ -451,10 +503,50 @@ export default function RegistroFormPage({ params }: PageProps) {
         return
       }
       const fecha = extraerFechaProximoCiclo(res)
-      if (fecha) setProximoCicloFecha(fecha)
-      else router.back()
+      if (fecha) {
+        setProximoCicloFecha(fecha)
+        return
+      }
+      // ¿Le toca firmar? Entonces se queda y se le ofrece. Si no, vuelve a la lista
+      // como siempre. El de preservación va primero porque ya retiene la pantalla:
+      // dos diálogos encimados no se leen.
+      const slot = await buscarSlotPropioPendiente()
+      if (slot) {
+        setOfrecerFirma(slot)
+        return
+      }
+      router.back()
     } catch (err) {
       setErrorGuardado((err as Error).message || "No se pudo guardar el registro.")
+    }
+  }
+
+  /**
+   * El primer slot de firma pendiente que esta persona puede firmar, o null.
+   *
+   * "Poder firmar" lo resuelve el backend (`puedeFirearUsuarioActual`): necesita un
+   * rol de firma asignado en el proyecto, que no es lo mismo que el rol del sistema
+   * —ser Admin no alcanza—.
+   *
+   * Usa la misma query key que la tarjeta de firmas, así la respuesta queda en caché
+   * y la tarjeta la encuentra servida. Si la consulta falla devolvemos null: el
+   * registro ya se guardó y la firma se puede hacer después desde el mismo registro o
+   * desde Mis firmas — no vale la pena ensuciar el cierre por esto.
+   */
+  async function buscarSlotPropioPendiente(): Promise<RegistroFirmaSlot | null> {
+    try {
+      const raw = await queryClient.fetchQuery({
+        queryKey: ["registros", registroId, "firmas"],
+        queryFn: () =>
+          apiClient.get<{
+            data?: { slots?: RegistroFirmaSlot[] }
+            slots?: RegistroFirmaSlot[]
+          }>(`/api/registros/${registroId}/firmas`),
+      })
+      const slots = raw?.data?.slots ?? raw?.slots ?? []
+      return slots.find((s) => !s.firmaId && s.puedeFirearUsuarioActual) ?? null
+    } catch {
+      return null
     }
   }
 
@@ -532,19 +624,80 @@ export default function RegistroFormPage({ params }: PageProps) {
         </div>
         {isReadOnly && (
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Descargar PDF: para digitales devuelve la planilla renderizada con
-                valores; para físicos devuelve el escaneo (envuelto en PDF si era
-                imagen) + página final de certificado si hay firma electrónica. */}
-            <a
-              href={`/api/registros/${registroId}/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" size="sm" className="gap-1.5 h-8">
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Descargar PDF</span>
-              </Button>
-            </a>
+            {/* Descarga. El botón principal baja el paquete completo: el registro y,
+                si el proyecto tiene REGISTRO_PDF_CON_ADJUNTOS, los adjuntos pegados
+                atrás detrás de una hoja índice. El desplegable da las dos piezas por
+                separado.
+
+                El registro, para digitales, es la planilla renderizada con valores;
+                para físicos, el escaneo (envuelto en PDF si era imagen) + la página
+                de certificado si hubo firma electrónica. */}
+            <div className="flex items-center">
+              <a
+                href={`/api/registros/${registroId}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" size="sm" className="gap-1.5 h-8 rounded-r-none border-r-0">
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Descargar PDF</span>
+                </Button>
+              </a>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-l-none px-1.5"
+                      aria-label="Más opciones de descarga"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-64">
+                  {/* Con la funcionalidad apagada este ítem bajaría exactamente el
+                      mismo archivo que el botón principal, así que no se ofrece. */}
+                  {pdfConAdjuntos && (
+                    <DropdownMenuItem asChild>
+                      <a
+                        href={`/api/registros/${registroId}/pdf?conAdjuntos=false`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Descargar registro PDF
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                  {/* Los adjuntos van en ZIP y con su formato original: el PDF sólo
+                      puede incorporar lo que se convierte en páginas, así que un Excel
+                      o un Word se bajan de acá. Siempre disponible, con la
+                      funcionalidad prendida o apagada. */}
+                  {cantidadAdjuntos === 0 ? (
+                    <DropdownMenuItem disabled>
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Sin adjuntos
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem asChild>
+                      <a
+                        href={`/api/registros/${registroId}/adjuntos/zip`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Paperclip className="h-3.5 w-3.5" />
+                        Descargar adjuntos
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {cantidadAdjuntos} · ZIP
+                        </span>
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             {registro.estado === "COMPLETADO" && (
               <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium bg-amber-100 text-amber-700">
                 <Clock className="h-3.5 w-3.5" /> Pendiente de firma
@@ -818,6 +971,48 @@ export default function RegistroFormPage({ params }: PageProps) {
           router.back()
         }}
       />
+
+      {/* Firmá ahora: el registro acaba de quedar cerrado y a esta persona le toca una
+          de las firmas que quedaron pendientes.
+
+          "Firmar ahora" la deja en la pantalla y abre la firma en el riel; "Después"
+          vuelve a la lista, que es lo que pasaba siempre. Cerrarlo sin elegir también
+          la deja acá: no se pierde nada y las firmas quedan a la vista. */}
+      <AlertDialog open={!!ofrecerFirma} onOpenChange={(abierto) => !abierto && setOfrecerFirma(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Registro completado
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Te toca firmarlo como{" "}
+              <span className="font-medium text-gray-800">{ofrecerFirma?.rolNombre}</span>. Podés
+              hacerlo ahora o más tarde, desde este registro o desde Mis firmas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setOfrecerFirma(null)
+                router.back()
+              }}
+            >
+              Después
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="gap-1.5"
+              onClick={() => {
+                setAbrirSlotFirma(ofrecerFirma?.id ?? null)
+                setOfrecerFirma(null)
+              }}
+            >
+              <PenLine className="h-4 w-4" />
+              Firmar ahora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -829,6 +1024,7 @@ function FirmasSection({
   canWrite,
   permiteFirmar,
   esRegistroFisico,
+  abrirSlotId,
 }: {
   registroId: string
   canWrite: boolean
@@ -839,6 +1035,10 @@ function FirmasSection({
    * auto-firman con el escaneo en registros físicos — si el registro es digital,
    * los slots Fisica se firman electrónicamente como cualquier otro. */
   esRegistroFisico: boolean
+  /** Slot que la tarjeta abre y centra sola, sin que el usuario lo busque. Lo manda
+   * la pantalla cuando acaba de completar el registro y eligió firmarlo en el
+   * momento: el botón "Firmar" vive en el riel y puede quedar fuera de la vista. */
+  abrirSlotId?: string | null
 }) {
   const { data: raw, isLoading } = useGetFirmasStatus(registroId)
   const firmar = useFirmarRegistro(registroId)
@@ -852,9 +1052,33 @@ function FirmasSection({
   const uploadMiFirma = useUploadMiFirma()
 
   const [slotFirmando, setSlotFirmando] = useState<string | null>(null)
+  /**
+   * La apertura automática deja de valer en cuanto el usuario cierra o firma ese slot.
+   * Sin esto, limpiar `slotFirmando` haría que el panel se vuelva a abrir solo, porque
+   * `abrirSlotId` sigue apuntando al mismo lugar.
+   */
+  const [autoAperturaDescartada, setAutoAperturaDescartada] = useState(false)
   const [observacionFirma, setObservacionFirma] = useState("")
   const [padIsEmpty, setPadIsEmpty] = useState(true)
   const padRef = useRef<SignaturePadHandle | null>(null)
+  const tarjetaRef = useRef<HTMLDivElement | null>(null)
+
+  // El slot con el panel de firma abierto. Es derivado y no estado propio: lo que la
+  // pantalla pide (`abrirSlotId`) vale hasta que el usuario toque algo.
+  const slotAbierto = slotFirmando ?? (autoAperturaDescartada ? null : abrirSlotId ?? null)
+
+  function cerrarPanelFirma() {
+    setSlotFirmando(null)
+    setAutoAperturaDescartada(true)
+  }
+
+  // Traer a la vista la tarjeta cuando la pantalla pide abrir un slot: el botón de
+  // firmar vive en el riel y puede quedar abajo de todo. Espera a que cargue el estado
+  // de firmas porque antes de eso la tarjeta no está en el DOM.
+  useEffect(() => {
+    if (!abrirSlotId || isLoading) return
+    tarjetaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [abrirSlotId, isLoading])
 
   // Preservación: la última firma electrónica puede haber gatillado el próximo
   // ciclo. Cuando el response lo indica, mostramos el dialog con la fecha; el
@@ -889,7 +1113,7 @@ function FirmasSection({
       datosFirma,
       usarFirmaGuardada,
     })
-    setSlotFirmando(null)
+    cerrarPanelFirma()
     setObservacionFirma("")
 
     const info = (res as { data?: RegistroDetalle } | undefined)?.data?.preservacionCicloGenerado
@@ -928,7 +1152,7 @@ function FirmasSection({
 
   return (
     <>
-    <div className="rounded-xl border bg-white overflow-hidden">
+    <div ref={tarjetaRef} className="rounded-xl border bg-white overflow-hidden">
       <div className="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
         <h2 className="font-semibold text-gray-800">Firmas</h2>
         <span className="text-xs text-muted-foreground">
@@ -938,7 +1162,7 @@ function FirmasSection({
       <div className="divide-y">
         {slots.map((slot: any) => {
           const firmado = !!slot.firmaId
-          const esActivo = slotFirmando === slot.id
+          const esActivo = slotAbierto === slot.id
 
           return (
             <div key={slot.id} className="p-4 space-y-3">
@@ -1045,7 +1269,7 @@ function FirmasSection({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setSlotFirmando(null)}
+                      onClick={cerrarPanelFirma}
                       disabled={firmar.isPending}
                     >
                       Cancelar
