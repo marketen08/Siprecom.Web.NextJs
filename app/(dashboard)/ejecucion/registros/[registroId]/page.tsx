@@ -22,6 +22,7 @@ import { useFirmarRegistro } from "@/features/registros/api/use-firmar-registro"
 import { useGetMiFirma, useUploadMiFirma } from "@/features/usuarios/api/use-mi-firma"
 import { SignaturePad, type SignaturePadHandle } from "@/components/ui/signature-pad"
 import { RegistroAdjuntos } from "@/features/registros/components/registro-adjuntos"
+import { RegistroPdfMovil } from "@/features/registros/components/registro-pdf-movil"
 import {
   CampoTablaInput,
   tablaTieneAlgoPorCompletar,
@@ -832,44 +833,16 @@ export default function RegistroFormPage({ params }: PageProps) {
             </a>
             .
           </p>
-          {/* El visor embebido es de tablet para arriba. En celular el iframe no sirve:
-              Chrome de Android no dibuja un PDF adentro de uno —ofrece descargarlo— y
-              Safari de iOS muestra la primera página y nada más. Quedaba media pantalla
-              en blanco con una nota al pie, que es justo la vista que se abre sola
-              cuando el registro ya está cerrado.
+          {/* El visor embebido es de tablet para arriba: en celular el iframe no sirve
+              (ver el comentario de arriba) y el PDF se dibuja con pdfjs, página por
+              página en un canvas. Es el mismo documento y la misma pantalla, que es lo
+              que importa cuando lo que sigue es firmarlo.
 
-              En su lugar, el PDF se abre en el visor del teléfono, que es el que sabe
-              mostrarlo (zoom, páginas, compartir). Y como esta pantalla también tiene
-              los datos en el formulario, el atajo para leerlos acá mismo va al lado. */}
-          <div className="md:hidden space-y-3 rounded-xl border bg-white p-5 text-center">
-            <FileText className="h-8 w-8 mx-auto text-gray-400" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-800">Registro en PDF</p>
-              <p className="text-xs text-muted-foreground">
-                En el celular el PDF se abre en el visor del teléfono.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <a
-                href={`/api/registros/${registroId}/pdf/preview`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Button className="w-full gap-2">
-                  <FileText className="h-4 w-4" />
-                  Abrir el PDF
-                </Button>
-              </a>
-              {hayToggle && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setVistaUsuario("formulario")}
-                >
-                  Ver los datos en el formulario
-                </Button>
-              )}
-            </div>
+              El componente no hace nada mientras su contenedor mida 0, así que acá
+              arriba de md —donde este div es `display:none`— no baja el PDF por
+              segunda vez al lado del que ya trae el iframe. */}
+          <div className="md:hidden">
+            <RegistroPdfMovil registroId={registroId} />
           </div>
         </VistaConRiel>
       )}
