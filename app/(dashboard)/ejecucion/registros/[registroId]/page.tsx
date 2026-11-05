@@ -292,20 +292,15 @@ export default function RegistroFormPage({ params }: PageProps) {
   const mostrandoPdf = hayPdf && vistaEfectiva === "pdf" && (!hayFormulario || enCaminoDigital)
 
   /**
-   * Adjuntos y firmas se mudan según la vista —riel al costado en la vista PDF, arriba
-   * del formulario, abajo en el registro físico—, así que se arman una sola vez y el
-   * JSX sólo elige dónde ponerlos.
-   *
    * Adjuntos: disponibles para digital y físico, incluso después de completar/firmar.
    * Sólo se bloquean con el registro RECHAZADO; APROBADO ("PDF firmado en papel")
    * sigue aceptando adjuntos para sumar evidencia o fotos posteriores.
    */
-  const adjuntos = (colapsable: boolean) => (
+  const adjuntos = (
     <RegistroAdjuntos
       registroId={registroId}
       permiteSubir={permiteAdjuntos && canWrite}
       readOnly={registro.estado === "RECHAZADO" || !canWrite}
-      colapsable={colapsable}
     />
   )
   /**
@@ -326,6 +321,19 @@ export default function RegistroFormPage({ params }: PageProps) {
       esRegistroFisico={registro.esFisico}
     />
   ) : null
+
+  /**
+   * El riel que acompaña al documento en las dos vistas. Se arma una sola vez: cuando
+   * cada vista decidía por su cuenta dónde iban los adjuntos, la del formulario los
+   * tenía colapsados arriba y las firmas al final, y eran dos pantallas distintas para
+   * el mismo trabajo.
+   */
+  const riel = (
+    <>
+      {adjuntos}
+      {firmas}
+    </>
+  )
 
   // Agrupar campos por sección (null = sin sección)
   const camposPorSeccion = campos.reduce<Record<string, PlanillaCampoDetalle[]>>((acc, c) => {
@@ -472,12 +480,15 @@ export default function RegistroFormPage({ params }: PageProps) {
   ].filter(Boolean) as string[]
 
   /**
-   * El ancho depende de la vista. El formulario es de una columna y `max-w-3xl` es su
-   * ancho de lectura. La vista PDF, en cambio, pone un riel de 26rem al costado: dentro
-   * de 48rem al documento le quedaban ~336px desde `xl` —más angosto que antes de
-   * tener riel—. Con `max-w-7xl` la columna del documento vuelve a dar un A4 real.
+   * El ancho depende de si hay riel. Las dos vistas del registro lo tienen, y un riel de
+   * 26rem adentro de `max-w-3xl` (48rem) deja al documento en ~336px desde `xl`: más
+   * angosto que no tener riel. Con `max-w-7xl` la columna del documento da un A4 real
+   * en la vista PDF y al formulario le sobra lugar.
+   *
+   * `max-w-3xl` queda para lo que no tiene riel —el uploader del PDF físico—, que es
+   * una sola columna y se lee mejor angosto.
    */
-  const anchoContenedor = mostrandoPdf ? "max-w-7xl" : "max-w-3xl"
+  const anchoContenedor = mostrandoPdf || mostrandoFormulario ? "max-w-7xl" : "max-w-3xl"
 
   return (
     <div className={`${anchoContenedor} mx-auto space-y-6`}>
@@ -621,60 +632,41 @@ export default function RegistroFormPage({ params }: PageProps) {
           elige entre el PDF y el formulario, y con la vista cambia también dónde quedan
           los adjuntos y las firmas. */}
       {mostrandoPdf && (
-        /* Dos columnas en pantalla grande: el documento a la izquierda y un riel a la
-           derecha con adjuntos y firmas. El sentido de esta vista es leer el registro
-           mientras se actúa sobre él, y las dos cosas sobre las que se actúa estaban
-           un scroll entero más abajo, porque el iframe mide una pantalla completa.
+        <VistaConRiel className="space-y-2" riel={riel}>
+          {hayToggle && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
+          {/* El PDF del registro, embebido. Es literalmente el documento que se firma
+              y el que se entrega, así que a la hora de firmar es la vista que importa;
+              el formulario read-only mostraba los mismos datos con otra cara.
+              Va en un <iframe> y no en un canvas con pdfjs a propósito: el visor del
+              navegador ya trae zoom, búsqueda, impresión y descarga.
 
-           El riel va en 26rem y no menos porque adentro entra el pad de firma, que se
-           dibuja inline; con eso la columna del PDF queda en ~840px a 1280, que es
-           justo un A4 al 100%. Por debajo de xl se apila como antes: en un ancho así
-           el PDF ya se come el viewport y nada arriba de él ayuda. */
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
-          <div className="space-y-2">
-            {hayToggle && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
-            {/* El PDF del registro, embebido. Es literalmente el documento que se firma
-                y el que se entrega, así que a la hora de firmar es la vista que importa;
-                el formulario read-only mostraba los mismos datos con otra cara.
-                Va en un <iframe> y no en un canvas con pdfjs a propósito: el visor del
-                navegador ya trae zoom, búsqueda, impresión y descarga.
-
-                OJO: esto depende de que la ruta del preview salga con
-                `frame-ancestors 'self'` — ver RUTAS_EMBEBIDAS en next.config.ts. El
-                valor global del sitio es `'none'`, que bloquea el framing incluso
-                desde el mismo origen y deja este visor en blanco. */}
-            <iframe
-              src={`/api/registros/${registroId}/pdf/preview`}
-              title="Registro en PDF"
-              className="w-full h-[calc(100vh-18rem)] min-h-[32rem] rounded-xl border bg-white"
-            />
-            <p className="text-xs text-muted-foreground">
-              Si el visor no carga,{" "}
-              <a
-                href={`/api/registros/${registroId}/pdf/preview`}
-                target="_blank"
-                rel="noreferrer"
-                className="underline hover:text-gray-700"
-              >
-                abrí el PDF en una pestaña nueva
-              </a>
-              .
-            </p>
-          </div>
-          <aside className="space-y-4 xl:sticky xl:top-4">
-            {adjuntos(false)}
-            {firmas}
-          </aside>
-        </div>
+              OJO: esto depende de que la ruta del preview salga con
+              `frame-ancestors 'self'` — ver RUTAS_EMBEBIDAS en next.config.ts. El
+              valor global del sitio es `'none'`, que bloquea el framing incluso
+              desde el mismo origen y deja este visor en blanco. */}
+          <iframe
+            src={`/api/registros/${registroId}/pdf/preview`}
+            title="Registro en PDF"
+            className="w-full h-[calc(100vh-18rem)] min-h-[32rem] rounded-xl border bg-white"
+          />
+          <p className="text-xs text-muted-foreground">
+            Si el visor no carga,{" "}
+            <a
+              href={`/api/registros/${registroId}/pdf/preview`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              abrí el PDF en una pestaña nueva
+            </a>
+            .
+          </p>
+        </VistaConRiel>
       )}
 
       {mostrandoFormulario && (
-        <div className="space-y-6">
+        <VistaConRiel className="space-y-6" riel={riel}>
           {hayToggle && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
-          {/* Colapsado y arriba: el formulario puede ser larguísimo y el card quedaba
-              una pantalla abajo. Cerrado no le roba alto, y el contador de archivos
-              del encabezado alcanza para saber si vale abrirlo. */}
-          {adjuntos(true)}
           {/* Registro dejado a medio completar: quién lo tocó último y cuánto falta.
               Sin esto, el que lo retoma —que puede ser otra persona— no sabe si lo que
               ve es todo lo que había ni si alguien lo está llenando en paralelo. */}
@@ -792,16 +784,18 @@ export default function RegistroFormPage({ params }: PageProps) {
               </div>
             </div>
           )}
-        </div>
+        </VistaConRiel>
       )}
 
-      {/* ── Adjuntos ── acá abajo sólo en el registro físico: la vista PDF los lleva al
-          riel de la derecha y la del formulario, colapsados arriba. */}
-      {!mostrandoPdf && !mostrandoFormulario && adjuntos(false)}
-
-      {/* ── Firmas ── afuera del riel salvo en la vista PDF, que es donde conviene
-          tenerlas al lado del documento que se está firmando. */}
-      {!mostrandoPdf && firmas}
+      {/* ── Adjuntos y firmas sin riel ── sólo cuando no se está mostrando ninguna de
+          las dos vistas del registro: el único caso es el uploader del PDF físico, que
+          ocupa la pantalla sola. En las dos vistas van en el riel. */}
+      {!mostrandoPdf && !mostrandoFormulario && (
+        <>
+          {adjuntos}
+          {firmas}
+        </>
+      )}
 
       {/* Dialog de "próximo ciclo de preservación" — se abre cuando el backend
           confirma que generó el próximo ElementoTarea al completar/firmar. En
@@ -1060,6 +1054,44 @@ function FirmasSection({
 }
 
 // ─── Captura de firma compartida (libre + slot) ─────────────────────────────
+
+/**
+ * El esqueleto que comparten las dos vistas del registro: el documento —el PDF o el
+ * formulario— a la izquierda y un riel a la derecha con los adjuntos y las firmas.
+ *
+ * Existe para que las dos sean la misma pantalla. El sentido es leer el registro
+ * mientras se actúa sobre él, y lo que se hace sobre él estaba un scroll entero más
+ * abajo: en la vista PDF porque el iframe mide una pantalla completa, y en la del
+ * formulario porque el formulario puede medir varias.
+ *
+ * El riel va en 26rem y no menos porque adentro entra el pad de firma, que se dibuja
+ * inline; con eso la columna izquierda queda en ~840px a 1280, que para el PDF es un
+ * A4 al 100%. Por debajo de xl se apila: en un ancho así el documento ya se come el
+ * viewport y el riel no tiene dónde ir.
+ *
+ * El tope de alto es por el formulario. Un riel sticky más alto que el viewport nunca
+ * deja ver su parte de abajo —y el riel crece con los archivos y los slots de firma—,
+ * así que con `max-h` + `overflow-y-auto` se scrollea solo cuando le hace falta.
+ */
+function VistaConRiel({
+  riel,
+  className = "",
+  children,
+}: {
+  riel: React.ReactNode
+  /** Espaciado de la columna del documento: el PDF y el formulario no respiran igual. */
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
+      <div className={`min-w-0 ${className}`}>{children}</div>
+      <aside className="space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+        {riel}
+      </aside>
+    </div>
+  )
+}
 
 /**
  * Switch entre el PDF del registro y el formulario. Mismo diseño que el toggle
