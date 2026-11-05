@@ -178,21 +178,38 @@ export default function RegistroFormPage({ params }: PageProps) {
   const modo = userModo ?? defaultModo
   const showToggle = permitirDigital && permitirFisico
 
-  // Vista del registro digital ya cerrado: PDF o formulario. Null = sin elección
-  // del usuario, se usa el default de abajo.
+  // Vista del registro: PDF o formulario. Null = sin elección del usuario, se usa
+  // el default de abajo.
   const [vistaUsuario, setVistaUsuario] = useState<"pdf" | "formulario" | null>(null)
-  // En BORRADOR no hay PDF que valga la pena mostrar (la planilla sale vacía).
-  const puedeVerPdf = !!registro && !registro.esFisico && registro.estado !== "BORRADOR"
-  const esDigitalCerrado = !!registro && !registro.esFisico
+  /**
+   * Qué vistas existen para este registro. Antes era una sola condición que negaba
+   * `esFisico`, y son dos preguntas distintas: el registro físico TAMBIÉN tiene PDF
+   * —el escaneo, con la hoja de certificado atrás o las firmas superpuestas— y lo que
+   * no tiene es formulario, porque sus valores nunca entraron a la base. El backend ya
+   * servía ese PDF en `/pdf/preview` (GenerarPdfRegistroUnificadoAsync detecta
+   * EsFisico y devuelve el compuesto); acá estaba gateado y nada más.
+   *
+   * En BORRADOR no hay PDF que valga la pena mostrar: la planilla sale vacía. Y en
+   * físico el estado nunca es BORRADOR, porque `EsFisico` se pone en true recién al
+   * subir el escaneo — así que `hayPdf` implica que el archivo está.
+   */
+  const hayPdf = !!registro && registro.estado !== "BORRADOR"
+  const hayFormulario = !!registro && !registro.esFisico
+  // El toggle sólo existe con las dos vistas disponibles. En físico no se dibuja: un
+  // selector de un solo botón no es un selector.
+  const hayToggle = hayPdf && hayFormulario
+  const esCerrado = !!registro
     && (registro.estado === "COMPLETADO" || registro.estado === "FIRMADO" || registro.estado === "APROBADO")
   /**
    * Default PDF cuando el registro ya está cerrado: ese es el momento de firmarlo y
    * de leerlo, y el PDF es el documento real: el formulario read-only mostraba los
    * mismos datos con otra cara. Mientras se carga, el formulario es el que manda.
    */
-  const vistaEfectiva: "pdf" | "formulario" = !puedeVerPdf
-    ? "formulario"
-    : (vistaUsuario ?? (esDigitalCerrado ? "pdf" : "formulario"))
+  const vistaEfectiva: "pdf" | "formulario" = !hayFormulario
+    ? "pdf"
+    : !hayPdf
+      ? "formulario"
+      : (vistaUsuario ?? (esCerrado ? "pdf" : "formulario"))
 
   const { data: firmasConfigRaw } = useGetFirmasConfigEfectiva(registroId)
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
@@ -260,13 +277,19 @@ export default function RegistroFormPage({ params }: PageProps) {
   const { planilla, secciones, campos } = estructura
 
   /**
-   * Las dos vistas del registro digital. La condición estaba escrita inline y repetida
-   * en las dos ramas del JSX; extraerla evita que se desincronicen, ahora que además
-   * deciden dónde van adjuntos y firmas.
+   * Las dos vistas del registro. La condición estaba escrita inline y repetida en las
+   * dos ramas del JSX; extraerla evita que se desincronicen, ahora que además deciden
+   * dónde van adjuntos y firmas.
+   *
+   * El formulario pide las dos cosas: que el registro tenga formulario (o sea que sea
+   * digital) y que el usuario esté en ese camino. El PDF no mira el modo —es el
+   * documento, haya o no algo que editar—, así que en el físico RECHAZADO quedan el
+   * uploader arriba y abajo el escaneo que se está reemplazando, que es la evidencia
+   * de lo que se rechazó.
    */
-  const bloqueDigital = !registro.esFisico && (isReadOnly || (modo === "digital" && permitirDigital))
-  const mostrandoPdf = bloqueDigital && vistaEfectiva === "pdf"
-  const mostrandoFormulario = bloqueDigital && vistaEfectiva === "formulario"
+  const enCaminoDigital = isReadOnly || (modo === "digital" && permitirDigital)
+  const mostrandoFormulario = hayFormulario && enCaminoDigital && vistaEfectiva === "formulario"
+  const mostrandoPdf = hayPdf && vistaEfectiva === "pdf" && (!hayFormulario || enCaminoDigital)
 
   /**
    * Adjuntos y firmas se mudan según la vista —riel al costado en la vista PDF, arriba
@@ -285,10 +308,24 @@ export default function RegistroFormPage({ params }: PageProps) {
       colapsable={colapsable}
     />
   )
-  const firmas =
-    registro.estado === "COMPLETADO" || registro.estado === "FIRMADO" ? (
-      <FirmasSection registroId={registroId} canWrite={canWrite} esRegistroFisico={registro.esFisico} />
-    ) : null
+  /**
+   * Firmas: en todo registro cerrado, APROBADO incluido. Faltaba justamente ese estado,
+   * que es donde termina el registro físico cuando todas sus firmas eran en papel (lo
+   * decide el cierre de CompletarFisicoAsync, según queden o no slots Digital
+   * pendientes): el registro más completo era el único que las escondía.
+   *
+   * `permiteFirmar` separa ver de firmar. En APROBADO ya no se firma —FirmarAsync sólo
+   * acepta COMPLETADO y FIRMADO—, así que sin esto un slot no obligatorio sin firma
+   * ofrecería un botón que el backend rechaza.
+   */
+  const firmas = esCerrado ? (
+    <FirmasSection
+      registroId={registroId}
+      canWrite={canWrite}
+      permiteFirmar={registro.estado === "COMPLETADO" || registro.estado === "FIRMADO"}
+      esRegistroFisico={registro.esFisico}
+    />
+  ) : null
 
   // Agrupar campos por sección (null = sin sección)
   const camposPorSeccion = campos.reduce<Record<string, PlanillaCampoDetalle[]>>((acc, c) => {
@@ -434,8 +471,16 @@ export default function RegistroFormPage({ params }: PageProps) {
     elemento?.elementoTipoEspecialidadNombre,
   ].filter(Boolean) as string[]
 
+  /**
+   * El ancho depende de la vista. El formulario es de una columna y `max-w-3xl` es su
+   * ancho de lectura. La vista PDF, en cambio, pone un riel de 26rem al costado: dentro
+   * de 48rem al documento le quedaban ~336px desde `xl` —más angosto que antes de
+   * tener riel—. Con `max-w-7xl` la columna del documento vuelve a dar un A4 real.
+   */
+  const anchoContenedor = mostrandoPdf ? "max-w-7xl" : "max-w-3xl"
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className={`${anchoContenedor} mx-auto space-y-6`}>
       {/* Banner de solo lectura para Consultor/Auditor: el registro se ve completo
           (formulario navegable, adjuntos, firmas) pero sin poder guardar ni firmar. */}
       {!canWrite && (
@@ -587,7 +632,7 @@ export default function RegistroFormPage({ params }: PageProps) {
            el PDF ya se come el viewport y nada arriba de él ayuda. */
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
           <div className="space-y-2">
-            <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />
+            {hayToggle && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
             {/* El PDF del registro, embebido. Es literalmente el documento que se firma
                 y el que se entrega, así que a la hora de firmar es la vista que importa;
                 el formulario read-only mostraba los mismos datos con otra cara.
@@ -625,7 +670,7 @@ export default function RegistroFormPage({ params }: PageProps) {
 
       {mostrandoFormulario && (
         <div className="space-y-6">
-          {puedeVerPdf && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
+          {hayToggle && <VistaToggle vista={vistaEfectiva} onChange={setVistaUsuario} />}
           {/* Colapsado y arriba: el formulario puede ser larguísimo y el card quedaba
               una pantalla abajo. Cerrado no le roba alto, y el contador de archivos
               del encabezado alcanza para saber si vale abrirlo. */}
@@ -778,10 +823,14 @@ export default function RegistroFormPage({ params }: PageProps) {
 function FirmasSection({
   registroId,
   canWrite,
+  permiteFirmar,
   esRegistroFisico,
 }: {
   registroId: string
   canWrite: boolean
+  /** Si el estado del registro todavía admite firmas. Ver es siempre posible; firmar
+   * sólo en COMPLETADO y FIRMADO — lo mismo que valida FirmarAsync en el backend. */
+  permiteFirmar: boolean
   /** Si el registro se completó como físico (escaneo). Slots Fisica solo se
    * auto-firman con el escaneo en registros físicos — si el registro es digital,
    * los slots Fisica se firman electrónicamente como cualquier otro. */
@@ -799,7 +848,6 @@ function FirmasSection({
   const uploadMiFirma = useUploadMiFirma()
 
   const [slotFirmando, setSlotFirmando] = useState<string | null>(null)
-  const [rolLibre, setRolLibre] = useState("")
   const [observacionFirma, setObservacionFirma] = useState("")
   const [padIsEmpty, setPadIsEmpty] = useState(true)
   const padRef = useRef<SignaturePadHandle | null>(null)
@@ -839,7 +887,6 @@ function FirmasSection({
     })
     setSlotFirmando(null)
     setObservacionFirma("")
-    setRolLibre("")
 
     const info = (res as { data?: RegistroDetalle } | undefined)?.data?.preservacionCicloGenerado
     if (info?.generado && info.fechaPlanificadaProximo) {
@@ -851,7 +898,8 @@ function FirmasSection({
 
   const slots: any[] = status?.slots ?? []
   const sinSlots = slots.length === 0
-  const yaFirmadoLibre = status?.todasLasFirmasCompletadas && sinSlots
+  // Firmar necesita las dos cosas: permiso de escritura y un estado que las acepte.
+  const puedeFirmarAhora = canWrite && permiteFirmar
 
   const proximoCicloDialog = (
     <ProximoCicloDialog
@@ -861,91 +909,18 @@ function FirmasSection({
     />
   )
 
-  // Sin slots configurados: formulario libre
-  if (sinSlots) {
-    return (
-      <>
-      <div className="rounded-xl border bg-white overflow-hidden">
-        <div className="px-5 py-3 bg-gray-50 border-b">
-          <h2 className="font-semibold text-gray-800">Firma del registro</h2>
-        </div>
-        <div className="p-5">
-          {yaFirmadoLibre ? (
-            <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
-              <Check className="h-4 w-4" /> Registro firmado
-            </div>
-          ) : slotFirmando === "__libre__" ? (
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Tu rol <span className="text-red-500">*</span></label>
-                <Input
-                  placeholder="Ej: Inspector, Supervisor..."
-                  value={rolLibre}
-                  onChange={(e) => setRolLibre(e.target.value)}
-                />
-              </div>
-
-              <FirmaCapturaInline
-                firmaGuardadaUrl={firmaGuardadaUrl}
-                modoEfectivo={modoEfectivo}
-                padRef={padRef}
-                setPadIsEmpty={setPadIsEmpty}
-              />
-
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Observaciones (opcional)</label>
-                <Textarea
-                  placeholder="Notas sobre esta firma..."
-                  value={observacionFirma}
-                  onChange={(e) => setObservacionFirma(e.target.value)}
-                  rows={2}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => handleFirmar(rolLibre)}
-                  disabled={
-                    firmar.isPending
-                    || uploadMiFirma.isPending
-                    || !rolLibre.trim()
-                    || (modoEfectivo === "dibujar" && padIsEmpty)
-                  }
-                >
-                  {firmar.isPending || uploadMiFirma.isPending
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <PenLine className="h-3.5 w-3.5" />
-                  }
-                  Confirmar firma
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setSlotFirmando(null)} disabled={firmar.isPending}>
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          ) : canWrite ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => { setSlotFirmando("__libre__"); setObservacionFirma("") }}
-            >
-              <PenLine className="h-3.5 w-3.5" />
-              Firmar registro
-            </Button>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-              <Lock className="h-3 w-3" />
-              Sin firmas cargadas
-            </span>
-          )}
-        </div>
-      </div>
-      {proximoCicloDialog}
-      </>
-    )
-  }
+  /**
+   * Sin slots configurados no mostramos nada. Acá iba una tarjeta de "firma libre" que
+   * afirmaba «Registro firmado» en base a `todasLasFirmasCompletadas`, que el backend
+   * calcula como "todos los slots obligatorios están firmados" — verdadero por vacuidad
+   * cuando no hay ninguno. O sea que un registro de una planilla que no requiere firma
+   * decía estar firmado sin que nadie hubiera firmado, y el botón de firmar de esa misma
+   * tarjeta era inalcanzable por exactamente la misma razón.
+   *
+   * Si alguna vez hace falta la firma libre, lo primero a arreglar es el DTO: tiene que
+   * informar las firmas realmente cargadas en vez de un booleano vacuo.
+   */
+  if (sinSlots) return null
 
   return (
     <>
@@ -1007,7 +982,7 @@ function FirmasSection({
                     <Clock className="h-3 w-3" />
                     Se marca al subir el PDF físico
                   </span>
-                ) : canWrite && slot.puedeFirearUsuarioActual ? (
+                ) : puedeFirmarAhora && slot.puedeFirearUsuarioActual ? (
                   !esActivo && (
                     <Button
                       size="sm"
