@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState, Suspense } from "react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
@@ -225,9 +226,24 @@ function CargarPdfContent() {
     elemento?.elementoTipoEspecialidadNombre,
   ].filter(Boolean) as string[]
 
-  // Estado no permite carga
+  // Estado no permite carga.
+  //
+  // `subiendo === "idle"` no es un detalle: la condición vale al ENTRAR a la
+  // pantalla, no después. Apenas la carga sale bien, la tarea pasa a un estado
+  // que ya no admite carga —es el objetivo— y la invalidación de
+  // `["elemento-tarea"]` dispara un refetch que llegaba justo acá y tapaba el
+  // resultado con "no admite carga de planilla", como si la carga hubiera
+  // fallado. Es el mismo choque que la pantalla gemela de Test Pack ya había
+  // resuelto a su manera (volviendo al listado); acá la de éxito es una
+  // pantalla útil —tiene el archivo, los adjuntos y el panel de firma— así que
+  // lo que se corrige es el guard y no el destino.
   const estadosPermitidos = [1, 2, 5] // PENDIENTE, EN_PROCESO, RECHAZADO
-  if (!estadosPermitidos.includes(tarea.estado)) {
+  if (subiendo === "idle" && !estadosPermitidos.includes(tarea.estado)) {
+    // COMPLETADO, FIRMADO_FISICO y FIRMADO no son un impedimento sino el final
+    // del camino: la planilla ya está. Decirle "no admite carga" a quien entra
+    // a una tarea terminada suena a error y deja un callejón sin salida, cuando
+    // lo que esa persona viene a hacer es mirar —o firmar— el registro.
+    const yaTieneRegistro = [3, 4, 7].includes(tarea.estado)
     return (
       <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
         <TaskHeader
@@ -239,11 +255,31 @@ function CargarPdfContent() {
         <div className="flex flex-col items-center justify-center gap-4 text-center py-10 rounded-xl border border-dashed bg-gray-50">
           <FileText className="h-12 w-12 text-gray-300" />
           <p className="text-gray-600 font-medium">
-            Esta tarea está en estado <span className="font-bold">{estadoLabel}</span> y no admite carga de planilla.
+            {yaTieneRegistro ? (
+              <>
+                Esta tarea ya tiene su planilla cargada y está en estado{" "}
+                <span className="font-bold">{estadoLabel}</span>.
+              </>
+            ) : (
+              <>
+                Esta tarea está en estado <span className="font-bold">{estadoLabel}</span> y no
+                admite carga de planilla.
+              </>
+            )}
           </p>
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Volver
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {yaTieneRegistro && tarea.registroId && (
+              <Link href={`/ejecucion/registros/${tarea.registroId}`}>
+                <Button className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Ver el registro
+                </Button>
+              </Link>
+            )}
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+            </Button>
+          </div>
         </div>
       </div>
     )
