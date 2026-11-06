@@ -5,12 +5,21 @@ export interface CampoImportado {
   etiqueta: string
   tipoDato: CampoTipoDato
   esObligatorio: boolean
-  opciones?: string[] // para tipo Lista (5)
+  /**
+   * Opciones para Lista (5), Checklist (11) y Leyenda (16).
+   *
+   * La IA manda strings sueltos ("Sí", "No", "N/A") para Lista y Checklist, y
+   * pares código/descripción para Leyenda, donde el valor ES el código que se
+   * imprime en negrita. Las dos formas las normaliza
+   * `crear-planilla-importada.ts`.
+   */
+  opciones?: Array<string | { valor?: string; etiqueta?: string }>
   /** Ancho del campo en la grilla 12 (1-12). Opcional; si no viene, se usa el default. */
   tamano?: number
   /**
-   * Modo de render para tipo Lista (5): 0=Dropdown, 1=Radio, 2=Checkbox, 3=Checklist.
-   * Ignorado para otros tipos.
+   * Modo de render para tipo Lista (5): 1=Inline, 2=Dropdown. El 0 (Auto) está
+   * deprecado —el backend lo normaliza a 1— y el 3 (Checklist) se promovió a
+   * tipo de dato propio (tipoDato = 11). Ignorado para otros tipos.
    */
   renderMode?: number
   /**
@@ -50,6 +59,18 @@ export interface CampoImportado {
    * al abrir la carga (rango 2-10). Ignorado si hay `filas` (matriz).
    */
   numeroFilas?: number
+  /** Sólo para TextoArea (12). Renglones de puntos a imprimir (1-20, default 3). */
+  numeroLineas?: number
+  /** Sólo para Espacio (13) y Croquis (14). Alto del recuadro en mm (5-200, default 20). */
+  altoMm?: number
+  /**
+   * Sólo para Nota (15). El texto fijo multilínea que se imprime. Va en
+   * `Campo.TextoLargo` y NO en la etiqueta —que está capada en 200 chars y
+   * tiene índice—: sin esto la Nota nace vacía.
+   */
+  textoLargo?: string
+  /** Sólo para Boolean (4). Se presenta como casilla de marca en vez de Sí/No. */
+  mostrarComoMarca?: boolean
 }
 
 export interface SeccionImportada {

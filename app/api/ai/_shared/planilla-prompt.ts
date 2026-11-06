@@ -14,16 +14,43 @@
 export const PLANILLA_SYSTEM_PROMPT_BASE = `
 ## Tipos de dato disponibles
 
-- 1 = Texto (texto libre corto)
+### Campos que CAPTURAN dato (los completa el operador)
+
+- 1 = Texto (texto libre corto, una línea)
 - 2 = Número (valores numéricos, presiones, temperaturas, medidas)
 - 3 = Fecha
-- 4 = Boolean (SI/NO, checkbox, cumple/no cumple) — usar SOLO para un SÍ/NO aislado.
+- 4 = Boolean (SI/NO, cumple/no cumple) — usar SOLO para un SÍ/NO aislado. Si en el original se responde marcando una cruz en un casillero, agregale "mostrarComoMarca": true.
 - 5 = Lista (opciones predefinidas, un valor seleccionado — se usa junto con "opciones" y "renderMode")
-- 7 = Adjunto (plano, P&ID, fotografía, PDF)
-- 8 = Imagen (imagen embebida en la planilla como referencia visual — NO para adjuntos del usuario)
 - 9 = Tabla (grilla de celdas — ver "Cuándo usar tipo Tabla" más abajo)
-- 10 = Label (texto fijo, encabezados/aclaraciones — no captura dato)
 - 11 = **Checklist** (lista de verificación con render siempre en formato tabla — ver "Cuándo usar Checklist")
+- 12 = TextoArea (texto largo multilínea: descripciones, comentarios, detalle de un procedimiento). Opcional "numeroLineas" (1-20, default 3) = renglones que se imprimen para escribir a mano.
+- 14 = Croquis (recuadro donde el operador DIBUJA: esquemas, ubicación de un equipo, detalle de una soldadura). Opcional "altoMm" (5-200, default 20).
+
+### Campos DISPLAY-ONLY (adornan la planilla, no guardan valor)
+
+A estos NUNCA les pongas "esObligatorio": true — esperaría un valor que no hay forma de cargar.
+
+- 8 = Imagen (imagen embebida como referencia visual — NO para adjuntos del usuario)
+- 10 = Label (título o encabezado corto, de UNA línea; el texto va en "etiqueta")
+- 13 = Espacio (espacio en blanco: rellenar hueco, o dejar un recuadro vacío para escribir a mano). Opcional "altoMm" (5-200, default 20).
+- 15 = Nota (bloque de texto fijo MULTILÍNEA: instrucciones, advertencias, aclaraciones del procedimiento). El texto va en "textoLargo", NO en "etiqueta" — igual tiene que llevar una "etiqueta" corta que lo nombre en el catálogo.
+- 16 = Leyenda (fila que explica los códigos de respuesta de los campos de arriba, ej: "NA No Aplica | NC Chequeado y no conforme | OK Chequeado y aceptado"). Las entradas van en "opciones" como pares {"valor": "NC", "etiqueta": "Chequeado y no conforme"}: el valor es el código —se imprime en negrita— y la etiqueta su descripción.
+
+### Tipos que NO EXISTEN
+
+NO devuelvas NUNCA "tipoDato": 6 ni "tipoDato": 7. No son tipos de campo:
+
+- Las **firmas** se configuran por proyecto y salen solas en el footer de toda planilla.
+- Los **adjuntos** (planos, P&ID, fotos, PDF) se cargan a nivel registro, habilitados por un flag del proyecto y de la planilla.
+
+Si el original pide una firma o adjuntar un archivo, ignoralo: ya está cubierto. Un tipoDato inválido deja el campo roto en el sistema.
+
+### Cómo elegir entre los tipos de texto
+
+- Dato corto de una línea que completa el operador → 1 (Texto).
+- Comentario o descripción larga que completa el operador → 12 (TextoArea).
+- Título o encabezado que YA viene impreso en el original → 10 (Label).
+- Párrafo de instrucciones o advertencia que YA viene impreso → 15 (Nota).
 
 ## Cuándo usar tipo Tabla (9)
 
@@ -119,8 +146,8 @@ Los campos se colocan en una grilla de 12 columnas. Elegí valores estándar:
 - 2 = Sexto
 
 Regla: campos afines (ej. presión inicial + presión final) usalos en el mismo tamaño para que se alineen.
-Los campos de texto largo (observaciones, notas) → 12. Fechas → 4 o 6. Booleans → 3 o 4.
-Los campos tipoDato: 11 (Checklist) SIEMPRE llevan tamano: 12.
+Fechas → 4 o 6. Booleans → 3 o 4.
+SIEMPRE llevan tamano: 12 (ocupan la fila entera) los tipos 9 (Tabla), 11 (Checklist), 12 (TextoArea), 15 (Nota) y 16 (Leyenda).
 Si dudás, poné 6.
 
 ## Regla CRÍTICA — reuso de campos del catálogo
@@ -191,16 +218,29 @@ Devolvé ÚNICAMENTE un JSON válido con esta estructura exacta:
           "campoIdExistente": "string o null",
           "columnas": [ { "encabezado": "string", "esColumnaEtiqueta": boolean, "grupo": "string o null" } ],
           "filas": [ { "etiquetaFila": "string", "celdasPrecargadas": ["string o null"] } ],
-          "numeroFilas": number
+          "numeroFilas": number,
+          "numeroLineas": number,
+          "altoMm": number,
+          "textoLargo": "string",
+          "mostrarComoMarca": boolean
         }
       ]
     }
   ]
 }
 
-Campos NO aplicables (renderMode para no-Lista, columnas/filas/numeroFilas para no-Tabla) omitilos u pon null.
-Tabla (tipoDato: 9) siempre debería tener \`tamano: 12\` (ocupa la grilla completa).
-Checklist (tipoDato: 11) también SIEMPRE \`tamano: 12\` y OMITE renderMode.
+Cada propiedad va SÓLO en el tipo al que aplica; en los demás omitila o poné null:
+
+- "opciones" → 5 (Lista), 11 (Checklist), 16 (Leyenda). En Leyenda son pares {"valor", "etiqueta"}; en Lista y Checklist, strings sueltos.
+- "renderMode" → SÓLO 5 (Lista). Checklist lo ignora: OMITILO.
+- "columnas" / "filas" / "numeroFilas" → SÓLO 9 (Tabla).
+- "numeroLineas" → SÓLO 12 (TextoArea).
+- "altoMm" → SÓLO 13 (Espacio) y 14 (Croquis).
+- "textoLargo" → SÓLO 15 (Nota).
+- "mostrarComoMarca" → SÓLO 4 (Boolean).
+
+Las opciones de un Lista, Checklist o Leyenda son OBLIGATORIAS: un campo de esos sin "opciones" nace vacío y no sirve para nada.
+Tabla (9), Checklist (11), TextoArea (12), Nota (15) y Leyenda (16) siempre llevan \`tamano: 12\`.
 `
 
 /**
