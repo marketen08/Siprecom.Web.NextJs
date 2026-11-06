@@ -103,7 +103,6 @@ export function ElementoDetalleSheet({
   // Default permisivo mientras carga el proyecto
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
-  const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   // Adjuntos: el sheet sólo conoce el flag del proyecto. La planilla puede vetar igual,
   // pero eso lo valida el backend al hacer POST (sale como mensaje de error inline).
   // Adjuntos: siempre permitidos. El flag PermiteAdjuntos se dejó de gatear.
@@ -361,7 +360,6 @@ export function ElementoDetalleSheet({
                               isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
                               permitirFisico={permitirFisico}
                               permitirDigital={permitirDigital}
-                              fisicoPreFirmado={fisicoPreFirmado}
                               permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                               permitirDescargarProcedimientos={permitirDescargarProcedimientos}
                               permitirAvanceSinRegistro={permitirAvanceSinRegistro}

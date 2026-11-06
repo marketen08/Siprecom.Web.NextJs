@@ -43,7 +43,6 @@ interface TareaAccionesMenuProps {
   tarea: ElementoTarea | null
   permitirFisico: boolean
   permitirDigital: boolean
-  fisicoPreFirmado: boolean
   permiteAdjuntosProyecto: boolean
   permitirDescargarProcedimientos: boolean
   permitirAvanceSinRegistro: boolean
@@ -66,7 +65,6 @@ export function TareaAccionesMenu({
   tarea,
   permitirFisico,
   permitirDigital,
-  fisicoPreFirmado,
   permiteAdjuntosProyecto,
   permitirDescargarProcedimientos,
   permitirAvanceSinRegistro,
@@ -160,7 +158,6 @@ export function TareaAccionesMenu({
         onToggleFirmas: () => {},
         permitirFisico,
         permitirDigital,
-        fisicoPreFirmado,
         puedeAdjuntar,
         adjuntandoPending: uploadAdjunto.isPending,
         descargandoProcedimientoPending: downloadProcedimiento.isPending,
