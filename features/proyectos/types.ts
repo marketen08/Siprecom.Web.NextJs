@@ -39,8 +39,7 @@ export interface Proyecto {
   permitirTestFuncional: boolean
   permitirRegistroFisico: boolean
   permitirRegistroDigital: boolean
-  /** Si está activo, los PDFs físicos cargados se asumen firmados en papel y la tarea pasa directo a "Firmado físico" sin firmas digitales. Sólo aplica si permitirRegistroFisico = true. */
-  registrosFisicosPreFirmados: boolean
+
   /** Si está activo, las firmas electrónicas de registros físicos se pintan superpuestas en el recuadro de firmas del escaneo (además de la página de certificado al final). Sólo aplica si permitirRegistroFisico = true. */
   renderizarFirmasDigitalesEnRecuadro: boolean
   /** Si está en false, ningún registro del proyecto acepta adjuntos. Default true. */
