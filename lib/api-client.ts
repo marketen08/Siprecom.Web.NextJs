@@ -82,6 +82,24 @@ export interface ApiError extends Error {
   status?: number
 }
 
+/**
+ * De dónde sale el texto de un error del backend. No hay un envelope único: hoy
+ * conviven `message`, `error` (79 respuestas de los controllers) y el `title`/
+ * `detail` de los ProblemDetails que arma ASP.NET por su cuenta.
+ *
+ * Mirar sólo `message` dejaba a todas las demás mostrando "Error inesperado" —
+ * el mensaje real llegaba en el body y se descartaba acá. Costó un diagnóstico:
+ * el error de SQL al aplicar una migración viajaba en `error` y la pantalla
+ * decía "error inesperado", sin pista de qué había fallado.
+ */
+function textoDelError(body: unknown): string | undefined {
+  const b = body as Record<string, unknown> | null | undefined
+  for (const campo of [b?.message, b?.error, b?.detail, b?.title]) {
+    if (typeof campo === "string" && campo.trim() !== "") return campo
+  }
+  return undefined
+}
+
 async function parseError(res: Response): Promise<ApiError> {
   const body = await res.json().catch(() => ({ message: res.statusText }))
 
@@ -94,9 +112,9 @@ async function parseError(res: Response): Promise<ApiError> {
         ? e.errors.map((msg) => (e.field ? `${e.field}: ${msg}` : msg))
         : []
     )
-    message = lineas.length > 0 ? lineas.join("\n") : (body?.message ?? "Error inesperado")
+    message = lineas.length > 0 ? lineas.join("\n") : (textoDelError(body) ?? "Error inesperado")
   } else {
-    message = body?.message ?? "Error inesperado"
+    message = textoDelError(body) ?? "Error inesperado"
   }
 
   const err = new Error(message) as ApiError
