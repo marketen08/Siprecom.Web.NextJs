@@ -17,12 +17,7 @@ export type MenuItem = {
    * Auditor sí, User NO — ambos tienen que estar tratados como paralelos).
    */
   allowedRoles?: AppRole[]
-  /**
-   * Si es true, el item se oculta cuando el proyecto activo es solo de
-   * pre-firmados físicos (sin registro/firma digital) → no hay firmas
-   * electrónicas que gestionar. Lo evalúa el Sidebar.
-   */
-  requiereFirmas?: boolean
+
   /**
    * Clave de funcionalidad (catálogo de feature flags) requerida para ver el
    * item. Se oculta si la función no está efectivamente habilitada en el
@@ -85,7 +80,7 @@ export const menu: MenuItem[] = [
       { label: "Pendientes",              href: "/ejecucion/pendientes", badge: "pendientes-abiertos-mios" },
       { label: "Visor de PIDs",           href: "/ejecucion/pids" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
-      { label: "Mis firmas",              href: "/mis-firmas", requiereFirmas: true, minRole: "User" },
+      { label: "Mis firmas",              href: "/mis-firmas", minRole: "User" },
       { label: "Paquetes de prueba",      href: "/ejecucion/test-groups" },
       { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
       { label: "Paro de planta",         href: "/ejecucion/paro-planta", requiereFuncionalidad: "PARO_PLANTA" },
