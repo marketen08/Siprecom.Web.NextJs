@@ -46,8 +46,13 @@ Traducí las convenciones típicas del Excel a los tipos de dato:
 - **Texto libre corto** (descripciones, notas, nombres) → tipoDato: 1.
 - **Numéricos** (presión, temperatura, caudal, viscosidad, dimensiones, etc.) → tipoDato: 2.
 - **Fecha** → tipoDato: 3.
-- **Solicitud de archivo** (adjuntar plano, P&ID, foto) → tipoDato: 7.
 - **Opciones predefinidas múltiples que NO sean SI/NO** (ej. A/B/C, Bueno/Regular/Malo) → Lista con \`renderMode: 1\` (Inline) — es corto y visible al lado del label.
+- **Celda de comentario grande o combinada en varias filas** (para escribir a mano) → tipoDato: 12 (TextoArea), con "numeroLineas" según el alto que ocupa.
+- **Párrafo impreso de instrucciones, advertencias o aclaraciones** ("NOTA:", "IMPORTANTE:", "El ensayo se realizará según...") → tipoDato: 15 (Nota), con el párrafo completo en "textoLargo".
+- **Fila que define los códigos de respuesta** ("OK = aceptado, NC = no conforme, NA = no aplica"), típicamente al pie o al tope de un bloque de controles → tipoDato: 16 (Leyenda), con un par {"valor", "etiqueta"} por código.
+- **Recuadro grande y vacío para dibujar** (croquis, esquema, detalle) → tipoDato: 14 (Croquis), con "altoMm" aproximado.
+- **Recuadro vacío que es sólo espacio de la hoja** (sin consigna de dibujar nada) → tipoDato: 13 (Espacio).
+- **Solicitud de adjuntar un archivo** (plano, P&ID, foto) → IGNORALA. No existe un tipo de campo para eso: los adjuntos van a nivel registro.
 
 ## Detección de Tablas (tipoDato 9)
 

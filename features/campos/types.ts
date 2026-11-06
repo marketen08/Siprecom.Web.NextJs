@@ -185,3 +185,31 @@ export interface CampoTablaFilaUpdateInput {
 }
 
 export type { CampoOpcion, CampoTablaColumna, CampoTablaFila }
+
+// ─── Limpieza del catálogo ───
+// Lo que devuelven /api/campos/sin-uso y /api/planillas/{id}/campos-exclusivos.
+
+/** Un campo candidato a eliminarse en una limpieza. */
+export interface CampoLimpieza {
+  id: string
+  codigo: string
+  etiqueta: string
+  tipoDatoNombre: string
+  /** null = campo global. */
+  equipoNombre: string | null
+}
+
+/** Un campo que NO se va a eliminar. El motivo se muestra: sin él, el salteo no se entiende. */
+export interface CampoOmitido extends CampoLimpieza {
+  motivo: string
+}
+
+export interface CamposParaLimpiar {
+  eliminables: CampoLimpieza[]
+  omitidos: CampoOmitido[]
+}
+
+export interface LimpiezaCamposResultado {
+  eliminados: number
+  omitidos: CampoOmitido[]
+}
