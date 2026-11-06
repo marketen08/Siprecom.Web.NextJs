@@ -50,7 +50,6 @@ interface TareaCardProps {
   isReiniciando: boolean
   permitirFisico: boolean
   permitirDigital: boolean
-  fisicoPreFirmado: boolean
   permiteAdjuntosProyecto: boolean
   permitirDescargarProcedimientos: boolean
   /** Habilita la acción "Marcar completada sin registro". Viene del proyecto. */
@@ -70,7 +69,6 @@ export function TareaCard({
   isReiniciando,
   permitirFisico,
   permitirDigital,
-  fisicoPreFirmado,
   permiteAdjuntosProyecto,
   permitirDescargarProcedimientos,
   permitirAvanceSinRegistro,
@@ -146,7 +144,6 @@ export function TareaCard({
     onToggleFirmas: () => setShowFirmas((s) => !s),
     permitirFisico,
     permitirDigital,
-    fisicoPreFirmado,
     puedeAdjuntar,
     adjuntandoPending: uploadAdjunto.isPending,
     descargandoProcedimientoPending: downloadProcedimiento.isPending,
@@ -480,7 +477,6 @@ export function buildTareaMenuItems({
   onToggleFirmas,
   permitirFisico,
   permitirDigital,
-  fisicoPreFirmado,
   puedeAdjuntar,
   adjuntandoPending,
   onDescargarProcedimiento,
@@ -512,7 +508,6 @@ export function buildTareaMenuItems({
   onToggleFirmas: () => void
   permitirFisico: boolean
   permitirDigital: boolean
-  fisicoPreFirmado: boolean
   puedeAdjuntar: boolean
   adjuntandoPending: boolean
   descargandoProcedimientoPending: boolean
@@ -522,7 +517,7 @@ export function buildTareaMenuItems({
 }): MenuItem[] {
   const items: MenuItem[] = []
   const tieneFirmas = !!tarea.registroId && tarea.firmasTotal > 0
-  const cargarRegistroLabel = fisicoPreFirmado ? "Cargar registro firmado" : "Cargar registro"
+  const cargarRegistroLabel = "Cargar registro"
 
   if (tarea.registroId && tarea.esFisico) {
     items.push({

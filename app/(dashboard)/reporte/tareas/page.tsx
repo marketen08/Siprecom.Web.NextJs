@@ -19,8 +19,6 @@ import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subs
 import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
 import { useGetEspecialidades } from "@/features/especialidades/api/use-especialidades"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
-import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
-import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -104,12 +102,6 @@ function TareasRealizadasContent() {
   const especialidades   = useGetEspecialidades().data?.data ?? []
   const usuarios         = (useGetUsuarios({ page: 1, pageSize: 200, isLocked: false }).data as any)?.data ?? []
 
-  // Proyecto activo — usado para mostrar/ocultar KPIs y filtros de estado que no aplican
-  // al tipo de proyecto. "Firmado físico" (APROBADO) solo en pre-firmados; "Firmado"
-  // (digital) en el resto. Nunca conviven.
-  const perfil = useGetPerfil().data
-  const proyectoActivo = useGetProyecto(perfil?.proyectoId ?? null).data?.data
-  const esPreFirmado = !!proyectoActivo?.registrosFisicosPreFirmados
 
   const subSistemasFiltrados = sistemaId
     ? todosSubSistemas.filter((ss) => ss.sistemaId === sistemaId)
@@ -276,18 +268,12 @@ function TareasRealizadasContent() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>Todos los realizados</SelectItem>
-              {/* Ocultamos el estado que no aplica al tipo de proyecto: pre-firmado no
-                  tiene "Firmado" (digital), el resto no tiene "Firmado físico" (APROBADO). */}
-              {Object.entries(ESTADO_LABEL)
-                .filter(([k]) => {
-                  const n = Number(k)
-                  if (n === 4) return esPreFirmado    // Firmado físico
-                  if (n === 7) return !esPreFirmado   // Firmado digital
-                  return true                          // Completado
-                })
-                .map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
+              {/* Los dos estados terminales se ofrecen siempre: con TipoFirma por slot,
+                  un mismo proyecto cierra registros en "Firmado físico" (firma manuscrita
+                  detectada en el escaneo) y en "Firmado" (electrónica). */}
+              {Object.entries(ESTADO_LABEL).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </FilterField>
@@ -378,17 +364,15 @@ function TareasRealizadasContent() {
         </div>
       ) : preview ? (
         <>
-          {/* KPIs. Ocultamos el estado terminal que no aplica al tipo de proyecto:
-              proyecto pre-firmado solo tiene "Firmado físico" (APROBADO); el resto tiene
-              "Firmado" (digital). Nunca conviven. */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Los dos estados terminales se muestran siempre. Conviven: en el mismo
+              proyecto un registro cierra en "Firmado físico" porque se detectó la firma
+              manuscrita en el escaneo, y el de al lado queda esperando la electrónica.
+              Mostrar uno solo escondía la mitad del trabajo terminado. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <Kpi label="Total realizadas" value={preview.totalRealizadas.toLocaleString("es-AR")} />
             <Kpi label="Promedio por día" value={preview.promedioPorDia.toFixed(1)} />
-            {esPreFirmado ? (
-              <Kpi label="Firmadas físico" value={preview.cantAprobado.toLocaleString("es-AR")}  color="text-green-700" />
-            ) : (
-              <Kpi label="Firmadas"        value={preview.cantFirmado.toLocaleString("es-AR")}   color="text-emerald-700" />
-            )}
+            <Kpi label="Firmadas físico" value={preview.cantAprobado.toLocaleString("es-AR")}  color="text-green-700" />
+            <Kpi label="Firmadas"        value={preview.cantFirmado.toLocaleString("es-AR")}   color="text-emerald-700" />
             <Kpi label="Completadas"     value={preview.cantCompletado.toLocaleString("es-AR")} color="text-blue-700" />
           </div>
 

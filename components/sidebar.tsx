@@ -72,7 +72,7 @@ function recolectarClaves(items: MenuItem[], parentKey?: string): string[] {
 }
 
 function SidebarItem({
-  item, depth = 0, onNavigate, roles, inheritedMin, ocultarFirmas, funcionalidades, permisos,
+  item, depth = 0, onNavigate, roles, inheritedMin, funcionalidades, permisos,
   parentKey, abiertos, setAbierto,
 }: {
   item: MenuItem
@@ -80,7 +80,7 @@ function SidebarItem({
   onNavigate: () => void
   roles: string[]
   inheritedMin?: AppRole
-  ocultarFirmas: boolean
+
   permisos: Record<string, boolean>
   funcionalidades: Record<string, boolean>
   /** Clave de la sección padre, para armar una clave única por rama. */
@@ -100,7 +100,7 @@ function SidebarItem({
 
   // Toda la decisión de visibilidad vive en esVisible() — incluido el caso de una
   // sección cuyos hijos se ocultan todos, que antes se dibujaba igual.
-  if (!esVisible(item, { roles, ocultarFirmas, funcionalidades, permisos }, inheritedMin)) return null
+  if (!esVisible(item, { roles, funcionalidades, permisos }, inheritedMin)) return null
 
   // Se recalcula para pasárselo a los hijos: la jerarquía sigue bajando por acá.
   const effectiveMin = item.minRole ?? inheritedMin
@@ -153,7 +153,7 @@ function SidebarItem({
                 onNavigate={onNavigate}
                 roles={roles}
                 inheritedMin={effectiveMin}
-                ocultarFirmas={ocultarFirmas}
+
                 permisos={permisos}
                 funcionalidades={funcionalidades}
                 parentKey={key}
@@ -210,11 +210,8 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
   const mounted = useMounted()
   const roles = mounted ? (userRoles ?? []) : []
 
-  // Proyecto activo: si es solo pre-firmados físicos (sin registro digital y con
-  // pre-firmado), no hay firmas electrónicas → ocultamos "Mis firmas".
   const { data: proyectos } = useGetMisProyectos()
   const activo = proyectos?.find((p) => p.esActivo)
-  const ocultarFirmas = !!activo && !activo.permitirRegistroDigital && activo.registrosFisicosPreFirmados
 
   // Funcionalidades efectivas del proyecto activo (feature flags), mapa completo
   // del catálogo. Antes acá se armaba a mano con una sola clave (MAQUETA_3D), así
@@ -287,7 +284,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
               depth={0}
               onNavigate={close}
               roles={roles}
-              ocultarFirmas={ocultarFirmas}
+
               permisos={permisos}
               funcionalidades={funcionalidades}
               abiertos={abiertos}

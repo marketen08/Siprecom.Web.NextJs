@@ -91,7 +91,6 @@ export function ElementoPreservacionSheet({ elementoId, open, onClose }: Props) 
   const proyecto = proyectoRaw?.data
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
-  const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   // Adjuntos: siempre permitidos. El flag PermiteAdjuntos se dejó de gatear.
   const permiteAdjuntosProyecto = true
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
@@ -199,7 +198,6 @@ export function ElementoPreservacionSheet({ elementoId, open, onClose }: Props) 
                       isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
                       permitirFisico={permitirFisico}
                       permitirDigital={permitirDigital}
-                      fisicoPreFirmado={fisicoPreFirmado}
                       permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                       permitirDescargarProcedimientos={permitirDescargarProcedimientos}
                       permitirAvanceSinRegistro={permitirAvanceSinRegistro}

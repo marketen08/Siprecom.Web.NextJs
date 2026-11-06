@@ -7,7 +7,6 @@ import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetTareasPack, ESTADO_TAREA_LABEL } from "@/features/testgroups/api/use-get-tareas-pack"
 import { useGetTestGroup } from "@/features/testgroups/api/use-get-testgroup"
 import { useIniciarRegistroTarea } from "@/features/testgroups/api/use-iniciar-registro-tarea"
-import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { Button } from "@/components/ui/button"
 import {
   Upload, Loader2, ArrowLeft, FileUp, X, FileText,
@@ -36,15 +35,10 @@ function CargarPdfTestGroupContent() {
   const { data: tgRaw } = useGetTestGroup(testGroupId)
   const tg = tgRaw?.data
 
-  // Proyecto para saber si los PDFs físicos son pre-firmados (cambia el wording).
-  const { data: proyectoRaw } = useGetProyecto(tg?.proyectoId ?? null)
-  const proyecto = proyectoRaw?.data
-  const preFirmado = proyecto?.registrosFisicosPreFirmados ?? false
-
   useBreadcrumb([
     { label: "Ejecución" },
     { label: "Paquetes de prueba" },
-    { label: preFirmado ? "Cargar registro firmado" : "Cargar planilla física" },
+    { label: "Cargar planilla física" },
   ])
 
   const iniciarRegistro = useIniciarRegistroTarea()
@@ -189,13 +183,10 @@ function CargarPdfTestGroupContent() {
 
       <div className="rounded-xl border bg-white p-6 space-y-5">
         <div>
-          <h2 className="font-semibold text-gray-800">
-            {preFirmado ? "Cargar registro firmado" : "Cargar planilla física"}
-          </h2>
+          <h2 className="font-semibold text-gray-800">Cargar planilla física</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {preFirmado
-              ? "El PDF/escaneo debe contener la firma manuscrita. La tarea pasa directo a 'Firmado físico'."
-              : "Subí el PDF o imagen de la planilla. Después se firma digitalmente desde el registro."}
+            Subí el PDF o imagen de la planilla escaneada. Las firmas manuscritas se
+            detectan al subirla; las que falten quedan para firmar desde el registro.
           </p>
         </div>
 

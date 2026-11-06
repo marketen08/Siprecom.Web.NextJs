@@ -450,7 +450,6 @@ function TabTareasEjecucion({
   const proyecto = proyectoRaw?.data
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
-  const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   // Adjuntos: siempre permitidos. El flag PermiteAdjuntos se dejó de gatear.
   const permiteAdjuntosProyecto = true
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
@@ -484,7 +483,6 @@ function TabTareasEjecucion({
               isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
               permitirFisico={permitirFisico}
               permitirDigital={permitirDigital}
-              fisicoPreFirmado={fisicoPreFirmado}
               permiteAdjuntosProyecto={permiteAdjuntosProyecto}
               permitirDescargarProcedimientos={permitirDescargarProcedimientos}
               permitirAvanceSinRegistro={permitirAvanceSinRegistro}
@@ -531,7 +529,6 @@ function TabTareasAlcance({
   const { data: proyectoRaw } = useGetProyecto(proyectoId)
   const proyecto = proyectoRaw?.data
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
-  const preFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
 
   return (
@@ -567,7 +564,6 @@ function TabTareasAlcance({
                 testGroupId={testGroupId}
                 bloqueado={bloqueado}
                 permitirFisico={permitirFisico}
-                preFirmado={preFirmado}
                 permitirDescargarProcedimientos={permitirDescargarProcedimientos}
                 modo="alcance"
               />
@@ -619,13 +615,12 @@ function TabTareasAlcance({
 }
 
 function TareaRow({
-  tarea, testGroupId, bloqueado, permitirFisico, preFirmado, permitirDescargarProcedimientos, modo,
+  tarea, testGroupId, bloqueado, permitirFisico, permitirDescargarProcedimientos, modo,
 }: {
   tarea: TestGroupTareaItem
   testGroupId: string
   bloqueado: boolean
   permitirFisico: boolean
-  preFirmado: boolean
   permitirDescargarProcedimientos: boolean
   modo: "alcance" | "ejecucion"
 }) {
@@ -823,7 +818,7 @@ function TareaRow({
                       }
                     >
                       <FileUp className="h-4 w-4" />
-                      {preFirmado ? "Cargar registro firmado" : "Cargar planilla física"}
+                      Cargar planilla física
                     </DropdownMenuItem>
                   )}
                   {tieneRegistro && (

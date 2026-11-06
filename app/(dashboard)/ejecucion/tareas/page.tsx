@@ -101,7 +101,6 @@ function TareasListadoPageContent() {
   // defaults que en el sheet del elemento — conservador antes de que cargue.
   const permitirFisico = proyecto?.permitirRegistroFisico ?? false
   const permitirDigital = proyecto?.permitirRegistroDigital ?? true
-  const fisicoPreFirmado = proyecto?.registrosFisicosPreFirmados ?? false
   const permiteAdjuntosProyecto = true
   const permitirDescargarProcedimientos = proyecto?.funcionalidadesEfectivas?.DESCARGAR_PROCEDIMIENTOS ?? false
   const permitirAvanceSinRegistro = proyecto?.funcionalidadesEfectivas?.AVANCE_SIN_REGISTRO ?? false
@@ -509,7 +508,6 @@ function TareasListadoPageContent() {
                     elementoTareaId={it.elementoTareaId}
                     permitirFisico={permitirFisico}
                     permitirDigital={permitirDigital}
-                    fisicoPreFirmado={fisicoPreFirmado}
                     permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                     permitirDescargarProcedimientos={permitirDescargarProcedimientos}
                     permitirAvanceSinRegistro={permitirAvanceSinRegistro}
@@ -625,7 +623,6 @@ function TareasListadoPageContent() {
                           elementoTareaId={it.elementoTareaId}
                           permitirFisico={permitirFisico}
                           permitirDigital={permitirDigital}
-                          fisicoPreFirmado={fisicoPreFirmado}
                           permiteAdjuntosProyecto={permiteAdjuntosProyecto}
                           permitirDescargarProcedimientos={permitirDescargarProcedimientos}
                           permitirAvanceSinRegistro={permitirAvanceSinRegistro}

@@ -8,7 +8,6 @@ import { apiClient } from "@/lib/api-client"
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { ESTADO_ELEMENTO_TAREA, type ElementoTarea } from "@/features/elementos-tareas/types"
 import { useGetElemento } from "@/features/elementos/api/use-get-elemento"
-import { useGetProyecto } from "@/features/proyectos/api/use-get-proyecto"
 import { FirmaPanel } from "@/features/registros/components/firma-panel"
 import { invalidarPostCargaRegistro } from "@/features/registros/api/invalidar-post-carga"
 import {
@@ -55,11 +54,6 @@ function CargarPdfContent() {
   const { data: elementoRaw } = useGetElemento(tarea?.elementoId ?? null)
   const elemento = elementoRaw?.data
 
-  // Proyecto para saber si los PDFs físicos son pre-firmados (cambia el wording).
-  const { data: proyectoRaw } = useGetProyecto(tarea?.proyectoId ?? null)
-  const proyecto = proyectoRaw?.data
-  const preFirmado = proyecto?.registrosFisicosPreFirmados ?? false
-
   // Config de firmas efectiva — para saber si activar detección visual de firma.
   const { data: firmasConfigRaw } = useGetFirmasConfigEfectivaPorEt(elementoTareaId)
   const hayFirmasFisicas = firmasConfigRaw?.data?.hayFirmasFisicas ?? false
@@ -74,7 +68,7 @@ function CargarPdfContent() {
   const elementoIdReg = tarea?.elementoId ?? elemento?.id ?? null
   const elementoNombreReg = tarea?.elementoNombre ?? elemento?.nombre ?? null
   const tareaNombreReg = tarea?.tareaNombre ?? null
-  const cargaLabel = preFirmado ? "Cargar registro firmado" : "Cargar planilla física"
+  const cargaLabel = "Cargar planilla física"
   useBreadcrumb(
     elementoNombreReg || tareaNombreReg
       ? [
@@ -299,10 +293,13 @@ function CargarPdfContent() {
           <div className="flex flex-col items-center gap-3 text-center">
             <CheckCircle2 className="h-14 w-14 text-green-500" />
             <h2 className="text-xl font-bold text-gray-900">Planilla cargada correctamente</h2>
+            {/* No anticipamos el estado final. Depende de cuántas firmas manuscritas
+                encontró el detector en el escaneo y de cuántos slots son electrónicos,
+                y las dos cosas conviven en el mismo proyecto. El panel de firmas de
+                abajo lo dice con los datos reales. */}
             <p className="text-sm text-muted-foreground">
-              {preFirmado
-                ? "El archivo fue subido y la tarea quedó marcada como Firmado físico."
-                : "El archivo fue subido. La tarea queda en Completado a la espera de firmas digitales."}
+              El archivo fue subido. Si quedaron firmas pendientes, se completan desde el
+              panel de firmas.
             </p>
             <div className="flex gap-3 flex-wrap justify-center pt-1">
               {urlArchivo && (
@@ -324,7 +321,7 @@ function CargarPdfContent() {
           <RegistroAdjuntos registroId={registroIdFinal} permiteSubir={canWrite} />
         )}
 
-        {registroIdFinal && !preFirmado && <FirmaPanel registroId={registroIdFinal} />}
+        {registroIdFinal && <FirmaPanel registroId={registroIdFinal} />}
       </div>
     )
   }
@@ -404,12 +401,8 @@ function CargarPdfContent() {
         isSubmitting={ocupado}
         submitLabel="Subir planilla"
         submittingLabel={submittingLabel}
-        titulo={preFirmado ? "Cargar registro firmado" : "Cargar planilla física"}
-        descripcion={
-          preFirmado
-            ? "El PDF/escaneo debe contener la firma manuscrita. La tarea pasa directo a 'Firmado físico'."
-            : "Subí el PDF o imagen de la planilla. Después se firma digitalmente desde el registro."
-        }
+        titulo="Cargar planilla física"
+        descripcion="Subí el PDF o imagen de la planilla escaneada. Las firmas manuscritas se detectan al subirla; las que falten quedan para firmar desde el registro."
       >
         {/* Observaciones — el uploader las renderiza entre banners y botón. */}
         <div className="space-y-1.5">

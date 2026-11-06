@@ -4,7 +4,6 @@ import type { MenuItem } from "@/lib/nav-menu"
 /** Contexto del usuario que decide qué se ve del menú. */
 export interface CtxVisibilidad {
   roles: string[]
-  ocultarFirmas: boolean
   funcionalidades: Record<string, boolean>
   /**
    * Permisos que no son roles (ver `permiteAdemas` en MenuItem). Opcional: un
@@ -29,8 +28,12 @@ export interface CtxVisibilidad {
  * tiene sentido.
  */
 export function esVisible(item: MenuItem, ctx: CtxVisibilidad, inheritedMin?: AppRole): boolean {
-  // Proyecto solo pre-firmados → no hay firmas electrónicas.
-  if (item.requiereFirmas && ctx.ocultarFirmas) return false
+  // "Mis firmas" ya no se esconde por configuración del proyecto. Se escondía
+  // cuando el proyecto era sólo de pre-firmados físicos, dando por hecho que ahí
+  // nunca iba a haber una firma electrónica. Con TipoFirma por slot y la
+  // funcionalidad FIRMA_DIGITAL_SI_VISUAL_FALLA, cualquier proyecto de papel
+  // puede terminar con firmas pendientes — y esta es justo la pantalla donde hay
+  // que ir a firmarlas. Sin nada pendiente, la lista sale vacía y no molesta.
 
   // Funcionalidad (feature flag) requerida. Se muestra sólo si está explícitamente
   // en true: si la clave falta —mapa todavía cargando, o una versión del front que

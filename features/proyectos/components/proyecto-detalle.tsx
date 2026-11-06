@@ -302,11 +302,11 @@ const FLAGS: {
     label: "Registro físico",
     descripcion: "Permite subir planillas escaneadas en PDF en lugar de completar el formulario digital.",
   },
-  // "RegistrosFisicosPreFirmados" deprecado (2026-07): el mismo efecto se logra
-  // marcando todos los slots como TipoFirma=Fisica en la configuración de firmas
-  // del proyecto. El flag se mantiene en la entidad/DB por retrocompat (proyectos
-  // viejos que lo tienen ON siguen funcionando) pero no se ofrece en la UI para
-  // nuevos proyectos — evita duplicar el mecanismo con TipoFirmaConfig granular.
+  // "RegistrosFisicosPreFirmados" eliminado (2026-11). Estuvo deprecado y oculto
+  // desde 2026-07 pero seguía vivo en la DB, y desde ahí firmaba todos los slots
+  // —Digital incluidos— y salteaba la detección visual del escaneo. El mismo
+  // efecto se logra marcando los slots como TipoFirma=Fisica en la configuración
+  // de firmas del proyecto.
   {
     campo: "RenderizarFirmasDigitalesEnRecuadro",
     label: "Firma digital en el recuadro del PDF físico",
@@ -328,7 +328,6 @@ const FLAGS: {
 const FLAG_KEY_MAP: Record<string, keyof Proyecto> = {
   PermitirRegistroFisico:          "permitirRegistroFisico",
   PermitirRegistroDigital:         "permitirRegistroDigital",
-  RegistrosFisicosPreFirmados:     "registrosFisicosPreFirmados",
   RenderizarFirmasDigitalesEnRecuadro: "renderizarFirmasDigitalesEnRecuadro",
   PermiteAdjuntos:                 "permiteAdjuntos",
 }
