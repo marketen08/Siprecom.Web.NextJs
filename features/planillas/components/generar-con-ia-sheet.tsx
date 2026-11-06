@@ -46,11 +46,11 @@ import type {
   CampoImportado,
   CatalogoCampoResumen,
 } from "../import-types"
-import type { Planilla, PlanillaSeccion, CampoTipoDato } from "../types"
-import { CAMPO_TIPO_DATO, CAMPO_TAMANO_DEFAULT } from "../types"
+import { crearPlanillaImportada, sanearCampoIdsExistentes } from "../crear-planilla-importada"
+import type { CampoTipoDato } from "../types"
+import { CAMPO_TIPO_DATO } from "../types"
 
 const TIPOS = Object.entries(CAMPO_TIPO_DATO)
-  .filter(([k]) => k !== "6") // excluir Firma (igual que en Excel)
   .map(([value, label]) => ({ value: value as string, label }))
 
 // --- Estado interno editable ---
@@ -189,37 +189,7 @@ export function GenerarConIASheet({ open, onClose }: Props) {
       // Refresco del saldo después de un consumo exitoso.
       qc.invalidateQueries({ queryKey: ["ia", "uso"] })
 
-      // Sanitizamos campoIdExistente: la IA a veces alucina GUIDs que no están
-      // en el catálogo. Si el id no matchea (case-insensitive) un id real, lo
-      // borramos → el flujo lo trata como campo nuevo. Sin este saneo, el POST
-      // /api/planillas/{id}/campos falla con "CampoId: El campo no existe".
-      const idsCatalogo = new Set(camposData.map((c) => c.id.toLowerCase()))
-      const sanitized: PlanillaImportada = {
-        ...data,
-        secciones: data.secciones.map((s) => ({
-          ...s,
-          campos: s.campos.map((c) => {
-            if (
-              c.campoIdExistente &&
-              !idsCatalogo.has(c.campoIdExistente.toLowerCase())
-            ) {
-              // eslint-disable-next-line no-console
-              console.warn("IA propuso id no existente, se creará campo nuevo:", c.campoIdExistente, c.etiqueta)
-              return { ...c, campoIdExistente: undefined }
-            }
-            // Normalizamos al casing exacto del catálogo (defensivo).
-            if (c.campoIdExistente) {
-              const real = camposData.find(
-                (x) => x.id.toLowerCase() === c.campoIdExistente!.toLowerCase(),
-              )
-              if (real) return { ...c, campoIdExistente: real.id }
-            }
-            return c
-          }),
-        })),
-      }
-
-      setPlanilla(toEditable(sanitized))
+      setPlanilla(toEditable(sanearCampoIdsExistentes(data, camposData)))
       setStep("preview")
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Error inesperado")
@@ -284,139 +254,19 @@ export function GenerarConIASheet({ open, onClose }: Props) {
     setErrorMsg("")
 
     try {
-      // 1. Crear planilla base. El código lo generamos del nombre + timestamp
-      // para garantizar unicidad de (Codigo, Version) — sin esto, la segunda
-      // planilla generada con codigo=null falla contra el índice UQ del back.
-      // El usuario puede editar el código después desde el detalle de la planilla.
-      setProgreso("Creando planilla...")
-      const codigoPlanilla = (planilla.nombre || "PL")
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "_")
-        .replace(/_+/g, "_")
-        .slice(0, 30) + "_" + Date.now().toString().slice(-6)
-      const planillaResp = await apiClient.post<{ data: Planilla }>("/api/planillas", {
-        codigo: codigoPlanilla,
-        nombre: planilla.nombre,
-        requiereFirma: true,
-        permiteAdjuntos: true,
-        generaPdfFinal: false,
-      })
-      const planillaId = planillaResp.data.id
-
-      // 2. Crear secciones y sus campos
-      for (const seccion of planilla.secciones) {
-        const camposActivos = seccion.campos.filter((c) => !c._eliminado)
-        if (camposActivos.length === 0) continue
-
-        setProgreso(`Creando sección "${seccion.nombre}"...`)
-        const seccionResp = await apiClient.post<{ data: PlanillaSeccion }>(
-          `/api/planillas/${planillaId}/secciones`,
-          {
-            planillaId,
-            nombre: seccion.nombre,
-            orden: planilla.secciones.indexOf(seccion) + 1,
-          }
-        )
-        const seccionId = seccionResp.data.id
-
-        // 3. Crear/reusar campos y vincularlos a la planilla
-        for (let i = 0; i < camposActivos.length; i++) {
-          const campo = camposActivos[i]
-          setProgreso(`Vinculando campo "${campo.etiqueta}"...`)
-
-          let campoId: string
-
-          if (campo.campoIdExistente) {
-            // Reuso: usamos el id del catálogo tal cual — sin POST /api/campos.
-            campoId = campo.campoIdExistente
-          } else {
-            // Nuevo: creamos el campo global. El código final es
-            // `${slug}_${timestamp6}` — max 30 + 1 + 6 = 37 chars, bajo el
-            // cap del DTO (50 chars).
-            const codigo = campo.etiqueta
-              .toUpperCase()
-              .replace(/[^A-Z0-9]/g, "_")
-              .replace(/_+/g, "_")
-              .slice(0, 30)
-
-            // NumeroFilas solo si es un entero válido; el DTO del back es int
-            // NO nullable con default 3, así que mandar null falla la
-            // deserialización con "$.numeroFilas: The JSON value could not be
-            // converted to System.Int32". Solo lo mandamos para Tabla dinámica.
-            const nf =
-              campo.tipoDato === 9 &&
-              typeof campo.numeroFilas === "number" &&
-              Number.isFinite(campo.numeroFilas)
-                ? Math.max(1, Math.min(100, Math.floor(campo.numeroFilas)))
-                : undefined
-            const camposBody: Record<string, unknown> = {
-              codigo: `${codigo}_${Date.now().toString().slice(-6)}`,
-              etiqueta: campo.etiqueta,
-              tipoDato: campo.tipoDato,
-              esObligatorioDefault: campo.esObligatorio,
-              permiteObservacion: false,
-              permiteAdjunto: false,
-            }
-            if (nf !== undefined) camposBody.numeroFilas = nf
-            const campoResp = await apiClient.post<{ data: { id: string } }>(
-              "/api/campos",
-              camposBody,
-            )
-            campoId = campoResp.data.id
-
-            // Si es Tabla, creamos columnas y filas predefinidas del campo global.
-            // (No aplica en reuso: si el campo ya existe en el catálogo, la
-            // definición de tabla ya viene con él y no la tocamos.)
-            if (campo.tipoDato === 9) {
-              const columnas = campo.columnas ?? []
-              for (let ci = 0; ci < columnas.length; ci++) {
-                const col = columnas[ci]
-                setProgreso(`Creando columna "${col.encabezado}"...`)
-                await apiClient.post(`/api/campos/${campoId}/tabla/columnas`, {
-                  campoId,
-                  encabezado: col.encabezado,
-                  orden: ci + 1,
-                  esColumnaEtiqueta: !!col.esColumnaEtiqueta,
-                  grupo: col.grupo?.trim() || null,
-                })
-              }
-              const filas = campo.filas ?? []
-              for (let fi = 0; fi < filas.length; fi++) {
-                const fila = filas[fi]
-                setProgreso(`Creando fila "${fila.etiquetaFila}"...`)
-                await apiClient.post(`/api/campos/${campoId}/tabla/filas`, {
-                  campoId,
-                  etiquetaFila: fila.etiquetaFila,
-                  celdasPrecargadas: fila.celdasPrecargadas ?? null,
-                  orden: fi + 1,
-                })
-              }
-            }
-          }
-
-          await apiClient.post(`/api/planillas/${planillaId}/campos`, {
-            planillaId,
-            campoId,
-            planillaSeccionId: seccionId,
-            orden: i + 1,
-            esObligatorio: campo.esObligatorio,
-            visible: true,
-            soloLectura: false,
-            // Tabla siempre ocupa ancho completo — forzamos 12 aunque la IA se olvide.
-            tamano: campo.tipoDato === 9
-              ? 12
-              : (campo.tamano ?? CAMPO_TAMANO_DEFAULT),
-            renderMode: campo.renderMode ?? 0,
-          })
-        }
-      }
-
-      setProgreso("")
-      setPlanillaCreada({
-        id: planillaId,
-        codigo: codigoPlanilla,
-        nombre: planilla.nombre,
-      })
+      // La creación vive en `crear-planilla-importada.ts`, compartida con el
+      // flujo de import desde Excel: es lo que mantiene a los dos alineados.
+      const creada = await crearPlanillaImportada(
+        {
+          nombre: planilla.nombre,
+          secciones: planilla.secciones.map((s) => ({
+            nombre: s.nombre,
+            campos: s.campos.filter((c) => !c._eliminado),
+          })),
+        },
+        setProgreso,
+      )
+      setPlanillaCreada(creada)
       setStep("ok")
       qc.invalidateQueries({ queryKey: ["planillas"] })
     } catch (err: unknown) {

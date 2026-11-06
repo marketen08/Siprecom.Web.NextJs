@@ -25,14 +25,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 
-import { apiClient } from "@/lib/api-client"
 import type { ExcelParsePayload, PlanillaImportada, SeccionImportada, CampoImportado, CatalogoCampoResumen } from "../import-types"
-import type { Planilla, PlanillaSeccion, CampoTipoDato } from "../types"
+import { crearPlanillaImportada, sanearCampoIdsExistentes } from "../crear-planilla-importada"
+import type { CampoTipoDato } from "../types"
 import { CAMPO_TIPO_DATO } from "../types"
 import { useGetCamposSelect } from "@/features/campos/api/use-get-campos-select"
 
 const TIPOS = Object.entries(CAMPO_TIPO_DATO)
-  .filter(([k]) => k !== "6") // excluir Firma
   .map(([value, label]) => ({ value: value as string, label }))
 
 // --- Estado interno editable ---
@@ -166,7 +165,9 @@ export function ImportExcelSheet({ open, onClose }: Props) {
       }
 
       const data: PlanillaImportada = await resultado.json()
-      setPlanilla(toEditable(data))
+      // Saneo de los ids del catálogo que propuso la IA: sin esto, un GUID
+      // alucinado hace fallar la vinculación y se pierde la importación entera.
+      setPlanilla(toEditable(sanearCampoIdsExistentes(data, camposData)))
       setStep("preview")
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Error inesperado")
@@ -231,80 +232,21 @@ export function ImportExcelSheet({ open, onClose }: Props) {
     setErrorMsg("")
 
     try {
-      // 1. Crear planilla base. Código único basado en nombre + timestamp para
-      // garantizar unicidad de (Codigo, Version) — sin esto, la segunda planilla
-      // importada con codigo=null falla contra el índice UQ del back.
-      setProgreso("Creando planilla...")
-      const codigoPlanilla = (planilla.nombre || "PL")
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "_")
-        .replace(/_+/g, "_")
-        .slice(0, 30) + "_" + Date.now().toString().slice(-6)
-      const planillaResp = await apiClient.post<{ data: Planilla }>("/api/planillas", {
-        codigo: codigoPlanilla,
-        nombre: planilla.nombre,
-        requiereFirma: true,
-        permiteAdjuntos: true,
-        generaPdfFinal: false,
-      })
-      const planillaId = planillaResp.data.id
-
-      // 2. Crear secciones y sus campos
-      for (const seccion of planilla.secciones) {
-        const camposActivos = seccion.campos.filter((c) => !c._eliminado)
-        if (camposActivos.length === 0) continue
-
-        setProgreso(`Creando sección "${seccion.nombre}"...`)
-        const seccionResp = await apiClient.post<{ data: PlanillaSeccion }>(
-          `/api/planillas/${planillaId}/secciones`,
-          {
-            planillaId,
-            nombre: seccion.nombre,
-            orden: planilla.secciones.indexOf(seccion) + 1,
-          }
-        )
-        const seccionId = seccionResp.data.id
-
-        // 3. Crear campos de la sección
-        for (let i = 0; i < camposActivos.length; i++) {
-          const campo = camposActivos[i]
-          setProgreso(`Creando campo "${campo.etiqueta}"...`)
-
-          // Generar código único a partir de la etiqueta. `slug + "_" + 6 chars`
-          // suma max 30 + 1 + 6 = 37 chars — bajo el cap del DTO (50).
-          const codigo = campo.etiqueta
-            .toUpperCase()
-            .replace(/[^A-Z0-9]/g, "_")
-            .replace(/_+/g, "_")
-            .slice(0, 30)
-
-          const campoResp = await apiClient.post<{ data: { id: string } }>("/api/campos", {
-            codigo: `${codigo}_${Date.now().toString().slice(-6)}`,
-            etiqueta: campo.etiqueta,
-            tipoDato: campo.tipoDato,
-            esObligatorioDefault: campo.esObligatorio,
-            permiteObservacion: false,
-            permiteAdjunto: false,
-          })
-
-          await apiClient.post(`/api/planillas/${planillaId}/campos`, {
-            planillaId,
-            campoId: campoResp.data.id,
-            planillaSeccionId: seccionId,
-            orden: i + 1,
-            esObligatorio: campo.esObligatorio,
-            visible: true,
-            soloLectura: false,
-          })
-        }
-      }
-
-      setProgreso("")
-      setPlanillaCreada({
-        id: planillaId,
-        codigo: codigoPlanilla,
-        nombre: planilla.nombre,
-      })
+      // La creación vive en `crear-planilla-importada.ts`, compartida con el
+      // flujo de generación desde descripción. Antes este sheet tenía su propia
+      // copia y había quedado atrás: ignoraba el reuso de catálogo, las tablas,
+      // el tamaño y el render mode.
+      const creada = await crearPlanillaImportada(
+        {
+          nombre: planilla.nombre,
+          secciones: planilla.secciones.map((s) => ({
+            nombre: s.nombre,
+            campos: s.campos.filter((c) => !c._eliminado),
+          })),
+        },
+        setProgreso,
+      )
+      setPlanillaCreada(creada)
       setStep("ok")
       qc.invalidateQueries({ queryKey: ["planillas"] })
     } catch (err: unknown) {
