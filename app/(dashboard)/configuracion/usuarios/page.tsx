@@ -8,9 +8,10 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { AlertTriangle, Search, UserPlus, ChevronRight } from "lucide-react"
+import { AlertTriangle, FileSpreadsheet, Loader2, Search, UserPlus, ChevronRight } from "lucide-react"
 
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
+import { descargarUsuariosExcel } from "@/features/usuarios/api/descargar-usuarios-excel"
 import { useGetClientesSelect } from "@/features/clientes/api/use-get-clientes-select"
 import { EditUsuarioSheet } from "@/features/usuarios/components/edit-usuario-sheet"
 import { NewUsuarioSheet } from "@/features/usuarios/components/new-usuario-sheet"
@@ -21,6 +22,8 @@ import {
   useFuncionalidadPlataforma,
 } from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { DataTableWrapper } from "@/components/data-table-wrapper"
+import { useAuthStore } from "@/store/auth-store"
+import { meetsRole } from "@/lib/roles"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -78,6 +81,8 @@ export default function UsuariosPage() {
   const [newOpen, setNewOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos")
+  const [exportando, setExportando] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   // Empresa usa "" como "todas" (y no el sentinel ALL) porque va en un Combobox,
   // que es la convención del resto de los filtros con búsqueda.
   const [clienteId, setClienteId] = useState<string>("")
@@ -86,6 +91,12 @@ export default function UsuariosPage() {
 
   // La estructura de equipos de administración se puede apagar en toda la plataforma.
   const hayEquipos = useFuncionalidadPlataforma(FUNCIONALIDAD.equiposAdministracion)
+
+  // El listado se abre a Supervisor —lo consume el picker de asignar usuarios a un
+  // proyecto—, pero bajarse el padrón con mails y roles es Admin, igual que en el
+  // backend. Sin esto el botón estaría ahí para comerse un 403.
+  const userRoles = useAuthStore((s) => s.user?.roles)
+  const esAdmin = meetsRole(userRoles, "Admin")
 
   // Empresa: clientes + contratistas (estos con badge en el label).
   const { data: empresasData } = useGetClientesSelect()
@@ -165,6 +176,27 @@ export default function UsuariosPage() {
     })
   }
 
+  // Exporta lo que está filtrado, sin paginar: el Excel trae los `total` usuarios
+  // de la consulta y no los 10 de la página. Es lo que uno espera de un botón que
+  // está al lado de los filtros, y evita el otro malentendido —bajar el padrón
+  // entero cuando filtraste por una empresa—.
+  async function handleExportar() {
+    setExportError(null)
+    setExportando(true)
+    try {
+      await descargarUsuariosExcel({
+        nombre: search || undefined,
+        isLocked: isLockedParam,
+        clienteId: clienteId || undefined,
+        rol: rol === ALL ? undefined : rol,
+      })
+    } catch (e) {
+      setExportError((e as Error).message)
+    } finally {
+      setExportando(false)
+    }
+  }
+
   function handleClearFiltros() {
     setEstadoFiltro("activos")
     setClienteId("")
@@ -195,6 +227,27 @@ export default function UsuariosPage() {
               onOpenChange={setFiltersOpen}
               activeCount={activeFilters.length}
             />
+            {esAdmin && (
+              <Button
+                variant="outline"
+                onClick={handleExportar}
+                disabled={exportando || isLoading || total === 0}
+                className="gap-1.5"
+                title={
+                  activeFilters.length > 0
+                    ? `Baja a Excel los ${total} usuarios que cumplen los filtros, no sólo esta página`
+                    : `Baja a Excel los ${total} usuarios del listado, no sólo esta página`
+                }
+              >
+                {exportando
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileSpreadsheet className="h-4 w-4" />}
+                <span className="hidden sm:inline">
+                  {exportando ? "Generando..." : "Exportar Excel"}
+                </span>
+                <span className="sm:hidden">{exportando ? "..." : "Excel"}</span>
+              </Button>
+            )}
             <Button onClick={() => setNewOpen(true)} className="gap-1.5">
               <UserPlus className="h-4 w-4" />
               <span className="hidden sm:inline">Nuevo usuario</span>
@@ -205,6 +258,11 @@ export default function UsuariosPage() {
 
         {/* Chips de filtros activos */}
         <FiltersChips activeFilters={activeFilters} onClearAll={handleClearFiltros} />
+
+        {/* El error de la exportación se muestra acá: en esta app no hay toast. */}
+        {exportError && (
+          <p className="text-sm text-red-600">{exportError}</p>
+        )}
 
         {/* Sheet con los controles */}
         <FiltersSheet
