@@ -10,6 +10,8 @@ import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 
 interface MigracionesStatus {
   canConnect: boolean
+  servidor?: string | null
+  baseDatos?: string | null
   appliedCount?: number
   pendingCount?: number
   lastApplied?: string | null
@@ -75,6 +77,11 @@ export default function MigracionesPage() {
             <div>
               <p className="font-medium">No se pudo consultar el estado de la base.</p>
               {data?.error && <p className="mt-0.5 text-xs opacity-80">{data.error}</p>}
+              {data?.baseDatos && (
+                <p className="mt-1 text-xs font-mono opacity-80">
+                  {data.servidor} · {data.baseDatos}
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -168,6 +175,10 @@ export default function MigracionesPage() {
             </dd>
             <dt className="text-muted-foreground">Versión</dt>
             <dd className="font-mono">{data.build.version ?? "—"}</dd>
+            <dt className="text-muted-foreground">Servidor</dt>
+            <dd className="font-mono break-all">{data.servidor ?? "—"}</dd>
+            <dt className="text-muted-foreground">Base</dt>
+            <dd className="font-mono break-all">{data.baseDatos ?? "—"}</dd>
           </dl>
           <p className="text-[11px] text-muted-foreground">
             Si una migración nueva no aparece como pendiente, casi siempre es porque el backend
