@@ -9,6 +9,7 @@ import type { Planilla } from "@/features/planillas/types"
 import { useOpenPlanilla } from "@/features/planillas/hooks/use-open-planilla"
 import { useDeletePlanilla } from "@/features/planillas/api/use-delete-planilla"
 import { useClonePlanilla } from "@/features/planillas/api/use-clone-planilla"
+import { useGetCamposExclusivos } from "@/features/planillas/api/use-campos-exclusivos"
 import { exportarPlanilla } from "@/features/planillas/api/use-import-export"
 import { useMarcarRevision } from "@/features/planillas/api/use-marcar-revision"
 import { ReemplazarDisenoSheet } from "@/features/planillas/components/reemplazar-diseno-sheet"
@@ -41,6 +42,15 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
 
   const [cloneOpen, setCloneOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Limpieza del catálogo al eliminar: arranca apagada a propósito. Borra campos, que es
+  // más de lo que el usuario vino a hacer, así que se opta por ella explícitamente.
+  const [limpiarCampos, setLimpiarCampos] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Se consulta recién con el diálogo abierto: es una llamada por planilla y no tiene
+  // sentido hacerla por cada fila del listado.
+  const exclusivosQuery = useGetCamposExclusivos(planilla.id, deleteOpen)
+  const exclusivos = exclusivosQuery.data?.data?.eliminables ?? []
   // Reemplazar el diseño: primero la confirmación (se pierde el diseño actual), después
   // el panel de import, que muestra qué va a quedar antes de aplicar.
   const [confirmarImportOpen, setConfirmarImportOpen] = useState(false)
@@ -52,8 +62,28 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
   }
 
   const handleDelete = async () => {
-    await deleteMutation.mutateAsync(planilla.id)
-    setDeleteOpen(false)
+    setDeleteError(null)
+    try {
+      await deleteMutation.mutateAsync({
+        id: planilla.id,
+        eliminarCamposSinUso: limpiarCampos,
+      })
+      setDeleteOpen(false)
+    } catch (err) {
+      // El borrado falla de verdad cuando una tarea o un registro usan la planilla, y el
+      // mensaje del backend explica qué desasignar. Antes se perdía: el diálogo quedaba
+      // abierto sin decir nada.
+      setDeleteError((err as Error)?.message ?? "No se pudo eliminar la planilla.")
+    }
+  }
+
+  const abrirDelete = (abierto: boolean) => {
+    if (deleteMutation.isPending) return
+    if (abierto) {
+      setLimpiarCampos(false)
+      setDeleteError(null)
+    }
+    setDeleteOpen(abierto)
   }
 
   const descargarPdf = () => {
@@ -215,7 +245,7 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
       />
 
       {/* Eliminar */}
-      <AlertDialog open={deleteOpen} onOpenChange={(o) => !deleteMutation.isPending && setDeleteOpen(o)}>
+      <AlertDialog open={deleteOpen} onOpenChange={abrirDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar planilla?</AlertDialogTitle>
@@ -223,6 +253,47 @@ export function RowActions({ planilla }: { planilla: Planilla }) {
               Esta acción eliminará <strong>{planilla.nombre}</strong>. Podés reactivarla después.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {exclusivos.length > 0 && (
+            <div className="space-y-1.5 rounded-md border border-gray-200 bg-gray-50/70 px-3 py-2.5">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 cursor-pointer"
+                  checked={limpiarCampos}
+                  onChange={(e) => setLimpiarCampos(e.target.checked)}
+                  disabled={deleteMutation.isPending}
+                />
+                <span className="text-sm text-gray-800">
+                  Eliminar también los{" "}
+                  <strong>
+                    {exclusivos.length} campo{exclusivos.length !== 1 ? "s" : ""}
+                  </strong>{" "}
+                  que sólo usa esta planilla
+                </span>
+              </label>
+              <p className="text-xs text-muted-foreground pl-6">
+                {exclusivos
+                  .slice(0, 6)
+                  .map((c) => c.etiqueta)
+                  .join(", ")}
+                {exclusivos.length > 6 ? ` y ${exclusivos.length - 6} más` : ""}
+                . Los que use otra planilla no se tocan.
+              </p>
+              {limpiarCampos && (
+                <p className="text-xs text-amber-700 pl-6">
+                  Si más adelante reactivás la planilla, estos campos no vuelven con ella.
+                </p>
+              )}
+            </div>
+          )}
+
+          {deleteError && (
+            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
+              {deleteError}
+            </p>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
             <AlertDialogAction

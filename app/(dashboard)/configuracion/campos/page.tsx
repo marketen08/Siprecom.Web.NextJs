@@ -6,12 +6,13 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Plus, Search } from "lucide-react"
+import { Eraser, Plus, Search } from "lucide-react"
 
 import { useGetCampos } from "@/features/campos/api/use-get-campos"
 import { useNewCampo } from "@/features/campos/hooks/use-new-campo"
 import { NewCampoSheet } from "@/features/campos/components/new-campo-sheet"
 import { EditCampoSheet } from "@/features/campos/components/edit-campo-sheet"
+import { LimpiarCamposSinUsoDialog } from "@/features/campos/components/limpiar-campos-sin-uso-dialog"
 import { useGetPlanillas } from "@/features/planillas/api/use-get-planillas"
 import { useGetMisEquipos } from "@/features/equipos/api/use-equipos"
 import {
@@ -52,6 +53,7 @@ export default function CamposPage() {
   // activo del usuario más los globales, o todo para AdminGlobal.
   const [equipoFiltro, setEquipoFiltro] = useState<string>("")
   const [page, setPage] = useState(1)
+  const [limpiarOpen, setLimpiarOpen] = useState(false)
   const pageSize = 10
 
   // La estructura de equipos es apagable por el SuperAdmin. Apagada, el catálogo es uno
@@ -108,6 +110,7 @@ export default function CamposPage() {
     <>
       <NewCampoSheet />
       <EditCampoSheet />
+      <LimpiarCamposSinUsoDialog open={limpiarOpen} onOpenChange={setLimpiarOpen} />
 
       <div className="space-y-4">
         {/* Buscador + Nuevo */}
@@ -149,7 +152,16 @@ export default function CamposPage() {
               emptyMessage="Sin planillas"
             />
           </div>
-          <Button onClick={open} className="gap-2 ml-auto">
+          <Button
+            variant="outline"
+            onClick={() => setLimpiarOpen(true)}
+            className="gap-2 ml-auto"
+            title="Eliminar de una vez todos los campos que ninguna planilla usa"
+          >
+            <Eraser className="h-4 w-4" />
+            Limpiar sin uso
+          </Button>
+          <Button onClick={open} className="gap-2">
             <Plus className="h-4 w-4" />
             Nuevo campo
           </Button>
