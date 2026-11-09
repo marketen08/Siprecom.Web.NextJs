@@ -127,7 +127,8 @@ function ListaSeleccionable({
     )
   }, [usuarios, busqueda, grupo])
 
-  const todosVisiblesTildados =
+  const hayFiltro = !!grupo || busqueda.trim() !== ""
+  const todosFiltradosTildados =
     filtrados.length > 0 && filtrados.every((u) => elegidos.has(u.id))
 
   if (usuarios.length === 0)
@@ -156,22 +157,25 @@ function ListaSeleccionable({
         )}
       </div>
 
-      {/* Tildar de una lo que quedó filtrado. Es para esto que sirve el filtro por
-          grupo: asignarle algo a todo Montaje son dos clics y no diez.
+      {/* Tildar de una todo lo filtrado. Es para esto que sirve el filtro por grupo:
+          asignarle algo a todo Montaje son dos clics y no diez.
 
-          Dice el número y no "todos" porque lo que tilda es lo que se VE, y eso no
-          es necesariamente el grupo: si además hay algo escrito en el buscador, son
-          menos. Sin ningún filtro son todos los usuarios del proyecto, que en un
-          proyecto grande es justo el clic que no conviene hacer a ciegas. */}
+          Alcanza a TODO lo que el filtro deja pasar, no a lo que entra en el alto de
+          la caja: la lista no está paginada —el endpoint devuelve los usuarios del
+          proyecto completos y el filtro corre acá— así que lo de abajo del scroll
+          también se tilda. Por eso la etiqueta no dice "los que se ven", que era una
+          promesa más chica que lo que hace.
+
+          Y dice el número, no "todos": sin filtro son todos los usuarios del
+          proyecto, que en uno grande es justo el clic que conviene ver antes de dar. */}
       {onToggleVarios && filtrados.length > 1 && (
         <button
           type="button"
-          onClick={() => onToggleVarios(filtrados.map((u) => u.id), !todosVisiblesTildados)}
+          onClick={() => onToggleVarios(filtrados.map((u) => u.id), !todosFiltradosTildados)}
           className="text-xs font-medium text-blue-600 hover:underline"
         >
-          {todosVisiblesTildados
-            ? `Destildar los ${filtrados.length} que se ven`
-            : `Agregar los ${filtrados.length} que se ven`}
+          {todosFiltradosTildados ? "Destildar los " : "Agregar los "}
+          {filtrados.length}{hayFiltro ? " filtrados" : " usuarios"}
         </button>
       )}
 
