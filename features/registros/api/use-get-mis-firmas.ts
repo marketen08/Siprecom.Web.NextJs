@@ -26,7 +26,17 @@ export interface MiFirmaPendiente {
   especialidadColor: string | null
 }
 
-export type MisFirmasModo = "pendientes" | "firmados"
+/**
+ * Los tres tabs de la pantalla, todos del usuario que pregunta:
+ *
+ *  • `pendientes` — todo lo que puede firmar por sus roles de firma en el proyecto.
+ *    Para un supervisor es casi toda la obra, y ahí lo propio se pierde.
+ *  • `mis-tareas` — lo mismo, acotado a tareas asignadas a él. SUBCONJUNTO del
+ *    anterior, no otra cosa: todo lo que lista lo puede firmar. Es el número del
+ *    badge del sidebar.
+ *  • `firmados` — su historial.
+ */
+export type MisFirmasModo = "pendientes" | "mis-tareas" | "firmados"
 
 interface Params {
   proyectoId: string | undefined
