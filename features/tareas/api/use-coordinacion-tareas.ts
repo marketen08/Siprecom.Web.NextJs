@@ -53,8 +53,12 @@ export interface ElementoTareaRow {
   motivoRechazo: string | null
   fechaPlanificada: string | null
   fechaLimite: string | null
+  /** @deprecated Lo reemplaza `asignados`; queda mientras el backend mantenga el escalar. */
   asignadoA: string | null
+  /** @deprecated Ver `asignadoA`. */
   asignadoNombre: string | null
+  /** Todos los asignados activos de la tarea. */
+  asignados?: { usuarioId: string; nombre: string | null }[]
   porcentajeAvance: number
   registroId: string | null
 }
@@ -228,18 +232,77 @@ function toBulkBody(targets: BulkTargets, extra: Record<string, unknown>) {
   return { filter: toBackendFilter(targets.filter), ...extra }
 }
 
+/**
+ * AGREGA asignados al lote. Los que ya estaban se quedan — para sacar a alguien está
+ * useBulkQuitarAsignados. No hay "reemplazar": sobre una selección mezclada el
+ * usuario no ve a quién estaría pisando.
+ */
 export function useBulkAsignar() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: BulkTargets & { asignadoA: string | null }) => {
-      const { asignadoA, ...targets } = input
+    mutationFn: (input: BulkTargets & { usuarioIds: string[] }) => {
+      const { usuarioIds, ...targets } = input
       return apiClient
         .post<ApiResponse<BulkResult>>(
           "/api/elementostareas/bulk/asignar",
-          toBulkBody(targets as BulkTargets, { asignadoA: asignadoA ?? "" }),
+          toBulkBody(targets as BulkTargets, { usuarioIds }),
         )
         .then((r) => r.data)
     },
+    onSuccess: () => { invalidarListaTareas(qc) },
+  })
+}
+
+/** Saca asignados del lote, o lo deja sin nadie con `todos`. */
+export function useBulkQuitarAsignados() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BulkTargets & { usuarioIds?: string[]; todos?: boolean }) => {
+      const { usuarioIds, todos, ...targets } = input
+      return apiClient
+        .post<ApiResponse<BulkResult>>(
+          "/api/elementostareas/bulk/quitar-asignados",
+          toBulkBody(targets as BulkTargets, { usuarioIds: usuarioIds ?? [], todos: !!todos }),
+        )
+        .then((r) => r.data)
+    },
+    onSuccess: () => { invalidarListaTareas(qc) },
+  })
+}
+
+export interface AsignadoDeSeleccion {
+  usuarioId: string
+  nombre: string | null
+  email: string | null
+  tareas: number
+}
+
+/**
+ * Unión de los asignados de la selección, con en cuántas tareas está cada uno. Es lo
+ * que el diálogo de Quitar necesita: en un lote las tareas tienen asignaciones
+ * distintas, así que hay que ofrecer la unión y no una lista de usuarios cualquiera.
+ *
+ * Va como mutación y no como query porque la selección puede ser un filtro y se pide
+ * al abrir el diálogo, no de forma reactiva.
+ */
+export function useAsignadosDeSeleccion() {
+  return useMutation({
+    mutationFn: (targets: BulkTargets) =>
+      apiClient
+        .post<ApiResponse<AsignadoDeSeleccion[]>>(
+          "/api/elementostareas/bulk/asignados",
+          toBulkBody(targets, {}),
+        )
+        .then((r) => r.data),
+  })
+}
+
+/** Deja los asignados de UNA tarea en exactamente los indicados (reemplaza). */
+export function useSetAsignados() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, usuarioIds }: { id: string; usuarioIds: string[] }) =>
+      apiClient.put<ApiResponse<unknown>>(`/api/elementostareas/${id}/asignados`, { usuarioIds }),
     onSuccess: () => { invalidarListaTareas(qc) },
   })
 }
