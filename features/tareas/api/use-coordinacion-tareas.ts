@@ -53,8 +53,8 @@ export interface ElementoTareaRow {
   motivoRechazo: string | null
   fechaPlanificada: string | null
   fechaLimite: string | null
-  asignadoA: string | null
-  asignadoNombre: string | null
+  /** Todos los asignados activos de la tarea. */
+  asignados?: { usuarioId: string; nombre: string | null }[]
   porcentajeAvance: number
   registroId: string | null
 }
@@ -228,18 +228,86 @@ function toBulkBody(targets: BulkTargets, extra: Record<string, unknown>) {
   return { filter: toBackendFilter(targets.filter), ...extra }
 }
 
+/**
+ * Asigna en lote. Por defecto SUMA —los que ya estaban se quedan— y con `reemplazar`
+ * deja exactamente los indicados; para sacar a alguien sin tocar al resto está
+ * useBulkQuitarAsignados.
+ *
+ * Siempre son usuarios, uno por uno. El grupo no se manda: en el diálogo filtra la
+ * lista y nada más.
+ */
 export function useBulkAsignar() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: BulkTargets & { asignadoA: string | null }) => {
-      const { asignadoA, ...targets } = input
+    mutationFn: (
+      input: BulkTargets & {
+        usuarioIds: string[]
+        /** Deja las tareas con exactamente los indicados, en vez de sumarlos. */
+        reemplazar?: boolean
+      },
+    ) => {
+      const { usuarioIds, reemplazar, ...targets } = input
       return apiClient
         .post<ApiResponse<BulkResult>>(
           "/api/elementostareas/bulk/asignar",
-          toBulkBody(targets as BulkTargets, { asignadoA: asignadoA ?? "" }),
+          toBulkBody(targets as BulkTargets, { usuarioIds, reemplazar: !!reemplazar }),
         )
         .then((r) => r.data)
     },
+    onSuccess: () => { invalidarListaTareas(qc) },
+  })
+}
+
+/** Saca asignados del lote, o lo deja sin nadie con `todos`. */
+export function useBulkQuitarAsignados() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BulkTargets & { usuarioIds?: string[]; todos?: boolean }) => {
+      const { usuarioIds, todos, ...targets } = input
+      return apiClient
+        .post<ApiResponse<BulkResult>>(
+          "/api/elementostareas/bulk/quitar-asignados",
+          toBulkBody(targets as BulkTargets, { usuarioIds: usuarioIds ?? [], todos: !!todos }),
+        )
+        .then((r) => r.data)
+    },
+    onSuccess: () => { invalidarListaTareas(qc) },
+  })
+}
+
+export interface AsignadoDeSeleccion {
+  usuarioId: string
+  nombre: string | null
+  email: string | null
+  tareas: number
+}
+
+/**
+ * Unión de los asignados de la selección, con en cuántas tareas está cada uno. Es lo
+ * que el diálogo de Quitar necesita: en un lote las tareas tienen asignaciones
+ * distintas, así que hay que ofrecer la unión y no una lista de usuarios cualquiera.
+ *
+ * Va como mutación y no como query porque la selección puede ser un filtro y se pide
+ * al abrir el diálogo, no de forma reactiva.
+ */
+export function useAsignadosDeSeleccion() {
+  return useMutation({
+    mutationFn: (targets: BulkTargets) =>
+      apiClient
+        .post<ApiResponse<AsignadoDeSeleccion[]>>(
+          "/api/elementostareas/bulk/asignados",
+          toBulkBody(targets, {}),
+        )
+        .then((r) => r.data),
+  })
+}
+
+/** Deja los asignados de UNA tarea en exactamente los indicados (reemplaza). */
+export function useSetAsignados() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, usuarioIds }: { id: string; usuarioIds: string[] }) =>
+      apiClient.put<ApiResponse<unknown>>(`/api/elementostareas/${id}/asignados`, { usuarioIds }),
     onSuccess: () => { invalidarListaTareas(qc) },
   })
 }
@@ -329,18 +397,3 @@ export function useActualizarFechaPlanificadaET() {
   })
 }
 
-export function useAsignarResponsableET() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, asignadoA }: { id: string; asignadoA: string | null }) =>
-      // UpdateElementoTareaAsync solo pisa los campos que vienen != null en el DTO.
-      // Enviamos únicamente AsignadoA. String vacío = "sin asignar" al backend.
-      apiClient.put<ApiResponse<ElementoTareaRow>>(`/api/elementostareas/${id}`, {
-        id,
-        asignadoA: asignadoA ?? "",
-      }),
-    onSuccess: () => {
-      invalidarListaTareas(qc)
-    },
-  })
-}

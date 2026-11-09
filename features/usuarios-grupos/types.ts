@@ -92,6 +92,21 @@ export interface PermisoPerdido {
  * Un grupo tal como se ofrece al elegir el responsable de un pendiente. Vista operativa:
  * la consume quien crea o reasigna, no quien administra grupos.
  */
+/**
+ * Un grupo como filtro de la lista de usuarios al asignar tareas.
+ *
+ * Lleva los miembros y no un conteo porque el filtro se resuelve en el cliente, sobre
+ * los usuarios que el diálogo ya tiene: pedirlos grupo por grupo sería una request por
+ * cada cambio de filtro. No hay conteo de miembros con acceso al proyecto porque no
+ * hace falta — el que no lo tiene no está en la lista y el filtro no lo muestra.
+ */
+export interface GrupoAsignacionOpcion {
+  id: string
+  nombre: string
+  /** Ids de los miembros activos, para filtrar la lista. */
+  usuarioIds: string[]
+}
+
 export interface GrupoResponsableOpcion {
   id: string
   nombre: string
@@ -103,4 +118,31 @@ export interface GrupoResponsableOpcion {
    * pendiente queda asignado a un grupo del que nadie se va a enterar.
    */
   miembrosEnProyecto: number
+}
+
+/** Un cambio que la re-sincronización del grupo va a aplicar. */
+export interface ReexpansionCambio {
+  /** "Tarea" o "Pendiente": el preview mezcla los dos. */
+  tipo: string
+  entidadId: string
+  /** Cómo se identifica en pantalla: TAG + tarea, o código + descripción. */
+  etiqueta: string
+  usuarioId: string
+  usuarioNombre: string
+}
+
+export interface ReexpansionPreview {
+  grupoId: string
+  grupoNombre: string
+  /** Miembros activos del grupo hoy — el objetivo de la sincronización. */
+  miembrosActuales: number
+  agregar: ReexpansionCambio[]
+  quitar: ReexpansionCambio[]
+}
+
+export interface ReexpansionResultado {
+  agregadas: number
+  quitadas: number
+  tareasTocadas: number
+  pendientesTocados: number
 }

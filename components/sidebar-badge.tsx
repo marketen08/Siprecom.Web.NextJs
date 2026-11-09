@@ -1,6 +1,7 @@
 "use client"
 
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
+import { useGetMisFirmas } from "@/features/registros/api/use-get-mis-firmas"
 import { useTareasListadoCounts } from "@/features/tareas-listado/api/use-tareas-listado"
 import { useSearchPendientes } from "@/features/pendientes/api/use-search-pendientes"
 import { PENDIENTE_ESTADO_IDS } from "@/features/pendientes/types"
@@ -18,6 +19,8 @@ export function SidebarBadge({ kind }: { kind: SidebarBadgeKey }) {
       return <TareasPendientesMiasBadge />
     case "pendientes-abiertos-mios":
       return <PendientesAbiertosMiosBadge />
+    case "firmas-pendientes-mias":
+      return <FirmasPendientesMiasBadge />
     default:
       return null
   }
@@ -44,6 +47,46 @@ function TareasPendientesMiasBadge() {
     <span
       className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-semibold bg-amber-500 text-white leading-none"
       title={`${pendientes} tarea(s) pendiente(s) asignada(s)`}
+    >
+      {label}
+    </span>
+  )
+}
+
+/**
+ * Cantidad de registros de MIS TAREAS que esperan mi firma — el tab "De mis tareas"
+ * de /ejecucion/firmas, no la cola completa.
+ *
+ * La diferencia importa: la cola completa es todo lo que el usuario puede firmar por
+ * su rol, que para un supervisor es casi toda la obra y como badge sería un número
+ * permanente de tres cifras. Lo que el badge tiene que decir es "te falta cerrar algo
+ * tuyo".
+ *
+ * Va SIN filtro de especialidad a propósito, igual que el badge del mobile: tiene que
+ * decir cuántas firmas debe el usuario, no cuántas quedan en la disciplina que esté
+ * mirando en la pantalla.
+ *
+ * Pide pageSize=1 porque sólo se usa `total` — el backend devuelve el count completo
+ * en cada página.
+ */
+function FirmasPendientesMiasBadge() {
+  const { data: perfil } = useGetPerfil()
+  const { data } = useGetMisFirmas({
+    proyectoId: perfil?.proyectoId,
+    page: 1,
+    pageSize: 1,
+    modo: "mis-tareas",
+  })
+
+  const total = data?.total ?? 0
+  if (!perfil?.proyectoId || total <= 0) return null
+
+  const label = total > 99 ? "99+" : String(total)
+
+  return (
+    <span
+      className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-semibold bg-amber-500 text-white leading-none"
+      title={`${total} registro(s) de tus tareas esperando tu firma`}
     >
       {label}
     </span>

@@ -50,8 +50,10 @@ export interface ElementoTarea {
   fechaLimite: string | null
 
   // Asignación
-  asignadoA: string
-  asignadoNombre: string
+  /** Todos los asignados activos de la tarea. */
+  asignados?: { usuarioId: string; nombre: string | null }[]
+  /** Si el usuario de la sesión está entre los asignados (lo precalcula el backend). */
+  usuarioEstaAsignado?: boolean
   supervisorId: string
   supervisorNombre: string
 

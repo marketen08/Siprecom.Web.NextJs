@@ -8,9 +8,12 @@ import {
   ESTADO_ET,
   ESTADO_ET_LABEL,
   useActualizarFechaPlanificadaET,
-  useAsignarResponsableET,
   useBulkActualizarFechaPlanificada,
   useBulkAsignar,
+  useBulkQuitarAsignados,
+  useAsignadosDeSeleccion,
+  useSetAsignados,
+  type AsignadoDeSeleccion,
   useBulkCancelar,
   useBulkReactivar,
   useCancelarElementoTarea,
@@ -34,6 +37,11 @@ import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyecto-usuarios"
 
 import { Button } from "@/components/ui/button"
+import {
+  AgregarAsignadosDialog, AsignadosResumen, EditarAsignadosDialog, QuitarAsignadosDialog,
+  type AsignacionBulk,
+} from "@/features/tareas/components/asignados-dialogs"
+import { useGetGruposParaAsignar } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -51,7 +59,6 @@ import {
 } from "@/components/ui/table"
 
 const ALL = "__all__"
-const SIN_ASIGNAR = "__none__"
 const PAGE_SIZE = 50
 
 // Chips de bucket disponibles arriba de la tabla. "canceladas" NO está en el
@@ -126,6 +133,12 @@ export function TareasExistentesTab() {
   const { data: especialidadesRaw } = useGetEspecialidades()
 
   const usuarios = usuariosRaw ?? []
+
+  // Los grupos son para filtrar la lista de usuarios del diálogo de asignar: con
+  // cuarenta personas en el proyecto, "los de Montaje" es la única forma práctica de
+  // llegar a ellos. No asignan nada por sí mismos.
+  const { data: gruposRaw } = useGetGruposParaAsignar()
+  const grupos = gruposRaw?.data ?? []
 
   const subsistemaOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todos" }]
@@ -224,18 +237,6 @@ export function TareasExistentesTab() {
     return opts
   }, [usuarios])
 
-  const usuarioSelectOptions = useMemo<ComboboxOption[]>(() => {
-    const opts: ComboboxOption[] = [{ value: SIN_ASIGNAR, label: "Sin asignar" }]
-    for (const u of usuarios) {
-      const nom = [u.nombre, u.apellido].filter(Boolean).join(" ").trim()
-      opts.push({
-        value: u.usuarioId,
-        label: nom ? `${nom} — ${u.email}` : u.email,
-      })
-    }
-    return opts
-  }, [usuarios])
-
   const estadoDetalleOptions: ComboboxOption[] = [
     { value: ALL, label: "Todos los estados" },
     { value: String(ESTADO_ET.PENDIENTE), label: "Pendiente" },
@@ -283,11 +284,13 @@ export function TareasExistentesTab() {
   // ── Mutations ──────────────────────────────────────────────────────
   const eliminarMut = useDeleteElementoTarea()
   const cancelarMut = useCancelarElementoTarea()
-  const asignarMut = useAsignarResponsableET()
   const reactivarMut = useReactivarElementoTarea()
   const fechaMut = useActualizarFechaPlanificadaET()
 
   const bulkAsignarMut = useBulkAsignar()
+  const bulkQuitarMut = useBulkQuitarAsignados()
+  const asignadosSeleccionMut = useAsignadosDeSeleccion()
+  const setAsignadosMut = useSetAsignados()
   const bulkCancelarMut = useBulkCancelar()
   const bulkReactivarMut = useBulkReactivar()
   const bulkFechaMut = useBulkActualizarFechaPlanificada()
@@ -352,7 +355,9 @@ export function TareasExistentesTab() {
 
   // ── Dialogs bulk ────────────────────────────────────────────────────
   const [bulkAsignarOpen, setBulkAsignarOpen] = useState(false)
-  const [bulkAsignarUser, setBulkAsignarUser] = useState<string>(SIN_ASIGNAR)
+  const [bulkQuitarOpen, setBulkQuitarOpen] = useState(false)
+  const [unionAsignados, setUnionAsignados] = useState<AsignadoDeSeleccion[]>([])
+  const [filaEditandoAsignados, setFilaEditandoAsignados] = useState<ElementoTareaRow | null>(null)
   const [bulkCancelarOpen, setBulkCancelarOpen] = useState(false)
   const [bulkCancelarMotivo, setBulkCancelarMotivo] = useState("")
   const [bulkReactivarOpen, setBulkReactivarOpen] = useState(false)
@@ -372,15 +377,52 @@ export function TareasExistentesTab() {
     setSelectAllMatching(false)
   }
 
-  const ejecutarBulkAsignar = async () => {
+  const ejecutarBulkAsignar = async (args: AsignacionBulk) => {
     try {
-      const nuevo = bulkAsignarUser === SIN_ASIGNAR ? null : bulkAsignarUser
-      const result = await bulkAsignarMut.mutateAsync({ ...buildBulkTargets(), asignadoA: nuevo })
-      setBulkResumen({ accion: "Asignación", result })
+      const result = await bulkAsignarMut.mutateAsync({ ...buildBulkTargets(), ...args })
+      setBulkResumen({ accion: args.reemplazar ? "Reemplazo de asignados" : "Asignación", result })
       setBulkAsignarOpen(false)
-      setBulkAsignarUser(SIN_ASIGNAR)
       limpiarSeleccion()
-    } catch { /* error visible abajo */ }
+    } catch { /* error visible en el diálogo */ }
+  }
+
+  // La unión de asignados de la selección: quién está asignado en el lote y en
+  // cuántas tareas. En un lote las tareas tienen asignaciones distintas, así que no
+  // hay forma de saberlo sin consultar.
+  //
+  // La piden los dos diálogos, en momentos distintos. Quitar al abrirse, porque es su
+  // lista. Asignar sólo si se tilda reemplazar, para poder decir a quién va a pisar:
+  // en el caso normal —sumar— el dato no se usa y pedirlo siempre sería una request
+  // por cada vez que alguien abre el diálogo.
+  const pedirUnionAsignados = async () => {
+    try {
+      const union = await asignadosSeleccionMut.mutateAsync(buildBulkTargets())
+      setUnionAsignados(union ?? [])
+    } catch {
+      setUnionAsignados([])
+    }
+  }
+
+  const abrirBulkQuitar = () => {
+    setBulkQuitarOpen(true)
+    pedirUnionAsignados()
+  }
+
+  const ejecutarBulkQuitar = async (args: { usuarioIds: string[]; todos: boolean }) => {
+    try {
+      const result = await bulkQuitarMut.mutateAsync({ ...buildBulkTargets(), ...args })
+      setBulkResumen({ accion: "Quitar asignados", result })
+      setBulkQuitarOpen(false)
+      limpiarSeleccion()
+    } catch { /* error visible en el diálogo */ }
+  }
+
+  const guardarAsignadosDeFila = async (usuarioIds: string[]) => {
+    if (!filaEditandoAsignados) return
+    try {
+      await setAsignadosMut.mutateAsync({ id: filaEditandoAsignados.id, usuarioIds })
+      setFilaEditandoAsignados(null)
+    } catch { /* error visible en el diálogo */ }
   }
   const ejecutarBulkCancelar = async () => {
     if (!bulkCancelarMotivo.trim()) return
@@ -524,8 +566,15 @@ export function TareasExistentesTab() {
             {selectAllMatching && <span className="ml-1 text-xs">(todas las que matchean el filtro)</span>}
           </span>
           <div className="lg:ml-auto flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => { setBulkAsignarUser(SIN_ASIGNAR); setBulkAsignarOpen(true) }}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setUnionAsignados([]); setBulkAsignarOpen(true) }}
+            >
               Asignar
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setUnionAsignados([]); abrirBulkQuitar() }}>
+              Quitar
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setBulkFecha(""); setConfirmandoQuitarFecha(false); setBulkFechaOpen(true) }}>
               Fecha planif.
@@ -636,19 +685,13 @@ export function TareasExistentesTab() {
                 <div className="grid grid-cols-1 gap-2">
                   <div>
                     <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Responsable</label>
-                    <div className="whitespace-normal">
-                      <Combobox
-                        options={usuarioSelectOptions}
-                        value={row.asignadoA ?? SIN_ASIGNAR}
-                        onChange={(v) => {
-                          const nuevo = v === SIN_ASIGNAR ? null : v
-                          asignarMut.mutate({ id: row.id, asignadoA: nuevo })
-                        }}
-                        placeholder="Sin asignar"
-                        searchPlaceholder="Buscar..."
-                        className="h-8 text-xs"
-                      />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFilaEditandoAsignados(row)}
+                      className="w-full rounded border px-2 py-1.5 text-left text-xs hover:bg-gray-50"
+                    >
+                      <AsignadosResumen asignados={row.asignados} />
+                    </button>
                   </div>
                   <div>
                     <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Fecha planif.</label>
@@ -792,19 +835,14 @@ export function TareasExistentesTab() {
                           (con whitespace-nowrap default) se ensanche con el contenido
                           largo del popup del Combobox y termine mostrando las opciones
                           en fila en vez de columna. */}
-                      <div className="w-48 max-w-full whitespace-normal">
-                        <Combobox
-                          options={usuarioSelectOptions}
-                          value={row.asignadoA ?? SIN_ASIGNAR}
-                          onChange={(v) => {
-                            const nuevo = v === SIN_ASIGNAR ? null : v
-                            asignarMut.mutate({ id: row.id, asignadoA: nuevo })
-                          }}
-                          placeholder="Sin asignar"
-                          searchPlaceholder="Buscar usuario..."
-                          className="h-8 text-xs"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFilaEditandoAsignados(row)}
+                        className="w-48 max-w-full truncate rounded border px-2 py-1 text-left text-xs hover:bg-gray-50"
+                        title="Editar asignados"
+                      >
+                        <AsignadosResumen asignados={row.asignados} />
+                      </button>
                     </TableCell>
                     <TableCell className="text-sm">
                       <Input
@@ -918,9 +956,6 @@ export function TareasExistentesTab() {
         )}
       </div>
 
-      {asignarMut.error && (
-        <p className="text-xs text-destructive">{(asignarMut.error as Error).message}</p>
-      )}
       {eliminarMut.error && (
         <p className="text-xs text-destructive">{(eliminarMut.error as Error).message}</p>
       )}
@@ -989,40 +1024,49 @@ export function TareasExistentesTab() {
 
       {/* ── Dialogs bulk ── */}
 
-      {/* Asignar responsable bulk */}
-      <AlertDialog open={bulkAsignarOpen} onOpenChange={setBulkAsignarOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Asignar responsable a {selectionCount} tarea(s)</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se pisa el responsable actual. Elegí un usuario o &quot;Sin asignar&quot; para desasignar.
-              {selectAllMatching && <> Aplica a todas las tareas que matchean el filtro actual.</>}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Responsable</label>
-            <Combobox
-              options={usuarioSelectOptions}
-              value={bulkAsignarUser}
-              onChange={setBulkAsignarUser}
-              placeholder="Elegí usuario"
-              searchPlaceholder="Buscar..."
-            />
-            {bulkAsignarMut.error && (
-              <p className="text-xs text-destructive">{(bulkAsignarMut.error as Error).message}</p>
-            )}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkAsignarMut.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={bulkAsignarMut.isPending}
-              onClick={(e) => { e.preventDefault(); ejecutarBulkAsignar() }}
-            >
-              {bulkAsignarMut.isPending ? "Asignando..." : "Confirmar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Asignar y quitar siguen siendo dos acciones distintas. Reemplazar es un tilde
+          dentro de Asignar y no una tercera: lo que lo hacía peligroso era pisar a
+          ciegas, así que el diálogo lista a quién saca antes de confirmar. Los grupos
+          van sólo para filtrar la lista. */}
+      {bulkAsignarOpen && <AgregarAsignadosDialog
+        onOpenChange={setBulkAsignarOpen}
+        cantidadTareas={selectionCount}
+        usuarios={usuarios}
+        grupos={grupos}
+        union={unionAsignados}
+        cargandoUnion={asignadosSeleccionMut.isPending}
+        onPedirUnion={pedirUnionAsignados}
+        onConfirmar={ejecutarBulkAsignar}
+        cargando={bulkAsignarMut.isPending}
+        error={bulkAsignarMut.error ? (bulkAsignarMut.error as Error).message : null}
+      />}
+
+      {bulkQuitarOpen && <QuitarAsignadosDialog
+        onOpenChange={setBulkQuitarOpen}
+        cantidadTareas={selectionCount}
+        union={unionAsignados}
+        cargandoUnion={asignadosSeleccionMut.isPending}
+        onConfirmar={ejecutarBulkQuitar}
+        cargando={bulkQuitarMut.isPending}
+        error={bulkQuitarMut.error ? (bulkQuitarMut.error as Error).message : null}
+      />}
+
+      {/* Editar los asignados de una fila: acá sí es reemplazo, porque se ve el estado
+          actual y a quién se destilda. */}
+      {filaEditandoAsignados && <EditarAsignadosDialog
+        onOpenChange={(v) => { if (!v) setFilaEditandoAsignados(null) }}
+        tareaLabel={
+          filaEditandoAsignados
+            ? `${filaEditandoAsignados.elementoTag ?? ""} — ${filaEditandoAsignados.tareaNombre ?? ""}`
+            : ""
+        }
+        usuarios={usuarios}
+        grupos={grupos}
+        actuales={(filaEditandoAsignados?.asignados ?? []).map((a) => a.usuarioId)}
+        onConfirmar={guardarAsignadosDeFila}
+        cargando={setAsignadosMut.isPending}
+        error={setAsignadosMut.error ? (setAsignadosMut.error as Error).message : null}
+      />}
 
       {/* Cancelar bulk (motivo obligatorio) */}
       <AlertDialog open={bulkCancelarOpen} onOpenChange={setBulkCancelarOpen}>

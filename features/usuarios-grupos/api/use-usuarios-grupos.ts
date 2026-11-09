@@ -3,7 +3,8 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   UsuarioGrupo, UsuarioGrupoDetalle, UsuarioGrupoInput, UsoGrupoFiltro, QuitarMiembroImpacto,
-  GrupoResponsableOpcion,
+  GrupoResponsableOpcion, GrupoAsignacionOpcion,
+  ReexpansionPreview, ReexpansionResultado,
 } from "../types"
 
 const QK = ["usuarios-grupos"] as const
@@ -141,5 +142,60 @@ export function useGetGruposResponsables() {
     queryFn: () =>
       apiClient.get<ApiResponse<GrupoResponsableOpcion[]>>("/api/usuarios-grupos/responsables-pendiente"),
     staleTime: 1000 * 60 * 5,
+  })
+}
+
+/**
+ * Grupos con sus miembros, para filtrar la lista de usuarios al asignar tareas.
+ *
+ * Endpoint propio por lo mismo que el de pendientes: el listado de administración
+ * exige Admin y quien coordina es Coordinador, así que ahí recibía 403 y el select
+ * salía vacío diciendo que no había grupos.
+ */
+export function useGetGruposParaAsignar() {
+  return useQuery({
+    queryKey: [...QK, "para-asignar"],
+    queryFn: () =>
+      apiClient.get<ApiResponse<GrupoAsignacionOpcion[]>>("/api/usuarios-grupos/para-asignar"),
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+/**
+ * Qué cambiaría al poner al día las asignaciones que salieron de este grupo.
+ *
+ * Hace falta porque la expansión del grupo se GUARDA: mover la membresía ya no
+ * reescribe quién está asignado —eso es lo que deja registro— y esta es la forma
+ * explícita de ponerlo al día.
+ *
+ * Se pide al abrir el diálogo y sin cache: la acción saca gente de trabajo asignado,
+ * así que la lista tiene que ser la de este momento, no una guardada.
+ */
+export function useReexpansionPreview(grupoId: string | null) {
+  return useQuery({
+    queryKey: [...QK, grupoId, "reexpansion-preview"],
+    queryFn: () =>
+      apiClient.get<ApiResponse<ReexpansionPreview>>(
+        `/api/usuarios-grupos/${grupoId}/reexpansion/preview`,
+      ),
+    enabled: !!grupoId,
+    staleTime: 0,
+  })
+}
+
+export function useAplicarReexpansion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (grupoId: string) =>
+      apiClient.post<ApiResponse<ReexpansionResultado>>(
+        `/api/usuarios-grupos/${grupoId}/reexpansion`,
+        {},
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK })
+      // Toca asignaciones de tareas y pendientes, así que las dos bandejas quedan viejas.
+      qc.invalidateQueries({ queryKey: ["elementos-tareas"] })
+      qc.invalidateQueries({ queryKey: ["pendientes"] })
+    },
   })
 }
