@@ -3,7 +3,7 @@ import { apiClient } from "@/lib/api-client"
 import type { ApiResponse } from "@/features/proyectos/types"
 import type {
   UsuarioGrupo, UsuarioGrupoDetalle, UsuarioGrupoInput, UsoGrupoFiltro, QuitarMiembroImpacto,
-  GrupoResponsableOpcion,
+  GrupoResponsableOpcion, GrupoAsignacionOpcion,
   ReexpansionPreview, ReexpansionResultado,
 } from "../types"
 
@@ -141,6 +141,22 @@ export function useGetGruposResponsables() {
     queryKey: [...QK, "responsables-pendiente"],
     queryFn: () =>
       apiClient.get<ApiResponse<GrupoResponsableOpcion[]>>("/api/usuarios-grupos/responsables-pendiente"),
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+/**
+ * Grupos para asignar tareas, con sus miembros.
+ *
+ * Endpoint propio por lo mismo que el de pendientes: el listado de administración
+ * exige Admin y quien coordina es Coordinador, así que ahí recibía 403 y el select
+ * salía vacío diciendo que no había grupos.
+ */
+export function useGetGruposParaAsignar() {
+  return useQuery({
+    queryKey: [...QK, "para-asignar"],
+    queryFn: () =>
+      apiClient.get<ApiResponse<GrupoAsignacionOpcion[]>>("/api/usuarios-grupos/para-asignar"),
     staleTime: 1000 * 60 * 5,
   })
 }

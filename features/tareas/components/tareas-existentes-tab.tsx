@@ -39,7 +39,9 @@ import { useGetProyectoUsuarios } from "@/features/proyectos/api/use-get-proyect
 import { Button } from "@/components/ui/button"
 import {
   AgregarAsignadosDialog, AsignadosResumen, EditarAsignadosDialog, QuitarAsignadosDialog,
+  type AsignacionBulk,
 } from "@/features/tareas/components/asignados-dialogs"
+import { useGetGruposParaAsignar } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
@@ -131,6 +133,12 @@ export function TareasExistentesTab() {
   const { data: especialidadesRaw } = useGetEspecialidades()
 
   const usuarios = usuariosRaw ?? []
+
+  // Los grupos sirven para dos cosas distintas en el diálogo de asignar: filtrar la
+  // lista para encontrar a alguien, y asignar el grupo entero dejando registrado que
+  // la asignación salió de ahí.
+  const { data: gruposRaw } = useGetGruposParaAsignar()
+  const grupos = gruposRaw?.data ?? []
 
   const subsistemaOptions = useMemo<ComboboxOption[]>(() => {
     const opts: ComboboxOption[] = [{ value: ALL, label: "Todos" }]
@@ -369,26 +377,35 @@ export function TareasExistentesTab() {
     setSelectAllMatching(false)
   }
 
-  const ejecutarBulkAsignar = async (usuarioIds: string[]) => {
+  const ejecutarBulkAsignar = async (args: AsignacionBulk) => {
     try {
-      const result = await bulkAsignarMut.mutateAsync({ ...buildBulkTargets(), usuarioIds })
-      setBulkResumen({ accion: "Asignación", result })
+      const result = await bulkAsignarMut.mutateAsync({ ...buildBulkTargets(), ...args })
+      setBulkResumen({ accion: args.reemplazar ? "Reemplazo de asignados" : "Asignación", result })
       setBulkAsignarOpen(false)
       limpiarSeleccion()
     } catch { /* error visible en el diálogo */ }
   }
 
-  // El diálogo de Quitar necesita la unión de asignados de la selección, así que se
-  // pide al abrirlo: en un lote las tareas tienen asignaciones distintas y no hay
-  // forma de saber a quién ofrecer sin consultar.
-  const abrirBulkQuitar = async () => {
-    setBulkQuitarOpen(true)
+  // La unión de asignados de la selección: quién está asignado en el lote y en
+  // cuántas tareas. En un lote las tareas tienen asignaciones distintas, así que no
+  // hay forma de saberlo sin consultar.
+  //
+  // La piden los dos diálogos, en momentos distintos. Quitar al abrirse, porque es su
+  // lista. Asignar sólo si se tilda reemplazar, para poder decir a quién va a pisar:
+  // en el caso normal —sumar— el dato no se usa y pedirlo siempre sería una request
+  // por cada vez que alguien abre el diálogo.
+  const pedirUnionAsignados = async () => {
     try {
       const union = await asignadosSeleccionMut.mutateAsync(buildBulkTargets())
       setUnionAsignados(union ?? [])
     } catch {
       setUnionAsignados([])
     }
+  }
+
+  const abrirBulkQuitar = () => {
+    setBulkQuitarOpen(true)
+    pedirUnionAsignados()
   }
 
   const ejecutarBulkQuitar = async (args: { usuarioIds: string[]; todos: boolean }) => {
@@ -549,7 +566,11 @@ export function TareasExistentesTab() {
             {selectAllMatching && <span className="ml-1 text-xs">(todas las que matchean el filtro)</span>}
           </span>
           <div className="lg:ml-auto flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setBulkAsignarOpen(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setUnionAsignados([]); setBulkAsignarOpen(true) }}
+            >
               Asignar
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setUnionAsignados([]); abrirBulkQuitar() }}>
@@ -1003,12 +1024,17 @@ export function TareasExistentesTab() {
 
       {/* ── Dialogs bulk ── */}
 
-      {/* Asignación en lote: agregar y quitar como dos acciones distintas. No hay
-          "reemplazar" — sobre una selección mezclada el usuario no ve a quién pisa. */}
+      {/* Asignar y quitar siguen siendo dos acciones distintas. Reemplazar es un tilde
+          dentro de Asignar y no una tercera: lo que lo hacía peligroso era pisar a
+          ciegas, así que el diálogo lista a quién saca antes de confirmar. */}
       {bulkAsignarOpen && <AgregarAsignadosDialog
         onOpenChange={setBulkAsignarOpen}
         cantidadTareas={selectionCount}
         usuarios={usuarios}
+        grupos={grupos}
+        union={unionAsignados}
+        cargandoUnion={asignadosSeleccionMut.isPending}
+        onPedirUnion={pedirUnionAsignados}
         onConfirmar={ejecutarBulkAsignar}
         cargando={bulkAsignarMut.isPending}
         error={bulkAsignarMut.error ? (bulkAsignarMut.error as Error).message : null}
@@ -1034,6 +1060,7 @@ export function TareasExistentesTab() {
             : ""
         }
         usuarios={usuarios}
+        grupos={grupos}
         actuales={(filaEditandoAsignados?.asignados ?? []).map((a) => a.usuarioId)}
         onConfirmar={guardarAsignadosDeFila}
         cargando={setAsignadosMut.isPending}
