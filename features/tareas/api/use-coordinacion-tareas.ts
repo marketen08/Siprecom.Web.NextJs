@@ -233,9 +233,8 @@ function toBulkBody(targets: BulkTargets, extra: Record<string, unknown>) {
  * deja exactamente los indicados; para sacar a alguien sin tocar al resto está
  * useBulkQuitarAsignados.
  *
- * Con `grupoId` el backend expande el grupo y cada fila queda diciendo de qué grupo
- * salió, que es lo que después deja ponerlas al día cuando cambie la membresía. Los de
- * `usuarioIds` entran como asignación manual.
+ * Siempre son usuarios, uno por uno. El grupo no se manda: en el diálogo filtra la
+ * lista y nada más.
  */
 export function useBulkAsignar() {
   const qc = useQueryClient()
@@ -243,21 +242,15 @@ export function useBulkAsignar() {
     mutationFn: (
       input: BulkTargets & {
         usuarioIds: string[]
-        /** Grupo a expandir; sus miembros quedan con el grupo como origen. */
-        grupoId?: string | null
         /** Deja las tareas con exactamente los indicados, en vez de sumarlos. */
         reemplazar?: boolean
       },
     ) => {
-      const { usuarioIds, grupoId, reemplazar, ...targets } = input
+      const { usuarioIds, reemplazar, ...targets } = input
       return apiClient
         .post<ApiResponse<BulkResult>>(
           "/api/elementostareas/bulk/asignar",
-          toBulkBody(targets as BulkTargets, {
-            usuarioIds,
-            grupoId: grupoId ?? null,
-            reemplazar: !!reemplazar,
-          }),
+          toBulkBody(targets as BulkTargets, { usuarioIds, reemplazar: !!reemplazar }),
         )
         .then((r) => r.data)
     },

@@ -59,6 +59,32 @@ const CLASE_SELECT =
   "focus:outline-none focus:ring-2 focus:ring-blue-500"
 
 /**
+ * La selección de checkboxes de los diálogos. Vive en un hook porque los tres la
+ * manejan igual, y porque tildar de una todo lo que se ve necesita mover varios ids
+ * en un solo cambio.
+ */
+function useSeleccion(inicial?: string[]) {
+  const [elegidos, setElegidos] = useState<Set<string>>(() => new Set(inicial))
+
+  return {
+    elegidos,
+    toggle: (id: string) =>
+      setElegidos((prev) => {
+        const s = new Set(prev)
+        if (s.has(id)) s.delete(id); else s.add(id)
+        return s
+      }),
+    toggleVarios: (ids: string[], marcar: boolean) =>
+      setElegidos((prev) => {
+        const s = new Set(prev)
+        for (const id of ids) { if (marcar) s.add(id); else s.delete(id) }
+        return s
+      }),
+    limpiar: () => setElegidos(new Set()),
+  }
+}
+
+/**
  * Lista de usuarios con checkbox, buscador y filtro por grupo. Compartida por los
  * diálogos de asignar.
  *
@@ -67,19 +93,22 @@ const CLASE_SELECT =
  * existía, así que al primero grande lo buscaban a ojo por una lista de cincuenta.
  *
  * El filtro por grupo es una ayuda para BUSCAR y nada más: lo que se tilda acá se
- * asigna igual que si se hubiera encontrado scrolleando, sin dejar vínculo con el
- * grupo. Asignar el grupo como tal es la otra pestaña del diálogo, y hace otra cosa.
+ * asigna igual que si se hubiera encontrado scrolleando, sin dejar ningún vínculo con
+ * el grupo. Que la membresía del grupo cambie después no mueve nada.
  */
 function ListaSeleccionable({
   usuarios,
   elegidos,
   onToggle,
+  onToggleVarios,
   vacio,
   grupos,
 }: {
   usuarios: { id: string; etiqueta: string; detalle?: string }[]
   elegidos: Set<string>
   onToggle: (id: string) => void
+  /** Sin esto no se ofrece tildar en bloque — el diálogo de Quitar no lo quiere. */
+  onToggleVarios?: (ids: string[], marcar: boolean) => void
   vacio: string
   grupos?: GrupoAsignacionOpcion[]
 }) {
@@ -97,6 +126,9 @@ function ListaSeleccionable({
         && (!q || `${u.etiqueta} ${u.detalle ?? ""}`.toLowerCase().includes(q)),
     )
   }, [usuarios, busqueda, grupo])
+
+  const todosVisiblesTildados =
+    filtrados.length > 0 && filtrados.every((u) => elegidos.has(u.id))
 
   if (usuarios.length === 0)
     return <p className="py-6 text-center text-sm text-muted-foreground">{vacio}</p>
@@ -123,6 +155,25 @@ function ListaSeleccionable({
           </select>
         )}
       </div>
+
+      {/* Tildar de una lo que quedó filtrado. Es para esto que sirve el filtro por
+          grupo: asignarle algo a todo Montaje son dos clics y no diez.
+
+          Dice el número y no "todos" porque lo que tilda es lo que se VE, y eso no
+          es necesariamente el grupo: si además hay algo escrito en el buscador, son
+          menos. Sin ningún filtro son todos los usuarios del proyecto, que en un
+          proyecto grande es justo el clic que no conviene hacer a ciegas. */}
+      {onToggleVarios && filtrados.length > 1 && (
+        <button
+          type="button"
+          onClick={() => onToggleVarios(filtrados.map((u) => u.id), !todosVisiblesTildados)}
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          {todosVisiblesTildados
+            ? `Destildar los ${filtrados.length} que se ven`
+            : `Agregar los ${filtrados.length} que se ven`}
+        </button>
+      )}
 
       <div className="max-h-64 divide-y overflow-y-auto rounded border">
         {filtrados.map((u) => (
@@ -167,22 +218,21 @@ function ListaSeleccionable({
 /** Lo que el diálogo de asignar manda al confirmar. */
 export interface AsignacionBulk {
   usuarioIds: string[]
-  /** Grupo a expandir; sus miembros quedan con el grupo como origen. */
-  grupoId: string | null
   /** Deja las tareas con exactamente los indicados, en vez de sumarlos. */
   reemplazar: boolean
 }
 
 /**
- * ASIGNAR en lote, de dos formas que no son la misma cosa:
+ * ASIGNAR en lote. Se tildan usuarios de la lista, que se filtra por texto y por
+ * grupo, y "Agregar los N que se ven" evita tildarlos de a uno.
  *
- *  • **Usuarios**: se tildan de la lista. Entran como asignación manual.
- *  • **Un grupo**: se expande a sus miembros, y cada fila queda diciendo de qué grupo
- *    salió. Eso es lo que después deja poner al día las tareas abiertas cuando alguien
- *    entra o sale del grupo; una asignación manual no se entera nunca.
- *
- * Son dos pestañas y no un tilde porque la diferencia no está en la comodidad de
- * elegir sino en lo que queda grabado, y eso no se adivina.
+ * El grupo es nada más que una forma de encontrar gente: lo que se tilda queda como
+ * cualquier otra asignación y no sigue a la membresía. Hubo una versión que podía
+ * asignar el grupo COMO TAL —filas que recordaban de dónde salieron, para poder
+ * ponerlas al día después— y se sacó a propósito: el efecto inmediato era idéntico,
+ * la diferencia aparecía semanas más tarde y sólo si un Admin apretaba re-sincronizar,
+ * y dos opciones que hacen lo mismo salvo en eso se eligen a ojo. Está en el commit
+ * 2c807df si alguna vez hace falta.
  *
  * Por defecto SUMA: los que ya estaban se quedan. El tilde de reemplazar los pisa, y
  * por eso lista a quién va a sacar antes de confirmar — en un lote cada tarea tiene
@@ -204,13 +254,8 @@ export function AgregarAsignadosDialog({
   cargando?: boolean
   error?: string | null
 }) {
-  const [modo, setModo] = useState<"usuarios" | "grupo">("usuarios")
-  const [elegidos, setElegidos] = useState<Set<string>>(() => new Set())
-  const [grupoId, setGrupoId] = useState("")
+  const { elegidos, toggle, toggleVarios } = useSeleccion()
   const [reemplazar, setReemplazar] = useState(false)
-
-  const hayGrupos = !!grupos && grupos.length > 0
-  const grupo = grupos?.find((g) => g.id === grupoId)
 
   // A quién se va a sacar si reemplaza. Se pide la unión al tildar y no al abrir: en el
   // caso normal —sumar— el dato no se usa, y sería una request por cada vez que alguien
@@ -222,22 +267,13 @@ export function AgregarAsignadosDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reemplazar])
 
-  const aAsignar = modo === "grupo" ? (grupo?.usuarioIds ?? []) : [...elegidos]
-  const aSacar = reemplazar ? union.filter((a) => !aAsignar.includes(a.usuarioId)) : []
+  const aSacar = reemplazar ? union.filter((a) => !elegidos.has(a.usuarioId)) : []
 
   const items = usuarios.map((u) => ({
     id: u.usuarioId,
     etiqueta: nombreUsuario(u),
     detalle: u.email,
   }))
-
-  const puedeConfirmar = modo === "grupo"
-    ? !!grupo && grupo.cantidadMiembros > 0
-    : elegidos.size > 0
-
-  const etiquetaBoton = modo === "grupo"
-    ? (grupo ? `Asignar ${grupo.nombre}` : "Asignar grupo")
-    : `Asignar${elegidos.size > 0 ? ` ${elegidos.size} usuario(s)` : ""}`
 
   return (
     <AlertDialog open onOpenChange={onOpenChange}>
@@ -251,87 +287,14 @@ export function AgregarAsignadosDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        {hayGrupos && (
-          <div className="flex gap-1 rounded-md bg-gray-100 p-1">
-            {([["usuarios", "Elegir usuarios"], ["grupo", "Un grupo completo"]] as const).map(
-              ([valor, texto]) => (
-                <button
-                  key={valor}
-                  type="button"
-                  onClick={() => setModo(valor)}
-                  className={`flex-1 rounded px-2 py-1 text-xs font-medium ${
-                    modo === valor
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  {texto}
-                </button>
-              ),
-            )}
-          </div>
-        )}
-
-        {modo === "usuarios" ? (
-          <ListaSeleccionable
-            usuarios={items}
-            elegidos={elegidos}
-            onToggle={(id) =>
-              setElegidos((prev) => {
-                const s = new Set(prev)
-                if (s.has(id)) s.delete(id); else s.add(id)
-                return s
-              })
-            }
-            vacio="No hay usuarios en este proyecto."
-            grupos={grupos}
-          />
-        ) : (
-          <div className="space-y-2">
-            <select
-              value={grupoId}
-              onChange={(e) => setGrupoId(e.target.value)}
-              className={CLASE_SELECT}
-            >
-              <option value="">Elegir grupo...</option>
-              {grupos?.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.nombre} — {g.cantidadMiembros} miembro(s)
-                </option>
-              ))}
-            </select>
-
-            {grupo && (
-              <div className="space-y-1.5 rounded border p-2.5 text-xs">
-                {grupo.cantidadMiembros === 0 ? (
-                  <p className="text-destructive">
-                    El grupo no tiene miembros: no hay a quién asignar.
-                  </p>
-                ) : (
-                  <p>
-                    Se asigna a sus <strong>{grupo.cantidadMiembros}</strong> miembro(s).
-                  </p>
-                )}
-
-                {/* El conteo por proyecto es el aviso que importa: un grupo cuyos
-                    miembros no ven el proyecto recibe las tareas y no se entera nadie. */}
-                {grupo.cantidadMiembros > grupo.miembrosEnProyecto && (
-                  <p className="text-amber-700">
-                    {grupo.cantidadMiembros - grupo.miembrosEnProyecto} de ellos no tiene
-                    acceso a este proyecto: la tarea no le va a aparecer hasta que se lo
-                    agregue al proyecto.
-                  </p>
-                )}
-
-                <p className="text-muted-foreground">
-                  Queda registrado que la asignación salió del grupo. Si después cambia
-                  quién está en el grupo, las tareas abiertas se ponen al día desde
-                  Configuración → Grupos de usuarios.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        <ListaSeleccionable
+          usuarios={items}
+          elegidos={elegidos}
+          onToggle={toggle}
+          onToggleVarios={toggleVarios}
+          vacio="No hay usuarios en este proyecto."
+          grupos={grupos}
+        />
 
         <label className="flex cursor-pointer items-start gap-2 rounded border border-dashed p-2.5 text-sm">
           <input
@@ -375,17 +338,11 @@ export function AgregarAsignadosDialog({
             Cancelar
           </Button>
           <Button
-            onClick={() =>
-              onConfirmar({
-                usuarioIds: modo === "grupo" ? [] : [...elegidos],
-                grupoId: modo === "grupo" ? grupoId : null,
-                reemplazar,
-              })
-            }
-            disabled={!puedeConfirmar || cargando}
+            onClick={() => onConfirmar({ usuarioIds: [...elegidos], reemplazar })}
+            disabled={elegidos.size === 0 || cargando}
           >
             {cargando && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            {etiquetaBoton}
+            Asignar{elegidos.size > 0 ? ` ${elegidos.size} usuario(s)` : ""}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -413,7 +370,7 @@ export function QuitarAsignadosDialog({
   cargando?: boolean
   error?: string | null
 }) {
-  const [elegidos, setElegidos] = useState<Set<string>>(() => new Set())
+  const { elegidos, toggle, limpiar } = useSeleccion()
   const [todos, setTodos] = useState(false)
 
   const items = union.map((a) => ({
@@ -447,16 +404,13 @@ export function QuitarAsignadosDialog({
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Sin tildar-en-bloque a propósito: acá ya está el tilde de "todos",
+                que es lo mismo pero explícito y además alcanza a los que el
+                listado no trajo. */}
             <ListaSeleccionable
               usuarios={items}
               elegidos={elegidos}
-              onToggle={(id) =>
-                setElegidos((prev) => {
-                  const s = new Set(prev)
-                  if (s.has(id)) s.delete(id); else s.add(id)
-                  return s
-                })
-              }
+              onToggle={toggle}
               vacio="Ninguna de las tareas seleccionadas tiene asignados."
             />
 
@@ -467,7 +421,7 @@ export function QuitarAsignadosDialog({
                 checked={todos}
                 onChange={(e) => {
                   setTodos(e.target.checked)
-                  if (e.target.checked) setElegidos(new Set())
+                  if (e.target.checked) limpiar()
                 }}
               />
               <span>
@@ -517,7 +471,7 @@ export function EditarAsignadosDialog({
   cargando?: boolean
   error?: string | null
 }) {
-  const [elegidos, setElegidos] = useState<Set<string>>(() => new Set(actuales))
+  const { elegidos, toggle, toggleVarios } = useSeleccion(actuales)
 
   const items = usuarios.map((u) => ({
     id: u.usuarioId,
@@ -536,13 +490,8 @@ export function EditarAsignadosDialog({
         <ListaSeleccionable
           usuarios={items}
           elegidos={elegidos}
-          onToggle={(id) =>
-            setElegidos((prev) => {
-              const s = new Set(prev)
-              if (s.has(id)) s.delete(id); else s.add(id)
-              return s
-            })
-          }
+          onToggle={toggle}
+          onToggleVarios={toggleVarios}
           vacio="No hay usuarios en este proyecto."
           grupos={grupos}
         />

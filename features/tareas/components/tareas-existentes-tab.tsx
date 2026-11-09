@@ -134,9 +134,9 @@ export function TareasExistentesTab() {
 
   const usuarios = usuariosRaw ?? []
 
-  // Los grupos sirven para dos cosas distintas en el diálogo de asignar: filtrar la
-  // lista para encontrar a alguien, y asignar el grupo entero dejando registrado que
-  // la asignación salió de ahí.
+  // Los grupos son para filtrar la lista de usuarios del diálogo de asignar: con
+  // cuarenta personas en el proyecto, "los de Montaje" es la única forma práctica de
+  // llegar a ellos. No asignan nada por sí mismos.
   const { data: gruposRaw } = useGetGruposParaAsignar()
   const grupos = gruposRaw?.data ?? []
 
@@ -1026,7 +1026,8 @@ export function TareasExistentesTab() {
 
       {/* Asignar y quitar siguen siendo dos acciones distintas. Reemplazar es un tilde
           dentro de Asignar y no una tercera: lo que lo hacía peligroso era pisar a
-          ciegas, así que el diálogo lista a quién saca antes de confirmar. */}
+          ciegas, así que el diálogo lista a quién saca antes de confirmar. Los grupos
+          van sólo para filtrar la lista. */}
       {bulkAsignarOpen && <AgregarAsignadosDialog
         onOpenChange={setBulkAsignarOpen}
         cantidadTareas={selectionCount}

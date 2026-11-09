@@ -93,21 +93,16 @@ export interface PermisoPerdido {
  * la consume quien crea o reasigna, no quien administra grupos.
  */
 /**
- * Un grupo tal como se ofrece al asignar tareas. Lleva los miembros y no sólo el
- * conteo: el filtro por grupo del diálogo se resuelve en el cliente, sobre los
- * usuarios que ya tiene, y pedirlos grupo por grupo sería una request por cambio de
- * filtro.
+ * Un grupo como filtro de la lista de usuarios al asignar tareas.
+ *
+ * Lleva los miembros y no un conteo porque el filtro se resuelve en el cliente, sobre
+ * los usuarios que el diálogo ya tiene: pedirlos grupo por grupo sería una request por
+ * cada cambio de filtro. No hay conteo de miembros con acceso al proyecto porque no
+ * hace falta — el que no lo tiene no está en la lista y el filtro no lo muestra.
  */
 export interface GrupoAsignacionOpcion {
   id: string
   nombre: string
-  /** Miembros activos, en cualquier proyecto. */
-  cantidadMiembros: number
-  /**
-   * Miembros que VEN el proyecto activo. Es el que importa al asignar el grupo
-   * entero: a los que no lo ven la tarea no les aparece, así que el diálogo avisa.
-   */
-  miembrosEnProyecto: number
   /** Ids de los miembros activos, para filtrar la lista. */
   usuarioIds: string[]
 }

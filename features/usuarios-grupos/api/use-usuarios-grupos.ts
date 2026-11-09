@@ -146,7 +146,7 @@ export function useGetGruposResponsables() {
 }
 
 /**
- * Grupos para asignar tareas, con sus miembros.
+ * Grupos con sus miembros, para filtrar la lista de usuarios al asignar tareas.
  *
  * Endpoint propio por lo mismo que el de pendientes: el listado de administración
  * exige Admin y quien coordina es Coordinador, así que ahí recibía 403 y el select
