@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Pencil, Plus, Trash2, Users, X, Search, Star } from "lucide-react"
+import { Pencil, Plus, RefreshCw, Trash2, Users, X, Search, Star } from "lucide-react"
 
 import {
   useCreateUsuarioGrupo,
@@ -16,6 +16,7 @@ import {
 } from "@/features/usuarios-grupos/api/use-usuarios-grupos"
 import { useGetUsuarios } from "@/features/usuarios/api/use-get-usuarios"
 import type { UsuarioGrupo } from "@/features/usuarios-grupos/types"
+import { ReexpansionGrupoDialog } from "@/features/usuarios-grupos/components/reexpansion-grupo-dialog"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -100,6 +101,7 @@ export default function GruposUsuariosPage() {
 
   const [editSheet, setEditSheet] = useState<EditSheetState | null>(null)
   const [miembrosSheetId, setMiembrosSheetId] = useState<string | null>(null)
+  const [reexpansion, setReexpansion] = useState<{ id: string; nombre: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; nombre: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -306,6 +308,15 @@ export default function GruposUsuariosPage() {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
+                      title="Poner al día las asignaciones que salieron de este grupo"
+                      onClick={() => { setError(null); setReexpansion({ id: g.id, nombre: g.nombre }) }}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
                       title="Editar nombre/descripción"
                       onClick={() => { setError(null); setEditSheet({
                         mode: "edit",
@@ -456,6 +467,14 @@ export default function GruposUsuariosPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {reexpansion && (
+        <ReexpansionGrupoDialog
+          grupoId={reexpansion.id}
+          grupoNombre={reexpansion.nombre}
+          onOpenChange={(v) => { if (!v) setReexpansion(null) }}
+        />
+      )}
 
       {/* Sheet gestión de miembros */}
       <MiembrosSheet

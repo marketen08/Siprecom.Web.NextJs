@@ -104,3 +104,30 @@ export interface GrupoResponsableOpcion {
    */
   miembrosEnProyecto: number
 }
+
+/** Un cambio que la re-sincronización del grupo va a aplicar. */
+export interface ReexpansionCambio {
+  /** "Tarea" o "Pendiente": el preview mezcla los dos. */
+  tipo: string
+  entidadId: string
+  /** Cómo se identifica en pantalla: TAG + tarea, o código + descripción. */
+  etiqueta: string
+  usuarioId: string
+  usuarioNombre: string
+}
+
+export interface ReexpansionPreview {
+  grupoId: string
+  grupoNombre: string
+  /** Miembros activos del grupo hoy — el objetivo de la sincronización. */
+  miembrosActuales: number
+  agregar: ReexpansionCambio[]
+  quitar: ReexpansionCambio[]
+}
+
+export interface ReexpansionResultado {
+  agregadas: number
+  quitadas: number
+  tareasTocadas: number
+  pendientesTocados: number
+}
