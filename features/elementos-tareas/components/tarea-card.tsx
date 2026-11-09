@@ -817,12 +817,24 @@ function triggerDownload(url: string) {
 
 function TareaMeta({ tarea }: { tarea: ElementoTarea }) {
   const fecha = fechaRelevante(tarea)
-  const mostrarAsignado = tarea.asignadoNombre && tarea.estado !== 4
+  // Mismo formato que el resumen de la grilla de coordinación —primero y "+N"—,
+  // escrito acá y no importado de ahí: esa versión muestra "Sin asignar" cuando no
+  // hay nadie y en esta línea de metadatos el campo simplemente no aparece.
+  const nombresAsignados = (tarea.asignados ?? []).map((a) => a.nombre ?? "—")
+  const mostrarAsignado = nombresAsignados.length > 0 && tarea.estado !== 4
   const mostrarOrigenBadge = fecha?.label === "Planif." && tarea.fechaPlanificada
   return (
     <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
       {mostrarAsignado && (
-        <span>Asignado: <span className="font-medium text-gray-700">{tarea.asignadoNombre}</span></span>
+        <span title={nombresAsignados.join("\n")}>
+          {nombresAsignados.length > 1 ? "Asignados" : "Asignado"}:{" "}
+          <span className="font-medium text-gray-700">{nombresAsignados[0]}</span>
+          {nombresAsignados.length > 1 && (
+            <span className="ml-1 rounded bg-gray-100 px-1 font-medium text-gray-600">
+              +{nombresAsignados.length - 1}
+            </span>
+          )}
+        </span>
       )}
       {fecha && (
         <span className="inline-flex items-center gap-1.5">

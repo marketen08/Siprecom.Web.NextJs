@@ -53,10 +53,6 @@ export interface ElementoTareaRow {
   motivoRechazo: string | null
   fechaPlanificada: string | null
   fechaLimite: string | null
-  /** @deprecated Lo reemplaza `asignados`; queda mientras el backend mantenga el escalar. */
-  asignadoA: string | null
-  /** @deprecated Ver `asignadoA`. */
-  asignadoNombre: string | null
   /** Todos los asignados activos de la tarea. */
   asignados?: { usuarioId: string; nombre: string | null }[]
   porcentajeAvance: number
@@ -392,18 +388,3 @@ export function useActualizarFechaPlanificadaET() {
   })
 }
 
-export function useAsignarResponsableET() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, asignadoA }: { id: string; asignadoA: string | null }) =>
-      // UpdateElementoTareaAsync solo pisa los campos que vienen != null en el DTO.
-      // Enviamos únicamente AsignadoA. String vacío = "sin asignar" al backend.
-      apiClient.put<ApiResponse<ElementoTareaRow>>(`/api/elementostareas/${id}`, {
-        id,
-        asignadoA: asignadoA ?? "",
-      }),
-    onSuccess: () => {
-      invalidarListaTareas(qc)
-    },
-  })
-}

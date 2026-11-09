@@ -50,10 +50,6 @@ export interface ElementoTarea {
   fechaLimite: string | null
 
   // Asignación
-  /** @deprecated Lo reemplaza `asignados`. Queda mientras conviva con el escalar del backend. */
-  asignadoA: string
-  /** @deprecated Ver `asignadoA`. */
-  asignadoNombre: string
   /** Todos los asignados activos de la tarea. */
   asignados?: { usuarioId: string; nombre: string | null }[]
   /** Si el usuario de la sesión está entre los asignados (lo precalcula el backend). */
