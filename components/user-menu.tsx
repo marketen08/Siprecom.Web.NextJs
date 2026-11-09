@@ -157,7 +157,7 @@ export function UserMenu() {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild className="cursor-pointer">
-            <Link href="/mis-firmas">
+            <Link href="/ejecucion/firmas">
               <PenLine className="h-4 w-4 mr-2" />
               Mis firmas
             </Link>

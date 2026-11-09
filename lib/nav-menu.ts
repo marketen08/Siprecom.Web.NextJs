@@ -51,6 +51,7 @@ export type PermisoExtraKey = "area-seguimiento-calidad"
 export type SidebarBadgeKey =
   | "tareas-pendientes-mias"
   | "pendientes-abiertos-mios"
+  | "firmas-pendientes-mias"
 
 export const menu: MenuItem[] = [
   // Dashboard como top-level (sin grupo). Antes era único hijo de "Gestión
@@ -78,9 +79,11 @@ export const menu: MenuItem[] = [
       { label: "Tareas",                  href: "/ejecucion/tareas", badge: "tareas-pendientes-mias" },
       // Módulos operativos — Pendientes es lo más usado día a día.
       { label: "Pendientes",              href: "/ejecucion/pendientes", badge: "pendientes-abiertos-mios" },
+      // Debajo de Pendientes porque son la misma clase de cosa: trabajo propio que
+      // falta cerrar. El badge cuenta el tab "De mis tareas", no la cola completa.
+      { label: "Firmas",                  href: "/ejecucion/firmas", minRole: "User", badge: "firmas-pendientes-mias" },
       { label: "Visor de PIDs",           href: "/ejecucion/pids" },
       { label: "Modelo 3D",               href: "/ejecucion/modelo-3d", requiereFuncionalidad: "MAQUETA_3D" },
-      { label: "Mis firmas",              href: "/mis-firmas", minRole: "User" },
       { label: "Paquetes de prueba",      href: "/ejecucion/test-groups" },
       { label: "Preservación",            href: "/ejecucion/preservacion", requiereFuncionalidad: "PRESERVACION" },
       { label: "Paro de planta",         href: "/ejecucion/paro-planta", requiereFuncionalidad: "PARO_PLANTA" },
@@ -472,7 +475,7 @@ export const segmentLabels: Record<string, string> = {
   proyecto:      "Proyecto",
   usuarios:      "Usuarios",
   perfil:        "Mi perfil",
-  "mis-firmas":  "Mis firmas",
+  firmas:        "Firma de registros",
   clientes:      "Clientes",
   contratistas:  "Contratistas",
   reporte:       "Reporte",
