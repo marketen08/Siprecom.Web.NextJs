@@ -5,10 +5,11 @@ import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   PenLine, Loader2, CheckCircle2, ChevronLeft, ChevronRight,
-  Tag, Layers, FileImage, Eye,
+  Tag, Layers, FileImage, Eye, Layers3,
 } from "lucide-react"
 
 import { useGetMisFirmas, type MisFirmasModo } from "@/features/registros/api/use-get-mis-firmas"
+import { useGetFirmaMasivaContexto } from "@/features/firma-masiva/api/use-firma-masiva"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -95,6 +96,12 @@ function FirmasPageContent() {
   const { data: perfil } = useGetPerfil()
   const proyectoId = perfil?.proyectoId
 
+  // La firma en lote es una funcionalidad por proyecto y además por rol de firma.
+  // Acá sólo se usa para decidir si mostrar la entrada; la autorización real la
+  // revalida el backend en cada llamada.
+  const { data: loteCtx } = useGetFirmaMasivaContexto(proyectoId)
+  const loteDisponible = loteCtx?.data?.habilitada ?? false
+
   // Sólo las especialidades que el proyecto activo realmente usa: ofrecer una sin
   // elementos dejaría la cola en cero al elegirla.
   const { data: espData } = useGetEspecialidadesUsadas()
@@ -179,6 +186,20 @@ function FirmasPageContent() {
             searchPlaceholder="Buscar especialidad..."
           />
         </div>
+
+        {/* Firma en lote. El botón sólo existe si la función está activa en el
+            proyecto y el usuario tiene un rol de firma habilitado para lote —
+            apagada, esta pantalla queda igual que siempre. Va sólo en el tab de la
+            cola completa: en "De mis tareas" y en el historial no tiene sentido. */}
+        {loteDisponible && modo === "pendientes" && (
+          <Link
+            href="/ejecucion/firmas/lote"
+            className={buttonVariants({ size: "sm", variant: "outline" }) + " gap-1.5 sm:ml-auto"}
+          >
+            <Layers3 className="h-4 w-4" />
+            Firmar en lote
+          </Link>
+        )}
       </div>
 
       {/* Contenido */}
