@@ -16,6 +16,9 @@ import { TIPO_FIRMA_CONFIG, TIPO_FIRMA_CONFIG_LABEL, type FirmaConfigItem } from
 /** Clave del feature flag. Debe matchear con FuncionalidadCatalogo del backend. */
 const FLAG_OVERRIDE_TAREA = "FIRMAS_OVERRIDE_POR_TAREA"
 
+/** Clave del feature flag de la firma en lote. Ver FuncionalidadCatalogo. */
+const FLAG_FIRMA_MASIVA = "FIRMA_MASIVA"
+
 interface Props {
   tareaId: string
   proyectoId: string
@@ -35,6 +38,11 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
   const { data: proyectoDetalle, isLoading: loadingProyectoDetalle } = useGetProyecto(proyectoId)
   const flagActivo =
     proyectoDetalle?.data?.funcionalidadesEfectivas?.[FLAG_OVERRIDE_TAREA] === true
+
+  // Permiso de firma en lote por rol. Igual que en la config del proyecto, la
+  // casilla sólo aparece si la funcionalidad está efectiva: apagada no gobierna nada.
+  const loteActivo =
+    proyectoDetalle?.data?.funcionalidadesEfectivas?.[FLAG_FIRMA_MASIVA] === true
 
   const { data: tareaRaw, isLoading: loadingTarea } = useGetTareaFirmasConfig(
     flagActivo ? tareaId : undefined,
@@ -69,7 +77,10 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
   function addSlot() {
     setSlots((prev) => [
       ...prev,
-      { orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true, tipoFirma: TIPO_FIRMA_CONFIG.DIGITAL },
+      {
+        orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true,
+        tipoFirma: TIPO_FIRMA_CONFIG.DIGITAL, permiteFirmaMasiva: false,
+      },
     ])
   }
 
@@ -134,6 +145,7 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
         descripcion: s.descripcion,
         esObligatorio: s.esObligatorio,
         tipoFirma: s.tipoFirma ?? TIPO_FIRMA_CONFIG.DIGITAL,
+        permiteFirmaMasiva: s.permiteFirmaMasiva ?? false,
       })),
     )
     setModo("propias")
@@ -309,6 +321,24 @@ export function TareaFirmasConfigEditor({ tareaId, proyectoId }: Props) {
                       {slot.esObligatorio ? "Obligatoria" : "Opcional"}
                     </span>
                   </div>
+                  {/* Como la herencia es todo-o-nada, con override activo el permiso
+                      de lote de la tarea es el que vale: el del proyecto no se mira. */}
+                  {loteActivo && (
+                    <div className="sm:col-span-2 flex items-center gap-2 pt-1 border-t">
+                      <input
+                        type="checkbox"
+                        checked={slot.permiteFirmaMasiva}
+                        onChange={(e) => updateSlot(i, "permiteFirmaMasiva", e.target.checked)}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="text-xs text-gray-600">
+                        Puede firmar en lote
+                        <span className="text-gray-400 ml-1">
+                          — en esta tarea, hasta 50 registros de una
+                        </span>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <button
