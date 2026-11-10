@@ -10,6 +10,10 @@ export interface FirmasConfigEfectiva {
   rechazarBajaResolucion: boolean
   /** Ancho mínimo (px) para imágenes cuando el rechazo está activo. Default 1500. */
   anchoMinimoImagen: number
+  /** Flag CORTAR_ADJUNTOS_ESCANEO del proyecto. Con esto en true el uploader le pide
+   *  al detector la hoja del bloque de firmas en vez de la última, y avisa cuántas
+   *  hojas van a quedar como adjunto. Apagada, todo se comporta como siempre. */
+  cortarAdjuntosEscaneo: boolean
 }
 
 interface Response {

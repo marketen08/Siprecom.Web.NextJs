@@ -238,6 +238,7 @@ export default function RegistroFormPage({ params }: PageProps) {
   const cantidadFirmasFisicas = firmasConfigRaw?.data?.cantidadSlotsFisica ?? 0
   const rechazarBajaResolucion = firmasConfigRaw?.data?.rechazarBajaResolucion ?? false
   const anchoMinimoImagen = firmasConfigRaw?.data?.anchoMinimoImagen ?? 1500
+  const cortarAdjuntosEscaneo = firmasConfigRaw?.data?.cortarAdjuntosEscaneo ?? false
 
   // Info del próximo ciclo de preservación generado por completar/firmar. Cuando
   // viene con generado=true mostramos el dialog y postergamos el router.back()
@@ -560,6 +561,8 @@ export default function RegistroFormPage({ params }: PageProps) {
     if (observaciones) fd.append("Observaciones", observaciones)
     if (params.qrOverrideDetalle) fd.append("QrOverrideDetalle", params.qrOverrideDetalle)
     if (params.firmaOverrideDetalle) fd.append("FirmaOverrideDetalle", params.firmaOverrideDetalle)
+    // El operador destildó el corte: el PDF sube entero aunque el proyecto lo separe.
+    if (params.noCortarAdjuntos) fd.append("NoCortarAdjuntos", "true")
     const res = await completarFisico.mutateAsync(fd)
     const fecha = extraerFechaProximoCiclo(res)
     if (fecha) setProximoCicloFecha(fecha)
@@ -762,6 +765,7 @@ export default function RegistroFormPage({ params }: PageProps) {
           cantidadFirmasFisicas={cantidadFirmasFisicas}
           rechazarBajaResolucion={rechazarBajaResolucion}
           anchoMinimoImagen={anchoMinimoImagen}
+          cortarAdjuntosEscaneo={cortarAdjuntosEscaneo}
           onSubmit={handleSubmitFisico}
           isSubmitting={isSaving}
           submitLabel="Subir y completar"
