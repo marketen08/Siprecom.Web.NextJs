@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Suspense, useMemo, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, Eye, FileImage, Layers,
   Loader2, PenLine, Tag, UserRound, X,
@@ -46,7 +47,18 @@ const ALL = "__all__"
  *     Lo que hace defendible el lote es que sea homogéneo y acotado, no un requisito
  *     que se cumple haciendo tres clicks sin leer. Ver Docs/PLAN-FIRMA-MASIVA.md.
  */
+// El default export envuelve en <Suspense> — obligatorio en Next 16 cuando el
+// componente usa useSearchParams (client-side bailout en el pre-render estático).
 export default function FirmaEnLotePage() {
+  return (
+    <Suspense>
+      <FirmaEnLotePageContent />
+    </Suspense>
+  )
+}
+
+function FirmaEnLotePageContent() {
+  const searchParams = useSearchParams()
   const { data: perfil } = useGetPerfil()
   const proyectoId = perfil?.proyectoId
 
@@ -59,6 +71,10 @@ export default function FirmaEnLotePage() {
   const [especialidadId, setEspecialidadId] = useState("")
   const [planillaId, setPlanillaId] = useState("")
   const [excluirPropios, setExcluirPropios] = useState(false)
+  // Entrar desde el tab "De mis tareas" abre el lote ya acotado a lo propio: si no,
+  // el botón de ese tab llevaría a un lote con toda la obra, que es lo contrario de
+  // lo que el usuario estaba mirando.
+  const [soloMisTareas, setSoloMisTareas] = useState(searchParams.get("mias") === "1")
   const [page, setPage] = useState(1)
 
   const [elegidos, setElegidos] = useState<Set<string>>(new Set())
@@ -79,10 +95,11 @@ export default function FirmaEnLotePage() {
       proyectoId && rolEfectivo
         ? {
             proyectoId, rolNombre: rolEfectivo, subSistemaId, tareaId,
-            especialidadId, planillaId, excluirPropios,
+            especialidadId, planillaId, excluirPropios, soloMisTareas,
           }
         : null,
-    [proyectoId, rolEfectivo, subSistemaId, tareaId, especialidadId, planillaId, excluirPropios],
+    [proyectoId, rolEfectivo, subSistemaId, tareaId, especialidadId, planillaId,
+     excluirPropios, soloMisTareas],
   )
 
   const { data: opcResp } = useGetFirmaMasivaOpciones(filtro)
@@ -264,6 +281,19 @@ export default function FirmaEnLotePage() {
         />
       </div>
 
+      {/* Alcance. "Mis tareas" y "lo cargué yo" son preguntas distintas y se suman:
+          de quién es la tarea sale de los asignados, quién cargó el registro sale
+          del registro. Un supervisor puede tener la tarea y no haber cargado nada. */}
+      <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+        <input
+          type="checkbox"
+          checked={soloMisTareas}
+          onChange={(e) => cambiarCriterio(() => setSoloMisTareas(e.target.checked))}
+          className="h-4 w-4 cursor-pointer"
+        />
+        <span className="text-gray-700">Sólo tareas asignadas a mí</span>
+      </label>
+
       {/* Separación de funciones: hoy nada impide firmar lo propio, pero por lo menos
           se ve y se puede sacar con un click. */}
       {propiosVisibles > 0 && !excluirPropios && (
@@ -351,7 +381,21 @@ export default function FirmaEnLotePage() {
             </div>
           ) : filas.length === 0 ? (
             <Aviso>
-              No hay registros esperando tu firma con este criterio.
+              {soloMisTareas ? (
+                <>
+                  Nada de tus tareas esperando firma con este criterio.
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 ml-1"
+                    onClick={() => cambiarCriterio(() => setSoloMisTareas(false))}
+                  >
+                    Ver todo lo que podés firmar
+                  </Button>
+                </>
+              ) : (
+                "No hay registros esperando tu firma con este criterio."
+              )}
             </Aviso>
           ) : (
             <>
