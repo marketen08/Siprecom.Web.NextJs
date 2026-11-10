@@ -32,6 +32,12 @@ export interface FirmaMasivaFiltro {
   especialidadId?: string
   planillaId?: string
   excluirPropios?: boolean
+  /**
+   * Acota el lote a registros de tareas asignadas al firmante. Es OTRA pregunta
+   * que `excluirPropios`: acá importa de quién es la TAREA, allá quién CARGÓ el
+   * registro. Se combinan.
+   */
+  soloMisTareas?: boolean
 }
 
 export interface FirmaMasivaRegistro {

@@ -25,6 +25,7 @@ function comoParams(filtro: FirmaMasivaFiltro, extra?: Record<string, string | n
     ...(filtro.especialidadId ? { especialidadId: filtro.especialidadId } : {}),
     ...(filtro.planillaId ? { planillaId: filtro.planillaId } : {}),
     ...(filtro.excluirPropios ? { excluirPropios: "true" } : {}),
+    ...(filtro.soloMisTareas ? { soloMisTareas: "true" } : {}),
     ...(extra ?? {}),
   }
 }
