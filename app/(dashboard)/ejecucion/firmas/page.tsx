@@ -189,11 +189,15 @@ function FirmasPageContent() {
 
         {/* Firma en lote. El botón sólo existe si la función está activa en el
             proyecto y el usuario tiene un rol de firma habilitado para lote —
-            apagada, esta pantalla queda igual que siempre. Va sólo en el tab de la
-            cola completa: en "De mis tareas" y en el historial no tiene sentido. */}
-        {loteDisponible && modo === "pendientes" && (
+            apagada, esta pantalla queda igual que siempre.
+
+            Va en los dos tabs de pendientes y arrastra el alcance del tab: desde
+            "De mis tareas" abre el lote ya filtrado a lo propio (?mias=1), porque
+            llevarlo a toda la obra sería lo contrario de lo que estaba mirando. En
+            el historial no tiene sentido. */}
+        {loteDisponible && esPendiente && (
           <Link
-            href="/ejecucion/firmas/lote"
+            href={modo === "mis-tareas" ? "/ejecucion/firmas/lote?mias=1" : "/ejecucion/firmas/lote"}
             className={buttonVariants({ size: "sm", variant: "outline" }) + " gap-1.5 sm:ml-auto"}
           >
             <Layers3 className="h-4 w-4" />
