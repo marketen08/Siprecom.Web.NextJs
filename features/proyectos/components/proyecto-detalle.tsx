@@ -940,6 +940,12 @@ function TraerFirmasDeProyectoDialog({
 
 function TabFirmas({ proyectoId }: { proyectoId: string }) {
   const { data: raw, isLoading } = useGetFirmasConfig(proyectoId)
+  // La casilla de firma en lote sólo aparece si la funcionalidad está efectiva en
+  // el proyecto. Apagada, el permiso por rol no gobierna nada y mostrarlo sería
+  // ofrecer algo que no hace nada (mismo criterio que el override por tarea).
+  const { data: proyectoDetalle } = useGetProyecto(proyectoId)
+  const loteActivo =
+    proyectoDetalle?.data?.funcionalidadesEfectivas?.["FIRMA_MASIVA"] === true
   const save = useSaveFirmasConfig(proyectoId)
   const { data: pendientesRaw, refetch: refetchPendientes } = useGetFirmasPendientes(proyectoId)
   const sincronizar = useSincronizarFirmasProyecto(proyectoId)
@@ -969,7 +975,10 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
   function addSlot() {
     setSlots(prev => [
       ...prev,
-      { orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true, tipoFirma: TIPO_FIRMA_CONFIG.DIGITAL },
+      {
+        orden: prev.length + 1, rolNombre: "", descripcion: "", esObligatorio: true,
+        tipoFirma: TIPO_FIRMA_CONFIG.DIGITAL, permiteFirmaMasiva: false,
+      },
     ])
   }
 
@@ -1164,6 +1173,25 @@ function TabFirmas({ proyectoId }: { proyectoId: string }) {
                   </span>
                 </div>
               </div>
+
+              {/* Firma en lote. Habilitarlo para el rol de quien EJECUTA es lo que
+                  conviene no hacer: su firma atestigua que el trabajo se hizo. */}
+              {loteActivo && (
+                <div className="sm:col-span-2 flex items-center gap-2 pt-1 border-t">
+                  <Toggle
+                    checked={slot.permiteFirmaMasiva}
+                    onChange={(v) => updateSlot(i, "permiteFirmaMasiva", v)}
+                  />
+                  <span className="text-xs text-gray-600">
+                    Puede firmar en lote
+                    <span className="text-gray-400 ml-1">
+                      {slot.permiteFirmaMasiva
+                        ? "— hasta 50 registros de una, desde Ejecución → Firmas"
+                        : "— sólo de a uno, desde el registro"}
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Eliminar */}

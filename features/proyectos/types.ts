@@ -148,6 +148,15 @@ export interface FirmaConfigItem {
   esObligatorio: boolean
   /** Digital (1, default) = firma electrónica en la app. Fisica (2) = firma manuscrita en el papel. */
   tipoFirma: TipoFirmaConfig
+  /**
+   * Si quien firma con este rol puede hacerlo en lote (/ejecucion/firmas/lote).
+   *
+   * Va por rol de firma y no por rol del sistema porque la autoridad para firmar
+   * sale sólo de los roles del proyecto — Admin no otorga nada. Así se habilita al
+   * supervisor y queda afuera el rol de quien ejecuta. Default false: la
+   * funcionalidad prendida en el proyecto NO alcanza.
+   */
+  permiteFirmaMasiva: boolean
 }
 
 export interface ProyectoUsuarioRol {

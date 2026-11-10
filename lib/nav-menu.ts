@@ -476,6 +476,7 @@ export const segmentLabels: Record<string, string> = {
   usuarios:      "Usuarios",
   perfil:        "Mi perfil",
   firmas:        "Firma de registros",
+  lote:          "Firma en lote",
   clientes:      "Clientes",
   contratistas:  "Contratistas",
   reporte:       "Reporte",
