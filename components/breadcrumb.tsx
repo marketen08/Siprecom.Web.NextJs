@@ -49,8 +49,8 @@ export function Breadcrumb() {
             esUltimo: i === segments.length - 1,
           }
         })
-        // Rutas con varios ids encadenados (ej. /qr/testgroup/:a/:b/:c) producían
-        // "Detalle › Detalle › Detalle", que no dice nada. Dejamos solo el último.
+        // Rutas con varios ids encadenados (ej. /ejecucion/registros/testgroup/:a/:b/:c)
+        // producían "Detalle › Detalle › Detalle", que no dice nada. Dejamos solo el último.
         .filter((it) => !it.esId || it.esUltimo)
         .map(({ label, href }) => ({ label, href }))
     }
