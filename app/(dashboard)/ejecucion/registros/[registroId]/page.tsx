@@ -357,6 +357,7 @@ export default function RegistroFormPage({ params }: PageProps) {
       registroId={registroId}
       permiteSubir={permiteAdjuntos && canWrite}
       readOnly={registro.estado === "RECHAZADO" || !canWrite}
+      registroCerrado={registro.estado === "FIRMADO" || registro.estado === "APROBADO"}
     />
   )
   /**

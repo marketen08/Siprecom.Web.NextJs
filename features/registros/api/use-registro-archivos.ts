@@ -54,11 +54,22 @@ export function useUploadRegistroArchivo(registroId: string) {
   })
 }
 
+/**
+ * Da de baja un adjunto. Es soft-delete del lado del backend —la fila queda inactiva y
+ * el archivo sigue en el storage—, así que una baja por error se puede revertir.
+ *
+ * Sobre un registro ya FIRMADO o APROBADO el backend pide rol Admin y `motivo`: el
+ * adjunto es parte de la documentación que respalda algo que alguien firmó.
+ */
 export function useDeleteRegistroArchivo(registroId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (archivoId: string) =>
-      apiClient.delete(`/api/registros/${registroId}/archivos/${archivoId}`),
+    mutationFn: ({ archivoId, motivo }: { archivoId: string; motivo?: string }) => {
+      // El motivo va por query string: un DELETE con body no lo mandan todos los
+      // clientes igual, y el proxy de Next tendría que reenviarlo a mano.
+      const qs = motivo ? `?motivo=${encodeURIComponent(motivo)}` : ""
+      return apiClient.delete(`/api/registros/${registroId}/archivos/${archivoId}${qs}`)
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["registros", registroId, "archivos"] })
     },

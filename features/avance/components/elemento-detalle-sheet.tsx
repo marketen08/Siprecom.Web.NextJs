@@ -357,7 +357,7 @@ export function ElementoDetalleSheet({
                               onCargarPdf={handleCargarPdf}
                               onReiniciar={handleReiniciar}
                               isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
-                              isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
+                              isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables?.elementoTareaId === t.id}
                               permitirFisico={permitirFisico}
                               permitirDigital={permitirDigital}
                               permiteAdjuntosProyecto={permiteAdjuntosProyecto}

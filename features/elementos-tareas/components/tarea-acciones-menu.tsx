@@ -85,6 +85,11 @@ export function TareaAccionesMenu({
   } = useTareaHandlers()
 
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
+  // 4 = APROBADO: el registro cerró con las firmas puestas en el papel. Ahí el reinicio
+  // pide motivo y el diálogo dice otra cosa, porque lo que se descarta no es un borrador.
+  const borraCargaEnPapel = tarea?.estado === 4
+  const [motivoReiniciar, setMotivoReiniciar] = useState("")
+  const [errorReiniciar, setErrorReiniciar] = useState<string | null>(null)
   const [rehacerOpen, setRehacerOpen] = useState(false)
   // Rehacer una tarea firmada es Admin. El backend lo exige igual; esto evita
   // ofrecer un ítem que termina en 403.
@@ -181,14 +186,18 @@ export function TareaAccionesMenu({
 
   async function handleConfirmReiniciar() {
     if (!tarea) return
+    setErrorReiniciar(null)
     try {
-      await handleReiniciar(tarea)
+      await handleReiniciar(tarea, borraCargaEnPapel ? motivoReiniciar : undefined)
       setReiniciarOpen(false)
     } catch (err) {
-      // Mostrar el motivo del rechazo (ej. "Sólo se pueden reiniciar tareas en
-      // estado EN_PROCESO, COMPLETADO o RECHAZADO") en el toast — sin esto el
-      // usuario ve el spinner desaparecer y cree que "el botón no hace nada".
-      setNotif({ type: "err", msg: (err as Error)?.message ?? "No se pudo reiniciar la tarea." })
+      const msg = (err as Error)?.message ?? "No se pudo reiniciar la tarea."
+      // El mensaje del backend es el que explica POR QUÉ no se puede —"lo cargó otro
+      // usuario", "pasaron más de 24 horas", "tiene firma electrónica, usá rehacer"— así
+      // que va adentro del diálogo, donde el usuario está mirando, y no en un aviso que
+      // aparece detrás.
+      if (borraCargaEnPapel) setErrorReiniciar(msg)
+      else setNotif({ type: "err", msg })
     }
   }
 
@@ -282,25 +291,72 @@ export function TareaAccionesMenu({
           intentan leer campos de un objeto null y crashean. */}
       {tarea && (
         <>
-          <AlertDialog open={reiniciarOpen} onOpenChange={setReiniciarOpen}>
+          <AlertDialog
+            open={reiniciarOpen}
+            onOpenChange={(v) => {
+              if (reiniciarMutation.isPending) return
+              setReiniciarOpen(v)
+              if (v) { setMotivoReiniciar(""); setErrorReiniciar(null) }
+            }}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>¿Reiniciar tarea?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {borraCargaEnPapel ? "¿Eliminar el registro cargado?" : "¿Reiniciar tarea?"}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Se descartará el registro actual y todos los valores cargados
-                  {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
-                  La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
-                  Esta acción no se puede deshacer.
+                  {borraCargaEnPapel ? (
+                    <>
+                      Se eliminará el registro escaneado con sus adjuntos y la tarea volverá
+                      a <strong>PENDIENTE</strong> para cargarla de nuevo. El avance retrocede.
+                      {" "}
+                      <strong>La planilla firmada en papel no se toca</strong>: lo que se borra
+                      es la carga en el sistema. Esta acción no se puede deshacer.
+                    </>
+                  ) : (
+                    <>
+                      Se descartará el registro actual y todos los valores cargados
+                      {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
+                      La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
+                      Esta acción no se puede deshacer.
+                    </>
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {borraCargaEnPapel && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Motivo</label>
+                  <Textarea
+                    value={motivoReiniciar}
+                    onChange={(e) => setMotivoReiniciar(e.target.value)}
+                    placeholder="Ej.: se escaneó la planilla del elemento de al lado"
+                    rows={3}
+                    disabled={reiniciarMutation.isPending}
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Queda registrado en la tarea y en el control de cambios.
+                  </p>
+                </div>
+              )}
+              {errorReiniciar && (
+                <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
+                  {errorReiniciar}
+                </p>
+              )}
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={reiniciarMutation.isPending}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
                   onClick={handleConfirmReiniciar}
-                  disabled={reiniciarMutation.isPending}
+                  disabled={
+                    reiniciarMutation.isPending ||
+                    (borraCargaEnPapel && motivoReiniciar.trim().length === 0)
+                  }
                 >
-                  {reiniciarMutation.isPending ? "Reiniciando..." : "Reiniciar"}
+                  {reiniciarMutation.isPending
+                    ? "Eliminando..."
+                    : borraCargaEnPapel ? "Eliminar registro" : "Reiniciar"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

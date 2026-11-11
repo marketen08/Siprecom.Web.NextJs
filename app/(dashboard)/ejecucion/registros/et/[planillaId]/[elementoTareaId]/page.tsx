@@ -321,7 +321,11 @@ function CargarPdfContent() {
         </div>
 
         {registroIdFinal && (
-          <RegistroAdjuntos registroId={registroIdFinal} permiteSubir={canWrite} />
+          <RegistroAdjuntos
+            registroId={registroIdFinal}
+            permiteSubir={canWrite}
+            registroCerrado={tarea.estado === 4 || tarea.estado === 7}
+          />
         )}
 
         {registroIdFinal && <FirmaPanel registroId={registroIdFinal} />}
@@ -339,6 +343,9 @@ function CargarPdfContent() {
     <DocumentacionAdjunta
       registroId={registroActualId}
       readOnly={adjuntosReadOnly}
+      // 4 = APROBADO, 7 = FIRMADO: el registro ya cerró, así que dar de baja un adjunto
+      // pide Admin y motivo.
+      registroCerrado={tarea.estado === 4 || tarea.estado === 7}
       onIniciar={iniciarTarea}
     />
   )
@@ -437,10 +444,12 @@ function CargarPdfContent() {
 function DocumentacionAdjunta({
   registroId,
   readOnly,
+  registroCerrado,
   onIniciar,
 }: {
   registroId: string | null
   readOnly: boolean
+  registroCerrado: boolean
   onIniciar: () => Promise<string>
 }) {
   const queryClient = useQueryClient()
@@ -449,7 +458,14 @@ function DocumentacionAdjunta({
   const [error, setError] = useState<string | null>(null)
 
   if (registroId) {
-    return <RegistroAdjuntos registroId={registroId} permiteSubir={!readOnly} readOnly={readOnly} />
+    return (
+      <RegistroAdjuntos
+        registroId={registroId}
+        permiteSubir={!readOnly}
+        readOnly={readOnly}
+        registroCerrado={registroCerrado}
+      />
+    )
   }
 
   // Tarea PENDIENTE: no hay registro donde colgar el archivo. Al subir el primero se

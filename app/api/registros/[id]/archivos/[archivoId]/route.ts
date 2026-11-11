@@ -7,7 +7,11 @@ export async function DELETE(
   context: RouteContext<"/api/registros/[id]/archivos/[archivoId]">
 ) {
   const { id, archivoId } = await context.params
-  const res = await backendFetch(request, `/registros/${id}/archivos/${archivoId}`, {
+  // El motivo viene por query string y hay que reenviarlo: el backend lo exige cuando el
+  // registro ya está firmado.
+  const motivo = request.nextUrl.searchParams.get("motivo")
+  const qs = motivo ? `?motivo=${encodeURIComponent(motivo)}` : ""
+  const res = await backendFetch(request, `/registros/${id}/archivos/${archivoId}${qs}`, {
     method: "DELETE",
   })
   const data = await res.json()

@@ -64,8 +64,8 @@ export function useTareaHandlers() {
     router.push(`/ejecucion/registros/et/${tarea.planillaId}/${tarea.id}`)
   }, [router])
 
-  const handleReiniciar = useCallback(async (tarea: ElementoTarea) => {
-    await reiniciarMutation.mutateAsync(tarea.id)
+  const handleReiniciar = useCallback(async (tarea: ElementoTarea, motivo?: string) => {
+    await reiniciarMutation.mutateAsync({ elementoTareaId: tarea.id, motivo })
   }, [reiniciarMutation])
 
   return {

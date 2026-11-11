@@ -22,9 +22,21 @@ interface Props {
   permiteSubir: boolean
   /** True si el registro está en un estado que no debería aceptar más cambios (RECHAZADO). */
   readOnly?: boolean
+  /**
+   * El registro ya está cerrado (FIRMADO o APROBADO). Sus adjuntos son parte de la
+   * documentación que respalda algo que alguien firmó, así que el backend exige rol
+   * Admin y motivo para darlos de baja. Con esto el diálogo pide el motivo en vez de
+   * dejar que el intento rebote.
+   */
+  registroCerrado?: boolean
 }
 
-export function RegistroAdjuntos({ registroId, permiteSubir, readOnly = false }: Props) {
+export function RegistroAdjuntos({
+  registroId,
+  permiteSubir,
+  readOnly = false,
+  registroCerrado = false,
+}: Props) {
   const { data, isLoading } = useGetRegistroArchivos(registroId)
   const upload = useUploadRegistroArchivo(registroId)
   const del = useDeleteRegistroArchivo(registroId)
@@ -71,8 +83,8 @@ export function RegistroAdjuntos({ registroId, permiteSubir, readOnly = false }:
               key={a.id}
               archivo={a}
               canDelete={puedeAccionar}
-              onDelete={() => del.mutateAsync(a.id)}
-              isDeleting={del.isPending && del.variables === a.id}
+              registroCerrado={registroCerrado}
+              onDelete={(motivo) => del.mutateAsync({ archivoId: a.id, motivo })}
             />
           ))}
         </ul>
@@ -135,13 +147,14 @@ export function RegistroAdjuntos({ registroId, permiteSubir, readOnly = false }:
 function ArchivoRow({
   archivo,
   canDelete,
+  registroCerrado,
   onDelete,
-  isDeleting,
 }: {
   archivo: RegistroArchivo
   canDelete: boolean
-  onDelete: () => Promise<unknown>
-  isDeleting: boolean
+  registroCerrado: boolean
+  // El estado de pending lo maneja ConfirmActionDialog, que es quien espera la promesa.
+  onDelete: (motivo?: string) => Promise<unknown>
 }) {
   const isImage = archivo.contentType.startsWith("image/")
   const Icon = isImage ? ImageIcon : FileText
@@ -170,10 +183,26 @@ function ArchivoRow({
         <ConfirmActionDialog
           trigger={<Trash2 className="h-3.5 w-3.5" />}
           triggerClassName="inline-flex items-center justify-center h-7 w-7 rounded-md text-destructive hover:bg-accent transition-colors shrink-0"
-          title="¿Eliminar archivo?"
-          description={<>Se eliminará <strong>{archivo.nombreArchivo}</strong>. Esta acción no se puede deshacer.</>}
-          confirmText="Eliminar"
-          pendingText={isDeleting ? "Eliminando..." : "Eliminando..."}
+          title="¿Dar de baja el archivo?"
+          description={
+            registroCerrado ? (
+              <>
+                <strong>{archivo.nombreArchivo}</strong> deja de figurar entre los adjuntos
+                del registro. Como el registro ya está firmado, esto lo puede hacer sólo un
+                Admin y queda anotado en las observaciones y en el control de cambios.
+              </>
+            ) : (
+              <>
+                <strong>{archivo.nombreArchivo}</strong> deja de figurar entre los adjuntos
+                del registro.
+              </>
+            )
+          }
+          reasonLabel={registroCerrado ? "Motivo" : undefined}
+          reasonPlaceholder="Ej.: correspondía a otro elemento"
+          reasonHint="Queda en las observaciones del registro y en el control de cambios."
+          confirmText="Dar de baja"
+          pendingText="Dando de baja..."
           variant="destructive"
           onConfirm={onDelete}
         />
