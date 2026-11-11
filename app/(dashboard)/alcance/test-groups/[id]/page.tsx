@@ -480,7 +480,7 @@ function TabTareasEjecucion({
               onCargarPdf={handleCargarPdf}
               onReiniciar={handleReiniciar}
               isIniciando={iniciarMutation.isPending && iniciarMutation.variables === t.id}
-              isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables === t.id}
+              isReiniciando={reiniciarMutation.isPending && reiniciarMutation.variables?.elementoTareaId === t.id}
               permitirFisico={permitirFisico}
               permitirDigital={permitirDigital}
               permiteAdjuntosProyecto={permiteAdjuntosProyecto}
@@ -854,22 +854,38 @@ function TareaRow({
 
         {/* Dialogs controlados — fuera del DropdownMenu para evitar el race
             condition de Radix (ver comentario en el useState de arriba). */}
+        {/* 4 = APROBADO, el registro cerrado con las firmas puestas en el papel: el
+            backend pide motivo y lo acota a Admin o a quien lo cargó dentro de 24 h.
+            7 = FIRMADO no se reinicia — el backend contesta que va por rehacer, y ese
+            mensaje aparece dentro del diálogo. */}
         <ConfirmActionDialog
           open={reiniciarOpen}
           onOpenChange={setReiniciarOpen}
-          title="¿Reiniciar tarea?"
+          title={tarea.estado === 4 ? "¿Eliminar el registro cargado?" : "¿Reiniciar tarea?"}
           description={
-            <>
-              Se elimina el Registro asociado (planilla, archivos, firmas)
-              y la tarea vuelve a <strong>PENDIENTE</strong>. Esta acción
-              no se puede deshacer.
-            </>
+            tarea.estado === 4 ? (
+              <>
+                Se elimina el registro escaneado con sus archivos y firmas, y la tarea
+                vuelve a <strong>PENDIENTE</strong>. El avance del pack retrocede.{" "}
+                <strong>La planilla firmada en papel no se toca.</strong> Esta acción no se
+                puede deshacer.
+              </>
+            ) : (
+              <>
+                Se elimina el Registro asociado (planilla, archivos, firmas)
+                y la tarea vuelve a <strong>PENDIENTE</strong>. Esta acción
+                no se puede deshacer.
+              </>
+            )
           }
-          confirmText="Reiniciar"
-          pendingText="Reiniciando..."
+          reasonLabel={tarea.estado === 4 ? "Motivo" : undefined}
+          reasonPlaceholder="Ej.: se escaneó la planilla del elemento de al lado"
+          reasonHint="Queda registrado en la tarea y en el control de cambios."
+          confirmText={tarea.estado === 4 ? "Eliminar registro" : "Reiniciar"}
+          pendingText={tarea.estado === 4 ? "Eliminando..." : "Reiniciando..."}
           variant="destructive"
-          onConfirm={() =>
-            reiniciar.mutateAsync({ testGroupId, tareaId: tarea.id })
+          onConfirm={(motivo) =>
+            reiniciar.mutateAsync({ testGroupId, tareaId: tarea.id, motivo })
           }
         />
         <ConfirmActionDialog

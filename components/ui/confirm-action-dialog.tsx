@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 interface ConfirmActionDialogProps {
   /**
@@ -54,7 +55,20 @@ interface ConfirmActionDialogProps {
    * habilitar la acción. Para operaciones muy destructivas (ej. "ELIMINAR TODAS").
    */
   confirmPhrase?: string
-  onConfirm: () => Promise<unknown>
+  /**
+   * Si se define, el diálogo muestra un textarea de motivo y lo pasa a `onConfirm`.
+   * Es para las acciones donde el backend exige explicar por qué —descartar un registro
+   * firmado en papel, dar de baja el adjunto de un registro cerrado— y el texto queda
+   * como evidencia de auditoría.
+   */
+  reasonLabel?: string
+  /** Placeholder del textarea de motivo. */
+  reasonPlaceholder?: string
+  /** Aclaración bajo el textarea (ej. dónde queda registrado el motivo). */
+  reasonHint?: string
+  /** Con `reasonLabel` definido, exige texto para habilitar la acción. Default: true. */
+  reasonRequired?: boolean
+  onConfirm: (reason?: string) => Promise<unknown>
 }
 
 /**
@@ -89,6 +103,10 @@ export function ConfirmActionDialog({
   cancelText = "Cancelar",
   variant = "default",
   confirmPhrase,
+  reasonLabel,
+  reasonPlaceholder,
+  reasonHint,
+  reasonRequired = true,
   onConfirm,
 }: ConfirmActionDialogProps) {
   const [internalOpen, setInternalOpen] = React.useState(false)
@@ -100,14 +118,17 @@ export function ConfirmActionDialog({
   }
   const [pending, setPending] = React.useState(false)
   const [typed, setTyped] = React.useState("")
+  const [reason, setReason] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
   const phraseOk = !confirmPhrase || typed.trim() === confirmPhrase
+  const reasonOk = !reasonLabel || !reasonRequired || reason.trim().length > 0
 
-  // Reset del input y error cuando se abre el diálogo (útil en modo controlado
-  // donde el open puede alternar sin recrear el componente).
+  // Reset de los inputs y del error cuando se abre el diálogo (útil en modo
+  // controlado donde el open puede alternar sin recrear el componente).
   React.useEffect(() => {
     if (open) {
       setTyped("")
+      setReason("")
       setError(null)
     }
   }, [open])
@@ -116,7 +137,7 @@ export function ConfirmActionDialog({
     setPending(true)
     setError(null)
     try {
-      await onConfirm()
+      await onConfirm(reasonLabel ? reason.trim() : undefined)
       setOpen(false)
     } catch (err) {
       // Mantener abierto y mostrar el mensaje del backend (ej. 400 de validación)
@@ -164,6 +185,20 @@ export function ConfirmActionDialog({
             />
           </div>
         )}
+        {reasonLabel && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">{reasonLabel}</label>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={reasonPlaceholder}
+              rows={3}
+              disabled={pending}
+              autoFocus={!confirmPhrase}
+            />
+            {reasonHint && <p className="text-xs text-muted-foreground">{reasonHint}</p>}
+          </div>
+        )}
         {error && (
           <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
             {error}
@@ -174,7 +209,7 @@ export function ConfirmActionDialog({
           <AlertDialogAction
             className={actionClass}
             onClick={handleConfirm}
-            disabled={pending || !phraseOk}
+            disabled={pending || !phraseOk || !reasonOk}
           >
             {pending ? pendingText : confirmText}
           </AlertDialogAction>

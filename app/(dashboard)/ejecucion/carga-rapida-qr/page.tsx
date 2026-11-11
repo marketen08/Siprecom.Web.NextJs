@@ -14,6 +14,7 @@ import {
   Loader2,
   Paperclip,
   QrCode,
+  Scissors,
   Trash2,
   Upload,
   X,
@@ -72,6 +73,18 @@ type FilaEstado =
   // backend rechazaría con 400.
   | "baja-resolucion"
 
+/**
+ * Qué parte del PDF es la planilla, cuando el proyecto separa los adjuntos que el
+ * escaneo trae pegados detrás. `null` = no aplica (imagen, función apagada) o no se
+ * analizó. `determinado: false` = no se encontró la hoja de firmas y sube entero.
+ */
+type CorteInfo = {
+  totalPaginas: number
+  paginasPlanilla: number
+  paginasAdjuntas: number
+  determinado: boolean
+}
+
 /** Resultado de la detección visual de firma. `null` = no corrió todavía.
  *  Los kinds "detectada" y "no-detectada" ahora traen el conteo per-slot para
  *  planillas con N > 1 firmas físicas. `slotsDetectados==slotsTotal` = todas. */
@@ -108,6 +121,8 @@ interface Fila {
   asociadoA: string | null
   /** Cantidad de páginas del PDF. Se cuenta durante procesarFila (0 = no aplica / imagen). */
   paginasPdf: number
+  /** Corte de adjuntos embebidos, cuando el proyecto lo tiene activo. */
+  corte: CorteInfo | null
 }
 
 /** Clave estable del destino del QR — usada para detectar duplicados. */
@@ -319,6 +334,7 @@ export default function CargaRapidaQrPage() {
         orden: baseOrden + i,
         asociadoA: null,
         paginasPdf: 0,
+        corte: null,
       }))
       // Dispara la lectura del QR en paralelo — cada procesarFila hace su propio
       // setFilas cuando termina. Cerramos sobre las ids nuevas.
@@ -406,7 +422,7 @@ export default function CargaRapidaQrPage() {
         ? "Ya había un borrador — al subir se sobrescribe."
         : null
 
-      const firmaDeteccion = await detectarFirmaSiCorresponde(cfg, archivo, qr)
+      const { firma: firmaDeteccion, corte } = await analizarEscaneo(cfg, archivo, qr)
       const mensajeFirma =
         firmaDeteccion?.kind === "no-detectada"
           ? firmaDeteccion.slotsTotal > 1
@@ -417,6 +433,7 @@ export default function CargaRapidaQrPage() {
             : null
 
       actualizar(id, {
+        corte,
         estado: estadoBase,
         resuelto: res.data,
         firmaDeteccion,
@@ -481,6 +498,11 @@ export default function CargaRapidaQrPage() {
     setFilas((prev) => recalcularAgrupacion(prev.filter((f) => f.estado !== "sincronizado")))
   }
 
+  // Escape del corte para todo el lote. En la carga masiva no tiene sentido pedirlo
+  // archivo por archivo: o el escáner junta la planilla con el respaldo en todos, o
+  // en ninguno.
+  const [noSepararAdjuntos, setNoSepararAdjuntos] = useState(false)
+
   /** Sube o baja una fila en el orden. Reasigna `orden` secuencial y recalcula agrupación. */
   function moverFila(id: string, direccion: "arriba" | "abajo") {
     setFilas((prev) => {
@@ -538,6 +560,7 @@ export default function CargaRapidaQrPage() {
         cantidadSlotsDigital: 0,
         hayFirmasFisicas: false,
         rechazarBajaResolucion: false,
+        cortarAdjuntosEscaneo: false,
         anchoMinimoImagen: 1500,
       }
       cacheFirmasConfig.current.set(proyectoId, stub)
@@ -566,41 +589,68 @@ export default function CargaRapidaQrPage() {
   }
 
   /**
-   * Corre la detección visual de firma sobre el archivo si hay slots Fisica.
-   * Camino unificado con el uploader interactivo: rota el archivo si hace falta
-   * y llama al endpoint server-side (rasteriza PDFs con Docnet, procesa imágenes).
-   * Silencioso ante error — devuelve `null` variantes.
+   * Analiza el escaneo: detección visual de firma (si hay slots Fisica) y, cuando el
+   * proyecto separa los adjuntos embebidos, dónde termina la planilla. Las dos cosas
+   * salen de la MISMA llamada porque la hoja que el backend ubica para detectar la
+   * firma es la que define el corte.
+   *
+   * Camino unificado con el uploader interactivo: rota el archivo si hace falta y
+   * llama al endpoint server-side. Silencioso ante error.
    */
-  async function detectarFirmaSiCorresponde(
+  async function analizarEscaneo(
     cfg: FirmasConfigEfectiva,
     archivo: File,
     qr: QrLeidoResult,
-  ): Promise<FirmaDeteccion> {
-    if (cfg.cantidadSlotsFisica === 0) return { kind: "no-aplica" }
+  ): Promise<{ firma: FirmaDeteccion; corte: CorteInfo | null }> {
+    const esPdf = (archivo.name.split(".").pop() ?? "").toLowerCase() === "pdf"
+    const buscarCorte = cfg.cortarAdjuntosEscaneo && esPdf
+    // Sin firmas físicas no hay detección, pero el corte pasa igual: si hay que
+    // mirarlo se pide con 1 slot y se ignora el veredicto de firma.
+    if (cfg.cantidadSlotsFisica === 0 && !buscarCorte)
+      return { firma: { kind: "no-aplica" }, corte: null }
     try {
       // Rotación: el backend espera el archivo con orientación correcta. Si el
       // QR indica rotación, la aplicamos antes de mandar. rotateFile es no-op
       // cuando rotación=0.
       const rotacion = qr.rotacionDetectada ?? 0
       const archivoDetectar = rotacion === 0 ? archivo : await rotateFile(archivo, rotacion)
-      const deteccion = await detectSignatureRemote(archivoDetectar, cfg.cantidadSlotsFisica)
+      const deteccion = await detectSignatureRemote(
+        archivoDetectar, Math.max(1, cfg.cantidadSlotsFisica), buscarCorte)
+
+      const corte: CorteInfo | null =
+        buscarCorte && deteccion.totalPaginas != null
+          ? {
+              totalPaginas: deteccion.totalPaginas,
+              paginasPlanilla: deteccion.totalPaginas - deteccion.paginasAdjuntas,
+              paginasAdjuntas: deteccion.paginasAdjuntas,
+              determinado: deteccion.corteDeterminado,
+            }
+          : null
+
+      if (cfg.cantidadSlotsFisica === 0) return { firma: { kind: "no-aplica" }, corte }
       if (deteccion.sinFiduciales) {
-        return { kind: "sin-fiduciales", slotsTotal: cfg.cantidadSlotsFisica }
+        return { firma: { kind: "sin-fiduciales", slotsTotal: cfg.cantidadSlotsFisica }, corte }
       }
-      return deteccion.detected
-        ? {
-            kind: "detectada",
-            slotsDetectados: deteccion.slotsDetectados,
-            slotsTotal: deteccion.slotsTotal,
-          }
-        : {
-            kind: "no-detectada",
-            slotsDetectados: deteccion.slotsDetectados,
-            slotsTotal: deteccion.slotsTotal,
-          }
+      return {
+        firma: deteccion.detected
+          ? {
+              kind: "detectada",
+              slotsDetectados: deteccion.slotsDetectados,
+              slotsTotal: deteccion.slotsTotal,
+            }
+          : {
+              kind: "no-detectada",
+              slotsDetectados: deteccion.slotsDetectados,
+              slotsTotal: deteccion.slotsTotal,
+            },
+        corte,
+      }
     } catch (err) {
-      console.error("[carga-rapida-qr] detectSignatureRemote threw:", err)
-      return { kind: "no-detectada", slotsDetectados: 0, slotsTotal: cfg.cantidadSlotsFisica }
+      console.error("[carga-rapida-qr] analizarEscaneo threw:", err)
+      return {
+        firma: { kind: "no-detectada", slotsDetectados: 0, slotsTotal: cfg.cantidadSlotsFisica },
+        corte: null,
+      }
     }
   }
 
@@ -651,6 +701,7 @@ export default function CargaRapidaQrPage() {
 
       const fd = new FormData()
       for (const archivo of archivosRotados) fd.append("archivos", archivo)
+      if (noSepararAdjuntos) fd.append("noCortarAdjuntos", "true")
 
       // Overrides del carrier (aplican al principal del grupo).
       if (carrier.firmaDeteccion?.kind === "no-detectada") {
@@ -721,6 +772,7 @@ export default function CargaRapidaQrPage() {
 
       const fd = new FormData()
       fd.append("Archivo", archivoFinal)
+      if (noSepararAdjuntos) fd.append("NoCortarAdjuntos", "true")
       if (fila.firmaDeteccion?.kind === "no-detectada") {
         const { slotsDetectados, slotsTotal } = fila.firmaDeteccion
         const detalle = `firmas detectadas ${slotsDetectados}/${slotsTotal} en la zona de firmas`
@@ -829,6 +881,19 @@ export default function CargaRapidaQrPage() {
           <span className="text-sm text-muted-foreground">
             {total} archivo(s) · {listos} listo(s) para subir
           </span>
+          {/* El escape sólo aparece si algún archivo del lote efectivamente trae
+              adjuntos adentro — si no, es una casilla que no hace nada. */}
+          {filas.some((f) => (f.corte?.paginasAdjuntas ?? 0) > 0) && (
+            <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={noSepararAdjuntos}
+                onChange={(e) => setNoSepararAdjuntos(e.target.checked)}
+                className="h-4 w-4 cursor-pointer"
+              />
+              <span className="text-gray-700">No separar los adjuntos del escaneo</span>
+            </label>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {sincronizados > 0 && (
               <Button variant="outline" size="sm" onClick={limpiarSincronizados} className="gap-1.5">
@@ -900,6 +965,14 @@ export default function CargaRapidaQrPage() {
                           {f.paginasPdf > 0
                             ? `Se combinará con #${carrierIdx + 1} (${f.paginasPdf}p)`
                             : `Adjunto de #${carrierIdx + 1}`}
+                        </div>
+                      )}
+                      {(f.corte?.paginasAdjuntas ?? 0) > 0 && (
+                        <div className="text-[11px] text-blue-800 mt-1 inline-flex items-center gap-1">
+                          <Scissors className="h-3 w-3 shrink-0" />
+                          {noSepararAdjuntos
+                            ? `Entero: ${f.corte!.totalPaginas}p (incluye ${f.corte!.paginasAdjuntas}p de adjunto)`
+                            : `Planilla ${f.corte!.paginasPlanilla}p + adjunto ${f.corte!.paginasAdjuntas}p`}
                         </div>
                       )}
                       {(f.estado === "listo" || f.estado === "ya-cargado") && (() => {

@@ -45,7 +45,8 @@ interface TareaCardProps {
   onIniciar: (t: ElementoTarea) => void
   onAbrirFormulario: (t: ElementoTarea) => void
   onCargarPdf: (t: ElementoTarea) => void
-  onReiniciar: (t: ElementoTarea) => Promise<void>
+  /** El motivo sólo viaja cuando se descarta un registro cerrado con firmas en papel. */
+  onReiniciar: (t: ElementoTarea, motivo?: string) => Promise<void>
   isIniciando: boolean
   isReiniciando: boolean
   permitirFisico: boolean
@@ -77,6 +78,11 @@ export function TareaCard({
 }: TareaCardProps) {
   const [showFirmas, setShowFirmas] = useState(false)
   const [reiniciarOpen, setReiniciarOpen] = useState(false)
+  // 4 = APROBADO: el registro cerró con las firmas puestas en el papel. Ahí el reinicio
+  // pide motivo y el diálogo dice otra cosa, porque lo que se descarta no es un borrador.
+  const borraCargaEnPapel = tarea.estado === 4
+  const [motivoReiniciar, setMotivoReiniciar] = useState("")
+  const [errorReiniciar, setErrorReiniciar] = useState<string | null>(null)
   const [rehacerOpen, setRehacerOpen] = useState(false)
   const [dependenciasOpen, setDependenciasOpen] = useState(false)
   // Rehacer una tarea firmada es Admin. El backend lo exige igual; esto evita
@@ -155,11 +161,15 @@ export function TareaCard({
   const busy = isIniciando || uploadAdjunto.isPending || downloadProcedimiento.isPending || marcarSinRegistroMutation.isPending
 
   async function handleConfirmReiniciar() {
+    setErrorReiniciar(null)
     try {
-      await onReiniciar(tarea)
+      await onReiniciar(tarea, borraCargaEnPapel ? motivoReiniciar : undefined)
       setReiniciarOpen(false)
-    } catch {
-      // Mantener abierto si falla
+    } catch (err) {
+      // El mensaje del backend es el que explica por qué no se puede ("lo cargó otro
+      // usuario", "pasaron más de 24 horas", "tiene firma electrónica"). Antes se
+      // descartaba y el diálogo se quedaba abierto sin decir nada.
+      setErrorReiniciar((err as Error)?.message ?? "No se pudo reiniciar la tarea.")
     }
   }
 
@@ -279,25 +289,71 @@ export function TareaCard({
         </div>
       )}
 
-      <AlertDialog open={reiniciarOpen} onOpenChange={setReiniciarOpen}>
+      <AlertDialog
+        open={reiniciarOpen}
+        onOpenChange={(v) => {
+          if (isReiniciando) return
+          setReiniciarOpen(v)
+          if (v) { setMotivoReiniciar(""); setErrorReiniciar(null) }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Reiniciar tarea?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {borraCargaEnPapel ? "¿Eliminar el registro cargado?" : "¿Reiniciar tarea?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Se descartará el registro actual y todos los valores cargados
-              {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
-              La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
-              Esta acción no se puede deshacer.
+              {borraCargaEnPapel ? (
+                <>
+                  Se eliminará el registro escaneado con sus adjuntos y la tarea volverá
+                  a <strong>PENDIENTE</strong> para cargarla de nuevo. El avance retrocede.
+                  {" "}
+                  <strong>La planilla firmada en papel no se toca</strong>: lo que se borra
+                  es la carga en el sistema. Esta acción no se puede deshacer.
+                </>
+              ) : (
+                <>
+                  Se descartará el registro actual y todos los valores cargados
+                  {tarea.estado === 3 ? " (incluyendo firmas si las hay)" : ""}.
+                  La tarea volverá al estado <strong>PENDIENTE</strong> y deberás iniciarla de nuevo.
+                  Esta acción no se puede deshacer.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {borraCargaEnPapel && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Motivo</label>
+              <Textarea
+                value={motivoReiniciar}
+                onChange={(e) => setMotivoReiniciar(e.target.value)}
+                placeholder="Ej.: se escaneó la planilla del elemento de al lado"
+                rows={3}
+                disabled={isReiniciando}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Queda registrado en la tarea y en el control de cambios.
+              </p>
+            </div>
+          )}
+          {errorReiniciar && (
+            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 whitespace-pre-line">
+              {errorReiniciar}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isReiniciando}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={handleConfirmReiniciar}
-              disabled={isReiniciando}
+              disabled={
+                isReiniciando || (borraCargaEnPapel && motivoReiniciar.trim().length === 0)
+              }
             >
-              {isReiniciando ? "Reiniciando..." : "Reiniciar"}
+              {isReiniciando
+                ? "Eliminando..."
+                : borraCargaEnPapel ? "Eliminar registro" : "Reiniciar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -459,6 +515,13 @@ export function agruparMenuItems(items: MenuItem[]): MenuBloque[] {
   }
   return bloques
 }
+
+/**
+ * Etiqueta del reinicio cuando lo que se descarta es un registro cerrado con las firmas
+ * del papel. Vive en una constante porque el menú la usa dos veces: para el ítem y para
+ * la lista de acciones que se deshabilitan en modo lectura.
+ */
+export const LABEL_BORRAR_CARGA = "Eliminar registro cargado"
 
 export function buildTareaMenuItems({
   tarea,
@@ -729,12 +792,19 @@ export function buildTareaMenuItems({
     onSelect: onAbrirDependencias,
   })
 
-  const puedeReiniciar = tarea.estado === 2 || tarea.estado === 3 || tarea.estado === 5
+  // 4 = APROBADO, el registro cerrado con las firmas puestas en el papel. Entra por el
+  // mismo camino que el reinicio normal, pero sólo si el backend dice que este usuario
+  // puede (Admin, o el que subió el escaneo dentro de las últimas 24 h) y con otro
+  // nombre: "reiniciar" no describe lo que pasa cuando lo que se descarta es un registro
+  // que alguien ya firmó en papel.
+  const puedeBorrarCargaEnPapel = tarea.estado === 4 && !!tarea.puedeEliminarCargaFisica
+  const puedeReiniciar =
+    tarea.estado === 2 || tarea.estado === 3 || tarea.estado === 5 || puedeBorrarCargaEnPapel
   if (puedeReiniciar) {
     if (items.length > 0) items.push({ kind: "separator" })
     items.push({
       kind: "item",
-      label: "Reiniciar tarea",
+      label: puedeBorrarCargaEnPapel ? LABEL_BORRAR_CARGA : "Reiniciar tarea",
       icon: RotateCcw,
       onSelect: onRequestReiniciar,
       disabled: isReiniciando,
@@ -778,6 +848,7 @@ export function buildTareaMenuItems({
       "Cargar registro firmado",
       "Adjuntar archivo",
       "Reiniciar tarea",
+      LABEL_BORRAR_CARGA,
       "Rehacer tarea",
       "Rehacer tarea (requiere Admin)",
       "Marcar completada sin registro",

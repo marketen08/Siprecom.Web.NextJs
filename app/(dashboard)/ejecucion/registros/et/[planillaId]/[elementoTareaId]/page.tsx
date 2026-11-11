@@ -60,6 +60,7 @@ function CargarPdfContent() {
   const cantidadFirmasFisicas = firmasConfigRaw?.data?.cantidadSlotsFisica ?? 0
   const rechazarBajaResolucion = firmasConfigRaw?.data?.rechazarBajaResolucion ?? false
   const anchoMinimoImagen = firmasConfigRaw?.data?.anchoMinimoImagen ?? 1500
+  const cortarAdjuntosEscaneo = firmasConfigRaw?.data?.cortarAdjuntosEscaneo ?? false
 
   // Breadcrumb navegable — mismo patrón que /ejecucion/registros/[id]:
   // Ejecución → Registros → {Elemento (link)} → {Tarea} → Cargar planilla física.
@@ -163,6 +164,8 @@ function CargarPdfContent() {
     if (observaciones.trim()) form.append("Observaciones", observaciones.trim())
     if (params.qrOverrideDetalle) form.append("QrOverrideDetalle", params.qrOverrideDetalle)
     if (params.firmaOverrideDetalle) form.append("FirmaOverrideDetalle", params.firmaOverrideDetalle)
+    // El operador destildó el corte: el PDF sube entero aunque el proyecto lo separe.
+    if (params.noCortarAdjuntos) form.append("NoCortarAdjuntos", "true")
 
     const res = await fetch(`/api/registros/${registroId}/completar/fisico`, {
       method: "POST",
@@ -318,7 +321,11 @@ function CargarPdfContent() {
         </div>
 
         {registroIdFinal && (
-          <RegistroAdjuntos registroId={registroIdFinal} permiteSubir={canWrite} />
+          <RegistroAdjuntos
+            registroId={registroIdFinal}
+            permiteSubir={canWrite}
+            registroCerrado={tarea.estado === 4 || tarea.estado === 7}
+          />
         )}
 
         {registroIdFinal && <FirmaPanel registroId={registroIdFinal} />}
@@ -336,6 +343,9 @@ function CargarPdfContent() {
     <DocumentacionAdjunta
       registroId={registroActualId}
       readOnly={adjuntosReadOnly}
+      // 4 = APROBADO, 7 = FIRMADO: el registro ya cerró, así que dar de baja un adjunto
+      // pide Admin y motivo.
+      registroCerrado={tarea.estado === 4 || tarea.estado === 7}
       onIniciar={iniciarTarea}
     />
   )
@@ -391,6 +401,7 @@ function CargarPdfContent() {
         cantidadFirmasFisicas={cantidadFirmasFisicas}
         rechazarBajaResolucion={rechazarBajaResolucion}
         anchoMinimoImagen={anchoMinimoImagen}
+        cortarAdjuntosEscaneo={cortarAdjuntosEscaneo}
         onSubmit={handleSubmit}
         disabled={faltanAdjuntos}
         onArchivoElegido={() => {
@@ -433,10 +444,12 @@ function CargarPdfContent() {
 function DocumentacionAdjunta({
   registroId,
   readOnly,
+  registroCerrado,
   onIniciar,
 }: {
   registroId: string | null
   readOnly: boolean
+  registroCerrado: boolean
   onIniciar: () => Promise<string>
 }) {
   const queryClient = useQueryClient()
@@ -445,7 +458,14 @@ function DocumentacionAdjunta({
   const [error, setError] = useState<string | null>(null)
 
   if (registroId) {
-    return <RegistroAdjuntos registroId={registroId} permiteSubir={!readOnly} readOnly={readOnly} />
+    return (
+      <RegistroAdjuntos
+        registroId={registroId}
+        permiteSubir={!readOnly}
+        readOnly={readOnly}
+        registroCerrado={registroCerrado}
+      />
+    )
   }
 
   // Tarea PENDIENTE: no hay registro donde colgar el archivo. Al subir el primero se
