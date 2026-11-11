@@ -7,12 +7,16 @@ import {
   FileUp,
   Info,
   Loader2,
+  Scissors,
   Upload,
   X,
 } from "lucide-react"
 
 import { readQrFromFile, type QrLeidoResult } from "@/features/registros/lib/read-qr"
-import { detectSignatureRemote } from "@/features/registros/lib/detect-signature-remote"
+import {
+  detectSignatureRemote,
+  type DetectSignatureRemoteResult,
+} from "@/features/registros/lib/detect-signature-remote"
 import { rotateFile } from "@/features/registros/lib/rotate-file"
 
 import { Button } from "@/components/ui/button"
@@ -35,6 +39,12 @@ export interface CargaFisicaSubmitParams {
   qrOverrideDetalle?: string
   /** Densidad observada cuando el usuario forzó carga sin firma detectada. */
   firmaOverrideDetalle?: string
+  /**
+   * true cuando el usuario destildó el corte de adjuntos embebidos: el PDF sube
+   * entero como registro aunque el proyecto tenga la función activa. El padre lo
+   * manda como `noCortarAdjuntos` en el form.
+   */
+  noCortarAdjuntos?: boolean
 }
 
 interface Props {
@@ -54,6 +64,13 @@ interface Props {
   /** Ancho mínimo (px) para imágenes cuando rechazarBajaResolucion está activo.
    *  Coincide con la config global del detector de firmas. Default 1500. */
   anchoMinimoImagen?: number
+  /**
+   * Flag CORTAR_ADJUNTOS_ESCANEO del proyecto. Activa dos cosas sobre los PDFs: el
+   * detector busca la hoja del bloque de firmas en vez de la última, y el uploader
+   * avisa cuántas hojas van a quedar como adjunto antes de confirmar.
+   * Default false → el uploader se comporta igual que siempre.
+   */
+  cortarAdjuntosEscaneo?: boolean
   /**
    * Callback al confirmar el submit. Recibe el archivo rotado + los detalles de
    * override que correspondan. El padre decide qué hacer (subir directo, iniciar
@@ -106,6 +123,7 @@ export function CargaFisicaUploader({
   cantidadFirmasFisicas = 1,
   rechazarBajaResolucion = false,
   anchoMinimoImagen = 1500,
+  cortarAdjuntosEscaneo = false,
   onSubmit,
   isSubmitting = false,
   submitLabel = "Subir planilla",
@@ -143,6 +161,23 @@ export function CargaFisicaUploader({
     | { kind: "sin-fiduciales" }
     | { kind: "no-aplica" }
   >(null)
+  // Corte de adjuntos embebidos. Es información aparte de la firma aunque salga de
+  // la misma llamada: lo que dice no es "hay firma o no" sino "el archivo trae N
+  // hojas de respaldo detrás de la planilla y se van a guardar como adjunto".
+  const [corteState, setCorteState] = useState<
+    | null
+    | { kind: "analizando" }
+    | {
+        kind: "listo"
+        totalPaginas: number
+        paginasPlanilla: number
+        paginasAdjuntas: number
+        determinado: boolean
+      }
+  >(null)
+  // Escape del corte. Arranca en false: el default es separar, que es lo que el
+  // proyecto pidió al prender la función.
+  const [noCortar, setNoCortar] = useState(false)
   const [confirmarMismatch, setConfirmarMismatch] = useState(false)
   const [confirmarFirmaNoDetectada, setConfirmarFirmaNoDetectada] = useState(false)
   // Aviso de baja resolución en 2 modos:
@@ -165,6 +200,8 @@ export function CargaFisicaUploader({
     setQrState(f ? { kind: "reading" } : null)
     setFirmaState(null)
     setAvisoBajaRes(null)
+    setCorteState(null)
+    setNoCortar(false)
     // Aviso al padre para que limpie su estado de error/éxito. Corre siempre —
     // tanto al elegir nuevo como al quitar el archivo (f=null).
     onArchivoElegido?.(f)
@@ -228,20 +265,34 @@ export function CargaFisicaUploader({
       setQrState({ kind: matchea ? "ok" : "mismatch", result })
     }
 
+    // ¿Hay que mirar si el escaneo trae adjuntos adentro? Sólo PDFs, y sólo si el
+    // proyecto tiene la función activa.
+    const esPdf = (f.name.split(".").pop() ?? "").toLowerCase() === "pdf"
+    const buscarCorte = cortarAdjuntosEscaneo && esPdf
+    const rotacionQr = result.esChecklist ? result.rotacionDetectada : 0
+
     // Detección visual de firma manuscrita — sólo cuando el proyecto/tarea tiene
     // slots Fisica. Corre en paralelo al flujo QR, no bloqueamos si tarda.
     if (!hayFirmasFisicas) {
       setFirmaState({ kind: "no-aplica" })
+      // Sin firmas físicas no hay detección que correr, pero el corte pasa igual y
+      // el operador tiene derecho a saber que el sistema le va a partir el archivo.
+      if (buscarCorte) await analizarCorte(f, rotacionQr)
       return
     }
     setFirmaState({ kind: "detectando" })
     // La rotación derivada del QR se aplica antes de mandar al backend: el
     // detector server-side espera el archivo con orientación correcta. Si no
     // hace falta rotar, `rotateFile` devuelve el archivo tal cual.
-    const rotacion = result.esChecklist ? result.rotacionDetectada : 0
+    if (buscarCorte) setCorteState({ kind: "analizando" })
     try {
-      const archivoParaDetectar = rotacion === 0 ? f : await rotateFile(f, rotacion)
-      const deteccion = await detectSignatureRemote(archivoParaDetectar, cantidadFirmasFisicas)
+      const archivoParaDetectar =
+        rotacionQr === 0 ? f : await rotateFile(f, rotacionQr)
+      // Una sola llamada para las dos cosas: la hoja que el backend ubica para
+      // detectar la firma es la misma que define el corte.
+      const deteccion = await detectSignatureRemote(
+        archivoParaDetectar, cantidadFirmasFisicas, buscarCorte)
+      if (buscarCorte) aplicarCorte(deteccion)
       if (deteccion.sinFiduciales) {
         setFirmaState({ kind: "sin-fiduciales" })
       } else {
@@ -262,7 +313,32 @@ export function CargaFisicaUploader({
         slotsDetectados: 0,
         slotsTotal: cantidadFirmasFisicas,
       })
+      setCorteState(null)
     }
+  }
+
+  /** Pide el análisis sólo para saber del corte (registro sin firmas físicas). */
+  async function analizarCorte(f: File, rotacion: 0 | 90 | 180 | 270) {
+    setCorteState({ kind: "analizando" })
+    try {
+      const archivoParaDetectar = rotacion === 0 ? f : await rotateFile(f, rotacion)
+      aplicarCorte(await detectSignatureRemote(archivoParaDetectar, 1, true))
+    } catch (err) {
+      console.error("[CargaFisicaUploader] analizarCorte:", err)
+      setCorteState(null)
+    }
+  }
+
+  function aplicarCorte(d: DetectSignatureRemoteResult) {
+    // Sin totalPaginas no hay nada que contar (imagen, o el backend no buscó).
+    if (d.totalPaginas == null) { setCorteState(null); return }
+    setCorteState({
+      kind: "listo",
+      totalPaginas: d.totalPaginas,
+      paginasPlanilla: d.totalPaginas - d.paginasAdjuntas,
+      paginasAdjuntas: d.paginasAdjuntas,
+      determinado: d.corteDeterminado,
+    })
   }
 
   async function handleClickSubir(forzarOverride: boolean = false) {
@@ -304,6 +380,7 @@ export function CargaFisicaUploader({
       const detalle = `planilla sin fiduciales — no fue posible verificar firmas visualmente`
       params.firmaOverrideDetalle = detalle.slice(0, 500)
     }
+    if (noCortar) params.noCortarAdjuntos = true
     await onSubmit(params)
   }
 
@@ -415,6 +492,57 @@ export function CargaFisicaUploader({
             {qrState.result.error && (
               <p className="text-[11px] mt-1 opacity-80">Detalle: {qrState.result.error}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Banner del corte de adjuntos embebidos. Va antes del de firma porque
+          explica QUÉ hoja se analizó: sin esto, "firma detectada" en un archivo de
+          13 hojas no dice sobre cuál. */}
+      {corteState?.kind === "analizando" && (
+        <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Viendo si el escaneo trae adjuntos adentro...
+        </div>
+      )}
+      {corteState?.kind === "listo" && corteState.paginasAdjuntas > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          <Scissors className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">
+              El escaneo trae {corteState.totalPaginas} hojas:{" "}
+              {corteState.paginasPlanilla} de planilla y {corteState.paginasAdjuntas} detrás.
+            </p>
+            <p className="text-xs mt-1">
+              {noCortar
+                ? "Va a subirse entero: el respaldo queda dentro del documento que se firma."
+                : `Las ${corteState.paginasAdjuntas} de atrás se guardan como archivo adjunto del registro, fuera del documento que se firma.`}
+            </p>
+            <label className="mt-2 inline-flex items-center gap-2 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={noCortar}
+                onChange={(e) => setNoCortar(e.target.checked)}
+                disabled={bloqueado}
+                className="h-3.5 w-3.5 cursor-pointer"
+              />
+              <span>No separar: subir el archivo entero</span>
+            </label>
+          </div>
+        </div>
+      )}
+      {corteState?.kind === "listo" && !corteState.determinado
+        && corteState.totalPaginas > 1 && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">
+              No se encontró la hoja de firmas en el escaneo ({corteState.totalPaginas} hojas).
+            </p>
+            <p className="text-xs mt-1">
+              Se sube entero. Si trae adjuntos adentro, van a quedar dentro del documento
+              que se firma.
+            </p>
           </div>
         </div>
       )}

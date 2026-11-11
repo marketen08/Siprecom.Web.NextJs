@@ -79,6 +79,15 @@ export interface ElementoTarea {
    * Habilita el ítem "Descargar adjuntos" del menú de acciones.
    */
   adjuntosTotal?: number
+  /**
+   * El usuario actual puede descartar la carga en papel de esta tarea: está en APROBADO,
+   * el registro es un escaneo sin ninguna firma electrónica, y él es Admin o fue quien la
+   * subió dentro de las últimas 24 horas.
+   *
+   * Lo calcula el backend. No se reimplementa acá a propósito: la regla mezcla el estado
+   * del registro, quién lo cargó y una ventana de tiempo, y dos copias se separan.
+   */
+  puedeEliminarCargaFisica?: boolean
 
   // Planilla asociada a la Tarea
   planillaId: string | null
