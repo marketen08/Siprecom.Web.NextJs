@@ -61,7 +61,9 @@ export function useTareaHandlers() {
     if (!tarea.planillaId) return
     const bloqueo = await verificarGate(tarea.id)
     if (bloqueo) { setErrorGate(bloqueo); return }
-    router.push(`/ejecucion/registros/et/${tarea.planillaId}/${tarea.id}`)
+    // Un solo segmento: la pantalla deduce la planilla de la tarea. El guard de
+    // arriba sigue siendo sobre si la tarea TIENE planilla, que es otra cosa.
+    router.push(`/ejecucion/registros/et/${tarea.id}`)
   }, [router])
 
   const handleReiniciar = useCallback(async (tarea: ElementoTarea, motivo?: string) => {

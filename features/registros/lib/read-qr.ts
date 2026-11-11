@@ -17,7 +17,11 @@ export interface QrLeidoResult {
    * conserva su nombre por compat con los callers — el shape es equivalente.
    */
   esChecklist: boolean
-  /** GUID de la planilla (lowercased) cuando `esChecklist=true`. */
+  /**
+   * GUID de la planilla (lowercased), o null. **Es null en los QRs actuales**: el
+   * contenido lleva sólo la ElementoTarea y la planilla se deduce de ella. Sólo viene
+   * con valor leyendo papel impreso antes de ese cambio. Nada debe exigirlo.
+   */
   planillaId: string | null
   /** GUID de la ElementoTarea (lowercased) cuando `esChecklist=true`. */
   elementoTareaId: string | null
@@ -291,33 +295,53 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
   const partes = contenido.split(/[\\/?#\s]+/).filter(Boolean)
   const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-  // Formato tareas — tres variantes soportadas (migración por fases):
-  //   1) Path corto (actual): /qr/{planillaId}/{elementoTareaId}          ← QRs generados hoy
-  //   2) Intermedio (Fase 2): /ejecucion/registros/{planillaId}/{etId}    ← QRs impresos entre Fase 2 y ahora
-  //   3) Legacy (pre-Fase 2): /checklist/{planillaId}/{elementoTareaId}   ← QRs impresos antes de la migración
+  // Formato tareas — cuatro variantes soportadas (migración por fases):
+  //   1) Actual:              /qr/{elementoTareaId}                       ← QRs generados hoy
+  //   2) Fase 3:              /qr/{planillaId}/{elementoTareaId}          ← ids comprimidos, 2 segmentos
+  //   3) Intermedio (Fase 2): /ejecucion/registros/{planillaId}/{etId}
+  //   4) Legacy (pre-Fase 2): /checklist/{planillaId}/{elementoTareaId}
   //
-  // Los tres devuelven el mismo shape para no romper los callers.
-  for (let i = 0; i < partes.length - 2; i++) {
+  // Las cuatro devuelven el mismo shape para no romper los callers; en la actual,
+  // planillaId viene null.
+  for (let i = 0; i < partes.length - 1; i++) {
     const seg = partes[i].toLowerCase()
 
-    // Path corto actual: "qr" seguido de los 2 ids. Acepta el GUID entero (papel ya
-    // impreso) y el token de 22 caracteres (lo que genera el backend hoy) — ver
-    // qr-id.ts para por qué se comprimen. Sólo esta variante los acepta: las dos
-    // legacy son de QRs que ya existen y nunca van a traer tokens.
+    // Path corto. Acepta el GUID entero (papel viejo) y el token de 22 caracteres —
+    // ver qr-id.ts para por qué se comprimen. Sólo esta variante acepta tokens: las
+    // dos legacy son de QRs que ya existen y nunca van a traer uno.
+    //
+    // Se prueba PRIMERO la forma de 2 segmentos: en el papel que la tiene, el primer
+    // id es la planilla, y leerlo como si fuera la ElementoTarea resolvería a otra
+    // tarea. Sólo si no hay un segundo id válido se interpreta el único como la
+    // ElementoTarea, que es el formato actual.
     if (seg === "qr") {
-      const planillaId = idDesdeSegmentoQr(partes[i + 1])
-      const elementoTareaId = idDesdeSegmentoQr(partes[i + 2])
-      if (planillaId && elementoTareaId) {
+      const primero = idDesdeSegmentoQr(partes[i + 1])
+      const segundo = i + 2 < partes.length ? idDesdeSegmentoQr(partes[i + 2]) : null
+
+      if (primero && segundo) {
         return emptyResult({
           qrEncontrado: true,
           esChecklist: true,
-          planillaId,
-          elementoTareaId,
+          planillaId: primero,
+          elementoTareaId: segundo,
+          contenidoQr: contenido,
+          rotacionDetectada,
+        })
+      }
+      if (primero) {
+        return emptyResult({
+          qrEncontrado: true,
+          esChecklist: true,
+          planillaId: null,
+          elementoTareaId: primero,
           contenidoQr: contenido,
           rotacionDetectada,
         })
       }
     }
+
+    // Las tres variantes de abajo necesitan al menos 2 segmentos mas.
+    if (i + 2 >= partes.length) continue
 
     // Legacy: "checklist" seguido de 2 GUIDs.
     if (seg === "checklist"

@@ -41,8 +41,14 @@ function useGetElementoTarea(id: string) {
 function CargarPdfContent() {
   const params  = useParams()
   const router  = useRouter()
-  const elementoTareaId = params.elementoTareaId as string
-  const planillaIdEsperada = (params.planillaId as string).toLowerCase()
+
+  // Ruta catch-all: acepta /et/{elementoTareaId} (lo que redirige el QR de hoy) y
+  // /et/{planillaId}/{elementoTareaId} (los QRs viejos y el redirect de /checklist).
+  // Siempre interesa el ÚLTIMO segmento; la planilla se deduce de la tarea, así que
+  // un primer segmento, si viene, se ignora.
+  const ids = params.ids
+  const segmentos = Array.isArray(ids) ? ids : ids ? [ids] : []
+  const elementoTareaId = segmentos[segmentos.length - 1] ?? ""
   const elementoTareaIdEsperada = elementoTareaId.toLowerCase()
 
   const queryClient = useQueryClient()
@@ -103,7 +109,10 @@ function CargarPdfContent() {
 
   // Planilla: si es carátula, el respaldo de la tarea son los adjuntos — se piden
   // primero y, si la planilla los exige, sin adjuntos no se puede subir la carátula.
-  const { data: planillaRaw } = useGetPlanilla(planillaIdEsperada)
+  // La planilla sale de la tarea y no de la URL: el QR ya no la lleva. Encadena al
+  // fetch de la tarea igual que el elemento de arriba.
+  const planillaIdEsperada = (tarea?.planillaId ?? "").toLowerCase()
+  const { data: planillaRaw } = useGetPlanilla(planillaIdEsperada || null)
   const planilla = ((planillaRaw as { data?: Planilla } | undefined)?.data ?? planillaRaw) as Planilla | undefined
   const esCaratula = planilla?.esCaratula ?? false
   const exigeAdjuntos = planilla?.exigeDocumentacionAdjunta ?? false

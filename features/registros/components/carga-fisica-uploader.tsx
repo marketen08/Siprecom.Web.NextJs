@@ -259,9 +259,17 @@ export function CargaFisicaUploader({
     if (!result.esChecklist) {
       setQrState({ kind: "missing", result })
     } else {
-      const matchea =
-        result.planillaId === esperadoPlanillaId &&
-        result.elementoTareaId === esperadoElementoTareaId
+      // La ElementoTarea es la que manda, y alcanza: determina la planilla. Los QRs
+      // actuales traen sólo eso (planillaId viene null) y la comparación no pierde
+      // fuerza — el id más específico de los dos es el que se compara igual.
+      //
+      // Si el papel es viejo y SÍ trae la planilla, se exige que también coincida:
+      // que venga una planilla distinta con la tarea correcta significa que el QR no
+      // es el que creemos, y eso vale la pena frenarlo.
+      const matcheaTarea = result.elementoTareaId === esperadoElementoTareaId
+      const matcheaPlanilla =
+        result.planillaId === null || result.planillaId === esperadoPlanillaId
+      const matchea = matcheaTarea && matcheaPlanilla
       setQrState({ kind: matchea ? "ok" : "mismatch", result })
     }
 
@@ -363,7 +371,8 @@ export function CargaFisicaUploader({
       const r = qrState.result
       params.qrOverrideDetalle = (
         `esperado planilla=${esperadoPlanillaId} tarea=${esperadoElementoTareaId} · ` +
-        `encontrado planilla=${r.planillaId ?? "?"} tarea=${r.elementoTareaId ?? "?"}`
+        `encontrado planilla=${r.planillaId ?? "(no viene en el QR)"} ` +
+        `tarea=${r.elementoTareaId ?? "?"}`
       ).slice(0, 500)
     }
     if (firmaState?.kind === "no-detectada" && forzarOverride) {
@@ -681,7 +690,10 @@ export function CargaFisicaUploader({
               </p>
               <p>
                 <span className="text-muted-foreground">Encontrado:</span>{" "}
-                <span className="font-mono">planilla {qrState.result.planillaId ?? "—"}</span> /{" "}
+                <span className="font-mono">
+                  planilla {qrState.result.planillaId ?? "(no viene en el QR)"}
+                </span>{" "}
+                /{" "}
                 <span className="font-mono">tarea {qrState.result.elementoTareaId ?? "—"}</span>
               </p>
             </div>
