@@ -2,6 +2,8 @@
 
 import jsQR from "jsqr"
 
+import { idDesdeSegmentoQr } from "./qr-id"
+
 /**
  * Resultado de leer el QR de un archivo. Espeja el `QrReaderResult` que usa la app
  * WinForms para carga masiva (Siprecom.Win.Local/Services/QrReaderService.cs).
@@ -298,18 +300,23 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
   for (let i = 0; i < partes.length - 2; i++) {
     const seg = partes[i].toLowerCase()
 
-    // Path corto actual: "qr" seguido de 2 GUIDs.
-    if (seg === "qr"
-        && guidRe.test(partes[i + 1])
-        && guidRe.test(partes[i + 2])) {
-      return emptyResult({
-        qrEncontrado: true,
-        esChecklist: true,
-        planillaId: partes[i + 1].toLowerCase(),
-        elementoTareaId: partes[i + 2].toLowerCase(),
-        contenidoQr: contenido,
-        rotacionDetectada,
-      })
+    // Path corto actual: "qr" seguido de los 2 ids. Acepta el GUID entero (papel ya
+    // impreso) y el token de 22 caracteres (lo que genera el backend hoy) — ver
+    // qr-id.ts para por qué se comprimen. Sólo esta variante los acepta: las dos
+    // legacy son de QRs que ya existen y nunca van a traer tokens.
+    if (seg === "qr") {
+      const planillaId = idDesdeSegmentoQr(partes[i + 1])
+      const elementoTareaId = idDesdeSegmentoQr(partes[i + 2])
+      if (planillaId && elementoTareaId) {
+        return emptyResult({
+          qrEncontrado: true,
+          esChecklist: true,
+          planillaId,
+          elementoTareaId,
+          contenidoQr: contenido,
+          rotacionDetectada,
+        })
+      }
     }
 
     // Legacy: "checklist" seguido de 2 GUIDs.
@@ -360,7 +367,9 @@ function parseChecklistUrl(contenido: string, rotacionDetectada: Angulo): QrLeid
   return emptyResult({
     qrEncontrado: true,
     contenidoQr: contenido,
-    error: "El QR no es de carga (se esperaba /qr/{...}/{...}, /ejecucion/registros/{...}/{...}, /checklist/{...}/{...} o /pendiente-carga/{...}).",
+    error:
+      "El QR no es de carga (se esperaba /qr/{...}/{...}, /ejecucion/registros/{...}/{...}, " +
+      "/checklist/{...}/{...} o /pendiente-carga/{...}).",
     rotacionDetectada,
   })
 }
