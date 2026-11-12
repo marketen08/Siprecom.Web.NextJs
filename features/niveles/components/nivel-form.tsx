@@ -37,6 +37,7 @@ export function NivelForm({ defaultValues, onSubmit, isPending, onCancel, errorM
       nombre: defaultValues?.nombre ?? "",
       posicion: defaultValues?.posicion ?? 0,
       color: defaultValues?.color ?? null,
+      nombreDocumento: defaultValues?.nombreDocumento ?? null,
     },
   })
 
@@ -63,6 +64,34 @@ export function NivelForm({ defaultValues, onSubmit, isPending, onCancel, errorM
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="nombreDocumento"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre del documento</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Databook"
+                    disabled={isPending}
+                    maxLength={50}
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(e.target.value || null)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Cómo se llama el entregable que agrupa los registros de este nivel:
+                  comisionado le dice <strong>Dossier</strong> y calidad{" "}
+                  <strong>Databook</strong>. Define el nombre en el menú, el título de
+                  la tapa del PDF y el nombre del archivo que se descarga. Si varios
+                  niveles usan el mismo nombre, en el menú aparece una sola opción.
+                  Vacío = &quot;Databook&quot;.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

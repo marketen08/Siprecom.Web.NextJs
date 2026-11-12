@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import {
   AlertCircle, CheckCircle2, ChevronLeft, Download,
@@ -13,6 +13,8 @@ import {
   useGetDatabookJobs,
 } from "@/features/databook/api/use-databook"
 import { EstadoDatabookJob, type DatabookJob } from "@/features/databook/types"
+import { DOCUMENTO_DEFAULT } from "@/features/databook/lib/documento"
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +24,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+
+/** "Databook" → "Databooks". Sin inventar reglas: sólo agrega la s si falta. */
+function plural(s: string): string {
+  return s.endsWith("s") ? s : `${s}s`
+}
 
 function fmtBytes(b: number | null): string {
   if (!b) return "—"
@@ -48,6 +55,29 @@ export default function DatabookHistorialPage() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   const jobs = data ?? []
+
+  // Con qué palabra hablarle al usuario. El historial mezcla documentos de
+  // distintos niveles, así que: si todos los jobs son del mismo tipo usamos esa
+  // palabra, y si convive más de una caemos a la genérica — "Mis dossiers" sería
+  // mentira en una lista que también tiene databooks.
+  const documento = useMemo(() => {
+    const nombres = [...new Set(
+      jobs.map((j) => j.nombreDocumento?.trim() || DOCUMENTO_DEFAULT),
+    )]
+    if (nombres.length === 0) return DOCUMENTO_DEFAULT
+    return nombres.length === 1 ? nombres[0] : "documento"
+  }, [jobs])
+  const documentoMin = documento.toLocaleLowerCase("es")
+
+  useBreadcrumb([
+    { label: "Análisis" },
+    { label: "Reportes" },
+    { label: plural(documento), href: "/reporte/databook" },
+    { label: "Historial" },
+  ])
+  // La columna de filtros aclara de qué documento es cada fila sólo cuando hay
+  // más de uno; con un vocabulario único sería ruido repetido en cada fila.
+  const mostrarDocumento = documento === "documento"
   const activos = jobs.filter(
     (j) =>
       j.estado === EstadoDatabookJob.PENDIENTE ||
@@ -87,9 +117,9 @@ export default function DatabookHistorialPage() {
           >
             <ChevronLeft className="h-3.5 w-3.5" /> Generar nuevo
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Mis Databooks</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Mis {plural(documento)}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Historial de databooks generados. {activos.length > 0 && (
+            Historial de {plural(documentoMin)} generados. {activos.length > 0 && (
               <span className="text-blue-700 font-medium">
                 {activos.length} en curso · actualizando cada 5 segundos
                 {isFetching && <Loader2 className="inline h-3 w-3 animate-spin ml-1.5" />}
@@ -98,7 +128,7 @@ export default function DatabookHistorialPage() {
           </p>
         </div>
         <Button asChild className="bg-blue-900 hover:bg-blue-800 gap-1.5 shrink-0">
-          <Link href="/reporte/databook"><Plus className="h-4 w-4" /> Nuevo databook</Link>
+          <Link href="/reporte/databook"><Plus className="h-4 w-4" /> Nuevo {documentoMin}</Link>
         </Button>
       </div>
 
@@ -121,7 +151,7 @@ export default function DatabookHistorialPage() {
         </div>
       ) : jobs.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
-          <p className="text-sm text-muted-foreground mb-3">Todavía no generaste ningún databook.</p>
+          <p className="text-sm text-muted-foreground mb-3">Todavía no generaste ningún {documentoMin}.</p>
           <Button asChild className="bg-blue-900 hover:bg-blue-800 gap-1.5">
             <Link href="/reporte/databook"><Plus className="h-4 w-4" /> Generar el primero</Link>
           </Button>
@@ -147,6 +177,7 @@ export default function DatabookHistorialPage() {
                 onDescargar={() => handleDescargar(j)}
                 onEliminar={() => setConfirmDelete(j)}
                 downloading={downloadingId === j.id}
+                mostrarDocumento={mostrarDocumento}
               />)}
             </TableBody>
           </Table>
@@ -156,7 +187,7 @@ export default function DatabookHistorialPage() {
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar el databook?</AlertDialogTitle>
+            <AlertDialogTitle>¿Eliminar el {documentoMin}?</AlertDialogTitle>
             <AlertDialogDescription>
               Se va a borrar el registro y el PDF generado.
               {confirmDelete?.subSistemaCodigo && (
@@ -183,12 +214,14 @@ export default function DatabookHistorialPage() {
 }
 
 function FilaJob({
-  job, onDescargar, onEliminar, downloading,
+  job, onDescargar, onEliminar, downloading, mostrarDocumento,
 }: {
   job: DatabookJob
   onDescargar: () => void
   onEliminar: () => void
   downloading: boolean
+  /** True cuando el listado mezcla dossiers y databooks. */
+  mostrarDocumento: boolean
 }) {
   const icono = (() => {
     switch (job.estado) {
@@ -221,6 +254,11 @@ function FilaJob({
         )}
       </TableCell>
       <TableCell className="align-top text-xs text-muted-foreground space-y-0.5">
+        {mostrarDocumento && (
+          <div className="font-medium text-gray-700">
+            {job.nombreDocumento?.trim() || DOCUMENTO_DEFAULT}
+          </div>
+        )}
         {job.nivelNombre && <div>Nivel: {job.nivelNombre}</div>}
         {job.especialidadNombre && <div>Especialidad: {job.especialidadNombre}</div>}
         {!job.nivelNombre && !job.especialidadNombre && <span>Todos</span>}
