@@ -11,10 +11,55 @@ import { useMounted } from "@/lib/use-mounted"
 import { useGetMisProyectos } from "@/features/auth/api/use-get-mis-proyectos"
 import { useGetPerfil } from "@/features/auth/api/use-get-perfil"
 import { useFuncionalidadesPlataforma } from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
+import { useGetNivelesSelect } from "@/features/niveles/api/use-get-niveles-select"
+import {
+  agruparPorDocumento,
+  type GrupoDocumento,
+} from "@/features/databook/lib/documento"
 import { type AppRole } from "@/lib/roles"
 import { esVisible } from "@/lib/nav-visibilidad"
 import { menu, type MenuItem } from "@/lib/nav-menu"
 import { SidebarBadge } from "@/components/sidebar-badge"
+
+/**
+ * Path sin querystring. Los items generados llevan `?doc=Dossier` para
+ * preseleccionar el filtro, y la comparación contra `pathname` —que nunca trae
+ * query— tiene que hacerse sobre el path solo. Sin esto la sección "Reportes" no
+ * se abría sola al estar parado en la pantalla.
+ *
+ * Efecto lateral aceptado: si hay dos items al mismo path (Dossier y Databook),
+ * los dos se marcan activos a la vez. Es el resaltado del sidebar, no la
+ * navegación.
+ */
+function soloPath(href: string): string {
+  return href.split("?")[0]
+}
+
+/**
+ * Reemplaza los items marcados con `expandir` por los items reales.
+ *
+ * Hoy sólo "documentos-databook": un item por nombre de documento distinto entre
+ * los Niveles. Con un único nombre queda UN item y sin `?doc=` — así la pantalla
+ * sigue ofreciendo "todos los niveles", que es el caso normal cuando el cliente
+ * usa una sola palabra. Con dos o más, cada item acota la pantalla a su grupo.
+ */
+function expandirItems(items: MenuItem[], documentos: GrupoDocumento[]): MenuItem[] {
+  return items.flatMap((item) => {
+    if (item.expandir !== "documentos-databook") return [item]
+
+    const base: MenuItem = { ...item, expandir: undefined }
+    // Todavía no cargaron los niveles: queda el fallback declarado en el menú.
+    if (documentos.length === 0) return [base]
+    if (documentos.length === 1) return [{ ...base, label: documentos[0].nombre }]
+
+    const path = soloPath(item.href ?? "/reporte/databook")
+    return documentos.map((g) => ({
+      ...base,
+      label: g.nombre,
+      href: `${path}?doc=${encodeURIComponent(g.nombre)}`,
+    }))
+  })
+}
 
 function NavLink({
   href, label, depth, onNavigate, badge,
@@ -27,7 +72,7 @@ function NavLink({
   badge?: React.ReactNode
 }) {
   const pathname = usePathname()
-  const isActive = pathname === href
+  const isActive = pathname === soloPath(href)
 
   return (
     <Link
@@ -48,7 +93,7 @@ function NavLink({
 }
 
 function hasActiveChild(item: MenuItem, pathname: string): boolean {
-  if (item.href && pathname.startsWith(item.href)) return true
+  if (item.href && pathname.startsWith(soloPath(item.href))) return true
   return item.children?.some((child) => hasActiveChild(child, pathname)) ?? false
 }
 
@@ -73,7 +118,7 @@ function recolectarClaves(items: MenuItem[], parentKey?: string): string[] {
 
 function SidebarItem({
   item, depth = 0, onNavigate, roles, inheritedMin, funcionalidades, permisos,
-  parentKey, abiertos, setAbierto,
+  parentKey, abiertos, setAbierto, documentos,
 }: {
   item: MenuItem
   depth?: number
@@ -93,6 +138,8 @@ function SidebarItem({
    */
   abiertos: Record<string, boolean>
   setAbierto: (key: string, value: boolean) => void
+  /** Nombres de documento (Dossier / Databook) con los que se expanden items. */
+  documentos: GrupoDocumento[]
 }) {
   const pathname = usePathname()
   const key = claveSeccion(item.label, parentKey)
@@ -145,7 +192,7 @@ function SidebarItem({
       >
         <div className="overflow-hidden">
           <div className="mt-0.5 space-y-0.5 pb-1">
-            {item.children?.map((child) => (
+            {expandirItems(item.children ?? [], documentos).map((child) => (
               <SidebarItem
                 key={child.label}
                 item={child}
@@ -159,6 +206,7 @@ function SidebarItem({
                 parentKey={key}
                 abiertos={abiertos}
                 setAbierto={setAbierto}
+                documentos={documentos}
               />
             ))}
           </div>
@@ -231,6 +279,16 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
     "area-seguimiento-calidad": perfil?.esAreaSeguimientoCalidad === true,
   }
 
+  // Nombres de documento con los que se expanden items del menú (hoy el
+  // databook/dossier). Se piden TODOS los niveles y no sólo los usados por el
+  // proyecto activo: sin proyecto activo /niveles/usados viene vacío y el item
+  // desaparecería del menú.
+  const { data: nivelesData } = useGetNivelesSelect()
+  const documentos = useMemo(
+    () => agruparPorDocumento(nivelesData?.data ?? []),
+    [nivelesData],
+  )
+
   const { data: plataforma } = useFuncionalidadesPlataforma()
   const funcionalidades: Record<string, boolean> = {
     ...(plataforma ?? {}),
@@ -277,7 +335,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
         </div>
 
         <nav className="pb-4 pt-1 space-y-1">
-          {menu.map((section) => (
+          {expandirItems(menu, documentos).map((section) => (
             <SidebarItem
               key={section.label}
               item={section}
@@ -289,6 +347,7 @@ export function Sidebar({ drawer = false }: { drawer?: boolean }) {
               funcionalidades={funcionalidades}
               abiertos={abiertos}
               setAbierto={setAbierto}
+              documentos={documentos}
             />
           ))}
         </nav>

@@ -52,6 +52,12 @@ export interface DatabookJob {
 
   nivelId: string | null
   nivelNombre: string | null
+  /**
+   * Cómo se llama este entregable para el cliente — "Dossier" en comisionado,
+   * "Databook" en calidad. Lo define el Nivel y el backend lo manda ya resuelto
+   * (nunca null, aunque el job no tenga nivel).
+   */
+  nombreDocumento: string | null
   especialidadId: string | null
   especialidadNombre: string | null
 

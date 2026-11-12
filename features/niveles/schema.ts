@@ -15,6 +15,13 @@ export const nivelSchema = z.object({
     .regex(/^#([0-9a-f]{6}|[0-9a-f]{8})$/i, "El color debe ser un hex válido (#RRGGBB o #RRGGBBAA)")
     .nullable()
     .optional(),
+  // Vacío es válido: cae al default ("Databook"). Se guarda null y no "" para
+  // que el backend no tenga que distinguir entre los dos.
+  nombreDocumento: z
+    .string()
+    .max(50, "El nombre del documento no puede superar los 50 caracteres")
+    .nullable()
+    .optional(),
 })
 
 export type NivelFormValues = z.infer<typeof nivelSchema>
