@@ -10,10 +10,19 @@ import {
   useSolicitarDatabook,
 } from "@/features/databook/api/use-databook"
 import { downloadPdf } from "@/features/estadisticas/api/download-pdf"
+import { useBreadcrumb } from "@/components/breadcrumb-context"
 
 import { useGetSistemasSelect } from "@/features/sistemas/api/use-get-sistemas-select"
 import { useGetSubSistemasSelect } from "@/features/subsistemas/api/use-get-subsistemas-select"
-import { useGetNivelesUsadosSelect } from "@/features/niveles/api/use-get-niveles-select"
+import {
+  useGetNivelesSelect,
+  useGetNivelesUsadosSelect,
+} from "@/features/niveles/api/use-get-niveles-select"
+import {
+  agruparPorDocumento,
+  grupoDeLaUrl,
+  DOCUMENTO_DEFAULT,
+} from "@/features/databook/lib/documento"
 import { useGetEspecialidadesUsadas } from "@/features/especialidades/api/use-especialidades"
 
 import { Button } from "@/components/ui/button"
@@ -35,6 +44,10 @@ function DatabookFormContent() {
   // Pre-cargar desde URL (atajo desde /alcance/subsistemas).
   const sistemaIdInicial      = sp.get("sistemaId")      ?? ""
   const subSistemaIdInicial   = sp.get("subSistemaId")   ?? ""
+  // Qué documento se vino a generar: "Dossier" o "Databook". Lo pone el item del
+  // sidebar, que se genera con los nombres que tienen los Niveles. Ver
+  // features/databook/lib/documento.ts.
+  const docParam              = sp.get("doc")
 
   const [sistemaId, setSistemaId]           = useState<string>(sistemaIdInicial)
   const [subSistemaId, setSubSistemaId]     = useState<string>(subSistemaIdInicial)
@@ -56,6 +69,10 @@ function DatabookFormContent() {
       | { data?: Array<{ id: string; nombre: string; posicion?: number }> }
       | Array<{ id: string; nombre: string; posicion?: number }>
       | undefined)
+  // Todos los niveles, no sólo los usados: los grupos de documento se calculan
+  // sobre el catálogo completo, igual que en el sidebar, para que el `?doc=` que
+  // trae la URL resuelva siempre al mismo grupo.
+  const todosLosNiveles = useGetNivelesSelect().data?.data ?? []
   const especialidadesData = useGetEspecialidadesUsadas().data?.data ?? []
 
   const nivelesOrdenados = useMemo(() => {
@@ -64,6 +81,36 @@ function DatabookFormContent() {
       : niveles?.data ?? []
     return [...arr].sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0))
   }, [niveles])
+
+  // ── Qué documento es esto ───────────────────────────────────────────────
+  // Comisionado le dice "dossier" y calidad "databook" a la misma cosa. La
+  // palabra sale del Nivel; varios niveles pueden compartirla.
+  const grupos = useMemo(() => agruparPorDocumento(todosLosNiveles), [todosLosNiveles])
+  const grupo  = useMemo(() => grupoDeLaUrl(grupos, docParam), [grupos, docParam])
+
+  const documento = grupo?.nombre
+    ?? (grupos.length === 1 ? grupos[0].nombre : DOCUMENTO_DEFAULT)
+  const documentoMin = documento.toLocaleLowerCase("es")
+  const documentoPlural = documento.endsWith("s") ? documento : `${documento}s`
+
+  // Niveles que se ofrecen. Si la pantalla está acotada a un documento, sólo los
+  // de ese grupo; si ninguno de ellos tiene tareas en el proyecto activo
+  // mostramos el grupo completo igual, para que la pantalla no quede sin opciones.
+  const nivelesOpciones = useMemo(() => {
+    if (!grupo) return nivelesOrdenados
+    const conTareas = nivelesOrdenados.filter(
+      (n) => grupo.niveles.some((g) => g.id === n.id),
+    )
+    return conTareas.length > 0 ? conTareas : grupo.niveles
+  }, [grupo, nivelesOrdenados])
+
+  // Con la pantalla acotada a un grupo, "todos los niveles" no es expresable: el
+  // job lleva UN nivelId, y mandarlo en null metería los niveles de los otros
+  // documentos (el databook de calidad dentro del dossier de comisionado). Así
+  // que ahí el nivel es obligatorio; si el grupo tiene uno solo, ya viene elegido.
+  const nivelObligatorio = !!grupo
+  const nivelEfectivo = nivelId
+    || (nivelObligatorio && nivelesOpciones.length === 1 ? nivelesOpciones[0].id : "")
 
   // Subsistemas del sistema elegido. Si no hay sistema, mostramos todos.
   const subsistemasVisibles = useMemo(() => {
@@ -77,6 +124,11 @@ function DatabookFormContent() {
     e.preventDefault()
     setFormError(null)
 
+    if (nivelObligatorio && !nivelEfectivo) {
+      setFormError(`Elegí un nivel: el ${documentoMin} se genera de un nivel a la vez.`)
+      return
+    }
+
     // Las carátulas se descargan en el acto y son unas pocas páginas, así que no
     // pasan por la cola ni por la advertencia de "esto puede pesar cientos de MB".
     if (soloCaratulas) {
@@ -89,7 +141,7 @@ function DatabookFormContent() {
     // avisamos via AlertDialog: el databook va a abarcar TODO el proyecto y
     // puede ser enorme. La confirmación dispara enviarSolicitud(); cancelar
     // lo cierra sin enviar.
-    if (!subSistemaId && !nivelId && !especialidadId) {
+    if (!subSistemaId && !nivelEfectivo && !especialidadId) {
       setWarningOpen(true)
       return
     }
@@ -102,7 +154,7 @@ function DatabookFormContent() {
       await downloadPdf(
         buildCaratulasPdfUrl({
           subSistemaId:   subSistemaId   || null,
-          nivelId:        nivelId        || null,
+          nivelId:        nivelEfectivo  || null,
           especialidadId: especialidadId || null,
           incluirIndice,
         }),
@@ -120,7 +172,7 @@ function DatabookFormContent() {
     try {
       await solicitar.mutateAsync({
         subSistemaId:     subSistemaId   || null,
-        nivelId:          nivelId        || null,
+        nivelId:          nivelEfectivo  || null,
         especialidadId:   especialidadId || null,
         notificarPorEmail: notificarEmail,
       })
@@ -130,6 +182,13 @@ function DatabookFormContent() {
     }
   }
 
+  // Mismo trail que armaría el menú, con la palabra del documento.
+  useBreadcrumb([
+    { label: "Análisis" },
+    { label: "Reportes" },
+    { label: documento, href: "/reporte/databook" },
+  ])
+
   const subSel = todosSubsistemas.find((s) => s.id === subSistemaId)
   const ocupado = solicitar.isPending || descargando
 
@@ -137,7 +196,7 @@ function DatabookFormContent() {
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Generar Databook</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Generar {documento}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Genera un PDF compuesto por la carátula, el listado índice y los registros
             completados del SubSistema seleccionado. Como puede tardar varios minutos,
@@ -148,7 +207,7 @@ function DatabookFormContent() {
           href="/reporte/databook/historial"
           className="text-sm text-blue-700 hover:underline whitespace-nowrap flex items-center gap-1.5"
         >
-          Mis databooks <ArrowRight className="h-3.5 w-3.5" />
+          Mis {documentoPlural.toLocaleLowerCase("es")} <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 
@@ -223,25 +282,31 @@ function DatabookFormContent() {
         <div className="space-y-1.5">
           <Label>Nivel</Label>
           <Select
-            value={nivelId || ALL}
+            value={nivelEfectivo || ALL}
             onValueChange={(v) => setNivelId(!v || v === ALL ? "" : v)}
+            disabled={nivelObligatorio && nivelesOpciones.length <= 1}
           >
             <SelectTrigger>
               <SelectValue>
-                {nivelId
-                  ? nivelesOrdenados.find((n) => n.id === nivelId)?.nombre ?? "—"
-                  : "Todos los niveles"}
+                {nivelEfectivo
+                  ? nivelesOpciones.find((n) => n.id === nivelEfectivo)?.nombre ?? "—"
+                  : nivelObligatorio ? "Elegí un nivel" : "Todos los niveles"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Todos los niveles</SelectItem>
-              {nivelesOrdenados.map((n) => (
+              {/* Sin "todos" cuando el documento abarca sólo algunos niveles. */}
+              {!nivelObligatorio && <SelectItem value={ALL}>Todos los niveles</SelectItem>}
+              {nivelesOpciones.map((n) => (
                 <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Opcional. Si elegís uno, el databook incluye solo los registros de ese nivel.
+            {nivelObligatorio
+              ? (nivelesOpciones.length > 1
+                  ? `El ${documentoMin} sale de un nivel a la vez. Elegí cuál: ${nivelesOpciones.map((n) => n.nombre).join(", ")}.`
+                  : `Fijado al único nivel que genera ${documentoMin}.`)
+              : `Opcional. Si elegís uno, el ${documentoMin} incluye solo los registros de ese nivel.`}
           </p>
         </div>
 
@@ -293,7 +358,7 @@ function DatabookFormContent() {
                 Solo carátulas (para imprimir separadores)
               </Label>
               <p className="text-xs text-muted-foreground">
-                Genera un PDF con la carátula del databook y una carátula por subsistema,
+                Genera un PDF con la carátula del {documentoMin} y una carátula por subsistema,
                 sin registros ni adjuntos. Se descarga al instante. Entran todos los
                 subsistemas del alcance, incluso los que todavía no tienen registros.
               </p>
@@ -363,19 +428,19 @@ function DatabookFormContent() {
                 : <Sparkles className="h-4 w-4" />}
             {soloCaratulas
               ? (descargando ? "Generando..." : "Descargar carátulas")
-              : (solicitar.isPending ? "Encolando..." : "Generar Databook")}
+              : (solicitar.isPending ? "Encolando..." : `Generar ${documento}`)}
           </Button>
           <Link
             href="/reporte/databook/historial"
             className="text-sm text-muted-foreground hover:text-gray-900 flex items-center gap-1.5"
           >
-            <BookText className="h-4 w-4" /> Ver mis databooks
+            <BookText className="h-4 w-4" /> Ver mis {documentoPlural.toLocaleLowerCase("es")}
           </Link>
         </div>
       </form>
 
       <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 text-sm text-blue-900 space-y-1.5">
-        <div className="font-semibold">¿Qué incluye el databook?</div>
+        <div className="font-semibold">¿Qué incluye el {documentoMin}?</div>
         <ul className="list-disc list-inside text-blue-800 space-y-0.5 text-[13px]">
           <li>Carátula con el subsistema, filtros y KPIs de avance.</li>
           <li>Listado índice de todas las tareas (Nivel → Sistema → SubSistema → Especialidad → Elemento).</li>
@@ -397,10 +462,10 @@ function DatabookFormContent() {
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-amber-600">
                 <AlertTriangle className="h-5 w-5" />
               </span>
-              Databook de todo el proyecto
+              {documento} de todo el proyecto
             </AlertDialogTitle>
             <AlertDialogDescription>
-              No elegiste filtros. El databook va a incluir{" "}
+              No elegiste filtros. El {documentoMin} va a incluir{" "}
               <strong className="text-foreground">todos los subsistemas, niveles y especialidades</strong> del proyecto.
             </AlertDialogDescription>
           </AlertDialogHeader>

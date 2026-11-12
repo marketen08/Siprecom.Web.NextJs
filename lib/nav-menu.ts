@@ -36,6 +36,21 @@ export type MenuItem = {
    */
   permiteAdemas?: PermisoExtraKey
   /**
+   * Este item no se dibuja tal cual: el Sidebar lo reemplaza por N items
+   * generados a partir de datos. Hoy una sola clave, "documentos-databook":
+   * un item por cada nombre de documento distinto que tengan los Niveles
+   * ("Dossier" en comisionado, "Databook" en calidad), que es el mismo feature
+   * con otra palabra. Varios niveles con el mismo nombre dan UN item.
+   *
+   * El `label` y el `href` que se declaran acá son el fallback mientras la
+   * lista de niveles no cargó: el menú no puede quedarse sin la entrada.
+   *
+   * Los gates (`minRole`, `requiereFuncionalidad`, …) se heredan a los items
+   * generados, así que se declaran una vez acá.
+   */
+  expandir?: "documentos-databook"
+
+  /**
    * Badge dinámico a mostrar al lado del label. El Sidebar mapea cada key a un
    * componente que hace su propio fetch. Sirve para contadores de "hay pendiente"
    * sin acoplar el menu a los hooks de datos.
@@ -120,7 +135,9 @@ export const menu: MenuItem[] = [
           { label: "Listado índice",         href: "/reporte/listado-indice" },
           { label: "Tareas realizadas",      href: "/reporte/tareas" },
           { label: "Listado de pendientes",  href: "/reporte/pendientes" },
-          { label: "Databook por subsistema", href: "/reporte/databook" },
+          // Un item por nombre de documento (Dossier / Databook) — lo expande
+          // el Sidebar con los Niveles. Ver `expandir` en MenuItem.
+          { label: "Databook", href: "/reporte/databook", expandir: "documentos-databook" },
           { label: "Certificados RFC/RFSU/AOC", href: "/reporte/certificados" },
         ],
       },

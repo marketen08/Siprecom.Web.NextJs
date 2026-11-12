@@ -87,6 +87,18 @@ export const columns: ColumnDef<Nivel>[] = [
     },
   },
   {
+    accessorKey: "nombreDocumento",
+    header: "Documento",
+    cell: ({ row }) => {
+      // Sin configurar mostramos el default en gris: deja ver de un saque qué
+      // niveles están nombrados y cuáles siguen cayendo a "Databook".
+      const doc = row.original.nombreDocumento?.trim()
+      return doc
+        ? <span className="text-sm">{doc}</span>
+        : <span className="text-sm text-muted-foreground">Databook</span>
+    },
+  },
+  {
     id: "actions",
     cell: ({ row }) => <RowActions nivel={row.original} />,
   },
