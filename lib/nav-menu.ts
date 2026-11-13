@@ -115,14 +115,30 @@ export const menu: MenuItem[] = [
       },
     ],
   },
-  // Calidad — QA/QC del proyecto. El item se oculta salvo que el proyecto tenga
-  // habilitada la funcionalidad: el módulo arranca apagado y se prende por
-  // proyecto, así que sin el flag no hay nada que mostrar.
+  // Calidad — QA/QC del proyecto. Cada hijo pide su propia funcionalidad: los
+  // informes, CALIDAD_NO_CONFORMIDADES; el control de soldadura, CALIDAD_SOLDADURA.
+  // Son independientes, así que el flag ya no va en la sección: la sección se
+  // muestra si alguno de sus hijos queda visible (ver `esVisible`), y desaparece
+  // sola cuando los dos módulos están apagados.
   {
     label: "Calidad",
     minRole: "Consultor",
-    requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES",
-    children: [{ label: "Informes", href: "/calidad/no-conformidades" }],
+    children: [
+      { label: "Informes", href: "/calidad/no-conformidades", requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES" },
+      {
+        label: "Soldadura",
+        requiereFuncionalidad: "CALIDAD_SOLDADURA",
+        children: [
+          { label: "Vencimientos",         href: "/calidad/soldadura" },
+          { label: "Soldadores",           href: "/calidad/soldadura/soldadores" },
+          { label: "Personal de END",      href: "/calidad/soldadura/personal-end" },
+          { label: "Procedimientos",       href: "/calidad/soldadura/procedimientos" },
+          { label: "Matriz de soldadura",  href: "/calidad/soldadura/matriz" },
+          { label: "Normas y clases",      href: "/calidad/soldadura/normas-clases" },
+          { label: "Importar desde Excel", href: "/calidad/soldadura/importar", minRole: "Supervisor" },
+        ],
+      },
+    ],
   },
   {
     label: "Análisis",
