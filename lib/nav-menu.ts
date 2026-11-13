@@ -126,28 +126,66 @@ export const menu: MenuItem[] = [
     children: [
       { label: "Informes", href: "/calidad/no-conformidades", requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES" },
       {
+        // Mismo criterio que Ejecución y Configuración: lo de todos los días queda suelto
+        // arriba (el tablero de vencimientos y las juntas) y el resto va en sub-grupos que
+        // siguen las etapas de la obra: inspección, cierre, datos de obra, personas y
+        // procedimientos. Importar y Configuración al final, como en Alcance y Planificación.
         label: "Soldadura",
         requiereFuncionalidad: "CALIDAD_SOLDADURA",
         children: [
-          { label: "Vencimientos",         href: "/calidad/soldadura" },
-          { label: "Juntas",               href: "/calidad/soldadura/juntas" },
-          { label: "Lotes",                href: "/calidad/soldadura/lotes" },
-          { label: "Ensayos e informes",   href: "/calidad/soldadura/ensayos" },
-          { label: "Tasa de reparación",   href: "/calidad/soldadura/tasa-reparacion" },
-          { label: "Cierre de tareas",     href: "/calidad/soldadura/cierre" },
-          { label: "Puntos de inspección", href: "/calidad/soldadura/agenda" },
-          { label: "Líneas",               href: "/calidad/soldadura/lineas" },
-          { label: "Piezas",               href: "/calidad/soldadura/piezas" },
-          { label: "Lotes de aporte",      href: "/calidad/soldadura/consumibles" },
-          { label: "Soldadores",           href: "/calidad/soldadura/soldadores" },
-          { label: "Personal de END",      href: "/calidad/soldadura/personal-end" },
-          { label: "Procedimientos",       href: "/calidad/soldadura/procedimientos" },
-          { label: "Matriz de soldadura",  href: "/calidad/soldadura/matriz" },
-          { label: "Normas y clases",      href: "/calidad/soldadura/normas-clases" },
-          { label: "Partes e intervenciones", href: "/calidad/soldadura/partes" },
-          { label: "Importar juntas",      href: "/calidad/soldadura/importar-juntas", minRole: "Supervisor" },
-          { label: "Importar catálogos",   href: "/calidad/soldadura/importar", minRole: "Supervisor" },
-          { label: "Configuración",        href: "/calidad/soldadura/configuracion", minRole: "Supervisor" },
+          { label: "Vencimientos", href: "/calidad/soldadura" },
+          { label: "Juntas",       href: "/calidad/soldadura/juntas" },
+          {
+            label: "Inspección y ensayos",
+            children: [
+              { label: "Lotes",              href: "/calidad/soldadura/lotes" },
+              { label: "Ensayos e informes", href: "/calidad/soldadura/ensayos" },
+              { label: "Tasa de reparación", href: "/calidad/soldadura/tasa-reparacion" },
+            ],
+          },
+          {
+            // Partes va acá y no con los catálogos: define quién interviene en cada tarea
+            // del PIE, que es lo que mira la agenda de puntos de inspección.
+            label: "Cierre",
+            children: [
+              { label: "Cierre de tareas",        href: "/calidad/soldadura/cierre" },
+              { label: "Puntos de inspección",    href: "/calidad/soldadura/agenda" },
+              { label: "Partes e intervenciones", href: "/calidad/soldadura/partes" },
+            ],
+          },
+          {
+            label: "Datos de obra",
+            children: [
+              { label: "Líneas",          href: "/calidad/soldadura/lineas" },
+              { label: "Piezas",          href: "/calidad/soldadura/piezas" },
+              { label: "Lotes de aporte", href: "/calidad/soldadura/consumibles" },
+            ],
+          },
+          {
+            label: "Personal",
+            children: [
+              { label: "Soldadores",      href: "/calidad/soldadura/soldadores" },
+              { label: "Personal de END", href: "/calidad/soldadura/personal-end" },
+            ],
+          },
+          {
+            label: "Procedimientos y normas",
+            children: [
+              { label: "WPS y PQR",           href: "/calidad/soldadura/procedimientos" },
+              { label: "Matriz de soldadura", href: "/calidad/soldadura/matriz" },
+              { label: "Normas y clases",     href: "/calidad/soldadura/normas-clases" },
+            ],
+          },
+          {
+            // minRole en el grupo para que User no vea el encabezado vacío.
+            label: "Importar",
+            minRole: "Supervisor",
+            children: [
+              { label: "Juntas",    href: "/calidad/soldadura/importar-juntas" },
+              { label: "Catálogos", href: "/calidad/soldadura/importar" },
+            ],
+          },
+          { label: "Configuración", href: "/calidad/soldadura/configuracion", minRole: "Supervisor" },
         ],
       },
     ],
