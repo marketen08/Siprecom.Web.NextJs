@@ -1,13 +1,75 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Plus, X } from "lucide-react"
 
 import type { PlanillaCampoDetalle } from "@/features/planillas/types"
 import { Button } from "@/components/ui/button"
+import { TABLA_MAX_FILAS, TABLA_MIN_FILAS } from "@/features/campos/lib/tabla-limites"
 
-export const TABLA_MIN_FILAS = 2
-export const TABLA_MAX_FILAS = 10
+// Se reexportan para no obligar a cambiar el import en todo lo que ya los traía de acá.
+// La definición vive en features/campos porque es un límite de la planilla, no de la carga.
+export { TABLA_MAX_FILAS, TABLA_MIN_FILAS }
+
+/**
+ * Parsea el texto que deja una planilla de cálculo en el portapapeles.
+ *
+ * Excel, Sheets y LibreOffice copian TSV: celdas separadas por tab, filas por salto de
+ * línea. La celda que contenga un tab, un salto o una comilla va entre comillas dobles, y
+ * las comillas de adentro se duplican. Hay que respetarlo: una observación de dos
+ * renglones —que en estos registros es de lo más común— rompería la grilla a partir de
+ * ahí, corriendo todas las columnas siguientes una fila para arriba.
+ *
+ * Devuelve siempre al menos una fila con al menos una celda.
+ */
+export function parseCeldasPegadas(texto: string): string[][] {
+  const filas: string[][] = []
+  let fila: string[] = []
+  let celda = ""
+  let enComillas = false
+
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i]
+
+    if (enComillas) {
+      if (c === '"') {
+        // Comilla duplicada = una comilla literal; si no, cierra el entrecomillado.
+        if (texto[i + 1] === '"') {
+          celda += '"'
+          i += 1
+        } else {
+          enComillas = false
+        }
+      } else {
+        celda += c
+      }
+      continue
+    }
+
+    // Sólo abre entrecomillado si la comilla arranca la celda: una comilla en el medio
+    // (p. ej. un diámetro 6") es texto, no sintaxis.
+    if (c === '"' && celda === "") {
+      enComillas = true
+    } else if (c === "\t") {
+      fila.push(celda)
+      celda = ""
+    } else if (c === "\n") {
+      fila.push(celda)
+      filas.push(fila)
+      fila = []
+      celda = ""
+    } else if (c !== "\r") {
+      celda += c
+    }
+  }
+  fila.push(celda)
+  filas.push(fila)
+
+  // Excel cierra con un salto de línea: la última fila queda vacía y no es un dato.
+  while (filas.length > 1 && filas[filas.length - 1].every((c) => c === "")) filas.pop()
+
+  return filas
+}
 
 /** Parsea el ValorJson { "filas": [ ["c1","c2"], ... ] } a matriz de strings, o null si es inválido. */
 export function parseTablaFilas(value: string | null | undefined): string[][] | null {
@@ -90,6 +152,29 @@ export function CampoTablaInput({
   )
   const esMatriz = filasDef.length > 0
 
+  // Dos índices distintos sobre las mismas columnas: la POSICIÓN en la grilla (cuenta la
+  // columna de rótulos y las de texto fijo) y el índice EDITABLE (sólo lo que se guarda en
+  // el ValorJson). El pegado necesita los dos, porque viene alineado con lo que se ve.
+  const { posDeEditable, editableDePos } = useMemo(() => {
+    const pde: number[] = []
+    const edp: Array<number | null> = []
+    let e = -1
+    for (const c of columnas) {
+      if (c.esColumnaEtiqueta) {
+        edp.push(null)
+        continue
+      }
+      e += 1
+      edp.push(e)
+      pde.push(edp.length - 1)
+    }
+    return { posDeEditable: pde, editableDePos: edp }
+  }, [columnas])
+
+  // Resultado del último pegado. Sin toasts en la app (los errores se muestran donde pasan),
+  // así que el aviso va debajo de la tabla y se borra en cuanto el operador sigue tipeando.
+  const [aviso, setAviso] = useState<{ texto: string; problema: boolean } | null>(null)
+
   // Filas actuales (solo celdas editables), derivadas del value o de la definición.
   const rows: string[][] = useMemo(() => {
     const parsed = parseTablaFilas(value)
@@ -109,18 +194,103 @@ export function CampoTablaInput({
   const emit = (next: string[][]) => onChange(JSON.stringify({ filas: next }))
 
   const setCell = (ri: number, ci: number, v: string) => {
+    setAviso(null)
     const next = rows.map((r) => [...r])
     next[ri][ci] = v
     emit(next)
   }
 
+  /**
+   * Pega un bloque de celdas copiado de Excel, tomando como esquina superior izquierda la
+   * celda donde el operador pegó.
+   *
+   * Es la razón por la que subir el tope de filas sirve de algo: nadie tipea a mano una
+   * trazabilidad de 41 renglones por 40 columnas en un navegador, pero ya la tiene en un
+   * Excel. Sin esto, el tope más alto es teórico.
+   *
+   * **El bloque se alinea con lo que se VE, no con lo que se guarda.** Si al avanzar hacia
+   * la derecha cae sobre la columna de rótulos o sobre una celda con texto fijo de la
+   * planilla, esa celda del portapapeles se descarta y se sigue con la siguiente columna.
+   * Es lo que hace una planilla de cálculo con celdas protegidas, y es lo que mantiene el
+   * bloque derecho cuando el operador copia el rango entero del formulario original.
+   *
+   * Un pegado de una sola celda no entra acá: se deja al navegador, así sigue funcionando
+   * reemplazar la parte seleccionada del texto adentro del input.
+   */
+  const pegarBloque = (ev: React.ClipboardEvent<HTMLInputElement>, ri: number, ci: number) => {
+    if (readOnly) return
+    const texto = ev.clipboardData.getData("text/plain")
+    if (!texto) return
+
+    const bloque = parseCeldasPegadas(texto)
+    if (bloque.length === 1 && bloque[0].length === 1) return
+
+    ev.preventDefault()
+
+    const next = rows.map((r) => [...r])
+    const posInicial = posDeEditable[ci]
+    let filasAfuera = 0
+    let celdasAfuera = 0
+
+    for (let bf = 0; bf < bloque.length; bf++) {
+      const destino = ri + bf
+
+      if (destino >= next.length) {
+        // En una matriz las filas son las de la planilla; en una dinámica se agregan
+        // mientras haya lugar. Lo que no entra se cuenta para avisarlo, no se pierde callado.
+        if (esMatriz || next.length >= TABLA_MAX_FILAS) {
+          filasAfuera += 1
+          continue
+        }
+        next.push(Array<string>(editableCount).fill(""))
+      }
+
+      for (let bc = 0; bc < bloque[bf].length; bc++) {
+        const pos = posInicial + bc
+        if (pos >= columnas.length) {
+          if (bloque[bf][bc] !== "") celdasAfuera += 1
+          continue
+        }
+        const editable = editableDePos[pos]
+        if (editable === null) continue
+        const fijo = (filasDef[destino]?.celdasPrecargadas?.[pos] ?? "").trim()
+        if (fijo) continue
+        next[destino][editable] = bloque[bf][bc]
+      }
+    }
+
+    emit(next)
+
+    const pegadas = bloque.length - filasAfuera
+    const sobra: string[] = []
+    if (filasAfuera > 0) {
+      sobra.push(
+        esMatriz
+          ? `${filasAfuera} fila(s) no entraron: esta tabla tiene ${next.length} filas fijas`
+          : `${filasAfuera} fila(s) no entraron: el máximo es ${TABLA_MAX_FILAS}`
+      )
+    }
+    if (celdasAfuera > 0) {
+      sobra.push(`${celdasAfuera} celda(s) quedaron fuera de las ${columnas.length} columnas`)
+    }
+
+    setAviso({
+      texto: sobra.length
+        ? `Se pegaron ${pegadas} fila(s). ${sobra.join(" y ")}.`
+        : `Se pegaron ${pegadas} fila(s).`,
+      problema: sobra.length > 0,
+    })
+  }
+
   const addRow = () => {
     if (rows.length >= TABLA_MAX_FILAS) return
+    setAviso(null)
     emit([...rows.map((r) => [...r]), Array<string>(editableCount).fill("")])
   }
 
   const removeRow = (ri: number) => {
     if (rows.length <= TABLA_MIN_FILAS) return
+    setAviso(null)
     emit(rows.filter((_, i) => i !== ri))
   }
 
@@ -270,6 +440,7 @@ export function CampoTablaInput({
                             type="text"
                             value={row[ci] ?? ""}
                             onChange={(ev) => setCell(ri, ci, ev.target.value)}
+                            onPaste={(ev) => pegarBloque(ev, ri, ci)}
                             disabled={readOnly}
                             className="w-full min-w-0 px-2 py-1 bg-transparent outline-none disabled:opacity-60"
                           />
@@ -301,21 +472,37 @@ export function CampoTablaInput({
         </table>
       </div>
 
-      {!esMatriz && !readOnly && (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 h-7"
-            onClick={addRow}
-            disabled={rows.length >= TABLA_MAX_FILAS}
-          >
-            <Plus className="h-3.5 w-3.5" /> Agregar fila
-          </Button>
+      {!readOnly && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {!esMatriz && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-7"
+                onClick={addRow}
+                disabled={rows.length >= TABLA_MAX_FILAS}
+              >
+                <Plus className="h-3.5 w-3.5" /> Agregar fila
+              </Button>
+              <span className="text-[10px] text-muted-foreground">
+                Entre {TABLA_MIN_FILAS} y {TABLA_MAX_FILAS} filas.
+              </span>
+            </>
+          )}
           <span className="text-[10px] text-muted-foreground">
-            Entre {TABLA_MIN_FILAS} y {TABLA_MAX_FILAS} filas.
+            Podés copiar un bloque de celdas desde Excel y pegarlo acá: se vuelca a partir
+            de la celda donde pegues.
           </span>
         </div>
+      )}
+
+      {aviso && (
+        <p
+          className={`text-[11px] ${aviso.problema ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {aviso.texto}
+        </p>
       )}
     </div>
   )
