@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { FileSpreadsheet, Layers } from "lucide-react"
+import { Layers } from "lucide-react"
 
 import { soldadores as apiSoldadores } from "@/features/soldadura/api/use-soldadura"
 import { lineas as apiLineas } from "@/features/soldadura/api/use-juntas"
-import { descargar, useArmarLotes, useLote, useLotes } from "@/features/soldadura/api/use-inspeccion"
+import { useArmarLotes, useLote, useLotes } from "@/features/soldadura/api/use-inspeccion"
+import { DescargaRegistro } from "@/features/soldadura/components/descarga-registro"
 import { fechaCorta } from "@/features/soldadura/types"
 import { ESTADO_JUNTA } from "@/features/soldadura/types-juntas"
 import {
@@ -110,9 +111,7 @@ export default function LotesPage() {
                   {l.ronda > 0 && <span className="block text-xs text-muted-foreground">ronda {l.ronda}</span>}
                 </TableCell>
                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-green-700" title="Liberación de lote (Excel)" onClick={() => descargar(`lotes/${l.id}/registro`)}>
-                    <FileSpreadsheet className="h-4 w-4" />
-                  </Button>
+                  <DescargaRegistro ruta={`lotes/${l.id}/registro`} titulo="Liberación de lote" />
                 </TableCell>
               </TableRow>
             ))}

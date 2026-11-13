@@ -1,10 +1,11 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { FileSpreadsheet, FlaskConical, Send } from "lucide-react"
+import { FlaskConical, Send } from "lucide-react"
 
 import { personalEnd as apiPersonalEnd } from "@/features/soldadura/api/use-soldadura"
-import { descargar, useCrearInforme, useCrearSolicitud, useInformes, usePendientes, useSolicitudes } from "@/features/soldadura/api/use-inspeccion"
+import { useCrearInforme, useCrearSolicitud, useInformes, usePendientes, useSolicitudes } from "@/features/soldadura/api/use-inspeccion"
+import { DescargaRegistro } from "@/features/soldadura/components/descarga-registro"
 import { fechaCorta } from "@/features/soldadura/types"
 import {
   METODO_LABEL, METODOS_LOTE, MOTIVO_LABEL, MetodoEnsayo, ResultadoEnsayo, type Ensayo, type ResultadoCarga,
@@ -122,9 +123,7 @@ export default function EnsayosPage() {
                   <TableCell className="text-sm">{s.laboratorio ?? "—"}{s.solicitadoPor && <span className="block text-xs text-muted-foreground">pidió {s.solicitadoPor}</span>}</TableCell>
                   <TableCell className="text-right tabular-nums">{s.conResultado} / {s.ensayos}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-green-700" title="Solicitud de END (Excel)" onClick={() => descargar(`solicitudes/${s.id}/registro`)}>
-                      <FileSpreadsheet className="h-4 w-4" />
-                    </Button>
+                    <DescargaRegistro ruta={`solicitudes/${s.id}/registro`} titulo="Solicitud de END" />
                   </TableCell>
                 </TableRow>
               ))}

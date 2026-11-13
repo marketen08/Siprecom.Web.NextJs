@@ -3,16 +3,16 @@
 import { Suspense, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ClipboardCheck, FileSpreadsheet, History, Pencil, Plus, Trash2 } from "lucide-react"
+import { ClipboardCheck, History, Pencil, Plus, Trash2 } from "lucide-react"
 
-import { descargarTrazabilidad, lineas as apiLineas, useDeleteJunta, useJuntas } from "@/features/soldadura/api/use-juntas"
-import { descargar } from "@/features/soldadura/api/use-inspeccion"
+import { lineas as apiLineas, useDeleteJunta, useJuntas } from "@/features/soldadura/api/use-juntas"
 import { fechaCorta } from "@/features/soldadura/types"
 import {
   ESTADO_JUNTA, EstadoJunta, OrigenWps, PasadaJunta, ResultadoHabilitacion, UbicacionJunta, type Junta,
 } from "@/features/soldadura/types-juntas"
 import type { ResultadoCarga } from "@/features/soldadura/types-inspeccion"
 import { CLASE_SELECT, ConfirmarBorrado, Encabezado, FilaVacia, usePermisosSoldadura } from "@/features/soldadura/components/comunes"
+import { EnlacesRegistro } from "@/features/soldadura/components/descarga-registro"
 import { JuntaSheet, formDeJunta } from "@/features/soldadura/components/junta-sheet"
 import { HistorialSheet } from "@/features/soldadura/components/historial-sheet"
 import { VisualDialog } from "@/features/soldadura/components/visual-dialog"
@@ -113,9 +113,6 @@ function Juntas() {
               onClick={() => setVisualAbierta(true)}>
               <ClipboardCheck className="h-4 w-4" /> Visual{elegidas.length > 0 ? ` (${elegidas.length})` : ""}
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => descargarTrazabilidad(linea.id)}>
-              <FileSpreadsheet className="h-4 w-4" /> Trazabilidad
-            </Button>
             <Button className="gap-2" disabled={!padron} onClick={() => setEditando(formDeJunta(linea))}>
               <Plus className="h-4 w-4" /> Nueva junta
             </Button>
@@ -142,8 +139,9 @@ function Juntas() {
           {resumen.rechazadas > 0 && <span className="text-red-700">{resumen.rechazadas} rechazadas para reparar</span>}
           <span className="text-green-700">{resumen.liberadas} liberadas</span>
           <span className="ml-auto flex gap-3 text-xs">
-            <button className="text-blue-700 underline" onClick={() => descargar(`lineas/${linea.id}/inspeccion-visual`)}>Registro de visual</button>
-            <button className="text-blue-700 underline" onClick={() => descargar(`lineas/${linea.id}/control-parametros`)}>Control de parámetros</button>
+            <EnlacesRegistro ruta={`lineas/${linea.id}/trazabilidad`} titulo="Trazabilidad" />
+            <EnlacesRegistro ruta={`lineas/${linea.id}/inspeccion-visual`} titulo="Visual" />
+            <EnlacesRegistro ruta={`lineas/${linea.id}/control-parametros`} titulo="Parámetros" />
           </span>
         </div>
       )}

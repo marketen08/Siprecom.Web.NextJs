@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { FileSpreadsheet, Pencil, Plus, Trash2 } from "lucide-react"
+import { Pencil, Plus, Trash2 } from "lucide-react"
 
 import { clases as apiClases } from "@/features/soldadura/api/use-soldadura"
-import { descargarTrazabilidad, lineas as api } from "@/features/soldadura/api/use-juntas"
+import { lineas as api } from "@/features/soldadura/api/use-juntas"
+import { DescargaRegistro } from "@/features/soldadura/components/descarga-registro"
+import { SelectorTag } from "@/features/soldadura/components/selector-tag"
 import { TIPO_LINEA_LABEL, TipoLinea, type Linea } from "@/features/soldadura/types-juntas"
 import {
   CLASE_SELECT, Campo, ConfirmarBorrado, Encabezado, ErrorTexto, FilaVacia, opcional, usePermisosSoldadura,
@@ -23,6 +25,8 @@ interface Form {
   descripcion: string
   claseId: string
   isometrico: string
+  elementoId: string | null
+  elementoTag: string | null
 }
 
 /**
@@ -52,6 +56,7 @@ export default function LineasPage() {
       descripcion: opcional(form.descripcion),
       claseId: form.claseId || null,
       isometrico: opcional(form.isometrico),
+      elementoId: form.elementoId,
     }
     try {
       if (form.id) await actualizar.mutateAsync({ id: form.id, ...payload })
@@ -67,7 +72,7 @@ export default function LineasPage() {
         descripcion="Líneas de piping, tramos de ducto, estructuras y recipientes. Cada una agrupa sus juntas, les da la clase por defecto y emite su registro de trazabilidad de soldadura, materiales y END."
       >
         <Button className="gap-2" disabled={!parametros}
-          onClick={() => { setError(null); setForm({ tipo: TipoLinea.Piping, codigo: "", descripcion: "", claseId: "", isometrico: "" }) }}>
+          onClick={() => { setError(null); setForm({ tipo: TipoLinea.Piping, codigo: "", descripcion: "", claseId: "", isometrico: "", elementoId: null, elementoTag: null }) }}>
           <Plus className="h-4 w-4" /> Nueva línea
         </Button>
       </Encabezado>
@@ -77,22 +82,24 @@ export default function LineasPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="font-semibold text-gray-700">Línea</TableHead>
+              <TableHead className="w-40 font-semibold text-gray-700">Tag</TableHead>
               <TableHead className="w-28 font-semibold text-gray-700">Tipo</TableHead>
               <TableHead className="w-24 font-semibold text-gray-700">Clase</TableHead>
               <TableHead className="font-semibold text-gray-700">Isométrico</TableHead>
               <TableHead className="w-32 font-semibold text-gray-700 text-right">Juntas</TableHead>
-              <TableHead className="w-44 font-semibold text-gray-700 text-right">Acciones</TableHead>
+              <TableHead className="w-48 font-semibold text-gray-700 text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading || lista.length === 0 ? (
-              <FilaVacia columnas={6} cargando={isLoading} vacio="No hay líneas cargadas." />
+              <FilaVacia columnas={7} cargando={isLoading} vacio="No hay líneas cargadas." />
             ) : lista.map((l) => (
               <TableRow key={l.id}>
                 <TableCell className="font-mono font-medium">
                   <Link href={`/calidad/soldadura/juntas?linea=${l.id}`} className="text-blue-700 hover:underline">{l.codigo}</Link>
                   {l.descripcion && <span className="block font-sans text-xs text-muted-foreground">{l.descripcion}</span>}
                 </TableCell>
+                <TableCell className="font-mono text-sm">{l.elementoTag ?? <span className="font-sans text-amber-700">Sin tag</span>}</TableCell>
                 <TableCell className="text-sm">{TIPO_LINEA_LABEL[l.tipo]}</TableCell>
                 <TableCell className="font-mono text-sm">{l.claseCodigo ?? "—"}</TableCell>
                 <TableCell className="text-sm">{l.isometrico ?? "—"}</TableCell>
@@ -101,14 +108,11 @@ export default function LineasPage() {
                   <span className="block text-xs text-muted-foreground">soldadas</span>
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-green-700" title="Registro de trazabilidad (Excel)"
-                    onClick={() => descargarTrazabilidad(l.id)}>
-                    <FileSpreadsheet className="h-4 w-4" />
-                  </Button>
+                  <DescargaRegistro ruta={`lineas/${l.id}/trazabilidad`} titulo="Registro de trazabilidad" />
                   <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!parametros} title="Editar"
                     onClick={() => {
                       setError(null)
-                      setForm({ id: l.id, tipo: l.tipo, codigo: l.codigo, descripcion: l.descripcion ?? "", claseId: l.claseId ?? "", isometrico: l.isometrico ?? "" })
+                      setForm({ id: l.id, tipo: l.tipo, codigo: l.codigo, descripcion: l.descripcion ?? "", claseId: l.claseId ?? "", isometrico: l.isometrico ?? "", elementoId: l.elementoId ?? null, elementoTag: l.elementoTag })
                     }}>
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -137,6 +141,9 @@ export default function LineasPage() {
           {form && (
             <div className="mt-6 px-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
+                <Campo label="Tag" className="col-span-2" ayuda="El elemento del que cuelga la línea: de él salen las tareas del PIE, el databook y el subsistema del certificado.">
+                  <SelectorTag elementoId={form.elementoId} tag={form.elementoTag} onChange={(id, tag) => setForm({ ...form, elementoId: id, elementoTag: tag })} />
+                </Campo>
                 <Campo label="Código" className="col-span-2"><Input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} className="font-mono" placeholder={'6"-P-1001-A1A'} /></Campo>
                 <Campo label="Tipo">
                   <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: Number(e.target.value) as TipoLinea })} className={CLASE_SELECT}>
@@ -154,7 +161,7 @@ export default function LineasPage() {
               </div>
               <ErrorTexto error={error} />
               <div className="flex gap-2 pt-2">
-                <Button className="flex-1" onClick={guardar} disabled={!form.codigo.trim() || crear.isPending || actualizar.isPending}>
+                <Button className="flex-1" onClick={guardar} disabled={!form.codigo.trim() || !form.elementoId || crear.isPending || actualizar.isPending}>
                   {crear.isPending || actualizar.isPending ? "Guardando..." : "Guardar"}
                 </Button>
                 <Button variant="outline" className="flex-1" onClick={() => setForm(null)}>Cancelar</Button>

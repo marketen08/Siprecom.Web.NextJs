@@ -9,6 +9,7 @@ import {
   CLASE_SELECT, Campo, ConfirmarBorrado, Encabezado, ErrorTexto, FilaVacia,
   numero, opcional, texto, usePermisosSoldadura,
 } from "@/features/soldadura/components/comunes"
+import { DescargaRegistro } from "@/features/soldadura/components/descarga-registro"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -115,6 +116,7 @@ export default function MatrizPage() {
         titulo="Matriz de soldadura"
         descripcion="Qué procedimiento corresponde a cada combinación de clase, material, tipo de junta, diámetro y espesor. Un campo vacío significa “cualquiera”. Dos filas de la misma clase que pudieran responder a la misma junta no se aceptan: la matriz tiene que dar una sola respuesta."
       >
+        <DescargaRegistro ruta="matriz/registro" titulo="Matriz de soldadura" />
         <Button className="gap-2" disabled={!parametros || listaClases.length === 0 || wpsAsignables.length === 0}
           title={listaClases.length === 0 ? "Primero cargá las clases." : wpsAsignables.length === 0 ? "Primero cargá los WPS." : undefined}
           onClick={() => editar()}>

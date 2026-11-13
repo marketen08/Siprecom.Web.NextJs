@@ -104,16 +104,6 @@ export function useValidarSoldador() {
   })
 }
 
-/** Descarga el registro de trazabilidad de la línea. */
-export function descargarTrazabilidad(lineaId: string) {
-  const a = document.createElement("a")
-  a.href = `${BASE}/lineas/${lineaId}/trazabilidad`
-  a.download = ""
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-}
-
 // ─── Importación de juntas ──────────────────────────────────────────────
 
 async function postExcel<T>(ruta: string, archivo: File): Promise<T> {
