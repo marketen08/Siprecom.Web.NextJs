@@ -14,6 +14,7 @@ import {
 import { useCreateOpcion } from "@/features/campos/api/use-create-opcion"
 import { useReorderOpciones } from "@/features/campos/api/use-reorder-opciones"
 import { useDeleteOpcion } from "@/features/campos/api/use-delete-opcion"
+import { TABLA_MAX_FILAS } from "@/features/campos/lib/tabla-limites"
 import { CampoTablaEditor } from "./campo-tabla-editor"
 import { ApropiarCampoAviso } from "./apropiar-campo-aviso"
 
@@ -1189,14 +1190,14 @@ function FilasPorDefectoInput({
     <Input
       type="number"
       min={1}
-      max={100}
+      max={TABLA_MAX_FILAS}
       className="h-8 w-24 text-sm"
       value={valor}
       onChange={(e) => setValor(e.target.value)}
       onBlur={(e) => {
         const n = Number(e.target.value)
         if (!Number.isFinite(n)) return
-        const clamped = Math.max(1, Math.min(100, Math.floor(n)))
+        const clamped = Math.max(1, Math.min(TABLA_MAX_FILAS, Math.floor(n)))
         if (clamped !== actual) onCommit(clamped)
       }}
       disabled={disabled}

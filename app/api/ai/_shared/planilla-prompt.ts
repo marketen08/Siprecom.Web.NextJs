@@ -104,7 +104,7 @@ Reglas del grupo:
 
 - **Dinámica (filas variables)**: usá esto cuando el operador va agregando filas al cargar. Devolvé:
   - "columnas": encabezados de columnas, **ninguna** con "esColumnaEtiqueta".
-  - "numeroFilas": cantidad razonable de filas vacías al abrir (rango 2-10, típicamente 3-5).
+  - "numeroFilas": cantidad razonable de filas vacías al abrir (rango 2-50, típicamente 3-5; sólo subí de 10 si el formulario original tiene tantos renglones).
   - NO devuelvas "filas" — es dinámica.
 
 NO uses Tabla para pedir un simple "Sí/No" repetido: para eso usá tipo 11 (Checklist).
