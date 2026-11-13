@@ -284,7 +284,7 @@ export interface Vencimientos {
 
 // ─── Archivos e importación ─────────────────────────────────────────────
 
-export type TipoArchivo = "Wps" | "Pqr" | "Calificacion" | "PersonalEnd"
+export type TipoArchivo = "Wps" | "Pqr" | "Calificacion" | "PersonalEnd" | "Informe"
 
 export interface ResumenHoja {
   creates: number

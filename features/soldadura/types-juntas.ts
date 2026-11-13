@@ -26,6 +26,21 @@ export enum UbicacionJunta {
 export enum EstadoJunta {
   Registrada = 0,
   Soldada = 1,
+  VisualAprobada = 2,
+  EnsayoPendiente = 3,
+  Aceptada = 4,
+  Rechazada = 5,
+  Liberada = 6,
+}
+
+export const ESTADO_JUNTA: Record<EstadoJunta, { label: string; clase: string }> = {
+  [EstadoJunta.Registrada]: { label: "Registrada", clase: "bg-gray-100 text-gray-700 border-gray-200" },
+  [EstadoJunta.Soldada]: { label: "Soldada", clase: "bg-blue-50 text-blue-700 border-blue-200" },
+  [EstadoJunta.VisualAprobada]: { label: "Visual OK", clase: "bg-sky-50 text-sky-700 border-sky-200" },
+  [EstadoJunta.EnsayoPendiente]: { label: "Ensayo pendiente", clase: "bg-amber-50 text-amber-800 border-amber-200" },
+  [EstadoJunta.Aceptada]: { label: "Aceptada", clase: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  [EstadoJunta.Rechazada]: { label: "Rechazada", clase: "bg-red-50 text-red-700 border-red-200" },
+  [EstadoJunta.Liberada]: { label: "Liberada", clase: "bg-green-100 text-green-800 border-green-300" },
 }
 
 export enum OrigenWps {
@@ -140,6 +155,7 @@ export interface JuntaSoldadorWrite {
 
 export interface JuntaSoldador extends JuntaSoldadorWrite {
   id: string
+  ciclo: number
   cuno: string | null
   nombre: string | null
   resultado: ResultadoHabilitacion
@@ -199,6 +215,7 @@ export interface Junta {
   piezaBCodigo: string | null
   fechaSoldadura: string | null
   estado: EstadoJunta
+  cicloActual: number
   observaciones: string | null
   soldadores: JuntaSoldador[]
   lotes: { id: string; texto: string }[]

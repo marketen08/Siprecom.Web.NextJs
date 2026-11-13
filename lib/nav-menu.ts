@@ -131,6 +131,9 @@ export const menu: MenuItem[] = [
         children: [
           { label: "Vencimientos",         href: "/calidad/soldadura" },
           { label: "Juntas",               href: "/calidad/soldadura/juntas" },
+          { label: "Lotes",                href: "/calidad/soldadura/lotes" },
+          { label: "Ensayos e informes",   href: "/calidad/soldadura/ensayos" },
+          { label: "Tasa de reparación",   href: "/calidad/soldadura/tasa-reparacion" },
           { label: "Líneas",               href: "/calidad/soldadura/lineas" },
           { label: "Piezas",               href: "/calidad/soldadura/piezas" },
           { label: "Lotes de aporte",      href: "/calidad/soldadura/consumibles" },
@@ -141,6 +144,7 @@ export const menu: MenuItem[] = [
           { label: "Normas y clases",      href: "/calidad/soldadura/normas-clases" },
           { label: "Importar juntas",      href: "/calidad/soldadura/importar-juntas", minRole: "Supervisor" },
           { label: "Importar catálogos",   href: "/calidad/soldadura/importar", minRole: "Supervisor" },
+          { label: "Configuración",        href: "/calidad/soldadura/configuracion", minRole: "Supervisor" },
         ],
       },
     ],

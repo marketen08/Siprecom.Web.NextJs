@@ -142,6 +142,7 @@ const CLAVE_DE_TIPO: Record<TipoArchivo, readonly string[]> = {
   Pqr: K.pqr,
   Calificacion: K.soldadores,
   PersonalEnd: K.personalEnd,
+  Informe: ["soldadura", "informes"],
 }
 
 /** Lee el error de una respuesta de fetch crudo con el mismo criterio que apiClient. */
