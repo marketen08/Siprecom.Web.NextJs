@@ -124,6 +124,18 @@ export const menu: MenuItem[] = [
     label: "Calidad",
     minRole: "Consultor",
     children: [
+      {
+        // El Plan de Inspección y Ensayo del proyecto: lo de todos los días arriba (avance,
+        // puntos de inspección, databook) y la estructura de los PIE al final.
+        label: "QA/QC (PIE)",
+        requiereFuncionalidad: "CALIDAD_PIE",
+        children: [
+          { label: "Avance por PIE",       href: "/calidad/qaqc" },
+          { label: "Puntos de inspección", href: "/calidad/qaqc/agenda" },
+          { label: "Databook",             href: "/calidad/qaqc/databook" },
+          { label: "PIE del proyecto",     href: "/calidad/qaqc/configuracion", minRole: "Supervisor" },
+        ],
+      },
       { label: "Informes", href: "/calidad/no-conformidades", requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES" },
       {
         // Mismo criterio que Ejecución y Configuración: lo de todos los días queda suelto
@@ -338,6 +350,16 @@ export const menu: MenuItem[] = [
             href: "/configuracion/importacion-maestro-pendientes",
             minRole: "AdminGlobal",
           },
+        ],
+      },
+      {
+        // Catálogo global del módulo QA/QC. Sin flag a propósito: las plantillas se eligen
+        // al crear un proyecto, antes de que ese proyecto tenga el módulo prendido.
+        label: "QA/QC",
+        minRole: "Admin",
+        children: [
+          { label: "Plantillas de PIE",               href: "/configuracion/qaqc/plantillas" },
+          { label: "Procedimientos y anexos",         href: "/configuracion/qaqc/procedimientos" },
         ],
       },
       {
@@ -598,6 +620,8 @@ export const segmentLabels: Record<string, string> = {
   "pendientes-catalogo":   "Catálogo maestro de pendientes",
   "calidad-tipos":         "Tipos de informe",
   "calidad-motivos":       "Motivos de informes",
+  qaqc:                    "QA/QC",
+  pie:                     "PIE",
   "importacion-maestro-pendientes": "Importar / Exportar catálogo maestro",
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",

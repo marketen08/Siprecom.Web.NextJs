@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useEffect, useState, useRef } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -608,6 +609,21 @@ export default function RegistroFormPage({ params }: PageProps) {
               Podés ver el registro y descargar el PDF, pero no cargar valores, firmar ni subir archivos.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Registro de un punto del PIE (QA/QC): a qué punto respalda y cómo volver. El
+          punto se firma en la grilla del PIE cuando este registro queda firmado. */}
+      {registro?.piePuntoId && registro.pieId && (
+        <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-sm text-indigo-950">
+          <div className="min-w-0">
+            <p className="font-medium">
+              Plan de Inspección y Ensayo · {registro.pieCodigo}
+              {registro.pieHojaNumero && <> · PIE Nº {registro.pieHojaNumero}</>}
+            </p>
+            <p className="text-xs">Punto {registro.piePuntoNumero} · {registro.piePuntoActividad}. Cuando el registro quede firmado, las partes pueden firmar el punto.</p>
+          </div>
+          <Link href={`/calidad/qaqc/pie/${registro.pieId}`} className="shrink-0 text-xs font-medium text-indigo-800 underline">Volver al PIE</Link>
         </div>
       )}
 

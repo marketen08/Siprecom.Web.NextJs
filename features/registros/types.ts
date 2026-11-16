@@ -65,6 +65,14 @@ export interface RegistroDetalle {
    * siempre — el UI debe ignorar el bloqueo por estado terminal.
    */
   esEncabezadoTg?: boolean
+  /** Registro de un punto del PIE (QA/QC): contexto para el encabezado y para volver a la grilla. */
+  piePuntoId?: string | null
+  pieId?: string | null
+  pieCodigo?: string | null
+  pieNombre?: string | null
+  pieHojaNumero?: string | null
+  piePuntoNumero?: string | null
+  piePuntoActividad?: string | null
   valores: RegistroValor[]
   archivos: RegistroArchivo[]
   /**
