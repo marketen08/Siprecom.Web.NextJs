@@ -776,10 +776,16 @@ function PendientesPageContent() {
                         {p.codigoFormateado}
                       </span>
                     </TableCell>
+                    {/* La tabla es table-auto: sin techo, una descripción larga infla esta
+                        columna y comprime las demás hasta dejarlas ilegibles. El tope va en el
+                        bloque de adentro y no en la celda porque es el ancho preferido del
+                        contenido lo que manda el reparto de columnas. */}
                     <TableCell>
-                      <p className="text-sm line-clamp-2">{p.descripcion}</p>
+                      <p className="text-sm line-clamp-2 max-w-[34rem]" title={p.descripcion}>
+                        {p.descripcion}
+                      </p>
                       {p.elementoTag && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[34rem]">
                           <span className="font-mono">{p.elementoTag}</span>
                           {p.elementoNombre ? ` — ${p.elementoNombre}` : ""}
                         </p>
