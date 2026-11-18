@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { TABLA_MAX_FILAS } from "./lib/tabla-limites"
+
 export const campoSchema = z.object({
   codigo: z.string().min(1, "El código es requerido"),
   etiqueta: z.string().min(1, "La etiqueta es requerida"),
@@ -14,8 +16,14 @@ export const campoSchema = z.object({
   unidad: z.string().optional(),
   descripcion: z.string().optional(),
   imagenUrl: z.string().optional(),
-  /** Solo Tabla dinámica (tipoDato === 9). Default 3. */
-  numeroFilas: z.number().int().min(1).max(100).optional(),
+  /**
+   * Solo Tabla dinámica (tipoDato === 9). Default 3.
+   *
+   * El tope es el mismo que acepta el formulario de carga. Antes acá entraban 100 y la
+   * carga cortaba en 10: una planilla configurada con 40 renglones mostraba 10 y el
+   * inspector se quedaba sin dónde escribir, sin ningún aviso.
+   */
+  numeroFilas: z.number().int().min(1).max(TABLA_MAX_FILAS).optional(),
   /** Solo TextoArea (tipoDato === 12). Default 3, rango 1-20. */
   numeroLineas: z.number().int().min(1).max(20).optional(),
   /** Espacio (13) y Croquis (14): alto del bloque en mm. Default 20, rango 5-200. */

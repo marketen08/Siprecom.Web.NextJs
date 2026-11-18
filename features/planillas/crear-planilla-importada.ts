@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/api-client"
 import type { CampoImportado, PlanillaImportada } from "./import-types"
 import type { Planilla, PlanillaSeccion } from "./types"
 import { CAMPO_TAMANO_DEFAULT } from "./types"
+import { TABLA_MAX_FILAS } from "@/features/campos/lib/tabla-limites"
 
 /**
  * Persistencia de una planilla generada por IA: la crea, crea sus secciones y,
@@ -102,7 +103,7 @@ function cuerpoDelCampoNuevo(campo: CampoImportado): Record<string, unknown> {
   // deserialización ("The JSON value could not be converted to System.Int32").
   if (campo.tipoDato === 9 && (campo.filas ?? []).length === 0) {
     // Sólo en tabla dinámica — en matriz las filas son las de `filas`.
-    const numeroFilas = enteroEnRango(campo.numeroFilas, 1, 100)
+    const numeroFilas = enteroEnRango(campo.numeroFilas, 1, TABLA_MAX_FILAS)
     if (numeroFilas !== undefined) body.numeroFilas = numeroFilas
   }
   if (campo.tipoDato === 12) {
