@@ -1,9 +1,11 @@
 "use client"
 
-import { CheckCircle2, CircleDashed, CircleDot, Lock, MinusCircle, PenLine } from "lucide-react"
+import { CheckCircle2, CircleDashed, CircleDot, Lock, MinusCircle, PenLine, RefreshCcw } from "lucide-react"
 
 import { useMeetsRole } from "@/lib/use-roles"
-import { CODIGO_TIPO, EstadoPunto, ESTADO_PUNTO_LABEL, TipoPunto, TIPOS_PUNTO } from "@/features/qaqc/types"
+import {
+  CODIGO_TIPO, EstadoItem, ESTADO_ITEM_LABEL, EstadoPunto, ESTADO_PUNTO_LABEL, TipoPunto, TIPOS_PUNTO,
+} from "@/features/qaqc/types"
 
 export {
   Encabezado, Campo, ErrorTexto, FilaVacia, ConfirmarBorrado, CLASE_SELECT, opcional,
@@ -49,6 +51,22 @@ const ESTILO_ESTADO: Record<EstadoPunto, [string, typeof CheckCircle2]> = {
   [EstadoPunto.ListoParaFirmar]: ["text-blue-700", PenLine],
   [EstadoPunto.Firmado]: ["text-green-700", CheckCircle2],
   [EstadoPunto.NoAplica]: ["text-slate-400", MinusCircle],
+  [EstadoPunto.AmpliacionPendiente]: ["text-violet-700", RefreshCcw],
+}
+
+const ESTILO_ITEM: Record<EstadoItem, [string, typeof CheckCircle2]> = {
+  [EstadoItem.Pendiente]: ["text-slate-500", CircleDashed],
+  [EstadoItem.EnCurso]: ["text-amber-700", CircleDot],
+  [EstadoItem.Cubierto]: ["text-green-700", CheckCircle2],
+  [EstadoItem.NoAplica]: ["text-slate-400", MinusCircle],
+}
+
+/** Estado de un elemento o grupo del alcance. "Bloqueado" cuando lo frena el HP anterior. */
+export function EstadoItemBadge({ estado, bloqueado }: { estado: EstadoItem; bloqueado?: boolean }) {
+  if (bloqueado && estado !== EstadoItem.Cubierto && estado !== EstadoItem.NoAplica)
+    return <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 whitespace-nowrap"><Lock className="h-3.5 w-3.5" />Espera al HP</span>
+  const [clase, Icono] = ESTILO_ITEM[estado]
+  return <span className={`inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap ${clase}`}><Icono className="h-3.5 w-3.5" />{ESTADO_ITEM_LABEL[estado]}</span>
 }
 
 export function EstadoPuntoBadge({ estado, bloqueado }: { estado: EstadoPunto; bloqueado?: boolean }) {

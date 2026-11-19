@@ -73,6 +73,8 @@ export interface RegistroDetalle {
   pieHojaNumero?: string | null
   piePuntoNumero?: string | null
   piePuntoActividad?: string | null
+  /** Punto por elemento o grupo: los tags o test packs que cubre el registro. */
+  pieItems?: string[]
   valores: RegistroValor[]
   archivos: RegistroArchivo[]
   /**

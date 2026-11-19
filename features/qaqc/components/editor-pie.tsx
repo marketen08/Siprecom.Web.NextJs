@@ -9,7 +9,9 @@ import {
   useEliminarParte, useEliminarPunto, useEliminarSeccion, usePlanillasCatalogo, useProcedimientosQaqc,
 } from "@/features/qaqc/api/use-qaqc"
 import { CLASE_SELECT, Campo, ConfirmarBorrado, ErrorTexto, opcional, TipoBadge } from "@/features/qaqc/components/comunes"
-import { CODIGO_TIPO, TIPOS_PUNTO, TipoPunto, type PieDetalle, type PieEtapa, type PiePunto, type PieWrite } from "@/features/qaqc/types"
+import {
+  ALCANCE_LABEL, AlcancePunto, CODIGO_TIPO, TIPOS_PUNTO, TipoPunto, type PieDetalle, type PieEtapa, type PiePunto, type PieWrite,
+} from "@/features/qaqc/types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -264,6 +266,10 @@ type FormPunto = {
   criterioAceptacion: string
   observaciones: string
   seccionId: string
+  alcance: AlcancePunto
+  alcanceDescripcion: string
+  /** El punto del proyecto ya tiene ítems cargados: no se puede cambiar el alcance. */
+  conItems: boolean
   intervenciones: Record<string, TipoPunto | "">
   planillaIds: string[]
 }
@@ -275,6 +281,7 @@ function formDe(p: PiePunto | null, etapaId: string, pie: PieDetalle): FormPunto
     id: p?.id, etapaId, numero: p?.numero ?? "", actividad: p?.actividad ?? "", documentosAplicables: p?.documentosAplicables ?? "",
     procedimientoId: p?.procedimientoId ?? "", tipoInforme: p?.tipoInforme ?? "", frecuencia: p?.frecuencia ?? "",
     criterioAceptacion: p?.criterioAceptacion ?? "", observaciones: p?.observaciones ?? "", seccionId: p?.seccionId ?? "",
+    alcance: p?.alcance ?? AlcancePunto.Unico, alcanceDescripcion: p?.alcanceDescripcion ?? "", conItems: (p?.itemsTotal ?? 0) > 0,
     intervenciones: iv, planillaIds: p?.planillas.map((x) => x.planillaId) ?? [],
   }
 }
@@ -342,7 +349,15 @@ function Puntos({ pie, hojaId, puedeEditar }: { pie: PieDetalle; hojaId: string;
                 {e.puntos.map((p) => (
                   <tr key={p.id} className="border-b align-top">
                     <td className="py-2 tabular-nums">{p.numero}</td>
-                    <td className="py-2 pr-2">{p.actividad}{p.frecuencia && <div className="text-xs text-muted-foreground">{p.frecuencia}</div>}</td>
+                    <td className="py-2 pr-2">
+                      {p.actividad}
+                      {p.frecuencia && <div className="text-xs text-muted-foreground">{p.frecuencia}</div>}
+                      {p.alcance !== AlcancePunto.Unico && (
+                        <div className="mt-0.5 inline-block rounded bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-800">
+                          {ALCANCE_LABEL[p.alcance]}{p.alcanceDescripcion ? ` · ${p.alcanceDescripcion}` : ""}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-2 pr-2 text-xs">{p.procedimientoCodigo ?? p.documentosAplicables ?? "—"}<div className="text-muted-foreground">{p.tipoInforme}</div></td>
                     {pie.partes.map((parte) => <td key={parte.id} className="py-2"><TipoBadge tipo={p.intervenciones.find((i) => i.parteId === parte.id)?.tipo} /></td>)}
                     <td className="py-2 text-xs">{p.planillas.length ? p.planillas.map((x) => x.codigo ?? x.nombre).join(", ") : <span className="text-muted-foreground">—</span>}</td>
@@ -417,6 +432,7 @@ function PuntoForm({ pie, hojaId, inicial, onCerrar }: { pie: PieDetalle; hojaId
       etapaId: f.etapaId, numero: opcional(f.numero), actividad: f.actividad.trim(), documentosAplicables: opcional(f.documentosAplicables),
       procedimientoId: opcional(f.procedimientoId), tipoInforme: opcional(f.tipoInforme), frecuencia: opcional(f.frecuencia),
       criterioAceptacion: opcional(f.criterioAceptacion), observaciones: opcional(f.observaciones), seccionId: opcional(f.seccionId),
+      alcance: f.alcance, alcanceDescripcion: f.alcance === AlcancePunto.Unico ? null : opcional(f.alcanceDescripcion),
       intervenciones: Object.entries(f.intervenciones).filter(([, t]) => t !== "").map(([parteId, tipo]) => ({ parteId, tipo: tipo as TipoPunto })),
       planillaIds: f.planillaIds,
     }
@@ -455,6 +471,18 @@ function PuntoForm({ pie, hojaId, inicial, onCerrar }: { pie: PieDetalle; hojaId
               {pie.secciones.map((s) => <option key={s.id} value={s.id}>{s.numero} {s.nombre}</option>)}
             </select>
           </Campo>
+          <Campo label="Alcance" className="sm:col-span-2"
+            ayuda={f.conItems ? "Ya tiene ítems cargados: quitalos antes de cambiarlo." : "Por elemento / grupo: se chequea en cada uno y necesita planilla."}>
+            <select className={CLASE_SELECT} value={f.alcance} disabled={f.conItems}
+              onChange={(e) => setF({ ...f, alcance: Number(e.target.value) as AlcancePunto })}>
+              {[AlcancePunto.Unico, AlcancePunto.PorElemento, AlcancePunto.PorGrupo].map((a) => <option key={a} value={a}>{ALCANCE_LABEL[a]}</option>)}
+            </select>
+          </Campo>
+          {f.alcance !== AlcancePunto.Unico && (
+            <Campo label="Qué se chequea" className="sm:col-span-2">
+              <Input value={f.alcanceDescripcion} onChange={set("alcanceDescripcion")} placeholder={f.alcance === AlcancePunto.PorGrupo ? "cada test pack" : "cada cable, cada brida…"} />
+            </Campo>
+          )}
 
           <div className="sm:col-span-4">
             <label className="text-sm font-medium">Intervención de cada parte</label>

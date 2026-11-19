@@ -131,6 +131,7 @@ export const menu: MenuItem[] = [
         requiereFuncionalidad: "CALIDAD_PIE",
         children: [
           { label: "Avance por PIE",       href: "/calidad/qaqc" },
+          { label: "Avance por elemento",  href: "/calidad/qaqc/elementos" },
           { label: "Puntos de inspección", href: "/calidad/qaqc/agenda" },
           { label: "Databook",             href: "/calidad/qaqc/databook" },
           { label: "PIE del proyecto",     href: "/calidad/qaqc/configuracion", minRole: "Supervisor" },

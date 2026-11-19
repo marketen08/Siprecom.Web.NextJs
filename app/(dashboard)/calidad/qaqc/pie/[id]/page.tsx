@@ -2,7 +2,7 @@
 
 import { Fragment, use, useMemo, useState } from "react"
 import Link from "next/link"
-import { BookOpen, CheckCircle2, ChevronRight, Download, FileText, Lock, PenLine, Settings2 } from "lucide-react"
+import { Boxes, BookOpen, CheckCircle2, ChevronRight, Download, FileText, Lock, PenLine, Settings2 } from "lucide-react"
 
 import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { descargar, useEjecucion, useFirmarHoja, useFirmarPunto } from "@/features/qaqc/api/use-qaqc"
@@ -11,7 +11,8 @@ import {
 } from "@/features/qaqc/components/comunes"
 import { DialogoTexto } from "@/features/qaqc/components/dialogo-texto"
 import { PuntoSheet } from "@/features/qaqc/components/punto-sheet"
-import { EstadoPunto, type PieHoja, type PiePunto } from "@/features/qaqc/types"
+import { AlcanceImportSheet } from "@/features/qaqc/components/alcance-import"
+import { AlcancePunto, EstadoPunto, nombreItems, type PieHoja, type PiePunto } from "@/features/qaqc/types"
 
 import { Button } from "@/components/ui/button"
 
@@ -25,7 +26,8 @@ type Firma = { tipo: "punto"; punto: PiePunto; parteId: string } | { tipo: "hoja
 export default function PiePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { data: pie, isLoading, error } = useEjecucion(id)
-  const { gestion } = usePermisosQaqc()
+  const { gestion, carga } = usePermisosQaqc()
+  const [importarAlcance, setImportarAlcance] = useState(false)
   const firmarPunto = useFirmarPunto()
   const firmarHoja = useFirmarHoja()
   const [hojaSel, setHojaSel] = useState<string | null>(null)
@@ -91,6 +93,9 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
             <Button variant="outline" disabled={descargando !== null} onClick={() => bajar(`proyecto/pies/${pie.id}/databook`, `Databook ${pie.codigo}.pdf`, "db")}>
               <BookOpen className="h-4 w-4" /> {descargando === "db" ? "Armando databook..." : "Databook"}
             </Button>
+            {pie.tieneAlcance && carga && (
+              <Button variant="outline" onClick={() => setImportarAlcance(true)}><Boxes className="h-4 w-4" /> Alcance</Button>
+            )}
             {gestion && (
               <Button variant="outline" asChild><Link href={`/calidad/qaqc/configuracion/${pie.id}`}><Settings2 className="h-4 w-4" /> Estructura</Link></Button>
             )}
@@ -99,8 +104,15 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
         <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div>
             <BarraAvance porcentaje={pie.porcentaje} alto="h-3" />
+            {pie.tieneAlcance && pie.unidades && (
+              <p className="mt-1 text-xs">
+                <strong>{pie.unidades.hechas} de {pie.unidades.total - pie.unidades.noAplica}</strong> controles hechos
+                <span className="text-muted-foreground"> (cada elemento de los puntos por elemento cuenta uno)</span>
+              </p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               {pie.puntosFirmados} de {pie.totalPuntos - pie.puntosNoAplica} puntos firmados
+              {pie.tieneAlcance && <> ({pie.porcentajePuntos.toLocaleString("es-AR", { maximumFractionDigits: 1 })}% por puntos)</>}
               {pie.puntosNoAplica > 0 && <> · {pie.puntosNoAplica} no aplican</>}
               {pie.cerrado && <span className="ml-1 font-medium text-green-700">· PIE cerrado</span>}
             </p>
@@ -166,13 +178,24 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
                         {p.tipoInforme && <span>Informe: {p.tipoInforme}</span>}
                         {p.frecuencia && <span>{p.frecuencia}</span>}
                       </div>
+                      {p.alcance !== AlcancePunto.Unico && (
+                        <button onClick={() => setPuntoSel(p.id)}
+                          className="mt-1 inline-flex items-center gap-1.5 rounded bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-800 hover:bg-violet-100">
+                          <Boxes className="h-3 w-3" />
+                          {p.itemsTotal === 0
+                            ? `Falta cargar los ${nombreItems(p.alcance, 2)}`
+                            : `${p.itemsCubiertos}/${p.itemsTotal - p.itemsNoAplica} ${nombreItems(p.alcance, p.itemsTotal - p.itemsNoAplica)}`}
+                          {p.itemsLiberadosHp != null && p.itemsTotal > 0 && <span className="text-violet-600">· {p.itemsLiberadosHp} liberados</span>}
+                        </button>
+                      )}
                     </td>
                     {pie.partes.map((parte) => {
                       const iv = p.intervenciones.find((i) => i.parteId === parte.id)
                       const interviene = !!iv || p.intervenciones.length === 0
-                      const f = p.firmas.find((x) => x.parteId === parte.id)
-                      const puede = pie.misPartes.includes(parte.id) && !hoja.cerrada && interviene && !f
-                        && p.estadoEjecucion === EstadoPunto.ListoParaFirmar && !p.bloqueadoPor
+                      const f = p.firmas.filter((x) => x.parteId === parte.id && x.vigente).at(-1)
+                      const previa = !f && p.firmas.some((x) => x.parteId === parte.id)
+                      const puede = pie.misPartes.includes(parte.id) && !hoja.cerrada && interviene && !f && !p.motivo && !p.bloqueadoPor
+                        && (p.estadoEjecucion === EstadoPunto.ListoParaFirmar || p.estadoEjecucion === EstadoPunto.AmpliacionPendiente)
                       return (
                         <td key={parte.id} className="px-3 py-2">
                           <div className="flex items-start gap-2">
@@ -180,7 +203,8 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
                             {p.noAplica ? <span className="text-xs">N/A</span>
                               : f ? <span className="text-xs text-green-700"><CheckCircle2 className="mr-0.5 inline h-3.5 w-3.5" />{f.usuarioNombre}<br /><span className="text-muted-foreground">{fecha(f.fechaFirma)}</span></span>
                               : !interviene ? null
-                              : puede ? <Button size="xs" onClick={() => { setErrorFirma(null); setFirma({ tipo: "punto", punto: p, parteId: parte.id }) }}><PenLine className="h-3 w-3" /> Firmar</Button>
+                              : puede ? <Button size="xs" onClick={() => { setErrorFirma(null); setFirma({ tipo: "punto", punto: p, parteId: parte.id }) }}><PenLine className="h-3 w-3" /> {previa ? "Volver a firmar" : "Firmar"}</Button>
+                              : previa ? <span className="text-xs text-violet-700">Falta volver a firmar</span>
                               : <span className="text-xs text-muted-foreground">Sin firmar</span>}
                           </div>
                         </td>
@@ -233,6 +257,8 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
           })}
         </div>
       </div>
+
+      {importarAlcance && <AlcanceImportSheet pieId={pie.id} pieCodigo={pie.codigo} onCerrar={() => setImportarAlcance(false)} />}
 
       <PuntoSheet pie={pie} punto={punto} onCerrar={() => setPuntoSel(null)} onFirmar={(p, parteId) => { setErrorFirma(null); setFirma({ tipo: "punto", punto: p, parteId }) }} />
 

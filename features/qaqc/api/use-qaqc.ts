@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type {
-  AgendaItem, ApiResponse, EstadoPlantilla, ImportPreview, PieDetalle, PieEtapaWrite, PieHojaWrite, PieParteWrite,
-  PiePuntoWrite, PieResumen, PieSeccionWrite, PieWrite, ProcedimientoQaqc, ProcedimientoQaqcWrite, QaqcAvance,
+  AgendaItem, AlcanceImportPreview, ApiResponse, Candidatos, ElementoAvance, EstadoPlantilla, ImportPreview, PieDetalle,
+  PieEtapaWrite, PieHojaWrite, PieParteWrite, PiePuntoWrite, PieResumen, PieSeccionWrite, PieWrite, ProcedimientoQaqc,
+  ProcedimientoQaqcWrite, QaqcAvance,
 } from "@/features/qaqc/types"
 
 /**
@@ -191,8 +192,50 @@ export function useAgenda() {
 
 // ── Ejecución de puntos ───────────────────────────────────────────────────
 
-export const useCrearRegistro = mutacion(({ puntoId, planillaId }: { puntoId: string; planillaId: string }) =>
-  apiClient.post<ApiResponse<{ registroId: string }>>(`${BASE}/puntos/${puntoId}/registros`, { planillaId }))
+export const useCrearRegistro = mutacion(({ puntoId, planillaId, itemIds }: { puntoId: string; planillaId: string; itemIds?: string[] }) =>
+  apiClient.post<ApiResponse<{ registroId: string }>>(`${BASE}/puntos/${puntoId}/registros`, { planillaId, itemIds: itemIds ?? [] }))
+
+// ── Alcance de los puntos por elemento o por grupo ────────────────────────
+
+export function useCandidatos(puntoId: string | null, buscar: string, tipo: string) {
+  return useQuery({
+    queryKey: [...RAIZ, "candidatos", puntoId, buscar, tipo],
+    queryFn: async () => {
+      const q = new URLSearchParams({ max: "300" })
+      if (buscar.trim()) q.set("buscar", buscar.trim())
+      if (tipo) q.set("tipo", tipo)
+      return (await apiClient.get<ApiResponse<Candidatos>>(`${BASE}/puntos/${puntoId}/candidatos?${q}`)).data
+    },
+    enabled: !!puntoId,
+  })
+}
+
+export const useAgregarItems = mutacion(({ puntoId, elementoIds, testGroupIds }: { puntoId: string; elementoIds?: string[]; testGroupIds?: string[] }) =>
+  apiClient.post<ApiResponse<{ agregados: number; yaEstaban: number }>>(`${BASE}/puntos/${puntoId}/items`, { elementoIds: elementoIds ?? [], testGroupIds: testGroupIds ?? [] }))
+
+export const useQuitarItem = mutacion((id: string) => apiClient.delete(`${BASE}/items/${id}`))
+
+export const useItemNoAplica = mutacion(({ id, motivo }: { id: string; motivo: string }) =>
+  apiClient.post(`${BASE}/items/${id}/no-aplica`, { motivo }))
+
+export const useItemQuitarNoAplica = mutacion((id: string) => apiClient.delete(`${BASE}/items/${id}/no-aplica`))
+
+export function useAvanceElementos(pieId: string | null) {
+  return useQuery({
+    queryKey: [...RAIZ, "elementos", pieId],
+    queryFn: async () => (await apiClient.get<ApiResponse<ElementoAvance[]>>(`${BASE}/proyecto/elementos${pieId ? `?pieId=${pieId}` : ""}`)).data,
+  })
+}
+
+export function usePreviewAlcance() {
+  return useMutation({
+    mutationFn: ({ pieId, archivo }: { pieId: string; archivo: File }) =>
+      subir<ApiResponse<AlcanceImportPreview>>(`proyecto/pies/${pieId}/alcance/preview`, archivo),
+  })
+}
+
+export const useAplicarAlcance = mutacion(({ pieId, archivo }: { pieId: string; archivo: File }) =>
+  subir<ApiResponse<AlcanceImportPreview>>(`proyecto/pies/${pieId}/alcance/aplicar`, archivo))
 
 export const useSubirDocumentoPunto = mutacion(({ puntoId, archivo, nombre }: { puntoId: string; archivo: File; nombre?: string }) =>
   subir(`puntos/${puntoId}/documentos`, archivo, nombre ? { nombre } : undefined))

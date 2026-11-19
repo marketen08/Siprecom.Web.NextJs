@@ -9,7 +9,10 @@ import {
 } from "@/features/qaqc/api/use-qaqc"
 import { EstadoPuntoBadge, fecha, fechaHora, TipoBadge, tamanio, usePermisosQaqc } from "@/features/qaqc/components/comunes"
 import { DialogoTexto } from "@/features/qaqc/components/dialogo-texto"
-import { ESTADO_REGISTRO_LABEL, EstadoPunto, TipoPunto, type PieDetalle, type PieFirma, type PiePunto } from "@/features/qaqc/types"
+import { AlcancePuntoSeccion } from "@/features/qaqc/components/alcance-punto"
+import {
+  AlcancePunto, ESTADO_REGISTRO_LABEL, EstadoPunto, TipoPunto, type PieDetalle, type PieFirma, type PiePunto,
+} from "@/features/qaqc/types"
 
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -49,6 +52,12 @@ export function PuntoSheet({
     : pie.partes.map((p) => ({ parteId: p.id, tipo: null as TipoPunto | null }))
   const tieneRd = punto.intervenciones.some((i) => i.tipo === TipoPunto.RD)
   const cerrado = punto.estadoEjecucion === EstadoPunto.Firmado || punto.noAplica || hojaCerrada
+  const porItems = punto.alcance !== AlcancePunto.Unico
+  // El alcance se puede ampliar aunque el punto esté firmado (queda "con ampliación pendiente").
+  const alcanceCerrado = punto.noAplica || hojaCerrada
+  const puedeFirmar = !punto.motivo && !punto.bloqueadoPor
+    && (punto.estadoEjecucion === EstadoPunto.ListoParaFirmar || punto.estadoEjecucion === EstadoPunto.AmpliacionPendiente)
+  const etiquetaItem = Object.fromEntries(punto.items.map((i) => [i.id, i.etiqueta ?? "?"]))
 
   async function nuevoRegistro(planillaId: string) {
     setError(null)
@@ -101,6 +110,8 @@ export function PuntoSheet({
             {punto.observaciones && (<><dt className="text-muted-foreground">Observaciones</dt><dd>{punto.observaciones}</dd></>)}
           </dl>
 
+          {porItems && <AlcancePuntoSeccion punto={punto} cerrado={alcanceCerrado} />}
+
           {/* ── Registros ─────────────────────────────────────────── */}
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">Registros</h3>
@@ -116,6 +127,11 @@ export function PuntoSheet({
                       <div className="text-xs text-muted-foreground">
                         {ESTADO_REGISTRO_LABEL[r.estado] ?? r.estado}{r.esFisico ? " · en papel" : ""} · {fechaHora(r.fechaTerminado ?? r.createdAt)}
                       </div>
+                      {r.itemIds.length > 0 && (
+                        <div className="truncate text-xs text-muted-foreground" title={r.itemIds.map((id) => etiquetaItem[id]).join(", ")}>
+                          Cubre: {r.itemIds.slice(0, 6).map((id) => etiquetaItem[id]).join(", ")}{r.itemIds.length > 6 ? ` y ${r.itemIds.length - 6} más` : ""}
+                        </div>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className={`text-xs font-medium ${r.cerrado ? "text-green-700" : "text-amber-700"}`}>{r.cerrado ? "Respalda el punto" : "Falta firmar"}</span>
@@ -125,7 +141,10 @@ export function PuntoSheet({
                 ))}
               </ul>
             )}
-            {carga && !cerrado && punto.planillas.length > 0 && (
+            {porItems && punto.registros.length === 0 && (
+              <p className="text-sm text-muted-foreground">Los registros se crean desde el alcance, eligiendo qué cubre cada uno.</p>
+            )}
+            {carga && !cerrado && !porItems && punto.planillas.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {punto.planillas.map((pl) => (
                   <Button key={pl.planillaId} size="sm" variant="outline" disabled={crearRegistro.isPending} onClick={() => nuevoRegistro(pl.planillaId)}>
@@ -172,7 +191,9 @@ export function PuntoSheet({
             <ul className="divide-y rounded-md border">
               {intervienen.map((i) => {
                 const parte = pie.partes.find((p) => p.id === i.parteId)
-                const firma = punto.firmas.find((f) => f.parteId === i.parteId)
+                const deLaParte = punto.firmas.filter((f) => f.parteId === i.parteId)
+                const firma = deLaParte.filter((f) => f.vigente).at(-1)
+                const previa = firma ? undefined : deLaParte.at(-1)
                 const mia = pie.misPartes.includes(i.parteId)
                 return (
                   <li key={i.parteId} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
@@ -182,7 +203,9 @@ export function PuntoSheet({
                         <div className="font-medium">{parte?.nombre}</div>
                         {firma
                           ? <div className="text-xs text-green-700">{firma.usuarioNombre} · {fecha(firma.fechaFirma)}{firma.comentario ? ` · “${firma.comentario}”` : ""}</div>
-                          : <div className="text-xs text-muted-foreground">Firma con el rol “{parte?.rolFirma ?? "—"}”</div>}
+                          : previa
+                            ? <div className="text-xs text-violet-700">Firmó {previa.usuarioNombre} el {fecha(previa.fechaFirma)}, antes de ampliar el alcance: falta volver a firmar</div>
+                            : <div className="text-xs text-muted-foreground">Firma con el rol “{parte?.rolFirma ?? "—"}”</div>}
                       </div>
                     </div>
                     {firma ? (
@@ -193,8 +216,8 @@ export function PuntoSheet({
                       )
                     ) : (
                       mia && !punto.noAplica && !hojaCerrada && (
-                        <Button size="sm" disabled={punto.estadoEjecucion !== EstadoPunto.ListoParaFirmar || !!punto.bloqueadoPor} onClick={() => onFirmar(punto, i.parteId)}>
-                          <PenLine className="h-3.5 w-3.5" /> Firmar
+                        <Button size="sm" disabled={!puedeFirmar} onClick={() => onFirmar(punto, i.parteId)}>
+                          <PenLine className="h-3.5 w-3.5" /> {previa ? "Volver a firmar" : "Firmar"}
                         </Button>
                       )
                     )}

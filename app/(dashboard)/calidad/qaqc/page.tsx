@@ -11,7 +11,10 @@ import { Button } from "@/components/ui/button"
 
 /**
  * Avance de calidad por PIE: el equivalente del avance por subsistemas para QA/QC.
- * Avance = puntos firmados / (total − N/A), por PIE, por hoja y por etapa.
+ * Avance = controles hechos / (total − N/A), por PIE, por hoja y por etapa. Un punto único
+ * es un control (hecho al firmarse); un punto por elemento aporta uno por elemento (hecho
+ * cuando está cubierto). Sin puntos por elemento es lo mismo que puntos firmados / total,
+ * que se muestra al lado como referencia del papel.
  */
 export default function AvanceQaqcPage() {
   const { data, isLoading, error } = useAvance()
@@ -21,8 +24,9 @@ export default function AvanceQaqcPage() {
     <div className="space-y-5">
       <Encabezado
         titulo="Avance por PIE"
-        descripcion="Puntos firmados por todas las partes sobre el total de cada Plan de Inspección y Ensayo. Los puntos marcados como No aplica no cuentan."
+        descripcion="Controles hechos sobre el total de cada Plan de Inspección y Ensayo. En los puntos por elemento cuenta cada elemento; lo marcado como No aplica no cuenta."
       >
+        {data?.tieneAlcance && <Button variant="outline" asChild><Link href="/calidad/qaqc/elementos">Avance por elemento</Link></Button>}
         <Button variant="outline" asChild><Link href="/calidad/qaqc/agenda">Puntos de inspección</Link></Button>
         <Button variant="outline" asChild><Link href="/calidad/qaqc/databook">Databook</Link></Button>
       </Encabezado>
@@ -42,8 +46,17 @@ export default function AvanceQaqcPage() {
       {data && data.pies.length > 0 && (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi titulo="Avance general" valor={`${data.porcentaje.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`} detalle={`${data.pies.length} PIE en el proyecto`} icono={<CheckCircle2 className="h-5 w-5 text-green-600" />} />
-            <Kpi titulo="Puntos firmados" valor={`${data.puntosFirmados} / ${data.totalPuntos - data.puntosNoAplica}`} detalle={data.puntosNoAplica > 0 ? `${data.puntosNoAplica} no aplican` : "Ninguno marcado como No aplica"} icono={<PenLine className="h-5 w-5 text-blue-600" />} />
+            <Kpi titulo="Avance general" valor={`${data.porcentaje.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`}
+              detalle={data.tieneAlcance && data.unidades
+                ? `${data.unidades.hechas} de ${data.unidades.total - data.unidades.noAplica} controles (con cada elemento)`
+                : `${data.pies.length} PIE en el proyecto`}
+              icono={<CheckCircle2 className="h-5 w-5 text-green-600" />} />
+            <Kpi titulo="Puntos firmados" valor={`${data.puntosFirmados} / ${data.totalPuntos - data.puntosNoAplica}`}
+              detalle={[
+                data.tieneAlcance ? `${data.porcentajePuntos.toLocaleString("es-AR", { maximumFractionDigits: 1 })}% por puntos` : null,
+                data.puntosNoAplica > 0 ? `${data.puntosNoAplica} no aplican` : null,
+              ].filter(Boolean).join(" · ") || "Ninguno marcado como No aplica"}
+              icono={<PenLine className="h-5 w-5 text-blue-600" />} />
             <Kpi titulo="Listos para firmar" valor={String(data.listosParaFirmar)} detalle="Con sus registros firmados y sin HP pendiente antes" icono={<ClipboardCheck className="h-5 w-5 text-blue-600" />} />
             <Kpi titulo="HP pendientes" valor={String(data.hpPendientes)} detalle="Puntos de detención obligatoria sin firmar" icono={<AlertOctagon className="h-5 w-5 text-red-600" />} />
           </div>
@@ -86,7 +99,14 @@ function TarjetaPie({ pie }: { pie: PieAvance }) {
         <div className="space-y-3">
           <BarraAvance porcentaje={pie.porcentaje} alto="h-3" />
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            <dt className="text-muted-foreground">Firmados</dt><dd className="text-right tabular-nums font-medium">{pie.puntosFirmados} / {cuentan}</dd>
+            {pie.tieneAlcance && pie.unidades && (
+              <><dt className="text-muted-foreground">Controles hechos</dt><dd className="text-right tabular-nums font-medium">{pie.unidades.hechas} / {pie.unidades.total - pie.unidades.noAplica}</dd></>
+            )}
+            <dt className="text-muted-foreground">Puntos firmados</dt>
+            <dd className="text-right tabular-nums font-medium">
+              {pie.puntosFirmados} / {cuentan}
+              {pie.tieneAlcance && <span className="ml-1 text-xs font-normal text-muted-foreground">({Math.round(pie.porcentajePuntos)}%)</span>}
+            </dd>
             <dt className="text-muted-foreground">No aplican</dt><dd className="text-right tabular-nums">{pie.puntosNoAplica}</dd>
             <dt className="text-muted-foreground">Listos para firmar</dt><dd className="text-right tabular-nums text-blue-700 font-medium">{pie.listosParaFirmar}</dd>
             <dt className="text-muted-foreground">HP pendientes</dt><dd className="text-right tabular-nums text-red-700 font-medium">{pie.hpPendientes}</dd>
@@ -106,7 +126,10 @@ function TarjetaPie({ pie }: { pie: PieAvance }) {
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="truncate font-medium">{nombreHoja(h)}</span>
                 <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {h.puntosFirmados}/{h.totalPuntos - h.puntosNoAplica}{h.cerrada && <span className="ml-2 font-medium text-green-700">· firmas finales</span>}
+                  {h.unidades && h.unidades.total !== h.totalPuntos
+                    ? <>{h.unidades.hechas}/{h.unidades.total - h.unidades.noAplica} controles · {h.puntosFirmados}/{h.totalPuntos - h.puntosNoAplica} puntos</>
+                    : <>{h.puntosFirmados}/{h.totalPuntos - h.puntosNoAplica}</>}
+                  {h.cerrada && <span className="ml-2 font-medium text-green-700">· firmas finales</span>}
                 </span>
               </div>
               <BarraAvance porcentaje={h.porcentaje} />

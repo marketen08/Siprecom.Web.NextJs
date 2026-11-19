@@ -622,6 +622,9 @@ export default function RegistroFormPage({ params }: PageProps) {
               {registro.pieHojaNumero && <> · PIE Nº {registro.pieHojaNumero}</>}
             </p>
             <p className="text-xs">Punto {registro.piePuntoNumero} · {registro.piePuntoActividad}. Cuando el registro quede firmado, las partes pueden firmar el punto.</p>
+            {(registro.pieItems?.length ?? 0) > 0 && (
+              <p className="text-xs"><span className="font-medium">Cubre:</span> {registro.pieItems!.join(", ")}</p>
+            )}
           </div>
           <Link href={`/calidad/qaqc/pie/${registro.pieId}`} className="shrink-0 text-xs font-medium text-indigo-800 underline">Volver al PIE</Link>
         </div>
