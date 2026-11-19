@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type {
-  AgendaItem, AlcanceImportPreview, ApiResponse, Candidatos, ElementoAvance, EstadoPlantilla, ImportPreview, PieDetalle,
+  AgendaItem, AlcancePie, AlcancePunto, ApiResponse, Candidatos, ElementoAvance, EstadoPlantilla, ImportPreview, PieDetalle,
   PieEtapaWrite, PieHojaWrite, PieParteWrite, PiePuntoWrite, PieResumen, PieSeccionWrite, PieWrite, ProcedimientoQaqc,
   ProcedimientoQaqcWrite, QaqcAvance,
 } from "@/features/qaqc/types"
@@ -227,15 +227,26 @@ export function useAvanceElementos(pieId: string | null) {
   })
 }
 
-export function usePreviewAlcance() {
-  return useMutation({
-    mutationFn: ({ pieId, archivo }: { pieId: string; archivo: File }) =>
-      subir<ApiResponse<AlcanceImportPreview>>(`proyecto/pies/${pieId}/alcance/preview`, archivo),
+export interface FiltroAlcancePie { alcance: AlcancePunto; buscar: string; tipo: string; subsistemaId: string }
+
+/** Pantalla de alcance del PIE: puntos por elemento (o por grupo) y elementos del proyecto filtrados. */
+export function useAlcancePie(pieId: string, f: FiltroAlcancePie) {
+  return useQuery({
+    queryKey: [...RAIZ, "alcance-pie", pieId, f],
+    queryFn: async () => {
+      const q = new URLSearchParams({ alcance: String(f.alcance), max: "1000" })
+      if (f.buscar.trim()) q.set("buscar", f.buscar.trim())
+      if (f.tipo) q.set("tipo", f.tipo)
+      if (f.subsistemaId) q.set("subsistemaId", f.subsistemaId)
+      return (await apiClient.get<ApiResponse<AlcancePie>>(`${BASE}/proyecto/pies/${pieId}/alcance?${q}`)).data
+    },
+    placeholderData: (anterior) => anterior,
   })
 }
 
-export const useAplicarAlcance = mutacion(({ pieId, archivo }: { pieId: string; archivo: File }) =>
-  subir<ApiResponse<AlcanceImportPreview>>(`proyecto/pies/${pieId}/alcance/aplicar`, archivo))
+export const useAgregarAlcancePie = mutacion(({ pieId, puntoIds, elementoIds, testGroupIds }: { pieId: string; puntoIds: string[]; elementoIds?: string[]; testGroupIds?: string[] }) =>
+  apiClient.post<ApiResponse<{ puntos: number; agregados: number; yaEstaban: number }>>(`${BASE}/proyecto/pies/${pieId}/alcance`,
+    { puntoIds, elementoIds: elementoIds ?? [], testGroupIds: testGroupIds ?? [] }))
 
 export const useSubirDocumentoPunto = mutacion(({ puntoId, archivo, nombre }: { puntoId: string; archivo: File; nombre?: string }) =>
   subir(`puntos/${puntoId}/documentos`, archivo, nombre ? { nombre } : undefined))

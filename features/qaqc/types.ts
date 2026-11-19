@@ -434,14 +434,45 @@ export interface ElementoAvance {
   puntos: ElementoPunto[]
 }
 
-export interface AlcanceImportPreview {
-  valido: boolean
-  errores: string[]
-  filas: { fila: number; hoja: string | null; punto: string | null; etiqueta: string; estado: "Nuevo" | "Existe" | "Error"; mensaje: string | null }[]
-  nuevos: number
-  existentes: number
-  conError: number
-  puntos: number
+// ── Alcance del PIE en bloque ──────────────────────────────────────────────
+
+export interface AlcancePuntoPie {
+  id: string
+  hojaId: string
+  hojaNumero: string | null
+  hojaTitulo: string
+  numero: string | null
+  actividad: string
+  alcance: AlcancePunto
+  alcanceDescripcion: string | null
+  items: number
+  /** Motivo por el que no admite agregar; null si admite. */
+  bloqueado: string | null
+}
+
+export interface AlcanceSubsistema {
+  id: string
+  codigo: string
+  nombre: string
+  sistema: string | null
+  sinAsignar: boolean
+}
+
+export interface AlcanceCandidato {
+  id: string
+  etiqueta: string | null
+  nombre: string | null
+  tipo: string | null
+  subsistema: string | null
+  puntoIds: string[]
+}
+
+export interface AlcancePie {
+  puntos: AlcancePuntoPie[]
+  candidatos: AlcanceCandidato[]
+  total: number
+  tipos: string[]
+  subsistemas: AlcanceSubsistema[]
 }
 
 export interface AgendaItem {

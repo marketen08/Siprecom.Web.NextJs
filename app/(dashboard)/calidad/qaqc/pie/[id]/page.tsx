@@ -11,7 +11,6 @@ import {
 } from "@/features/qaqc/components/comunes"
 import { DialogoTexto } from "@/features/qaqc/components/dialogo-texto"
 import { PuntoSheet } from "@/features/qaqc/components/punto-sheet"
-import { AlcanceImportSheet } from "@/features/qaqc/components/alcance-import"
 import { AlcancePunto, EstadoPunto, nombreItems, type PieHoja, type PiePunto } from "@/features/qaqc/types"
 
 import { Button } from "@/components/ui/button"
@@ -27,7 +26,6 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
   const { id } = use(params)
   const { data: pie, isLoading, error } = useEjecucion(id)
   const { gestion, carga } = usePermisosQaqc()
-  const [importarAlcance, setImportarAlcance] = useState(false)
   const firmarPunto = useFirmarPunto()
   const firmarHoja = useFirmarHoja()
   const [hojaSel, setHojaSel] = useState<string | null>(null)
@@ -94,7 +92,7 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
               <BookOpen className="h-4 w-4" /> {descargando === "db" ? "Armando databook..." : "Databook"}
             </Button>
             {pie.tieneAlcance && carga && (
-              <Button variant="outline" onClick={() => setImportarAlcance(true)}><Boxes className="h-4 w-4" /> Alcance</Button>
+              <Button asChild variant="outline"><Link href={`/calidad/qaqc/pie/${pie.id}/alcance`}><Boxes className="h-4 w-4" /> Alcance</Link></Button>
             )}
             {gestion && (
               <Button variant="outline" asChild><Link href={`/calidad/qaqc/configuracion/${pie.id}`}><Settings2 className="h-4 w-4" /> Estructura</Link></Button>
@@ -258,7 +256,6 @@ export default function PiePage({ params }: { params: Promise<{ id: string }> })
         </div>
       </div>
 
-      {importarAlcance && <AlcanceImportSheet pieId={pie.id} pieCodigo={pie.codigo} onCerrar={() => setImportarAlcance(false)} />}
 
       <PuntoSheet pie={pie} punto={punto} onCerrar={() => setPuntoSel(null)} onFirmar={(p, parteId) => { setErrorFirma(null); setFirma({ tipo: "punto", punto: p, parteId }) }} />
 

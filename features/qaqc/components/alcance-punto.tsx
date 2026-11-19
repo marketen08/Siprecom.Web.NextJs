@@ -251,7 +251,7 @@ function AgregarItems({ punto, onListo }: { punto: PiePunto; onListo: () => void
         {isFetching && !data && <p className="p-2 text-xs text-muted-foreground">Buscando…</p>}
         {data && data.items.length === 0 && (
           <p className="p-2 text-xs text-muted-foreground">
-            {porElemento ? "No hay elementos que coincidan. Si falta alguno, primero hay que darlo de alta en el proyecto." : "No hay test packs que coincidan."}
+            {porElemento ? "No hay elementos que coincidan. Si falta alguno, primero hay que cargarlo en Alcance › Importar datos del proyecto." : "No hay test packs que coincidan."}
           </p>
         )}
         <ul className="divide-y text-sm">

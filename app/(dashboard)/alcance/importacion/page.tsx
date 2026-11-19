@@ -104,7 +104,9 @@ export default function ImportacionPage() {
           pack. Las columnas <code className="text-xs">Modulo</code> y{" "}
           <code className="text-xs">Areas</code> pueden referenciar códigos que se crean en las
           hojas <code className="text-xs">Modulos</code> / <code className="text-xs">Areas</code> del
-          mismo archivo.
+          mismo archivo. Un elemento nuevo sin <code className="text-xs">CodigoSistema</code> ni{" "}
+          <code className="text-xs">CodigoSubsistema</code> queda en el subsistema «Sin asignar»;
+          para asignarlo después, reimportalo con <code className="text-xs">UPDATE</code> y sus códigos.
         </p>
       </div>
 

@@ -69,7 +69,7 @@ export default function AvancePorElementoPage() {
         <div className="rounded-lg border bg-white p-10 text-center">
           <Boxes className="mx-auto h-10 w-10 text-slate-300" />
           <p className="mt-3 font-medium">Ningún punto tiene elementos cargados</p>
-          <p className="mt-1 text-sm text-muted-foreground">Los puntos por elemento o por grupo se marcan en la estructura del PIE; su alcance se carga desde el punto o con el botón “Alcance”.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Los puntos por elemento o por grupo se marcan en la estructura del PIE; su alcance se carga desde el punto o con el botón “Alcance” del PIE.</p>
         </div>
       )}
 
