@@ -539,7 +539,36 @@ function buildRouteRoleMap(
   return acc
 }
 
-export const routeRoleMap = buildRouteRoleMap(menu, undefined, new Map())
+/**
+ * Reglas para rutas que NO son href de ningún item del menú y que por eso no
+ * entran al `routeRoleMap`. Sin una entrada acá `ruleForPath` devuelve null y
+ * el RouteGuard deja pasar a cualquiera — incluido un Consultor, que es de
+ * sólo lectura. Aplican por PREFIJO, igual que las del menú.
+ *
+ * Quedan AFUERA a propósito:
+ *  - `/checklist/…` y `/qr/…`: son redirects, el guard evalúa el destino.
+ *  - Las páginas de carga (`/pendiente-carga/…`,
+ *    `/ejecucion/registros/testgroup/…`): se protegen adentro con
+ *    `useCanWrite()`. Son destino de QR impresos y un rebote mudo al dashboard
+ *    en medio del campo no se entiende — muestran el motivo en pantalla.
+ *  - `/perfil`, `/mis-firmas`, `/ejecucion/proyectos`, `/verificar/…`:
+ *    auto-servicio o sólo lectura.
+ */
+const reglasFueraDelMenu: Array<[string, RouteRule]> = [
+  // El grupo "Alcance" del menú es Supervisor+, pero ni `/alcance` ni el
+  // detalle `/alcance/proyectos/{id}` son hrefs del menú (el menú linkea
+  // `/alcance/proyecto`, singular, que redirige al activo). Quedaban abiertos.
+  ["/alcance", { kind: "min", role: "Supervisor" }],
+  // Import/export masivo de catálogos. `CatalogosController` pide
+  // Admin,SuperAdmin — la UI no tiene por qué abrirse antes que el backend.
+  ["/configuracion/catalogos", { kind: "min", role: "Admin" }],
+]
+
+export const routeRoleMap: Map<string, RouteRule> = (() => {
+  const map = buildRouteRoleMap(menu, undefined, new Map())
+  for (const [href, rule] of reglasFueraDelMenu) map.set(href, rule)
+  return map
+})()
 
 /**
  * Regla de autorización para una ruta (por prefijo más específico). Devuelve

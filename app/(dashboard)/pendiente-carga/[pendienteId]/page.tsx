@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { useGetPendiente } from "@/features/pendientes/api/use-get-pendiente"
 import { PendienteCargaFisicaUploader } from "@/features/pendientes/components/pendiente-carga-fisica-uploader"
 import { PENDIENTE_ESTADO_IDS } from "@/features/pendientes/types"
+import { useCanWrite } from "@/lib/use-roles"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 
@@ -23,6 +24,11 @@ export default function PendienteCargaPage({
   const { pendienteId } = use(params)
   const { data, isLoading } = useGetPendiente(pendienteId)
   const p = data?.data
+  // Sólo lectura (Consultor / Auditor). El backend ya rechaza la carga
+  // —`/pendientes/{id}/completar/fisico` pide Admin,Supervisor,User— pero a
+  // esta página se llega escaneando el QR del PDF del pendiente, así que el
+  // motivo tiene que estar en pantalla y no en un 403 al final.
+  const canWrite = useCanWrite()
 
   const yaTerminal = p?.estadoId === PENDIENTE_ESTADO_IDS.CERRADO
     || p?.estadoId === PENDIENTE_ESTADO_IDS.CANCELADO
@@ -55,7 +61,12 @@ export default function PendienteCargaPage({
             <p className="text-sm text-gray-800 whitespace-pre-wrap">{p.descripcion}</p>
           </Card>
 
-          {yaTerminal ? (
+          {!canWrite ? (
+            <Card className="p-6 text-center bg-amber-50 border-amber-200 text-amber-900">
+              Tu rol es de <strong>sólo lectura</strong> y no puede cargar el PDF
+              físico de un pendiente.
+            </Card>
+          ) : yaTerminal ? (
             <Card className="p-6 text-center bg-amber-50 border-amber-200 text-amber-900">
               Este pendiente ya está en estado terminal (<strong>{p.estadoNombre}</strong>).
               No se puede cargar PDF físico.
