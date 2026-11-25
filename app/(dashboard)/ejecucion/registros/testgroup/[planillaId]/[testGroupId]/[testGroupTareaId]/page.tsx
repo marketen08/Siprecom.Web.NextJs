@@ -7,6 +7,7 @@ import { useBreadcrumb } from "@/components/breadcrumb-context"
 import { useGetTareasPack, ESTADO_TAREA_LABEL } from "@/features/testgroups/api/use-get-tareas-pack"
 import { useGetTestGroup } from "@/features/testgroups/api/use-get-testgroup"
 import { useIniciarRegistroTarea } from "@/features/testgroups/api/use-iniciar-registro-tarea"
+import { useCanWrite } from "@/lib/use-roles"
 import { Button } from "@/components/ui/button"
 import {
   Upload, Loader2, ArrowLeft, FileUp, X, FileText,
@@ -48,6 +49,7 @@ function CargarPdfTestGroupContent() {
   const [subiendo, setSubiendo]  = useState<"idle" | "iniciando" | "subiendo" | "error">("idle")
   const [mensajeError, setError] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const canWrite = useCanWrite()
 
   async function handleSubir() {
     if (!archivo || !tarea) return
@@ -150,6 +152,29 @@ function CargarPdfTestGroupContent() {
   }
 
   const estadoLabel = ESTADO_TAREA_LABEL[tarea.estado] ?? String(tarea.estado)
+
+  // Consultor y Auditor son de sólo lectura. El backend ya los rechaza
+  // —`/registros/{id}/completar/fisico` pide Admin,User— pero esta página es
+  // destino de un QR impreso: sin esto el usuario elige el archivo, escribe las
+  // observaciones y recién ahí se come un 403 sin saber por qué. Va ANTES del
+  // chequeo de estado porque es la razón más fuerte: no importa en qué estado
+  // esté la tarea si este usuario no puede cargar nada.
+  if (!canWrite) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
+        <TaskHeader tarea={tarea} tg={tg} estadoLabel={estadoLabel} />
+        <div className="flex flex-col items-center justify-center gap-4 text-center py-10 rounded-xl border border-dashed bg-gray-50">
+          <FileText className="h-12 w-12 text-gray-300" />
+          <p className="text-gray-600 font-medium">
+            Tu rol es de <span className="font-bold">sólo lectura</span> y no puede cargar planillas.
+          </p>
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   // PENDIENTE, EN_PROCESO, RECHAZADO — mismo criterio que la de elementos.
   const estadosPermitidos = [1, 2, 5]
