@@ -82,6 +82,10 @@ export interface SubsistemaCertificadoEstado {
   // de habilitar el RFC. Si mcConfigurado = false y este flag está prendido,
   // el gate queda insatisfacible.
   rfcRequiereMcActivo: boolean
+  // CERT_VALIDAR_SOLDADURA + módulo de soldadura: las juntas sin liberar de las líneas
+  // del subsistema frenan el RFC.
+  validarSoldaduraActivo: boolean
+  juntasSinLiberar: number
   // true si Proyecto.NivelMcId está configurado. Sino MC queda en "no aplica".
   mcConfigurado: boolean
   // Nombre del Nivel MC configurado (solo para display en la UI).

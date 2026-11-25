@@ -35,6 +35,7 @@ export function NewProyectoSheet() {
           estructura: values.clonar.estructura ?? false,
           funcionalidades: values.clonar.funcionalidades ?? true,
         } : undefined,
+        piePlantillaIds: values.piePlantillaIds?.length ? values.piePlantillaIds : undefined,
       },
       { onSuccess: close }
     )
