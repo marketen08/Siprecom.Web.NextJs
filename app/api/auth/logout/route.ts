@@ -41,10 +41,10 @@ export async function POST(request: NextRequest) {
       if (disc.end_session_endpoint) {
         const url = new URL(disc.end_session_endpoint)
         url.searchParams.set("client_id", YPF_CLIENT_ID)
-        url.searchParams.set(
-          "post_logout_redirect_uri",
-          postLogoutRedirectUri(request.nextUrl.origin)
-        )
+        // Solo si esta registrada en el IDP (ver postLogoutRedirectUri): un valor
+        // no registrado hace que el IDP devuelva 400 y NO cierre la sesion.
+        const postLogout = postLogoutRedirectUri()
+        if (postLogout) url.searchParams.set("post_logout_redirect_uri", postLogout)
         logoutUrl = url.toString()
       }
     } catch (e) {

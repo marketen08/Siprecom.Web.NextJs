@@ -76,11 +76,29 @@ export function redirectUri(origenRequest: string): string {
   )
 }
 
-export function postLogoutRedirectUri(origenRequest: string): string {
-  return (
-    process.env.YPF_POST_LOGOUT_REDIRECT_URI ||
-    `${origenPublico(origenRequest)}/api/auth/logout/callback`
-  )
+/**
+ * URI de post-logout, o null si este sitio no tiene una registrada en el IDP.
+ *
+ * IBM Verify valida este parametro contra una lista propia del cliente, SEPARADA
+ * de la de redirect URIs de login, y rechaza con 400 CSIAQ0167E cualquier valor
+ * que no este en ella — incluso la URI de login, que si esta registrada.
+ * Comprobado contra los dos tenants: el cliente de TEST la tiene cargada (el
+ * rplogout devuelve 303 a nuestro callback) y el de PRODUCCION la tiene vacia
+ * (devuelve 400).
+ *
+ * Por eso ya NO se deriva de APP_ORIGIN. Mandar un valor no registrado no degrada
+ * el logout: lo ROMPE. El IDP muestra su pagina de error, no procesa el cierre y
+ * la sesion federada queda viva, asi que el proximo "Ingresar con YPF" entra sin
+ * pedir credenciales — justo lo que el logout federado venia a evitar. Omitiendo
+ * el parametro, en cambio, el IDP si cierra la sesion y muestra su propia
+ * pantalla "OAuth/OIDC Logout - Summary".
+ *
+ * Definir la variable es afirmar que el IDP ya tiene esa URI registrada en ESE
+ * cliente. Si no esta, el logout funciona igual: el usuario queda en la pantalla
+ * del IDP en vez de volver a /login.
+ */
+export function postLogoutRedirectUri(): string | null {
+  return (process.env.YPF_POST_LOGOUT_REDIRECT_URI || "").trim() || null
 }
 
 // --- Discovery --------------------------------------------------------------
