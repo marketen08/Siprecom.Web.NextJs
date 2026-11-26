@@ -115,14 +115,93 @@ export const menu: MenuItem[] = [
       },
     ],
   },
-  // Calidad — QA/QC del proyecto. El item se oculta salvo que el proyecto tenga
-  // habilitada la funcionalidad: el módulo arranca apagado y se prende por
-  // proyecto, así que sin el flag no hay nada que mostrar.
+  // Calidad — QA/QC del proyecto. Cada hijo pide su propia funcionalidad: los
+  // informes, CALIDAD_NO_CONFORMIDADES; el control de soldadura, CALIDAD_SOLDADURA.
+  // Son independientes, así que el flag ya no va en la sección: la sección se
+  // muestra si alguno de sus hijos queda visible (ver `esVisible`), y desaparece
+  // sola cuando los dos módulos están apagados.
   {
     label: "Calidad",
     minRole: "Consultor",
-    requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES",
-    children: [{ label: "Informes", href: "/calidad/no-conformidades" }],
+    children: [
+      {
+        // El Plan de Inspección y Ensayo del proyecto: lo de todos los días arriba (avance,
+        // puntos de inspección, databook) y la estructura de los PIE al final.
+        label: "QA/QC (PIE)",
+        requiereFuncionalidad: "CALIDAD_PIE",
+        children: [
+          { label: "Avance por PIE",       href: "/calidad/qaqc" },
+          { label: "Avance por elemento",  href: "/calidad/qaqc/elementos" },
+          { label: "Puntos de inspección", href: "/calidad/qaqc/agenda" },
+          { label: "Databook",             href: "/calidad/qaqc/databook" },
+          { label: "PIE del proyecto",     href: "/calidad/qaqc/configuracion", minRole: "Supervisor" },
+        ],
+      },
+      { label: "Informes", href: "/calidad/no-conformidades", requiereFuncionalidad: "CALIDAD_NO_CONFORMIDADES" },
+      {
+        // Mismo criterio que Ejecución y Configuración: lo de todos los días queda suelto
+        // arriba (el tablero de vencimientos y las juntas) y el resto va en sub-grupos que
+        // siguen las etapas de la obra: inspección, cierre, datos de obra, personas y
+        // procedimientos. Importar y Configuración al final, como en Alcance y Planificación.
+        label: "Soldadura",
+        requiereFuncionalidad: "CALIDAD_SOLDADURA",
+        children: [
+          { label: "Vencimientos", href: "/calidad/soldadura" },
+          { label: "Juntas",       href: "/calidad/soldadura/juntas" },
+          {
+            label: "Inspección y ensayos",
+            children: [
+              { label: "Lotes",              href: "/calidad/soldadura/lotes" },
+              { label: "Ensayos e informes", href: "/calidad/soldadura/ensayos" },
+              { label: "Tasa de reparación", href: "/calidad/soldadura/tasa-reparacion" },
+            ],
+          },
+          {
+            // Partes va acá y no con los catálogos: define quién interviene en cada tarea
+            // del PIE, que es lo que mira la agenda de puntos de inspección.
+            label: "Cierre",
+            children: [
+              { label: "Cierre de tareas",        href: "/calidad/soldadura/cierre" },
+              { label: "Puntos de inspección",    href: "/calidad/soldadura/agenda" },
+              { label: "Partes e intervenciones", href: "/calidad/soldadura/partes" },
+            ],
+          },
+          {
+            label: "Datos de obra",
+            children: [
+              { label: "Líneas",          href: "/calidad/soldadura/lineas" },
+              { label: "Piezas",          href: "/calidad/soldadura/piezas" },
+              { label: "Lotes de aporte", href: "/calidad/soldadura/consumibles" },
+            ],
+          },
+          {
+            label: "Personal",
+            children: [
+              { label: "Soldadores",      href: "/calidad/soldadura/soldadores" },
+              { label: "Personal de END", href: "/calidad/soldadura/personal-end" },
+            ],
+          },
+          {
+            label: "Procedimientos y normas",
+            children: [
+              { label: "WPS y PQR",           href: "/calidad/soldadura/procedimientos" },
+              { label: "Matriz de soldadura", href: "/calidad/soldadura/matriz" },
+              { label: "Normas y clases",     href: "/calidad/soldadura/normas-clases" },
+            ],
+          },
+          {
+            // minRole en el grupo para que User no vea el encabezado vacío.
+            label: "Importar",
+            minRole: "Supervisor",
+            children: [
+              { label: "Juntas",    href: "/calidad/soldadura/importar-juntas" },
+              { label: "Catálogos", href: "/calidad/soldadura/importar" },
+            ],
+          },
+          { label: "Configuración", href: "/calidad/soldadura/configuracion", minRole: "Supervisor" },
+        ],
+      },
+    ],
   },
   {
     label: "Análisis",
@@ -272,6 +351,16 @@ export const menu: MenuItem[] = [
             href: "/configuracion/importacion-maestro-pendientes",
             minRole: "AdminGlobal",
           },
+        ],
+      },
+      {
+        // Catálogo global del módulo QA/QC. Sin flag a propósito: las plantillas se eligen
+        // al crear un proyecto, antes de que ese proyecto tenga el módulo prendido.
+        label: "QA/QC",
+        minRole: "Admin",
+        children: [
+          { label: "Plantillas de PIE",               href: "/configuracion/qaqc/plantillas" },
+          { label: "Procedimientos y anexos",         href: "/configuracion/qaqc/procedimientos" },
         ],
       },
       {
@@ -561,6 +650,8 @@ export const segmentLabels: Record<string, string> = {
   "pendientes-catalogo":   "Catálogo maestro de pendientes",
   "calidad-tipos":         "Tipos de informe",
   "calidad-motivos":       "Motivos de informes",
+  qaqc:                    "QA/QC",
+  pie:                     "PIE",
   "importacion-maestro-pendientes": "Importar / Exportar catálogo maestro",
   "modelo-3d":             "Modelo 3D",
   licenciamiento:          "Licenciamiento",

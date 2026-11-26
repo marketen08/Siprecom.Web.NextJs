@@ -20,6 +20,8 @@ export const proyectoSchema = z.object({
   apsTagProperties: z.string().max(500).optional().nullable(),
   proyectoPlantillaId: z.string().optional(),
   clonar: proyectoClonOptionsSchema.optional(),
+  // Plantillas de PIE (QA/QC) que el proyecto va a usar: se copian al crearlo.
+  piePlantillaIds: z.array(z.string()).optional(),
 })
 
 export type ProyectoFormInput = z.input<typeof proyectoSchema>

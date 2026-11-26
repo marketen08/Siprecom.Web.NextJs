@@ -97,6 +97,8 @@ export interface ProyectoCreateInput {
   observaciones: string
   proyectoPlantillaId?: string
   clonar?: ProyectoClonOptions
+  /** Plantillas de PIE (QA/QC) a copiar al proyecto; con alguna se habilita CALIDAD_PIE. */
+  piePlantillaIds?: string[]
 }
 
 export interface ProyectoUpdateInput {

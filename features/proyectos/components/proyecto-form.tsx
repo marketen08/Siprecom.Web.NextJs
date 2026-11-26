@@ -14,6 +14,7 @@ import {
   useFuncionalidadPlataforma,
 } from "@/features/funcionalidades/api/use-funcionalidades-plataforma"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { usePlantillas } from "@/features/qaqc/api/use-qaqc"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -86,8 +87,11 @@ export function ProyectoForm({
         estructura: false,
         funcionalidades: true,
       },
+      piePlantillaIds: [],
     },
   })
+  // Plantillas de PIE vigentes, para el módulo QA/QC. Solo en el alta.
+  const piePlantillas = usePlantillas(true)
 
   const plantillaId = form.watch("proyectoPlantillaId")
   const hayPlantilla = !!plantillaId && plantillaId.length > 0
@@ -376,6 +380,49 @@ export function ProyectoForm({
                 </div>
               )}
             </div>
+
+            {/* QA/QC: los PIE que va a usar el proyecto. Se copian de las plantillas vigentes
+                del catálogo y, si hay alguno, el proyecto nace con el módulo QA/QC prendido. */}
+            {(piePlantillas.data?.length ?? 0) > 0 && (
+              <>
+                <Separator />
+                <FormField
+                  control={form.control}
+                  name="piePlantillaIds"
+                  render={({ field }) => {
+                    const elegidas = field.value ?? []
+                    return (
+                      <FormItem>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Planes de Inspección y Ensayo (QA/QC)
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Elegí los PIE que va a usar el proyecto. Cada uno se copia de su plantilla y después se ajusta en el proyecto.
+                        </p>
+                        <div className="grid gap-1.5 sm:grid-cols-2">
+                          {piePlantillas.data!.map((p) => (
+                            <label key={p.id} className="flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4 accent-blue-600"
+                                disabled={isPending}
+                                checked={elegidas.includes(p.id)}
+                                onChange={(e) => field.onChange(e.target.checked ? [...elegidas, p.id] : elegidas.filter((x) => x !== p.id))}
+                              />
+                              <span>
+                                <span className="font-medium">{p.disciplina ?? p.nombre}</span>
+                                <span className="block text-[11px] text-muted-foreground">{p.codigo} · rev. {p.revision} · {p.puntos} puntos</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+              </>
+            )}
           </>
         )}
 
