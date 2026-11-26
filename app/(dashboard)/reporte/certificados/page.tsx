@@ -68,6 +68,7 @@ export default function CertificadosPage() {
         || filas[0].validarPendientesAActivo
         || filas[0].validarPendientesBActivo
         || filas[0].validarNoConformidadesActivo
+        || filas[0].validarSoldaduraActivo
         || filas[0].requiereFirmasActivo
         || filas[0].rfcRequiereMcActivo
         || filas[0].mcConfigurado
@@ -107,6 +108,9 @@ export default function CertificadosPage() {
               )}
               {filas[0].validarNoConformidadesActivo && (
                 <li>Emisión bloqueada si el subsistema tiene <strong>no conformidades</strong> abiertas.</li>
+              )}
+              {filas[0].validarSoldaduraActivo && (
+                <li>El <strong>RFC</strong> se bloquea si las líneas del subsistema tienen <strong>juntas soldadas sin liberar</strong>.</li>
               )}
               <li className="text-blue-800/80">Los pendientes categoría C nunca bloquean.</li>
             </ul>
@@ -348,7 +352,8 @@ function Celda({
   const pendBlockB = fila.validarPendientesBActivo && fila.pendientesAbiertosB > 0
   const ncBlock = fila.validarNoConformidadesActivo && fila.noConformidadesAbiertas > 0
   const firmaBlock = fila.requiereFirmasActivo && cat.tareasSinFirmar > 0
-  const pendBlock = pendBlockA || pendBlockB || ncBlock || firmaBlock
+  const soldaduraBlock = tipo === TIPO_CERTIFICADO.RFC && fila.validarSoldaduraActivo && fila.juntasSinLiberar > 0
+  const pendBlock = pendBlockA || pendBlockB || ncBlock || firmaBlock || soldaduraBlock
   // Gate RFC↔MC visible como bloqueo cuando el flag exige MC y MC no está emitido.
   const rfcMcBlock = tipo === TIPO_CERTIFICADO.RFC
     && fila.rfcRequiereMcActivo
@@ -421,6 +426,12 @@ function Celda({
             <div className="flex items-center gap-1 text-amber-800">
               <AlertTriangle className="h-3 w-3" />
               <span>{fila.noConformidadesAbiertas} no conformidad(es) abierta(s)</span>
+            </div>
+          )}
+          {soldaduraBlock && (
+            <div className="flex items-center gap-1 text-amber-800">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{fila.juntasSinLiberar} junta(s) soldada(s) sin liberar</span>
             </div>
           )}
         </div>
